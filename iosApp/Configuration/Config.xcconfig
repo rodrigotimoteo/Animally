@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=Animally
+PRODUCT_BUNDLE_IDENTIFIER=com.github.rodrigotimoteo.animally.Animally$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0
