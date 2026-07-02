@@ -47,33 +47,86 @@ App
     └── Reminders
 ```
 
-## Routes
+## Routes (Navigation 3)
 
+Navigation 3 uses `@Serializable` sealed classes as route definitions. Polymorphic sealing keeps the type hierarchy clean across platforms.
+
+```kotlin
+import kotlinx.serialization.Serializable
+
+@Serializable
+sealed interface Route {
+
+    @Serializable data object PatientList : Route
+    @Serializable data object OwnerList : Route
+    @Serializable data class Search(val query: String = "") : Route
+    @Serializable data object Settings : Route
+
+    @Serializable data class PatientDetail(val patientId: Long) : Route
+
+    // Add/Edit screens — null id = create new, non-null = edit existing
+    @Serializable data class AddEditConsultation(val patientId: Long, val consultationId: Long? = null) : Route
+    @Serializable data class AddEditVaccination(val patientId: Long, val vaccinationId: Long? = null) : Route
+    @Serializable data class AddEditDentistry(val patientId: Long, val dentistryId: Long? = null) : Route
+    @Serializable data class AddEditLameness(val patientId: Long, val lamenessId: Long? = null) : Route
+    @Serializable data class AddEditSurgery(val patientId: Long, val surgeryId: Long? = null) : Route
+    @Serializable data class AddEditMedication(val patientId: Long, val medicationId: Long? = null) : Route
+    @Serializable data class AddEditLabResult(val patientId: Long, val labResultId: Long? = null) : Route
+    @Serializable data class AddEditImaging(val patientId: Long, val imagingId: Long? = null) : Route
+    @Serializable data class AddEditFarrier(val patientId: Long, val farrierId: Long? = null) : Route
+    @Serializable data class AddEditReproductionEvent(val patientId: Long, val eventId: Long? = null) : Route
+    @Serializable data class AddEditUltrasound(val patientId: Long, val ultrasoundId: Long? = null) : Route
+    @Serializable data class AddEditGestation(val patientId: Long, val gestationId: Long? = null) : Route
+    @Serializable data class AddEditReproMed(val patientId: Long, val reproMedId: Long? = null) : Route
+    @Serializable data class AddEditControlledSubstance(val patientId: Long, val controlledId: Long? = null) : Route
+
+    @Serializable data class OwnerDetail(val ownerId: Long) : Route
+    @Serializable data class PatientFiles(val patientId: Long) : Route
+    @Serializable data class PatientExport(val patientId: Long) : Route
+}
 ```
-sealed class Screen {
-    data object PatientList : Screen()
-    data object OwnerList : Screen()
-    data object Search : Screen()
-    data object Settings : Screen()
 
-    data class PatientDetail(val patientId: Long) : Screen()
-    data class AddEditConsultation(val patientId: Long, val consultationId: Long? = null) : Screen()
-    data class AddEditVaccination(val patientId: Long, val vaccinationId: Long? = null) : Screen()
-    data class AddEditDentistry(val patientId: Long, val dentistryId: Long? = null) : Screen()
-    data class AddEditLameness(val patientId: Long, val lamenessId: Long? = null) : Screen()
-    data class AddEditSurgery(val patientId: Long, val surgeryId: Long? = null) : Screen()
-    data class AddEditMedication(val patientId: Long, val medicationId: Long? = null) : Screen()
-    data class AddEditLabResult(val patientId: Long, val labResultId: Long? = null) : Screen()
-    data class AddEditImaging(val patientId: Long, val imagingId: Long? = null) : Screen()
-    data class AddEditFarrier(val patientId: Long, val farrierId: Long? = null) : Screen()
-    data class AddEditReproductionEvent(val patientId: Long, val eventId: Long? = null) : Screen()
-    data class AddEditUltrasound(val patientId: Long, val ultrasoundId: Long? = null) : Screen()
-    data class AddEditGestation(val patientId: Long, val gestationId: Long? = null) : Screen()
-    data class AddEditReproMed(val patientId: Long, val reproMedId: Long? = null) : Screen()
-    data class AddEditControlled(val patientId: Long, val controlledId: Long? = null) : Screen()
-    data class OwnerDetail(val ownerId: Long) : Screen()
-    data class PatientFiles(val patientId: Long) : Screen()
-    data class PatientExport(val patientId: Long) : Screen()
+### Polymorphic Serialization Setup
+
+For iOS (non-JVM target), you need a `SerializersModule` to register route subtypes:
+
+```kotlin
+// commonMain
+val routeSerializersModule = SerializersModule {
+    polymorphic(Route::class) {
+        subclass(Route.PatientList::class)
+        subclass(Route.PatientDetail::class)
+        subclass(Route.AddEditConsultation::class)
+        // ... all route subclasses
+    }
+}
+```
+
+### NavHost Setup
+
+```kotlin
+@Composable
+fun AppNavHost() {
+    val backStack = rememberNavBackStack(
+        startDestination = Route.PatientList,
+        savedStateConfiguration = SavedStateConfiguration(
+            serializersModule = routeSerializersModule
+        )
+    )
+
+    NavHost(
+        backStack = backStack,
+        savedStateConfiguration = SavedStateConfiguration(
+            serializersModule = routeSerializersModule
+        )
+    ) { backStackEntry ->
+        when (backStackEntry.destination.route) {
+            is Route.PatientList -> PatientListScreen(backStack)
+            is Route.PatientDetail -> PatientDetailScreen(backStackEntry, backStack)
+            is Route.AddEditConsultation -> AddEditConsultationScreen(backStackEntry, backStack)
+            // ... all routes
+        }
+    }
 }
 ```
 
@@ -93,8 +146,7 @@ sealed class Screen {
 ### Navigation
 | Library | Purpose |
 |---------|---------|
-| **Decompose** | KMP navigation component, lifecycle-aware, back stack management |
-| **Compose Navigation (alternative)** | Simpler if you don't need Decompose's features |
+| **Navigation 3** | Modern KMP navigation from JetBrains. Type-safe sealed route classes, direct back stack manipulation, multiplatform Android/iOS/Desktop/Web. |
 
 ### Storage & Files
 | Library | Purpose |
@@ -138,7 +190,7 @@ Phase 1 needs:
 1. Compose Multiplatform (UI)
 2. SQLDelight (database)
 3. Koin (DI)
-4. Decompose (navigation)
+4. Navigation 3 (navigation)
 5. Kotlinx Serialization + Datetime (data)
 
 Everything else comes in later phases. Don't add libraries you won't use yet.
@@ -276,8 +328,10 @@ presentation/
 │   │   └── OwnerDetailScreen.kt
 │   └── settings/
 │       └── SettingsScreen.kt
-└── navigation/                # Decompose or Compose Nav
-    └── AppNavigation.kt
+└── navigation/                # Navigation 3 routes + NavHost
+    ├── Routes.kt              # Sealed route definitions
+    ├── Serializers.kt         # Polymorphic serializers module
+    └── AppNavHost.kt          # NavHost with all screen mappings
 ```
 
 **Rules:**

@@ -5,7 +5,9 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlinxSerialization)
+    alias(libs.plugins.sqldelight)
+    alias(libs.plugins.koin.compiler)
 }
 
 kotlin {
@@ -37,7 +39,14 @@ kotlin {
 
     sourceSets {
         androidMain.dependencies {
-            implementation(libs.compose.uiToolingPreview)
+            implementation(libs.ktor.client.android)
+
+            implementation(libs.sqldelight.android.driver)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+
+            implementation(libs.sqldelight.native.driver)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -48,8 +57,24 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+
             implementation(libs.koin.core)
             api(libs.koin.annotations)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.compose.viewmodel)
+
+            implementation(libs.navigation3.ui)
+
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization)
+            implementation(libs.kotlinx.datetime)
+
+            implementation(libs.sqldelight.runtime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -57,22 +82,8 @@ kotlin {
         }
     }
 
-    sourceSets.named("commonMain").configure {
-        kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin")
-    }
 }
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
-
-    val koinAnnotationsVersion = libs.versions.koin.annotations.get()
-    add("kspCommonMainMetadata", "io.insert-koin:koin-ksp-compiler:$koinAnnotationsVersion")
-    add("kspAndroid", "io.insert-koin:koin-ksp-compiler:$koinAnnotationsVersion")
-    add("kspIosArm64", "io.insert-koin:koin-ksp-compiler:$koinAnnotationsVersion")
-    add("kspIosSimulatorArm64", "io.insert-koin:koin-ksp-compiler:$koinAnnotationsVersion")
-}
-
-// Trigger Common Metadata Generation from Native tasks
-tasks.matching { it.name.startsWith("ksp") && it.name != "kspCommonMainKotlinMetadata" }.configureEach {
-    dependsOn("kspCommonMainKotlinMetadata")
 }
