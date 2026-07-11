@@ -1,4 +1,4 @@
-package com.github.rodrigotimoteo.animally
+package com.github.rodrigotimoteo.animally.presentation
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -21,7 +21,7 @@ import animally.shared.generated.resources.compose_multiplatform
 
 @Composable
 @Preview
-fun App() {
+fun AnimallyApp() {
     MaterialTheme {
         var showContent by remember { mutableStateOf(false) }
         Column(
@@ -35,13 +35,11 @@ fun App() {
                 Text("Click me!")
             }
             AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
                 }
             }
         }
