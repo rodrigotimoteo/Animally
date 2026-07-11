@@ -207,21 +207,31 @@ erDiagram
     }
 ```
 
-# Phase 1: Local Data Models & CRUD (Week 1)
+# Phase 1: Local Data Models & CRUD
 ## Establish offline-first storage and basic patient management.
+### Phase 1a: Core Workflow (Patient + Owner + Anamnese + Consultation + Vaccination)
+Prove architecture end-to-end with core entities. Deliverable + testable.
 ### Step 1.1: Initialize KMP Project
 Set up Compose Multiplatform project. Configure commonMain for shared logic, androidMain/iosMain as targets.
 ### Step 1.2: Define Data Models + SQLDelight Schema
-Create tables: Patient, Owner, Consultation, Vaccination, DeWorming, Dentistry, Surgery, MedicationLog, LabResult, Imaging, LamenessEvaluation, Reproduction, ReproductionMed, Ultrasound, Gestation, ControlledSubstance.
+Create tables: Patient, Owner, Anamnese, WeightEntry, Consultation, Vaccination, Deworming, Dentistry, Surgery, MedicationLog, LabResult, Imaging, LamenessEvaluation, FarrierVisit, ReproductionEvent, Ultrasound, Gestation, ReproMed, ControlledSubstance.
 Owner = separate entity (name, phone, address, linked horses). Supports multi-animal owners.
-Weight = tracked as history, not single value.
-Anamnese = General History + Chronic Conditions + Allergies.
+Weight = tracked as WeightEntry history, not single value on Patient.
+Anamnese = separate 1:1 entity (General History + Chronic Conditions + Allergies).
 SOAP notes = structured clinical documentation per consultation.
 Coggins status = tracked on Patient record (test date, result, expiry).
+Deworming = separate entity from Vaccination (different drug class, different reminder cadence).
+Ultrasound = reproductive-specific (ovary status, uterine status, follicle size mm).
+Gestation = includes gestationDays computed field (days since breedingDate, ~340 standard).
 Controlled substance tracking = log all controlled drug admin with date, dose, witness.
-### Step 1.3: Build Core CRUD Screens
-Patient List → Patient Detail → Add/Edit forms for each record type. Functional before pretty.
+Patient identifiers: microchipId, ueln (15-digit ISO), registrationNumber (studbook).
+Patient soft delete via isActive flag — never hard-delete, preserve medical history.
+### Step 1.3: Build Core CRUD Screens (Phase 1a)
+Patient List → Patient Detail (tabbed: Overview, Medical, Preventive, Reproduction, Diagnostics/Files) → Add/Edit forms for each record type. Functional before pretty.
 Owner management screen — view all horses under one owner.
+### Phase 1b: Remaining Entities
+WeightEntry, Deworming, Dentistry, LamenessEvaluation, Surgery, MedicationLog, LabResult, Imaging, FarrierVisit, ReproductionEvent, Ultrasound, Gestation, ReproMed, ControlledSubstance.
+Mechanical pattern-following using architecture proven in 1a.
 # Phase 2: Search & File Attachments (Week 2)
 ## Make records findable and attach media locally.
 ### Step 2.1: Full-Text Search via SQLDelight FTS5

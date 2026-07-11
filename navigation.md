@@ -6,27 +6,35 @@
 App
 ├── PatientList (Home)
 │   ├── Search (Global)
-│   └── PatientDetail
-│       ├── Profile (Anamnese + Weight History)
-│       ├── SOAP Notes
-│       │   └── AddEditConsultation
-│       ├── Vaccinations
-│       │   └── AddEditVaccination
-│       ├── Dentistry
-│       │   └── AddEditDentistry
-│       ├── Lameness Evaluations
-│       │   └── AddEditLameness
-│       ├── Surgeries
-│       │   └── AddEditSurgery
-│       ├── Medications
-│       │   └── AddEditMedication
-│       ├── Lab Results
-│       │   └── AddEditLabResult
-│       ├── Imaging
-│       │   └── AddEditImaging
-│       ├── Farrier Visits
-│       │   └── AddEditFarrier
-│       ├── Reproduction
+│   └── PatientDetail (Tabbed)
+│       ├── Overview Tab
+│       │   ├── Profile (Patient demographics + Coggins)
+│       │   ├── Anamnese
+│       │   │   └── AddEditAnamnese
+│       │   └── Weight History
+│       │       └── AddEditWeight
+│       ├── Medical Tab
+│       │   ├── SOAP Notes / Consultations
+│       │   │   └── AddEditConsultation
+│       │   ├── Surgeries
+│       │   │   └── AddEditSurgery
+│       │   ├── Lameness Evaluations
+│       │   │   └── AddEditLameness
+│       │   ├── Medications
+│       │   │   └── AddEditMedication
+│       │   └── Controlled Substances
+│       │       └── AddEditControlledSubstance
+│       ├── Preventive Tab
+│       │   ├── Vaccinations
+│       │   │   └── AddEditVaccination
+│       │   ├── Deworming
+│       │   │   └── AddEditDeworming
+│       │   ├── Dentistry
+│       │   │   └── AddEditDentistry
+│       │   ├── Coggins (on Patient Profile, reminder here)
+│       │   └── Farrier Visits
+│       │       └── AddEditFarrier
+│       ├── Reproduction Tab
 │       │   ├── Reproduction Events
 │       │   │   └── AddEditReproductionEvent
 │       │   ├── Ultrasounds
@@ -35,10 +43,13 @@ App
 │       │   │   └── AddEditGestation
 │       │   └── Reproduction Meds
 │       │       └── AddEditReproMed
-│       ├── Controlled Substances
-│       │   └── AddEditControlled
-│       ├── Files & Attachments
-│       └── Export
+│       └── Diagnostics/Files Tab
+│           ├── Lab Results
+│           │   └── AddEditLabResult
+│           ├── Imaging
+│           │   └── AddEditImaging
+│           ├── Files & Attachments
+│           └── Export
 ├── OwnerList
 │   └── OwnerDetail
 │       └── (linked horses → PatientDetail)
@@ -65,8 +76,11 @@ sealed interface Route {
     @Serializable data class PatientDetail(val patientId: Long) : Route
 
     // Add/Edit screens — null id = create new, non-null = edit existing
+    @Serializable data class AddEditAnamnese(val patientId: Long, val anamneseId: Long? = null) : Route
+    @Serializable data class AddEditWeight(val patientId: Long, val weightId: Long? = null) : Route
     @Serializable data class AddEditConsultation(val patientId: Long, val consultationId: Long? = null) : Route
     @Serializable data class AddEditVaccination(val patientId: Long, val vaccinationId: Long? = null) : Route
+    @Serializable data class AddEditDeworming(val patientId: Long, val dewormingId: Long? = null) : Route
     @Serializable data class AddEditDentistry(val patientId: Long, val dentistryId: Long? = null) : Route
     @Serializable data class AddEditLameness(val patientId: Long, val lamenessId: Long? = null) : Route
     @Serializable data class AddEditSurgery(val patientId: Long, val surgeryId: Long? = null) : Route
@@ -222,68 +236,71 @@ Animally/
 
 #### `commonMain` — shared/domain/
 
-Pure Kotlin, no platform dependencies. Business rules that work identically on Android and iOS.
+Pure Kotlin, zero platform or framework dependencies (no SQLDelight, no Ktor, no Android/iOS imports). Defines business rules + contracts. Data layer depends on domain, not vice versa.
 
 ```
 domain/
-├── model/                     # Data classes
-│   ├── Patient.kt
+├── patient/                       # Per-entity folder
+│   ├── Patient.kt                 # Model — @Serializable data class
+│   ├── PatientRepository.kt       # Interface — contract for data layer
+│   └── GetPatientHistoryUseCase.kt
+├── owner/
 │   ├── Owner.kt
-│   ├── Consultation.kt
-│   ├── Vaccination.kt
-│   ├── Dentistry.kt
-│   ├── LamenessEvaluation.kt
-│   ├── Surgery.kt
-│   ├── MedicationLog.kt
-│   ├── LabResult.kt
-│   ├── Imaging.kt
-│   ├── FarrierVisit.kt
-│   ├── Reproduction.kt
-│   ├── Ultrasound.kt
-│   ├── Gestation.kt
-│   └── ControlledSubstance.kt
-├── repository/                # Interfaces only
-│   ├── PatientRepository.kt
 │   ├── OwnerRepository.kt
 │   └── ...
-└── usecase/                   # Business logic
-    ├── GetPatientHistory.kt
-    ├── CalculateNextVaccination.kt
-    ├── CalculateGestationDueDate.kt
-    ├── SearchRecords.kt
-    └── ExportPatientReport.kt
+├── consultation/
+│   ├── Consultation.kt
+│   ├── ConsultationRepository.kt
+│   └── ...
+├── vaccination/
+├── dentistry/
+├── lameness/
+├── surgery/
+├── medication/
+├── labresult/
+├── imaging/
+├── farrier/
+├── reproduction/
+├── ultrasound/
+├── gestation/
+├── repro-med/
+├── controlled-substance/
+└── ... (each domain entity mirrors same pattern)
 ```
 
 **Rules:**
-- Models = data classes with `@Serializable`
-- Repositories = interfaces (implementations live in data/)
-- Use cases = classes that orchestrate repository calls
-- No `expect`/`actual` here — pure Kotlin
+- Model = `@Serializable` data class, single source of truth
+- Repository = interface only (impl lives in data/)
+- UseCase = orchestrates repo calls, pure business logic
+- No `expect`/`actual`, no framework imports
+- Dependency arrow: `domain ← data` (domain knows nothing about data)
 
 #### `commonMain` — shared/data/
 
-Repository implementations, database, file handling. Platform-specific parts use `expect`/`actual`.
+Repository implementations, SQLDelight `.sq` files, file storage. Per-feature subfolders match domain/ structure.
 
 ```
 data/
-├── database/                  # SQLDelight
-│   ├── AnimallyDatabase.kt   # Database driver (expect/actual)
-│   ├── PatientDao.kt
-│   ├── ConsultationDao.kt
-│   └── migrations/
-├── repository/                # Implements domain interfaces
-│   ├── PatientRepositoryImpl.kt
-│   ├── OwnerRepositoryImpl.kt
-│   └── ...
-├── di/                        # Koin modules
-│   ├── DomainModule.kt
-│   ├── DataModule.kt
-│   └── DatabaseModule.kt
-└── file/                      # File storage (expect/actual)
-    └── FileStorage.kt
+├── patient/
+│   ├── Patient.sq                # SQL schema + named queries (replaces DAO)
+│   └── PatientRepositoryImpl.kt  # Implements domain PatientRepository
+├── owner/
+│   ├── Owner.sq
+│   └── OwnerRepositoryImpl.kt
+├── consultation/
+│   ├── Consultation.sq
+│   └── ConsultationRepositoryImpl.kt
+├── ... (each domain entity has data/ mirror)
+├── di/
+│   ├── DomainModule.kt           # Koin module — bind repos (interface → impl)
+│   ├── DataModule.kt             # Koin module — DB driver, generated queries
+│   └── DatabaseModule.kt         # Koin module — SQLDelight driver singleton
+└── file/
+    └── FileStorage.kt            # expect/actual file system access
 ```
 
 **`expect`/`actual` examples:**
+
 ```kotlin
 // commonMain
 expect fun createDatabaseDriver(): SqlDriver
@@ -299,45 +316,46 @@ actual fun createDatabaseDriver(): SqlDriver =
 
 #### `commonMain` — shared/presentation/
 
-Compose Multiplatform UI + ViewModels. Shared across platforms.
+Compose Multiplatform UI + ViewModels. Per-feature subfolders mirror domain entities.
 
 ```
 presentation/
-├── components/                # Reusable composables
+├── components/                   # Reusable composables
 │   ├── PatientCard.kt
 │   ├── RecordListItem.kt
 │   ├── SearchBar.kt
 │   └── ...
-├── screen/                    # Screen composables
-│   ├── patientlist/
-│   │   └── PatientListScreen.kt
-│   ├── patientdetail/
-│   │   ├── PatientDetailScreen.kt
-│   │   ├── PatientDetailViewModel.kt
-│   │   └── sections/
-│   │       ├── ProfileSection.kt
-│   │       ├── SoapNotesSection.kt
-│   │       ├── VaccinationsSection.kt
-│   │       └── ...
-│   ├── addedit/
-│   │   ├── AddEditConsultationScreen.kt
-│   │   ├── AddEditVaccinationScreen.kt
-│   │   └── ...
-│   ├── owner/
-│   │   ├── OwnerListScreen.kt
-│   │   └── OwnerDetailScreen.kt
-│   └── settings/
-│       └── SettingsScreen.kt
-└── navigation/                # Navigation 3 routes + NavHost
-    ├── Routes.kt              # Sealed route definitions
-    ├── Serializers.kt         # Polymorphic serializers module
-    └── AppNavHost.kt          # NavHost with all screen mappings
+├── patient/
+│   ├── PatientListScreen.kt
+│   ├── PatientListViewModel.kt
+│   ├── PatientDetailScreen.kt
+│   └── PatientDetailViewModel.kt
+├── owner/
+│   ├── OwnerListScreen.kt
+│   ├── OwnerListViewModel.kt
+│   ├── OwnerDetailScreen.kt
+│   └── OwnerDetailViewModel.kt
+├── consultation/
+│   ├── AddEditConsultationScreen.kt
+│   └── AddEditConsultationViewModel.kt
+├── ... (each domain entity has presentation/ mirror)
+├── settings/
+│   └── SettingsScreen.kt
+├── navigation/                   # Navigation 3 routes + NavHost
+│   ├── Routes.kt                 # Sealed route definitions
+│   ├── Serializers.kt            # Polymorphic serializers module
+│   └── AppNavHost.kt             # NavHost with all screen mappings
+└── theme/                        # Material 3 theme
+    ├── Theme.kt
+    ├── Color.kt
+    └── Type.kt
 ```
 
 **Rules:**
 - ViewModels use `@KoinViewModel` annotation
-- Screens are `@Composable` functions
-- No Android/iOS imports here — use only Compose Multiplatform APIs
+- Screens are `@Composable` functions receiving ViewModel as default param
+- No Android/iOS imports — use only Compose Multiplatform APIs
+- presentation/ mirrors domain/ feature layout
 
 ---
 
