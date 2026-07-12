@@ -268,7 +268,8 @@ description: TEXT
 outcome: TEXT
 surgeon: TEXT
 anesthesia: TEXT
-complications: TEXT
+    analgesia: TEXT
+    complications: TEXT
 recoveryNotes: TEXT
 isActive: INTEGER NOT NULL (default 1)
 createdAt: INTEGER NOT NULL

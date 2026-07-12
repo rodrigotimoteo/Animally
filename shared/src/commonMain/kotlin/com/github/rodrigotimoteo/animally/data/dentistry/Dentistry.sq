@@ -1,0 +1,13 @@
+CREATE TABLE Dentistry (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    findings TEXT,
+    treatment TEXT,
+    nextDueDate TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL
+);

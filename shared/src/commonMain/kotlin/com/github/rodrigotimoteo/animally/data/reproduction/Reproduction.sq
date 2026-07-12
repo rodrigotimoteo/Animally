@@ -1,0 +1,12 @@
+CREATE TABLE Reproduction (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    eventType TEXT NOT NULL,
+    date TEXT NOT NULL,
+    details TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL
+);

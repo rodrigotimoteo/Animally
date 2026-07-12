@@ -1,0 +1,21 @@
+CREATE TABLE Patient (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    species TEXT NOT NULL DEFAULT "Equine",
+    breed TEXT,
+    dateOfBirth TEXT,
+    gender TEXT,
+    microchipId TEXT,
+    ueln TEXT,
+    registrationNumber TEXT,
+    stableLocation TEXT,
+    cogginsTestDate TEXT,
+    cogginsResult TEXT,
+    cogginsExpiry TEXT,
+    photoUri TEXT,
+    notes TEXT,
+    ownerIds TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL
+);
