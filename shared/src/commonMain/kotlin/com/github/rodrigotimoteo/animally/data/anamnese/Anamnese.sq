@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Anamnese (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER UNIQUE NOT NULL,
@@ -7,3 +8,25 @@ CREATE TABLE Anamnese (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Anamnese (id, patientId, generalHistory, chronicConditions, allergies, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Anamnese SET
+    generalHistory = ?,
+    chronicConditions = ?,
+    allergies = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Anamnese WHERE id = ?;
+
+selectById:
+SELECT * FROM Anamnese WHERE id = ?;
+
+selectByPatient:
+SELECT * FROM Anamnese WHERE patientId = ?;

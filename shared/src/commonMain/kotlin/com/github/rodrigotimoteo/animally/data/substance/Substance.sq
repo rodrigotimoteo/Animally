@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Substance (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER NOT NULL,
@@ -14,3 +15,39 @@ CREATE TABLE Substance (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Substance (id, patientId, drugName, dose, unit, route, administeredBy, witness, date, reason, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Substance SET
+    patientId = ?,
+    drugName = ?,
+    dose = ?,
+    unit = ?,
+    route = ?,
+    administeredBy = ?,
+    witness = ?,
+    date = ?,
+    reason = ?,
+    notes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Substance WHERE id = ?;
+
+selectById:
+SELECT * FROM Substance WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM Substance WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Substance WHERE isActive = 1;
+
+setInactive:
+UPDATE Substance SET isActive = 0, updatedAt = ? WHERE id = ?;

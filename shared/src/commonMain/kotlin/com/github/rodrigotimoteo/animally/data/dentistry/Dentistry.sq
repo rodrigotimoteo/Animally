@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Dentistry (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER NOT NULL,
@@ -11,3 +12,36 @@ CREATE TABLE Dentistry (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Dentistry (id, patientId, date, findings, treatment, nextDueDate, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Dentistry SET
+    patientId = ?,
+    date = ?,
+    findings = ?,
+    treatment = ?,
+    nextDueDate = ?,
+    vetName = ?,
+    notes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Dentistry WHERE id = ?;
+
+selectById:
+SELECT * FROM Dentistry WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM Dentistry WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Dentistry WHERE isActive = 1;
+
+setInactive:
+UPDATE Dentistry SET isActive = 0, updatedAt = ? WHERE id = ?;

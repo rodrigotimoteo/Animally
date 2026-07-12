@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Gestation (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER NOT NULL,
@@ -12,3 +13,37 @@ CREATE TABLE Gestation (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Gestation (id, patientId, breedingDate, expectedDueDate, gestationDays, status, fetalCount, lastCheckDate, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Gestation SET
+    patientId = ?,
+    breedingDate = ?,
+    expectedDueDate = ?,
+    gestationDays = ?,
+    status = ?,
+    fetalCount = ?,
+    lastCheckDate = ?,
+    notes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Gestation WHERE id = ?;
+
+selectById:
+SELECT * FROM Gestation WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM Gestation WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Gestation WHERE isActive = 1;
+
+setInactive:
+UPDATE Gestation SET isActive = 0, updatedAt = ? WHERE id = ?;

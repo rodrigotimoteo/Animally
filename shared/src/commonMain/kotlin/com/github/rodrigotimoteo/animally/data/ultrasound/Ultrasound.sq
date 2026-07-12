@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Ultrasound (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER NOT NULL,
@@ -13,3 +14,38 @@ CREATE TABLE Ultrasound (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Ultrasound (id, patientId, date, ovaryStatus, uterineStatus, follicleSizeMm, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Ultrasound SET
+    patientId = ?,
+    date = ?,
+    ovaryStatus = ?,
+    uterineStatus = ?,
+    follicleSizeMm = ?,
+    findings = ?,
+    imageUris = ?,
+    vetName = ?,
+    notes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Ultrasound WHERE id = ?;
+
+selectById:
+SELECT * FROM Ultrasound WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM Ultrasound WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Ultrasound WHERE isActive = 1;
+
+setInactive:
+UPDATE Ultrasound SET isActive = 0, updatedAt = ? WHERE id = ?;

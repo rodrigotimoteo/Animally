@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Weight (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER NOT NULL,
@@ -7,3 +8,32 @@ CREATE TABLE Weight (
     isActive INTEGER NOT NULL DEFAULT 1,
     createdAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Weight (id, patientId, weightKg, date, notes, isActive, createdAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Weight SET
+    patientId = ?,
+    weightKg = ?,
+    date = ?,
+    notes = ?,
+    isActive = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Weight WHERE id = ?;
+
+selectById:
+SELECT * FROM Weight WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM Weight WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Weight WHERE isActive = 1;
+
+setInactive:
+UPDATE Weight SET isActive = 0 WHERE id = ?;

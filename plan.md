@@ -118,9 +118,6 @@ microchipId: TEXT
 ueln: TEXT (15-digit ISO, microchip-linked)
 registrationNumber: TEXT (studbook/federation)
 stableLocation: TEXT
-cogginsTestDate: TEXT
-cogginsResult: TEXT (Positive/Negative/Pending)
-cogginsExpiry: TEXT
 photoUri: TEXT
 notes: TEXT
 ownerIds: TEXT (comma-separated, app-layer FK)

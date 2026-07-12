@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Medication (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER NOT NULL,
@@ -13,3 +14,38 @@ CREATE TABLE Medication (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Medication (id, patientId, name, dosage, route, frequency, startDate, endDate, prescribedBy, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Medication SET
+    patientId = ?,
+    name = ?,
+    dosage = ?,
+    route = ?,
+    frequency = ?,
+    startDate = ?,
+    endDate = ?,
+    prescribedBy = ?,
+    notes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Medication WHERE id = ?;
+
+selectById:
+SELECT * FROM Medication WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM Medication WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Medication WHERE isActive = 1;
+
+setInactive:
+UPDATE Medication SET isActive = 0, updatedAt = ? WHERE id = ?;

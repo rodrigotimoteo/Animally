@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Patient (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -9,9 +10,6 @@ CREATE TABLE Patient (
     ueln TEXT,
     registrationNumber TEXT,
     stableLocation TEXT,
-    cogginsTestDate TEXT,
-    cogginsResult TEXT,
-    cogginsExpiry TEXT,
     photoUri TEXT,
     notes TEXT,
     ownerIds TEXT,
@@ -19,3 +17,38 @@ CREATE TABLE Patient (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Patient (id, name, species, breed, dateOfBirth, gender, microchipId, ueln, registrationNumber, stableLocation, photoUri, notes, ownerIds, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Patient SET
+    name = ?,
+    species = ?,
+    breed = ?,
+    dateOfBirth = ?,
+    gender = ?,
+    microchipId = ?,
+    ueln = ?,
+    registrationNumber = ?,
+    stableLocation = ?,
+    photoUri = ?,
+    notes = ?,
+    ownerIds = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Patient WHERE id = ?;
+
+selectById:
+SELECT * FROM Patient WHERE id = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Patient WHERE isActive = 1;
+
+setInactive:
+UPDATE Patient SET isActive = 0, updatedAt = ? WHERE id = ?;

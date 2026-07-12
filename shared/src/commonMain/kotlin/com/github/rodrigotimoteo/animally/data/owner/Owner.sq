@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Owner (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -8,3 +9,30 @@ CREATE TABLE Owner (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Owner (id, name, email, phone, address, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Owner SET
+    name = ?,
+    email = ?,
+    phone = ?,
+    address = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Owner WHERE id = ?;
+
+selectById:
+SELECT * FROM Owner WHERE id = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Owner WHERE isActive = 1;
+
+setInactive:
+UPDATE Owner SET isActive = 0, updatedAt = ? WHERE id = ?;

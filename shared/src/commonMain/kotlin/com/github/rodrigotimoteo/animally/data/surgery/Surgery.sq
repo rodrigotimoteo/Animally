@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Surgery (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER NOT NULL,
@@ -14,3 +15,39 @@ CREATE TABLE Surgery (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Surgery (id, patientId, date, type, description, outcome, surgeon, anesthesia, analgesia, complications, recoveryNotes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Surgery SET
+    patientId = ?,
+    date = ?,
+    type = ?,
+    description = ?,
+    outcome = ?,
+    surgeon = ?,
+    anesthesia = ?,
+    analgesia = ?,
+    complications = ?,
+    recoveryNotes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Surgery WHERE id = ?;
+
+selectById:
+SELECT * FROM Surgery WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM Surgery WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Surgery WHERE isActive = 1;
+
+setInactive:
+UPDATE Surgery SET isActive = 0, updatedAt = ? WHERE id = ?;

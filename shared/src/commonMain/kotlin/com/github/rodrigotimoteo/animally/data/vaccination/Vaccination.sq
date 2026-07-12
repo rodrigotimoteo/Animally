@@ -1,3 +1,4 @@
+-- SQL Table --
 CREATE TABLE Vaccination (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     patientId INTEGER NOT NULL,
@@ -12,3 +13,37 @@ CREATE TABLE Vaccination (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
 );
+
+-- CRUD Operations --
+insert:
+INSERT INTO Vaccination (id, patientId, vaccineName, dateAdministered, nextDueDate, vetName, batchNumber, site, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Vaccination SET
+    patientId = ?,
+    vaccineName = ?,
+    dateAdministered = ?,
+    nextDueDate = ?,
+    vetName = ?,
+    batchNumber = ?,
+    site = ?,
+    notes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Vaccination WHERE id = ?;
+
+selectById:
+SELECT * FROM Vaccination WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM Vaccination WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM Vaccination WHERE isActive = 1;
+
+setInactive:
+UPDATE Vaccination SET isActive = 0, updatedAt = ? WHERE id = ?;
