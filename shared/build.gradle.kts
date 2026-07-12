@@ -91,7 +91,7 @@ dependencies {
 sqldelight {
     databases {
         create("AnimallyDatabase") {
-            packageName.set("com.github.rodrigotimoteo.animally.database")
+            packageName.set("com.github.rodrigotimoteo.animally.data")
         }
     }
 }
