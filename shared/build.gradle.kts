@@ -40,6 +40,7 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             implementation(libs.ktor.client.android)
+            implementation(libs.koin.android)
 
             implementation(libs.sqldelight.android.driver)
         }
