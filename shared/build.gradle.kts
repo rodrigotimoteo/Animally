@@ -68,18 +68,21 @@ kotlin {
             api(libs.koin.annotations)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
+            implementation(libs.koin.compose.navigation3)
 
             implementation(libs.navigation3.ui)
 
-            implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization)
             implementation(libs.kotlinx.datetime)
 
             implementation(libs.sqldelight.runtime)
+            implementation(libs.sqldelight.coroutines)
+            implementation(libs.sqldelight.primitive.adapter)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.koin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 
