@@ -1,20 +1,3 @@
--- SQL Table --
-CREATE TABLE Ultrasound (
-    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    patientId INTEGER NOT NULL,
-    date TEXT NOT NULL,
-    ovaryStatus TEXT,
-    uterineStatus TEXT,
-    follicleSizeMm REAL,
-    findings TEXT,
-    imageUris TEXT,
-    vetName TEXT,
-    notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
-    createdAt INTEGER NOT NULL,
-    updatedAt INTEGER NOT NULL
-);
-
 -- CRUD Operations --
 insert:
 INSERT INTO Ultrasound (id, patientId, date, ovaryStatus, uterineStatus, follicleSizeMm, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)

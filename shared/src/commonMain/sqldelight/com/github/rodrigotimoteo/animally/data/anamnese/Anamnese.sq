@@ -1,14 +1,3 @@
--- SQL Table --
-CREATE TABLE Anamnese (
-    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    patientId INTEGER UNIQUE NOT NULL,
-    generalHistory TEXT,
-    chronicConditions TEXT,
-    allergies TEXT,
-    createdAt INTEGER NOT NULL,
-    updatedAt INTEGER NOT NULL
-);
-
 -- CRUD Operations --
 insert:
 INSERT INTO Anamnese (id, patientId, generalHistory, chronicConditions, allergies, createdAt, updatedAt)

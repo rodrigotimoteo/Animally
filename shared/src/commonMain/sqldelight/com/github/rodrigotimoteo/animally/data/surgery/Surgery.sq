@@ -1,21 +1,3 @@
--- SQL Table --
-CREATE TABLE Surgery (
-    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    patientId INTEGER NOT NULL,
-    date TEXT NOT NULL,
-    type TEXT,
-    description TEXT,
-    outcome TEXT,
-    surgeon TEXT,
-    anesthesia TEXT,
-    analgesia TEXT,
-    complications TEXT,
-    recoveryNotes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
-    createdAt INTEGER NOT NULL,
-    updatedAt INTEGER NOT NULL
-);
-
 -- CRUD Operations --
 insert:
 INSERT INTO Surgery (id, patientId, date, type, description, outcome, surgeon, anesthesia, analgesia, complications, recoveryNotes, isActive, createdAt, updatedAt)

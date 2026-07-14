@@ -1,0 +1,14 @@
+CREATE TABLE Vaccination (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    vaccineName TEXT NOT NULL,
+    dateAdministered TEXT NOT NULL,
+    nextDueDate TEXT,
+    vetName TEXT,
+    batchNumber TEXT,
+    site TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL
+);

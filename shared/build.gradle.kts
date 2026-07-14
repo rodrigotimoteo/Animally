@@ -96,6 +96,7 @@ sqldelight {
     databases {
         create("AnimallyDatabase") {
             packageName.set("com.github.rodrigotimoteo.animally.data")
+            deriveSchemaFromMigrations = true
         }
     }
 }

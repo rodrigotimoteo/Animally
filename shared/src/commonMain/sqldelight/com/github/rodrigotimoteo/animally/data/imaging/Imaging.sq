@@ -1,18 +1,3 @@
--- SQL Table --
-CREATE TABLE Imaging (
-    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    patientId INTEGER NOT NULL,
-    type TEXT,
-    date TEXT NOT NULL,
-    findings TEXT,
-    imageUris TEXT,
-    vetName TEXT,
-    notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
-    createdAt INTEGER NOT NULL,
-    updatedAt INTEGER NOT NULL
-);
-
 -- CRUD Operations --
 insert:
 INSERT INTO Imaging (id, patientId, type, date, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)

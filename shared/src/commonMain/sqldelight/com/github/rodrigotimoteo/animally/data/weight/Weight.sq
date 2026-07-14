@@ -1,14 +1,3 @@
--- SQL Table --
-CREATE TABLE Weight (
-    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    patientId INTEGER NOT NULL,
-    weightKg REAL NOT NULL,
-    date TEXT NOT NULL,
-    notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
-    createdAt INTEGER NOT NULL
-);
-
 -- CRUD Operations --
 insert:
 INSERT INTO Weight (id, patientId, weightKg, date, notes, isActive, createdAt)

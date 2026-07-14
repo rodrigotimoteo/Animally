@@ -1,18 +1,3 @@
--- SQL Table --
-CREATE TABLE LabResult (
-    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    patientId INTEGER NOT NULL,
-    testType TEXT NOT NULL,
-    date TEXT NOT NULL,
-    results TEXT,
-    normalRange TEXT,
-    vetName TEXT,
-    notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
-    createdAt INTEGER NOT NULL,
-    updatedAt INTEGER NOT NULL
-);
-
 -- CRUD Operations --
 insert:
 INSERT INTO LabResult (id, patientId, testType, date, results, normalRange, vetName, notes, isActive, createdAt, updatedAt)
