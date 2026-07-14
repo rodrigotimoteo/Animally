@@ -21,6 +21,9 @@ kotlin {
             baseName = "Shared"
             isStatic = true
         }
+        iosTarget.binaries.all {
+            linkerOpts("-U", "_OBJC_CLASS_\$_UIViewLayoutRegion")
+        }
     }
 
     android {
