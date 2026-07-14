@@ -25,25 +25,26 @@ import org.koin.dsl.module
 
 @Module
 class QueriesModule {
-    fun provide() = module {
-        single<AnamneseQueries> { get<AnimallyDatabase>().anamneseQueries }
-        single<ConsultationQueries> { get<AnimallyDatabase>().consultationQueries }
-        single<DentistryQueries> { get<AnimallyDatabase>().dentistryQueries }
-        single<DewormingQueries> { get<AnimallyDatabase>().dewormingQueries }
-        single<FarrierVisitQueries> { get<AnimallyDatabase>().farrierVisitQueries }
-        single<GestationQueries> { get<AnimallyDatabase>().gestationQueries }
-        single<ImagingQueries> { get<AnimallyDatabase>().imagingQueries }
-        single<LabResultQueries> { get<AnimallyDatabase>().labResultQueries }
-        single<LamenessQueries> { get<AnimallyDatabase>().lamenessQueries }
-        single<MedicationQueries> { get<AnimallyDatabase>().medicationQueries }
-        single<OwnerQueries> { get<AnimallyDatabase>().ownerQueries }
-        single<PatientQueries> { get<AnimallyDatabase>().patientQueries }
-        single<ReproductionQueries> { get<AnimallyDatabase>().reproductionQueries }
-        single<ReproMedicationQueries> { get<AnimallyDatabase>().reproMedicationQueries }
-        single<SubstanceQueries> { get<AnimallyDatabase>().substanceQueries }
-        single<SurgeryQueries> { get<AnimallyDatabase>().surgeryQueries }
-        single<UltrasoundQueries> { get<AnimallyDatabase>().ultrasoundQueries }
-        single<VaccinationQueries> { get<AnimallyDatabase>().vaccinationQueries }
-        single<WeightQueries> { get<AnimallyDatabase>().weightQueries }
-    }
+    fun provide() =
+        module {
+            single<AnamneseQueries> { get<AnimallyDatabase>().anamneseQueries }
+            single<ConsultationQueries> { get<AnimallyDatabase>().consultationQueries }
+            single<DentistryQueries> { get<AnimallyDatabase>().dentistryQueries }
+            single<DewormingQueries> { get<AnimallyDatabase>().dewormingQueries }
+            single<FarrierVisitQueries> { get<AnimallyDatabase>().farrierVisitQueries }
+            single<GestationQueries> { get<AnimallyDatabase>().gestationQueries }
+            single<ImagingQueries> { get<AnimallyDatabase>().imagingQueries }
+            single<LabResultQueries> { get<AnimallyDatabase>().labResultQueries }
+            single<LamenessQueries> { get<AnimallyDatabase>().lamenessQueries }
+            single<MedicationQueries> { get<AnimallyDatabase>().medicationQueries }
+            single<OwnerQueries> { get<AnimallyDatabase>().ownerQueries }
+            single<PatientQueries> { get<AnimallyDatabase>().patientQueries }
+            single<ReproductionQueries> { get<AnimallyDatabase>().reproductionQueries }
+            single<ReproMedicationQueries> { get<AnimallyDatabase>().reproMedicationQueries }
+            single<SubstanceQueries> { get<AnimallyDatabase>().substanceQueries }
+            single<SurgeryQueries> { get<AnimallyDatabase>().surgeryQueries }
+            single<UltrasoundQueries> { get<AnimallyDatabase>().ultrasoundQueries }
+            single<VaccinationQueries> { get<AnimallyDatabase>().vaccinationQueries }
+            single<WeightQueries> { get<AnimallyDatabase>().weightQueries }
+        }
 }

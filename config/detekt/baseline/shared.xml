@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>FunctionNaming:MainViewController.kt$fun MainViewController()</ID>
+    <ID>Indentation:AnimallyApp.kt$ </ID>
+    <ID>Indentation:AnimallyDatabaseFactory.kt$AnimallyDatabaseFactory$ </ID>
+    <ID>LongMethod:AnimallyDatabaseFactory.kt$AnimallyDatabaseFactory$fun create(driver: SqlDriver): AnimallyDatabase</ID>
+    <ID>MatchingDeclarationName:Platform.android.kt$AndroidPlatform : Platform</ID>
+    <ID>MatchingDeclarationName:Platform.ios.kt$IOSPlatform : Platform</ID>
+    <ID>WildcardImport:AnimallyApp.kt$import androidx.compose.runtime.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

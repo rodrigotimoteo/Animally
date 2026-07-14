@@ -1,0 +1,92 @@
+# Detekt config — KMP project (Animally)
+# Extends default config with project-specific overrides.
+# See https://detekt.dev/docs/introduction/configurations
+
+build:
+  maxIssues: 0
+
+complexity:
+  LongParameterList:
+    functionThreshold: 6
+    constructorThreshold: 7
+    ignoreDefaultParameters: true
+  TooManyFunctions:
+    thresholdInFiles: 15
+    thresholdInClasses: 15
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated:
+      - 'Composable'
+  InvalidPackageDeclaration:
+    rootPackage: 'com.animally'
+
+performance:
+  CouldBeSequence:
+    threshold: 3
+
+potential-bugs:
+  IgnoredReturnValue:
+    active: true
+  ImplicitDefaultLocale:
+    active: false
+  UnreachableCatchBlock:
+    active: true
+
+style:
+  ForbiddenComment:
+    comments:
+      - value: 'TODO'
+        reason: 'Use task tracker for work items'
+  MagicNumber:
+    ignoreHashCodeFunction: true
+    ignorePropertyDeclaration: true
+    ignoreConstantDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotation: true
+    ignoreNamedArgument: true
+    ignoreEnums: true
+    ignoreRanges: true
+  ReturnCount:
+    max: 3
+    excludedFunctions: ['equals', 'hashCode', 'toString']
+  ThrowsCount:
+    max: 3
+  UnusedImports:
+    active: true
+  UseCheckOrError:
+    active: true
+  UseRequire:
+    active: true
+  WildcardImport:
+    excludeImports:
+      - 'io.insertkoin.*'
+      - 'org.koin.core.annotation.*'
+      - 'kotlinx.serialization.*'
+      - 'java.util.*'
+
+formatting:
+  active: true
+  autoCorrect: true
+  ArgumentListWrapping:
+    maxLineLength: 160
+  FinalNewline:
+    active: true
+  Indentation:
+    indentSize: 4
+  ImportOrdering:
+    active: true
+  MaximumLineLength:
+    maxLineLength: 160
+  NoWildcardImports:
+    active: false
+  ParameterListWrapping:
+    maxLineLength: 160
+  TrailingCommaOnCallSite:
+    active: true
+  TrailingCommaOnDeclarationSite:
+    active: true

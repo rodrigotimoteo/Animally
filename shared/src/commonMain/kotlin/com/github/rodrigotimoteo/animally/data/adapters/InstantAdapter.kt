@@ -16,9 +16,7 @@ object InstantAdapter : ColumnAdapter<Instant, Long> {
      * @param databaseValue The value from the database.
      * @return The decoded [Instant].
      */
-    override fun decode(databaseValue: Long): Instant {
-        return Instant.fromEpochMilliseconds(databaseValue)
-    }
+    override fun decode(databaseValue: Long): Instant = Instant.fromEpochMilliseconds(databaseValue)
 
     /**
      * Encodes an [Instant] value to a [Long] for storage in the database.
@@ -26,7 +24,5 @@ object InstantAdapter : ColumnAdapter<Instant, Long> {
      * @param value The [Instant] to encode.
      * @return The encoded [Long].
      */
-    override fun encode(value: Instant): Long {
-        return value.toEpochMilliseconds()
-    }
+    override fun encode(value: Instant): Long = value.toEpochMilliseconds()
 }

@@ -10,16 +10,13 @@ import kotlinx.datetime.LocalDate
  * @author rodrigotimoteo
  */
 object LocalDateAdapter : ColumnAdapter<LocalDate, String> {
-
     /**
      * Decodes a [String] value from the database to an [LocalDate].
      *
      * @param databaseValue The value from the database.
      * @return The decoded [LocalDate].
      */
-    override fun decode(databaseValue: String): LocalDate {
-        return LocalDate.parse(databaseValue)
-    }
+    override fun decode(databaseValue: String): LocalDate = LocalDate.parse(databaseValue)
 
     /**
      * Encodes an [LocalDate] value to a [String] for storage in the database.
@@ -27,7 +24,5 @@ object LocalDateAdapter : ColumnAdapter<LocalDate, String> {
      * @param value The [LocalDate] to encode.
      * @return The encoded [String].
      */
-    override fun encode(value: LocalDate): String {
-        return value.toString()
-    }
+    override fun encode(value: LocalDate): String = value.toString()
 }

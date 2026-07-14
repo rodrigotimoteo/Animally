@@ -23,4 +23,4 @@ data class Owner(
     val createdAt: Instant,
     @SerialName("updated_at")
     val updatedAt: Instant,
-): Identifiable
+) : Identifiable

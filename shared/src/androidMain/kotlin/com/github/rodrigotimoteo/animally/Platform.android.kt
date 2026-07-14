@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:filename")
+
 package com.github.rodrigotimoteo.animally
 
 import android.os.Build

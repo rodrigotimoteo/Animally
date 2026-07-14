@@ -8,14 +8,14 @@ import org.koin.dsl.module
 
 @Module
 class IosDatabaseModule {
-
-    fun provide() = module {
-        single<SqlDriver> {
-            NativeSqliteDriver(
-                schema = AnimallyDatabase.Schema,
-                name = "animally.db"
-            )
+    fun provide() =
+        module {
+            single<SqlDriver> {
+                NativeSqliteDriver(
+                    schema = AnimallyDatabase.Schema,
+                    name = "animally.db",
+                )
+            }
+            single<AnimallyDatabase> { AnimallyDatabaseFactory.create(get()) }
         }
-        single<AnimallyDatabase> { AnimallyDatabaseFactory.create(get()) }
-    }
 }

@@ -10,15 +10,15 @@ import org.koin.dsl.module
 
 @Module
 class AndroidDatabaseModule {
-
-    fun provide() = module {
-        single<SqlDriver> {
-            AndroidSqliteDriver(
-                schema = AnimallyDatabase.Schema,
-                context = get<Context>(),
-                name = "animally.db",
-            )
+    fun provide() =
+        module {
+            single<SqlDriver> {
+                AndroidSqliteDriver(
+                    schema = AnimallyDatabase.Schema,
+                    context = get<Context>(),
+                    name = "animally.db",
+                )
+            }
+            single<AnimallyDatabase> { AnimallyDatabaseFactory.create(get()) }
         }
-        single<AnimallyDatabase> { AnimallyDatabaseFactory.create(get()) }
-    }
 }
