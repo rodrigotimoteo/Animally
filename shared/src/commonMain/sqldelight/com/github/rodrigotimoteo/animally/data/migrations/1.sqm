@@ -1,0 +1,280 @@
+import com.github.rodrigotimoteo.animally.data.adapters.InstantAdapter;
+import com.github.rodrigotimoteo.animally.data.adapters.LocalDateAdapter;
+import kotlin.time.Instant;
+import kotlinx.datetime.LocalDate;
+
+CREATE TABLE Anamnese (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER UNIQUE NOT NULL,
+    generalHistory TEXT,
+    chronicConditions TEXT,
+    allergies TEXT,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Consultation (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    subjective TEXT,
+    objective TEXT,
+    assessment TEXT,
+    plan TEXT,
+    vetName TEXT,
+    nextVisitDate TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Dentistry (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    findings TEXT,
+    treatment TEXT,
+    nextDueDate TEXT AS LocalDate,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Deworming (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    product TEXT NOT NULL,
+    dateAdministered TEXT AS LocalDate NOT NULL,
+    nextDueDate TEXT AS LocalDate,
+    dose TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE FarrierVisit (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    trimOrShoe TEXT,
+    shoeType TEXT,
+    findings TEXT,
+    nextDueDate TEXT AS LocalDate,
+    farrier TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Gestation (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    breedingDate TEXT AS LocalDate NOT NULL,
+    expectedDueDate TEXT AS LocalDate NOT NULL,
+    gestationDays INTEGER NOT NULL,
+    status TEXT,
+    fetalCount INTEGER,
+    lastCheckDate TEXT AS LocalDate,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Imaging (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    type TEXT,
+    date TEXT AS LocalDate NOT NULL,
+    findings TEXT,
+    imageUris TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE LabResult (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    testType TEXT NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    results TEXT,
+    normalRange TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Lameness (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    gradeAAEP INTEGER,
+    limbLocation TEXT,
+    flexionTest TEXT,
+    diagnosis TEXT,
+    treatment TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Medication (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    dosage TEXT NOT NULL,
+    route TEXT,
+    frequency TEXT,
+    startDate TEXT AS LocalDate,
+    endDate TEXT AS LocalDate,
+    prescribedBy TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Owner (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    address TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Patient (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    species TEXT NOT NULL DEFAULT "Equine",
+    breed TEXT,
+    dateOfBirth TEXT AS LocalDate,
+    gender TEXT,
+    microchipId TEXT,
+    ueln TEXT,
+    registrationNumber TEXT,
+    stableLocation TEXT,
+    photoUri TEXT,
+    notes TEXT,
+    ownerIds TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Reproduction (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    eventType TEXT NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    details TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE ReproMedication (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    medication TEXT NOT NULL,
+    dateAdministered TEXT AS LocalDate NOT NULL,
+    dosage TEXT,
+    purpose TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Substance (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    drugName TEXT NOT NULL,
+    dose TEXT NOT NULL,
+    unit TEXT,
+    route TEXT,
+    administeredBy TEXT,
+    witness TEXT,
+    date TEXT AS LocalDate NOT NULL,
+    reason TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Surgery (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    type TEXT,
+    description TEXT,
+    outcome TEXT,
+    surgeon TEXT,
+    anesthesia TEXT,
+    analgesia TEXT,
+    complications TEXT,
+    recoveryNotes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Ultrasound (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    ovaryStatus TEXT,
+    uterineStatus TEXT,
+    follicleSizeMm REAL,
+    findings TEXT,
+    imageUris TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Vaccination (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    vaccineName TEXT NOT NULL,
+    dateAdministered TEXT AS LocalDate NOT NULL,
+    nextDueDate TEXT AS LocalDate,
+    vetName TEXT,
+    batchNumber TEXT,
+    site TEXT,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE Weight (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    weightKg REAL NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    notes TEXT,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);

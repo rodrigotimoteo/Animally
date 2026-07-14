@@ -7,15 +7,15 @@ androidx-activity = "1.13.0"
 androidx-appcompat = "1.7.1"
 androidx-core = "1.19.0"
 androidx-espresso = "3.7.0"
-androidx-lifecycle = "2.11.0-rc01"
+androidx-lifecycle = "2.11.0"
 androidx-testExt = "1.3.0"
 composeMultiplatform = "1.11.1"
 navigation3-ui = "1.1.1"
 junit = "4.13.2"
-kotlin = "2.4.0"
+kotlin = "2.4.10"
 material3 = "1.11.0-alpha07"
 koin = "4.2.2"
-koin-compiler = "1.0.1"
+koin-compiler = "1.0.2"
 ktor = "3.5.1"
 koin-annotations = "4.2.2"
 coroutines = "1.11.0"
@@ -68,7 +68,6 @@ sqldelight-native-driver = { module = "app.cash.sqldelight:native-driver", versi
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqlDelight" }
 sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqlDelight" }
 sqldelight-primitive-adapter = { module = "app.cash.sqldelight:primitive-adapters", version.ref = "sqlDelight" }
-sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqlDelight" }
 
 # Helper libraries
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }

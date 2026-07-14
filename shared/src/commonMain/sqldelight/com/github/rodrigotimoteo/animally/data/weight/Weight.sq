@@ -1,7 +1,7 @@
 -- CRUD Operations --
 insert:
-INSERT INTO Weight (id, patientId, weightKg, date, notes, isActive, createdAt)
-VALUES (NULL, ?, ?, ?, ?, ?, ?);
+INSERT INTO Weight (id, patientId, weightKg, date, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE Weight SET
@@ -9,7 +9,8 @@ UPDATE Weight SET
     weightKg = ?,
     date = ?,
     notes = ?,
-    isActive = ?
+    isActive = ?,
+    updatedAt = ?
 WHERE id = ?;
 
 delete:

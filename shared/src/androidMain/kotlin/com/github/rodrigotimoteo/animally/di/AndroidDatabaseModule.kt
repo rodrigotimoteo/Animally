@@ -4,6 +4,7 @@ import android.content.Context
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.di.database.AnimallyDatabaseFactory
 import org.koin.core.annotation.Module
 import org.koin.dsl.module
 
@@ -15,9 +16,9 @@ class AndroidDatabaseModule {
             AndroidSqliteDriver(
                 schema = AnimallyDatabase.Schema,
                 context = get<Context>(),
-                name = "animally.db"
+                name = "animally.db",
             )
         }
-        single<AnimallyDatabase> { AnimallyDatabase(get()) }
+        single<AnimallyDatabase> { AnimallyDatabaseFactory.create(get()) }
     }
 }

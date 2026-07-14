@@ -1,4 +1,4 @@
-package com.github.rodrigotimoteo.animally.di
+package com.github.rodrigotimoteo.animally.di.database
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.anamnese.AnamneseQueries
