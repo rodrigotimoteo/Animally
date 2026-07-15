@@ -1,4 +1,4 @@
-package com.github.rodrigotimoteo.animally.di
+package com.github.rodrigotimoteo.animally.di.infra
 
 import org.koin.core.KoinApplication
 
