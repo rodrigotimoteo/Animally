@@ -24,7 +24,7 @@ import org.koin.core.annotation.Module
 import org.koin.dsl.module
 
 @Module
-class QueriesModule {
+internal class QueriesModule {
     fun provide() =
         module {
             single<AnamneseQueries> { get<AnimallyDatabase>().anamneseQueries }

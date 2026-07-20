@@ -1,5 +1,6 @@
 import com.github.rodrigotimoteo.animally.data.adapters.InstantAdapter;
 import com.github.rodrigotimoteo.animally.data.adapters.LocalDateAdapter;
+import kotlin.Boolean;
 import kotlin.time.Instant;
 import kotlinx.datetime.LocalDate;
 
@@ -23,7 +24,7 @@ CREATE TABLE Consultation (
     plan TEXT,
     vetName TEXT,
     nextVisitDate TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -37,7 +38,7 @@ CREATE TABLE Dentistry (
     nextDueDate TEXT AS LocalDate,
     vetName TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -51,7 +52,7 @@ CREATE TABLE Deworming (
     dose TEXT,
     vetName TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -66,7 +67,7 @@ CREATE TABLE FarrierVisit (
     nextDueDate TEXT AS LocalDate,
     farrier TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -81,7 +82,7 @@ CREATE TABLE Gestation (
     fetalCount INTEGER,
     lastCheckDate TEXT AS LocalDate,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -95,7 +96,7 @@ CREATE TABLE Imaging (
     imageUris TEXT,
     vetName TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -109,7 +110,7 @@ CREATE TABLE LabResult (
     normalRange TEXT,
     vetName TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -125,7 +126,7 @@ CREATE TABLE Lameness (
     treatment TEXT,
     vetName TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -141,7 +142,7 @@ CREATE TABLE Medication (
     endDate TEXT AS LocalDate,
     prescribedBy TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -152,7 +153,7 @@ CREATE TABLE Owner (
     email TEXT,
     phone TEXT,
     address TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -171,7 +172,7 @@ CREATE TABLE Patient (
     photoUri TEXT,
     notes TEXT,
     ownerIds TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -184,7 +185,7 @@ CREATE TABLE Reproduction (
     details TEXT,
     vetName TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -198,7 +199,7 @@ CREATE TABLE ReproMedication (
     purpose TEXT,
     vetName TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -215,7 +216,7 @@ CREATE TABLE Substance (
     date TEXT AS LocalDate NOT NULL,
     reason TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -232,7 +233,7 @@ CREATE TABLE Surgery (
     analgesia TEXT,
     complications TEXT,
     recoveryNotes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -248,7 +249,7 @@ CREATE TABLE Ultrasound (
     imageUris TEXT,
     vetName TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -263,7 +264,7 @@ CREATE TABLE Vaccination (
     batchNumber TEXT,
     site TEXT,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );
@@ -274,7 +275,7 @@ CREATE TABLE Weight (
     weightKg REAL NOT NULL,
     date TEXT AS LocalDate NOT NULL,
     notes TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL
 );

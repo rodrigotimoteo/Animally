@@ -1,26 +1,29 @@
 package com.github.rodrigotimoteo.animally.domain.owner.model
 
-import com.github.rodrigotimoteo.animally.domain.common.Identifiable
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
-@Serializable
+/**
+ * Domain model representing an owner/guardian of animals.
+ *
+ * This class encapsulates the essential information about an owner, including
+ * personal contact details and system metadata for tracking lifecycle events.
+ *
+ * @property id Unique identifier for the owner.
+ * @property name The owner's full name.
+ * @property email Optional email address for contact.
+ * @property phone Optional phone number for contact.
+ * @property address Optional physical address.
+ * @property isActive Indicates whether the owner record is active. Defaults to `true`.
+ * @property createdAt Timestamp when the owner record was created.
+ * @property updatedAt Timestamp when the owner record was last modified.
+ */
 data class Owner(
-    @SerialName("id")
-    override val id: Long,
-    @SerialName("name")
+    val id: Long,
     val name: String,
-    @SerialName("phone")
-    val phone: String?,
-    @SerialName("email")
     val email: String?,
-    @SerialName("address")
+    val phone: String?,
     val address: String?,
-    @SerialName("notes")
-    val notes: String?,
-    @SerialName("created_at")
+    val isActive: Boolean = true,
     val createdAt: Instant,
-    @SerialName("updated_at")
     val updatedAt: Instant,
-) : Identifiable
+)

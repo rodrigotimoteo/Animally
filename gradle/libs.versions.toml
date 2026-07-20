@@ -10,9 +10,10 @@ androidx-espresso = "3.7.0"
 androidx-lifecycle = "2.11.0"
 androidx-testExt = "1.3.0"
 composeMultiplatform = "1.11.1"
+mokkery = "3.4.2"
 navigation3-ui = "1.1.1"
 junit = "4.13.2"
-kotlin = "2.4.10"
+kotlin = "2.4.0"
 material3 = "1.11.0-alpha07"
 koin = "4.2.2"
 koin-compiler = "1.0.2"
@@ -24,6 +25,7 @@ datetime = "0.8.0"
 sqlDelight = "2.3.2"
 detekt = "1.23.8"
 ktlintPlugin = "14.2.0"
+turbine = "1.2.1"
 
 [libraries]
 # Base libraries
@@ -73,12 +75,17 @@ sqldelight-native-driver = { module = "app.cash.sqldelight:native-driver", versi
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqlDelight" }
 sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqlDelight" }
 sqldelight-primitive-adapter = { module = "app.cash.sqldelight:primitive-adapters", version.ref = "sqlDelight" }
+sqldelight-driver-sqlite = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqlDelight" }
 
 # Helper libraries
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
+
+# Testing libraries
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+mokkery = { module = "dev.mokkery:mokkery-core", version.ref = "mokkery" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -91,3 +98,4 @@ kotlinxSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 sqldelight = { id = "app.cash.sqldelight", version.ref = "sqlDelight" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }
+mokkery = { id = "dev.mokkery", version.ref = "mokkery" }
