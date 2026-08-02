@@ -18,6 +18,7 @@ import com.github.rodrigotimoteo.animally.data.migrations.Owner
 import com.github.rodrigotimoteo.animally.data.migrations.Patient
 import com.github.rodrigotimoteo.animally.data.migrations.ReproMedication
 import com.github.rodrigotimoteo.animally.data.migrations.Reproduction
+import com.github.rodrigotimoteo.animally.data.migrations.SearchFtsIndex
 import com.github.rodrigotimoteo.animally.data.migrations.Substance
 import com.github.rodrigotimoteo.animally.data.migrations.Surgery
 import com.github.rodrigotimoteo.animally.data.migrations.Ultrasound
@@ -114,6 +115,8 @@ object AnimallyDatabaseFactory {
             PatientAdapter =
                 Patient.Adapter(
                     dateOfBirthAdapter = LocalDateAdapter,
+                    cogginsTestDateAdapter = LocalDateAdapter,
+                    cogginsExpiryDateAdapter = LocalDateAdapter,
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,
                 ),
@@ -128,6 +131,10 @@ object AnimallyDatabaseFactory {
                     dateAdapter = LocalDateAdapter,
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,
+                ),
+            SearchFtsIndexAdapter =
+                SearchFtsIndex.Adapter(
+                    dateAdapter = LocalDateAdapter,
                 ),
             SubstanceAdapter =
                 Substance.Adapter(

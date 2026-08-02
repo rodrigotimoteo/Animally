@@ -2,6 +2,8 @@ package com.github.rodrigotimoteo.animally.domain.medication.usecase
 
 import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import dev.mokkery.MockMode
 import dev.mokkery.answering.calls
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -17,11 +19,13 @@ import kotlin.time.Instant
 class SaveMedicationUseCaseTest {
     private val medicationRepositoryMock: IMedicationRepository = mock()
 
+    private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
+
     private lateinit var sut: SaveMedicationUseCase
 
     @BeforeTest
     fun setup() {
-        sut = SaveMedicationUseCase(medicationRepositoryMock)
+        sut = SaveMedicationUseCase(medicationRepositoryMock, searchRepositoryMock)
     }
 
     private fun newMedication(id: Long = 0L) =
@@ -36,7 +40,7 @@ class SaveMedicationUseCaseTest {
         )
 
     @Test
-    fun `when id is zero then sut inserts`() {
+    fun `when id is zero then sut inserts and indexes the generated id`() {
         every { medicationRepositoryMock.insert(any()) } calls { 1L }
 
         val result = sut(newMedication())
@@ -44,16 +48,22 @@ class SaveMedicationUseCaseTest {
         assertEquals(1L, result)
         verify(VerifyMode.exactly(1)) { medicationRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(0)) { medicationRepositoryMock.update(any()) }
+        verify(VerifyMode.exactly(1)) {
+            searchRepositoryMock.indexRecord(ISearchRepository.TYPE_MEDICATION, 1L, 1L, null, "Phenylbutazone 2g")
+        }
     }
 
     @Test
-    fun `when id is non-zero then sut updates`() {
+    fun `when id is non-zero then sut updates and re-indexes the medication`() {
         every { medicationRepositoryMock.update(any()) } calls { 1L }
 
         val result = sut(newMedication(id = 7L))
 
-        assertEquals(1L, result)
+        assertEquals(7L, result)
         verify(VerifyMode.exactly(0)) { medicationRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(1)) { medicationRepositoryMock.update(any()) }
+        verify(VerifyMode.exactly(1)) {
+            searchRepositoryMock.indexRecord(ISearchRepository.TYPE_MEDICATION, 1L, 7L, null, "Phenylbutazone 2g")
+        }
     }
 }

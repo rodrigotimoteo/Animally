@@ -67,6 +67,11 @@ class PatientListViewModel(
     fun onAddClick() = navigateTo(Route.AddEditPatient())
 
     /**
+     * Navigates to the global search screen.
+     */
+    fun onSearchClick() = navigateTo(Route.Search)
+
+    /**
      * Soft-deletes the patient with the given [patientId].
      *
      * Deletion is blocked while the patient still has active linked records.

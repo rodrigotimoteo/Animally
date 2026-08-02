@@ -72,6 +72,9 @@ class PatientEditViewModel(
                                 stableLocation = patient.stableLocation,
                                 photoUri = patient.photoUri,
                                 notes = patient.notes,
+                                cogginsTestDate = patient.cogginsTestDate?.toString(),
+                                cogginsResult = patient.cogginsResult,
+                                cogginsExpiryDate = patient.cogginsExpiryDate?.toString(),
                                 ownerId = patient.ownerId,
                                 createdAt = patient.createdAt,
                             ),
@@ -161,6 +164,22 @@ class PatientEditViewModel(
     }
 
     /**
+     * Updates the [PatientFormState] coggins field identified by [field].
+     */
+    val onCogginsChange: (CogginsField, String) -> Unit = { field, value ->
+        formState.value?.let { form ->
+            val cleaned = value.ifBlank { null }
+            val updated =
+                when (field) {
+                    CogginsField.TEST_DATE -> form.copy(cogginsTestDate = cleaned)
+                    CogginsField.RESULT -> form.copy(cogginsResult = cleaned)
+                    CogginsField.EXPIRY_DATE -> form.copy(cogginsExpiryDate = cleaned)
+                }
+            updateForm(updated)
+        }
+    }
+
+    /**
      * Updates the [PatientFormState.ownerId].
      */
     fun onOwnerChange(ownerId: Long?) {
@@ -195,4 +214,13 @@ class PatientEditViewModel(
                 }
         }
     }
+}
+
+/**
+ * The Coggins test fields editable in the patient form.
+ */
+enum class CogginsField {
+    TEST_DATE,
+    RESULT,
+    EXPIRY_DATE,
 }

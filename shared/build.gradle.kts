@@ -51,6 +51,7 @@ kotlin {
 
     sourceSets {
         androidMain.dependencies {
+            implementation(libs.androidx.core.ktx)
             implementation(libs.ktor.client.android)
             implementation(libs.koin.android)
 

@@ -17,6 +17,9 @@ import kotlin.time.Instant
  * @param stableLocation Optional stable location.
  * @param photoUri Optional photo URI.
  * @param notes Optional free-form notes.
+ * @param cogginsTestDate Optional Coggins test date as a display string (ISO `yyyy-MM-dd`).
+ * @param cogginsResult Optional Coggins test result.
+ * @param cogginsExpiryDate Optional Coggins expiry date as a display string (ISO `yyyy-MM-dd`).
  * @param ownerId Optional id of the linked owner.
  * @param createdAt The original creation timestamp, preserved when editing.
  * @param nameError Validation message for the name field, or `null` when valid.
@@ -37,6 +40,9 @@ data class PatientFormState(
     val stableLocation: String? = null,
     val photoUri: String? = null,
     val notes: String? = null,
+    val cogginsTestDate: String? = null,
+    val cogginsResult: String? = null,
+    val cogginsExpiryDate: String? = null,
     val ownerId: Long? = null,
     val createdAt: Instant? = null,
     val nameError: String? = null,

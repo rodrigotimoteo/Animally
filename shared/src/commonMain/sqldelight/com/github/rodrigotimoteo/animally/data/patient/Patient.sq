@@ -1,7 +1,7 @@
 -- CRUD Operations --
 insert:
-INSERT INTO Patient (id, name, species, breed, dateOfBirth, gender, microchipId, ueln, registrationNumber, stableLocation, photoUri, notes, ownerId, isActive, createdAt, updatedAt)
-VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Patient (id, name, species, breed, dateOfBirth, gender, microchipId, ueln, registrationNumber, stableLocation, photoUri, notes, ownerId, isActive, createdAt, updatedAt, cogginsTestDate, cogginsResult, cogginsExpiryDate)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE Patient SET
@@ -18,7 +18,10 @@ UPDATE Patient SET
     notes = ?,
     ownerId = ?,
     isActive = ?,
-    updatedAt = ?
+    updatedAt = ?,
+    cogginsTestDate = ?,
+    cogginsResult = ?,
+    cogginsExpiryDate = ?
 WHERE id = ?;
 
 delete:

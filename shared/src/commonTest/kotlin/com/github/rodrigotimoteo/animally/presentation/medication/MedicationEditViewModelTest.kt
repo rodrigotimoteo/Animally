@@ -4,7 +4,9 @@ import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepositor
 import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.GetMedicationDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.SaveMedicationUseCase
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
+import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -31,9 +33,11 @@ import kotlin.time.Instant
 class MedicationEditViewModelTest {
     private val medicationRepositoryMock: IMedicationRepository = mock()
 
+    private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
+
     private val getMedicationDetailUseCase = GetMedicationDetailUseCase(medicationRepositoryMock)
 
-    private val saveMedicationUseCase = SaveMedicationUseCase(medicationRepositoryMock)
+    private val saveMedicationUseCase = SaveMedicationUseCase(medicationRepositoryMock, searchRepositoryMock)
 
     private val navigator = AnimallyNavigator()
 

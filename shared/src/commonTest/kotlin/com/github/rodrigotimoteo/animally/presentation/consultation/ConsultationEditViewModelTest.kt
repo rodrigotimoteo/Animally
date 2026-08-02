@@ -4,7 +4,9 @@ import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepos
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.consultation.usecase.GetConsultationDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.consultation.usecase.SaveConsultationUseCase
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
+import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -31,9 +33,11 @@ import kotlin.time.Instant
 class ConsultationEditViewModelTest {
     private val consultationRepositoryMock: IConsultationRepository = mock()
 
+    private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
+
     private val getConsultationDetailUseCase = GetConsultationDetailUseCase(consultationRepositoryMock)
 
-    private val saveConsultationUseCase = SaveConsultationUseCase(consultationRepositoryMock)
+    private val saveConsultationUseCase = SaveConsultationUseCase(consultationRepositoryMock, searchRepositoryMock)
 
     private val navigator = AnimallyNavigator()
 

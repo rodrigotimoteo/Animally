@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.patient.usecase
 
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -12,10 +13,12 @@ import kotlin.time.Clock
  * [PatientHasRecordsException] is thrown in that case.
  *
  * @param patientRepository Repository instance for accessing patient data.
+ * @param searchRepository Repository instance for the global search index.
  */
 @Single
 class DeletePatientUseCase(
     @Provided private val patientRepository: IPatientRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the patient identified by [patientId] as inactive.
@@ -29,5 +32,6 @@ class DeletePatientUseCase(
             throw PatientHasRecordsException(recordCount)
         }
         patientRepository.setInactive(patientId, Clock.System.now())
+        searchRepository.deleteRecord(ISearchRepository.TYPE_PATIENT, patientId)
     }
 }

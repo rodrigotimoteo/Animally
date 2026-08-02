@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.presentation.patientEdit.CogginsField
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.PatientEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.PatientFormState
 
@@ -81,6 +82,7 @@ private fun PatientEditForm(
             PatientIdentityFields(viewModel, form)
             PatientIdFields(viewModel, form)
             PatientDetailFields(viewModel, form)
+            CogginsFields(viewModel, form)
             OwnerSelector(
                 owners = owners,
                 selectedOwnerId = form.ownerId,
@@ -194,6 +196,34 @@ private fun PatientDetailFields(
         value = form.notes.orEmpty(),
         onValueChange = viewModel::onNotesChange,
         label = { Text("Notes") },
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun CogginsFields(
+    viewModel: PatientEditViewModel,
+    form: PatientFormState,
+) {
+    OutlinedTextField(
+        value = form.cogginsTestDate.orEmpty(),
+        onValueChange = { viewModel.onCogginsChange(CogginsField.TEST_DATE, it) },
+        label = { Text("Coggins Test Date (yyyy-MM-dd)") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = form.cogginsResult.orEmpty(),
+        onValueChange = { viewModel.onCogginsChange(CogginsField.RESULT, it) },
+        label = { Text("Coggins Result") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = form.cogginsExpiryDate.orEmpty(),
+        onValueChange = { viewModel.onCogginsChange(CogginsField.EXPIRY_DATE, it) },
+        label = { Text("Coggins Expiry Date (yyyy-MM-dd)") },
+        singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )
 }

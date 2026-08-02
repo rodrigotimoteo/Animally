@@ -18,6 +18,9 @@ import kotlin.time.Instant
  * @property stableLocation Optional location where the patient is stabled.
  * @property photoUri Optional URI to a photo of the patient.
  * @property notes Optional free-form notes about the patient.
+ * @property cogginsTestDate Optional date of the most recent Coggins (Equine Infectious Anemia) test.
+ * @property cogginsResult Optional result of the most recent Coggins test.
+ * @property cogginsExpiryDate Optional expiry date of the most recent Coggins test.
  * @property ownerId Identifier of the owning owner, or `null` when unassigned.
  * @property isActive Indicates whether the patient record is active. Defaults to `true`.
  * @property createdAt Timestamp when the patient record was created.
@@ -36,6 +39,9 @@ data class Patient(
     val stableLocation: String? = null,
     val photoUri: String? = null,
     val notes: String? = null,
+    val cogginsTestDate: LocalDate? = null,
+    val cogginsResult: String? = null,
+    val cogginsExpiryDate: LocalDate? = null,
     val ownerId: Long? = null,
     val isActive: Boolean = true,
     val createdAt: Instant,

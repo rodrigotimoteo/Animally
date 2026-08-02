@@ -19,6 +19,7 @@ import com.github.rodrigotimoteo.animally.presentation.patientEdit.view.PatientE
 import com.github.rodrigotimoteo.animally.presentation.patientList.view.PatientListScreen
 import com.github.rodrigotimoteo.animally.presentation.reproduction.view.ReproductionEventEditScreen
 import com.github.rodrigotimoteo.animally.presentation.repromedication.view.ReproMedicationEditScreen
+import com.github.rodrigotimoteo.animally.presentation.search.view.SearchScreen
 import com.github.rodrigotimoteo.animally.presentation.settings.view.SettingsScreen
 import com.github.rodrigotimoteo.animally.presentation.substance.view.ControlledSubstanceEditScreen
 import com.github.rodrigotimoteo.animally.presentation.surgery.view.SurgeryEditScreen
@@ -36,6 +37,10 @@ val navigationEntryModule =
     module {
         navigation<Route.PatientList> {
             PatientListScreen(viewModel = koinViewModel())
+        }
+
+        navigation<Route.Search> {
+            SearchScreen(viewModel = koinViewModel())
         }
 
         navigation<Route.OwnerList> {
@@ -131,6 +136,6 @@ val navigationEntryModule =
         }
 
         navigation<Route.Settings> {
-            SettingsScreen()
+            SettingsScreen(viewModel = koinViewModel())
         }
     }

@@ -1,0 +1,6 @@
+import com.github.rodrigotimoteo.animally.data.adapters.LocalDateAdapter;
+import kotlinx.datetime.LocalDate;
+
+ALTER TABLE Patient ADD COLUMN cogginsTestDate TEXT AS LocalDate;
+ALTER TABLE Patient ADD COLUMN cogginsResult TEXT;
+ALTER TABLE Patient ADD COLUMN cogginsExpiryDate TEXT AS LocalDate;

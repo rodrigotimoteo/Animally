@@ -1,0 +1,57 @@
+-- Application-managed incremental sync for the global FTS5 search index.
+-- The FTS index is kept in sync from the save/delete paths of the
+-- Patient, Consultation and Medication repositories (see SearchRepositoryImpl).
+
+-- Insert an entry into the metadata table. Its row id doubles as the
+-- SearchFts.rowid.
+insertIndex:
+INSERT INTO SearchFtsIndex (recordType, patientId, recordId, date, searchableText)
+VALUES (?, ?, ?, ?, ?);
+
+-- Sync the just-inserted metadata row into the FTS5 index. The rowid is the
+-- most recent insert on this connection (same transaction), so it always
+-- matches the SearchFtsIndex row that insertIndex just created.
+insertFts:
+INSERT INTO SearchFts(rowid, searchableText) VALUES (last_insert_rowid(), ?);
+
+-- Look up an index row before deletion so the FTS entry can be removed too.
+selectIndexRow:
+SELECT id, searchableText FROM SearchFtsIndex WHERE recordType = ? AND recordId = ?;
+
+-- Remove a row from the metadata table.
+deleteIndex:
+DELETE FROM SearchFtsIndex WHERE recordType = ? AND recordId = ?;
+
+-- Remove the FTS entry for the given SearchFtsIndex row id. The FTS rowid is
+-- kept aligned with the SearchFtsIndex id by the application.
+deleteFts:
+DELETE FROM SearchFts WHERE rowid = ?;
+
+-- Wipe the FTS index before a full re-seed.
+deleteAllFts:
+DELETE FROM SearchFts;
+
+-- Re-seed the FTS index from the metadata table.
+reseed:
+INSERT INTO SearchFts(rowid, searchableText) SELECT id, searchableText FROM SearchFtsIndex;
+
+-- Global search across patients, consultations and medications.
+-- Date filtering is applied in SQL (nullable bounds), record-type filtering
+-- is applied in Kotlin because SQLDelight cannot bind list parameters.
+search:
+SELECT
+    p.id AS patientId,
+    p.name AS patientName,
+    p.breed AS breed,
+    p.microchipId AS microchipId,
+    i.recordType AS recordType,
+    i.recordId AS recordId,
+    i.date AS date,
+    i.searchableText AS searchableText
+FROM SearchFts f
+JOIN SearchFtsIndex i ON i.id = f.rowid
+JOIN Patient p ON p.id = i.patientId AND p.isActive = 1
+WHERE SearchFts MATCH :query
+    AND (:fromDate IS NULL OR i.date >= :fromDate)
+    AND (:toDate IS NULL OR i.date <= :toDate)
+ORDER BY p.name, i.date;

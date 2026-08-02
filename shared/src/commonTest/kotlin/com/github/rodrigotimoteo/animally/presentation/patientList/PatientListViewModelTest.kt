@@ -4,8 +4,10 @@ import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.DeletePatientUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.GetPatientListUseCase
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
+import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -31,9 +33,11 @@ import kotlin.time.Instant
 class PatientListViewModelTest {
     private val patientRepositoryMock: IPatientRepository = mock()
 
+    private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
+
     private val getPatientListUseCase = GetPatientListUseCase(patientRepositoryMock)
 
-    private val deletePatientUseCase = DeletePatientUseCase(patientRepositoryMock)
+    private val deletePatientUseCase = DeletePatientUseCase(patientRepositoryMock, searchRepositoryMock)
 
     private val navigator = AnimallyNavigator()
 

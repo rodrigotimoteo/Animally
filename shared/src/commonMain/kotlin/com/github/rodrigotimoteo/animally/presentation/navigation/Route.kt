@@ -17,6 +17,12 @@ sealed interface Route : NavKey {
     data object PatientList : Route
 
     /**
+     * The route for the global search screen.
+     */
+    @Serializable
+    data object Search : Route
+
+    /**
      * The route for displaying the list of owners.
      */
     @Serializable

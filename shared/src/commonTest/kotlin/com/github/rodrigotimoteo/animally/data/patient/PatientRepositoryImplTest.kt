@@ -189,4 +189,39 @@ class PatientRepositoryImplTest {
         assertEquals(0L, sut.countPatientsByOwnerId(42L))
         assertEquals("Charlie", assertNotNull(sut.getPatientById(id)).name)
     }
+
+    @Test
+    fun `when patient has coggins data then round-trips test date result and expiry`() {
+        val patient =
+            newPatient(name = "Charlie").copy(
+                cogginsTestDate = LocalDate(2025, 1, 10),
+                cogginsResult = "Negative",
+                cogginsExpiryDate = LocalDate(2025, 7, 10),
+            )
+        val id = sut.insertPatient(patient)
+
+        val result = assertNotNull(sut.getPatientById(id))
+
+        assertEquals(LocalDate(2025, 1, 10), result.cogginsTestDate)
+        assertEquals("Negative", result.cogginsResult)
+        assertEquals(LocalDate(2025, 7, 10), result.cogginsExpiryDate)
+    }
+
+    @Test
+    fun `when patient coggins data is updated then round-trips the new values`() {
+        val id = sut.insertPatient(newPatient(name = "Charlie"))
+        val updated =
+            newPatient(id = id, name = "Charlie", updatedAt = Instant.fromEpochMilliseconds(200L)).copy(
+                cogginsTestDate = LocalDate(2025, 2, 1),
+                cogginsResult = "Positive",
+                cogginsExpiryDate = LocalDate(2025, 8, 1),
+            )
+
+        sut.updatePatient(updated)
+
+        val result = assertNotNull(sut.getPatientById(id))
+        assertEquals(LocalDate(2025, 2, 1), result.cogginsTestDate)
+        assertEquals("Positive", result.cogginsResult)
+        assertEquals(LocalDate(2025, 8, 1), result.cogginsExpiryDate)
+    }
 }

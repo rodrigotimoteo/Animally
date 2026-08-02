@@ -18,6 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,7 +56,16 @@ fun PatientListScreen(
 
     Scaffold(
         modifier = modifier,
-        topBar = { TopAppBar(title = { Text("Patients") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Patients") },
+                actions = {
+                    TextButton(onClick = viewModel::onSearchClick) {
+                        Text("Search")
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = viewModel::onAddClick) {
                 Text("+")

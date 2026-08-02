@@ -88,6 +88,9 @@ class PatientRepositoryImpl(
                 isActive = patient.isActive,
                 createdAt = patient.createdAt,
                 updatedAt = patient.updatedAt,
+                cogginsTestDate = patient.cogginsTestDate,
+                cogginsResult = patient.cogginsResult,
+                cogginsExpiryDate = patient.cogginsExpiryDate,
             ).value
 
     override fun updatePatient(patient: Patient): Long =
@@ -108,6 +111,9 @@ class PatientRepositoryImpl(
                 ownerId = patient.ownerId,
                 isActive = patient.isActive,
                 updatedAt = patient.updatedAt,
+                cogginsTestDate = patient.cogginsTestDate,
+                cogginsResult = patient.cogginsResult,
+                cogginsExpiryDate = patient.cogginsExpiryDate,
             ).value
 
     override fun setInactive(

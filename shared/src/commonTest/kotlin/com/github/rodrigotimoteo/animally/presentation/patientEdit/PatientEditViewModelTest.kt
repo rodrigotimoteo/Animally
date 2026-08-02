@@ -7,7 +7,9 @@ import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.GetPatientDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.SavePatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
+import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -37,9 +39,11 @@ class PatientEditViewModelTest {
 
     private val ownerRepositoryMock: IOwnerRepository = mock()
 
+    private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
+
     private val getPatientDetailUseCase = GetPatientDetailUseCase(patientRepositoryMock)
 
-    private val savePatientUseCase = SavePatientUseCase(patientRepositoryMock)
+    private val savePatientUseCase = SavePatientUseCase(patientRepositoryMock, searchRepositoryMock)
 
     private val getOwnerListUseCase = GetOwnerListUseCase(ownerRepositoryMock)
 
@@ -53,6 +57,9 @@ class PatientEditViewModelTest {
             breed = "Lusitano",
             dateOfBirth = LocalDate(2020, 5, 1),
             microchipId = "981000123456789",
+            cogginsTestDate = LocalDate(2025, 1, 10),
+            cogginsResult = "Negative",
+            cogginsExpiryDate = LocalDate(2025, 7, 10),
             ownerId = 2L,
             createdAt = Instant.fromEpochMilliseconds(100L),
             updatedAt = Instant.fromEpochMilliseconds(100L),
@@ -157,6 +164,9 @@ class PatientEditViewModelTest {
                     breed = "Lusitano",
                     dateOfBirth = "2020-05-01",
                     microchipId = "981000123456789",
+                    cogginsTestDate = "2025-01-10",
+                    cogginsResult = "Negative",
+                    cogginsExpiryDate = "2025-07-10",
                     ownerId = 2L,
                     createdAt = patient.createdAt,
                 ),

@@ -9,9 +9,16 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
 
+/**
+ * Application context captured during [initKoin]. Used by platform services
+ * such as [com.github.rodrigotimoteo.animally.domain.export.shareFile].
+ */
+internal lateinit var appContext: Context
+
 actual fun initKoin(context: Any?): KoinApplication =
     startKoin {
-        androidContext(context as Context)
+        appContext = context as Context
+        androidContext(appContext)
         modules(
             navigationEntryModule,
             AndroidDatabaseModule().provide(),

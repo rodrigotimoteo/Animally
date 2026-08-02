@@ -1,0 +1,26 @@
+import kotlinx.datetime.LocalDate;
+
+CREATE TABLE IF NOT EXISTS SearchFtsIndex (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    recordType TEXT NOT NULL,
+    patientId INTEGER NOT NULL,
+    recordId INTEGER NOT NULL,
+    date TEXT AS LocalDate,
+    searchableText TEXT NOT NULL
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS SearchFts USING fts5(searchableText);
+
+INSERT INTO SearchFtsIndex (recordType, patientId, recordId, date, searchableText)
+SELECT 'PATIENT', id, id, NULL, name || ' ' || COALESCE(breed, '') || ' ' || COALESCE(microchipId, '')
+FROM Patient WHERE isActive = 1;
+
+INSERT INTO SearchFtsIndex (recordType, patientId, recordId, date, searchableText)
+SELECT 'CONSULTATION', patientId, id, date, COALESCE(assessment, '') || ' ' || COALESCE(plan, '')
+FROM Consultation WHERE isActive = 1;
+
+INSERT INTO SearchFtsIndex (recordType, patientId, recordId, date, searchableText)
+SELECT 'MEDICATION', patientId, id, NULL, name || ' ' || COALESCE(dosage, '')
+FROM Medication WHERE isActive = 1;
+
+INSERT INTO SearchFts(rowid, searchableText) SELECT id, searchableText FROM SearchFtsIndex;
