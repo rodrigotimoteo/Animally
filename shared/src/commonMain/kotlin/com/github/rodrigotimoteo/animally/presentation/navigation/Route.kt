@@ -86,4 +86,130 @@ sealed interface Route : NavKey {
         val patientId: Long,
         val vaccinationId: Long? = null,
     ) : Route
+
+    /**
+     * The route for adding or editing a weight entry.
+     */
+    @Serializable
+    data class AddEditWeight(
+        val patientId: Long,
+        val weightId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a deworming treatment.
+     */
+    @Serializable
+    data class AddEditDeworming(
+        val patientId: Long,
+        val dewormingId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a dentistry check.
+     */
+    @Serializable
+    data class AddEditDentistry(
+        val patientId: Long,
+        val dentistryId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a lameness evaluation.
+     */
+    @Serializable
+    data class AddEditLameness(
+        val patientId: Long,
+        val lamenessId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a surgery.
+     */
+    @Serializable
+    data class AddEditSurgery(
+        val patientId: Long,
+        val surgeryId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a medication.
+     */
+    @Serializable
+    data class AddEditMedication(
+        val patientId: Long,
+        val medicationId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a lab result.
+     */
+    @Serializable
+    data class AddEditLabResult(
+        val patientId: Long,
+        val labResultId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing an imaging study.
+     */
+    @Serializable
+    data class AddEditImaging(
+        val patientId: Long,
+        val imagingId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a farrier visit.
+     */
+    @Serializable
+    data class AddEditFarrierVisit(
+        val patientId: Long,
+        val farrierVisitId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a reproduction event.
+     */
+    @Serializable
+    data class AddEditReproductionEvent(
+        val patientId: Long,
+        val reproductionEventId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a reproductive ultrasound.
+     */
+    @Serializable
+    data class AddEditUltrasound(
+        val patientId: Long,
+        val ultrasoundId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a gestation record.
+     */
+    @Serializable
+    data class AddEditGestation(
+        val patientId: Long,
+        val gestationId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a reproductive medication.
+     */
+    @Serializable
+    data class AddEditReproMed(
+        val patientId: Long,
+        val reproMedId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for adding or editing a controlled substance.
+     */
+    @Serializable
+    data class AddEditControlledSubstance(
+        val patientId: Long,
+        val substanceId: Long? = null,
+    ) : Route
 }
