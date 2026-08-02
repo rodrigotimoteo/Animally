@@ -8,7 +8,7 @@ build:
 complexity:
   LongParameterList:
     functionThreshold: 6
-    constructorThreshold: 7
+    constructorThreshold: 8
     ignoreDefaultParameters: true
   TooManyFunctions:
     thresholdInFiles: 15

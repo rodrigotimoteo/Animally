@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.reminder
 
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
+import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionController
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetDentistryRemindersUseCase
@@ -11,7 +12,10 @@ import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
 import dev.mokkery.every
+import dev.mokkery.everySuspend
 import dev.mokkery.mock
+import dev.mokkery.verify.VerifyMode
+import dev.mokkery.verifySuspend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -27,6 +31,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -38,6 +43,8 @@ class ReminderSettingsViewModelTest {
     private val dentistryRepositoryMock: IDentistryRepository = mock()
 
     private val patientRepositoryMock: IPatientRepository = mock()
+
+    private val permissionControllerMock: NotificationPermissionController = mock()
 
     private val getVaccinationRemindersUseCase =
         GetVaccinationRemindersUseCase(vaccinationRepositoryMock, patientRepositoryMock)
@@ -86,6 +93,7 @@ class ReminderSettingsViewModelTest {
             getVaccinationRemindersUseCase,
             getDentistryRemindersUseCase,
             dispatcher,
+            permissionControllerMock,
         )
 
     @Test
@@ -95,6 +103,7 @@ class ReminderSettingsViewModelTest {
             every { patientRepositoryMock.getPatientList() } returns listOf(patient)
             every { vaccinationRepositoryMock.getByPatient(patient.id) } returns listOf(vaccination)
             every { dentistryRepositoryMock.getByPatient(patient.id) } returns listOf(dentistry)
+            every { permissionControllerMock.isGranted() } returns true
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
             vm.setRemindersEnabled(false)
             advanceUntilIdle()
@@ -111,6 +120,7 @@ class ReminderSettingsViewModelTest {
     fun `toggle updates reminders enabled`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { permissionControllerMock.isGranted() } returns true
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
             advanceUntilIdle()
 
@@ -129,6 +139,7 @@ class ReminderSettingsViewModelTest {
     fun `repository failure surfaces error message`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { permissionControllerMock.isGranted() } returns true
             every { patientRepositoryMock.getPatientList() } throws RuntimeException("database down")
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
             advanceUntilIdle()
@@ -143,5 +154,87 @@ class ReminderSettingsViewModelTest {
             vm.onDismissError()
 
             assertNull(vm.uiState.value.errorMessage)
+        }
+
+    @Test
+    fun `init reflects denied permission and keeps reminders disabled`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { permissionControllerMock.isGranted() } returns false
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.remindersEnabled)
+            assertFalse(vm.uiState.value.isPermissionRequesting)
+            assertEquals(false, vm.uiState.value.notificationsEnabled)
+        }
+
+    @Test
+    fun `enable toggle requests permission when not granted`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { permissionControllerMock.isGranted() } returns false
+            everySuspend { permissionControllerMock.request() } returns true
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.setRemindersEnabled(true)
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.remindersEnabled)
+            assertEquals(true, vm.uiState.value.notificationsEnabled)
+            assertNull(vm.uiState.value.permissionMessage)
+            verifySuspend(VerifyMode.exactly(1)) { permissionControllerMock.request() }
+        }
+
+    @Test
+    fun `denied permission keeps toggle disabled with message`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { permissionControllerMock.isGranted() } returns false
+            everySuspend { permissionControllerMock.request() } returns false
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.setRemindersEnabled(true)
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.remindersEnabled)
+            assertFalse(vm.uiState.value.isPermissionRequesting)
+            assertEquals(false, vm.uiState.value.notificationsEnabled)
+            assertNotNull(vm.uiState.value.permissionMessage)
+        }
+
+    @Test
+    fun `toggle does not request permission when already granted`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { permissionControllerMock.isGranted() } returns true
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.setRemindersEnabled(true)
+            advanceUntilIdle()
+
+            verifySuspend(VerifyMode.exactly(0)) { permissionControllerMock.request() }
+        }
+
+    @Test
+    fun `check reminders still works when permission denied`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { permissionControllerMock.isGranted() } returns false
+            every { patientRepositoryMock.getPatientList() } returns listOf(patient)
+            every { vaccinationRepositoryMock.getByPatient(patient.id) } returns listOf(vaccination)
+            every { dentistryRepositoryMock.getByPatient(patient.id) } returns listOf(dentistry)
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.checkRemindersNow()
+            advanceUntilIdle()
+
+            assertEquals(2, vm.uiState.value.lastCheckedCount)
+            assertNull(vm.uiState.value.errorMessage)
+            assertFalse(vm.uiState.value.isChecking)
         }
 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -17,12 +18,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsUiState
 import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewModel
+import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * Settings screen. Hosts the CSV export action, backup & restore controls,
+ * Settings screen. Hosts the appearance selector, CSV export action, backup & restore controls,
  * the PDF export and the reminders section.
  */
 @Composable
@@ -34,10 +37,29 @@ fun SettingsScreen(
         modifier = modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
+        AppearanceSection(viewModel)
         CsvExportSection(viewModel)
         BackupSection(viewModel)
         PdfExportSection(viewModel)
         RemindersSection()
+    }
+}
+
+@Composable
+private fun AppearanceSection(viewModel: SettingsViewModel) {
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Appearance", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = themeMode == mode,
+                    onClick = { viewModel.onThemeModeChange(mode) },
+                    label = { Text(mode.label) },
+                )
+            }
+        }
     }
 }
 
@@ -116,6 +138,15 @@ private fun RemindersSection() {
             Switch(
                 checked = reminderState.remindersEnabled,
                 onCheckedChange = reminderViewModel::setRemindersEnabled,
+                enabled = !reminderState.isPermissionRequesting,
+            )
+        }
+        PermissionStatus(reminderState)
+        reminderState.permissionMessage?.let { message ->
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
         Button(
@@ -135,4 +166,15 @@ private fun RemindersSection() {
             )
         }
     }
+}
+
+@Composable
+private fun PermissionStatus(state: ReminderSettingsUiState) {
+    val text =
+        when {
+            state.isPermissionRequesting -> "Requesting notification permission…"
+            state.notificationsEnabled == false -> "Notifications disabled"
+            else -> "Notifications enabled"
+        }
+    Text(text = text, style = MaterialTheme.typography.bodySmall)
 }

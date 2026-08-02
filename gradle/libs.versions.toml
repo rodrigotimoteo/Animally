@@ -28,6 +28,7 @@ ktlintPlugin = "14.2.0"
 turbine = "1.2.1"
 filekit = "0.14.2"
 kmpnotifier = "2.0.0"
+haze = "2.0.0-alpha03"
 
 [libraries]
 # Base libraries
@@ -92,6 +93,11 @@ mokkery = { module = "dev.mokkery:mokkery-core", version.ref = "mokkery" }
 # Phase 2/4 libraries
 filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
 kmpnotifier-local = { module = "io.github.mirzemehdi:kmpnotifier-local", version.ref = "kmpnotifier" }
+
+# Phase 5 libraries
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
+haze-blur = { module = "dev.chrisbanes.haze:haze-blur", version.ref = "haze" }
+haze-blur-materials = { module = "dev.chrisbanes.haze:haze-blur-materials", version.ref = "haze" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

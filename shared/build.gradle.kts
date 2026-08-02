@@ -94,6 +94,10 @@ kotlin {
 
             implementation(libs.filekit.dialogs.compose)
             implementation(libs.kmpnotifier.local)
+
+            implementation(libs.haze)
+            implementation(libs.haze.blur)
+            implementation(libs.haze.blur.materials)
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.kotlin.test)

@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.di.AndroidDatabaseModule
 import com.github.rodrigotimoteo.animally.di.database.QueriesModule
 import com.github.rodrigotimoteo.animally.di.navigation.navigationEntryModule
 import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
+import com.github.rodrigotimoteo.animally.domain.notification.ensureReminderChannel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
@@ -18,6 +19,7 @@ internal lateinit var appContext: Context
 actual fun initKoin(context: Any?): KoinApplication =
     startKoin {
         appContext = context as Context
+        ensureReminderChannel(appContext)
         androidContext(appContext)
         modules(
             navigationEntryModule,

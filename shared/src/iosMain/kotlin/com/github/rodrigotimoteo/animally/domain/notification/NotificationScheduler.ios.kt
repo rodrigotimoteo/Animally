@@ -2,9 +2,6 @@ package com.github.rodrigotimoteo.animally.domain.notification
 
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.CogginsAlert
 import com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder
-import com.mmk.kmpnotifier.KMPNotifier
-import com.mmk.kmpnotifier.local.LocalNotifications
-import com.mmk.kmpnotifier.notification.configuration.NotificationPlatformConfiguration
 import kotlinx.datetime.TimeZone
 
 /**
@@ -40,14 +37,6 @@ actual class NotificationScheduler {
     }
 
     private fun ensureInitialized() {
-        if (KMPNotifier.isInitialized) return
-        KMPNotifier.initialize(
-            NotificationPlatformConfiguration.Ios(
-                showPushNotification = true,
-                askNotificationPermissionOnStart = true,
-                notificationSoundName = null,
-            ),
-            LocalNotifications,
-        )
+        ensureKmpNotifierInitialized()
     }
 }

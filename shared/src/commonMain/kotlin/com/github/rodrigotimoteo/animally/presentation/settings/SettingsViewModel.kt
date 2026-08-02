@@ -15,6 +15,10 @@ import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
+import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.koin.core.annotation.KoinViewModel
 
 @KoinViewModel
@@ -24,6 +28,7 @@ class SettingsViewModel(
     private val restoreBackupUseCase: RestoreBackupUseCase,
     private val exportReportUseCase: ExportPatientReportUseCase,
     private val patientRepository: IPatientRepository,
+    private val themePreferenceStore: ThemePreferenceStore,
     animallyNavigator: AnimallyNavigator,
 ) : AnimallyNavigationViewModel(animallyNavigator) {
     private val patientsState = mutableStateOf(patientRepository.getPatientList())
@@ -42,6 +47,9 @@ class SettingsViewModel(
     var backupStatus: String? by mutableStateOf(null)
     var restoreStatus: String? by mutableStateOf(null)
     var pdfStatus: String? by mutableStateOf(null)
+
+    private val _themeMode = MutableStateFlow(themePreferenceStore.getThemeMode())
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     /**
      * Exports every patient's records to a CSV file and shares it.
@@ -96,5 +104,15 @@ class SettingsViewModel(
         val report = exportReportUseCase(patientId = patientId, from = null, to = null)
         sharePdf(fileName = "patient-history-${report.patient.name}.pdf", bytes = generatePdf(report))
         pdfStatus = "PDF exported for ${report.patient.name}"
+    }
+
+    /**
+     * Updates the theme mode, persisting the choice and notifying observers.
+     *
+     * @param mode The new theme mode to apply.
+     */
+    fun onThemeModeChange(mode: ThemeMode) {
+        themePreferenceStore.setThemeMode(mode)
+        _themeMode.value = mode
     }
 }
