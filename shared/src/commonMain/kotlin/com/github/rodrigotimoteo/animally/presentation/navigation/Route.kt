@@ -45,6 +45,14 @@ sealed interface Route : NavKey {
     ) : Route
 
     /**
+     * The route for displaying the detail of an owner.
+     */
+    @Serializable
+    data class OwnerDetail(
+        val ownerId: Long,
+    ) : Route
+
+    /**
      * The route for adding or editing an owner.
      */
     @Serializable
