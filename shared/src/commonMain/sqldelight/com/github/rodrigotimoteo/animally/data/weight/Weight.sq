@@ -27,3 +27,5 @@ SELECT * FROM Weight WHERE isActive = 1;
 
 setInactive:
 UPDATE Weight SET isActive = 0 WHERE id = ?;
+countActiveByPatient:
+SELECT COUNT(*) FROM Weight WHERE patientId = ? AND isActive = 1;

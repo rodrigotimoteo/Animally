@@ -30,3 +30,5 @@ SELECT * FROM ReproMedication WHERE isActive = 1;
 
 setInactive:
 UPDATE ReproMedication SET isActive = 0, updatedAt = ? WHERE id = ?;
+countActiveByPatient:
+SELECT COUNT(*) FROM ReproMedication WHERE patientId = ? AND isActive = 1;

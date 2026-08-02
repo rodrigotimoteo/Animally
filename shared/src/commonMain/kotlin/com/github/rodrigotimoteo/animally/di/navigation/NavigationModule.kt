@@ -4,6 +4,8 @@ import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import com.github.rodrigotimoteo.animally.presentation.ownerDetail.view.OwnerDetailScreen
 import com.github.rodrigotimoteo.animally.presentation.ownerEdit.view.OwnerEditScreen
 import com.github.rodrigotimoteo.animally.presentation.ownerList.view.OwnerListScreen
+import com.github.rodrigotimoteo.animally.presentation.patientDetail.view.PatientDetailScreen
+import com.github.rodrigotimoteo.animally.presentation.patientEdit.view.PatientEditScreen
 import com.github.rodrigotimoteo.animally.presentation.patientList.view.PatientListScreen
 import com.github.rodrigotimoteo.animally.presentation.settings.view.SettingsScreen
 import org.koin.compose.viewmodel.koinViewModel
@@ -16,7 +18,7 @@ import org.koin.dsl.navigation3.navigation
 val navigationEntryModule =
     module {
         navigation<Route.PatientList> {
-            PatientListScreen()
+            PatientListScreen(viewModel = koinViewModel())
         }
 
         navigation<Route.OwnerList> {
@@ -29,6 +31,14 @@ val navigationEntryModule =
 
         navigation<Route.AddEditOwner> { route ->
             OwnerEditScreen(viewModel = koinViewModel { parametersOf(route.ownerId) })
+        }
+
+        navigation<Route.PatientDetail> { route ->
+            PatientDetailScreen(viewModel = koinViewModel { parametersOf(route.patientId) })
+        }
+
+        navigation<Route.AddEditPatient> { route ->
+            PatientEditScreen(viewModel = koinViewModel { parametersOf(route.patientId) })
         }
 
         navigation<Route.Settings> {

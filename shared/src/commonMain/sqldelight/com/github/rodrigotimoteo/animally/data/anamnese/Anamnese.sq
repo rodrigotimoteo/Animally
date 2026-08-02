@@ -19,3 +19,5 @@ SELECT * FROM Anamnese WHERE id = ?;
 
 selectByPatient:
 SELECT * FROM Anamnese WHERE patientId = ?;
+countActiveByPatient:
+SELECT COUNT(*) FROM Anamnese WHERE patientId = ?;

@@ -3,6 +3,8 @@ package com.github.rodrigotimoteo.animally.di.presentation
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.presentation.ownerDetail.OwnerDetailViewModel
 import com.github.rodrigotimoteo.animally.presentation.ownerEdit.OwnerEditViewModel
+import com.github.rodrigotimoteo.animally.presentation.patientDetail.PatientDetailViewModel
+import com.github.rodrigotimoteo.animally.presentation.patientEdit.PatientEditViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.core.annotation.Module
 import org.koin.core.module.dsl.viewModel
@@ -30,6 +32,25 @@ internal class PresentationModule {
                     ownerId = ownerId,
                     getOwnerDetailUseCase = get(),
                     saveOwnerUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long) ->
+                PatientDetailViewModel(
+                    patientId = patientId,
+                    getPatientDetailUseCase = get(),
+                    getOwnerDetailUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long?) ->
+                PatientEditViewModel(
+                    patientId = patientId,
+                    getPatientDetailUseCase = get(),
+                    savePatientUseCase = get(),
+                    getOwnerListUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )

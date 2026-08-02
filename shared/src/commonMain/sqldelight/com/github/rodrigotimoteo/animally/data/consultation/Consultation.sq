@@ -31,3 +31,5 @@ SELECT * FROM Consultation WHERE isActive = 1;
 
 setInactive:
 UPDATE Consultation SET isActive = 0, updatedAt = ? WHERE id = ?;
+countActiveByPatient:
+SELECT COUNT(*) FROM Consultation WHERE patientId = ? AND isActive = 1;

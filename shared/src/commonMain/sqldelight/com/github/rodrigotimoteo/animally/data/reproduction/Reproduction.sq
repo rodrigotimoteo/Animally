@@ -29,3 +29,5 @@ SELECT * FROM Reproduction WHERE isActive = 1;
 
 setInactive:
 UPDATE Reproduction SET isActive = 0, updatedAt = ? WHERE id = ?;
+countActiveByPatient:
+SELECT COUNT(*) FROM Reproduction WHERE patientId = ? AND isActive = 1;
