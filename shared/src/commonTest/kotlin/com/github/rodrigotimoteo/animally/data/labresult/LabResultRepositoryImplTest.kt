@@ -57,7 +57,7 @@ class LabResultRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 5, 1), result!!.date)
+        assertEquals(LocalDate(2024, 5, 1), assertNotNull(result).date)
         assertEquals("CBC", result.testType)
         assertEquals("12.5", result.results)
     }
@@ -96,8 +96,8 @@ class LabResultRepositoryImplTest {
             ),
         )
 
-        assertEquals("Chemistry Panel", sut.getById(id)!!.testType)
-        assertEquals("85", sut.getById(id)!!.results)
+        assertEquals("Chemistry Panel", assertNotNull(sut.getById(id)).testType)
+        assertEquals("85", assertNotNull(sut.getById(id)).results)
     }
 
     @Test

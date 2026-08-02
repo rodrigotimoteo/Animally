@@ -48,7 +48,7 @@ class AnamneseRepositoryImplTest {
 
         val result = sut.getByPatient(1L)
         assertNotNull(result)
-        assertEquals(id, result!!.id)
+        assertEquals(id, assertNotNull(result).id)
         assertEquals("history", result.generalHistory)
         assertEquals("conditions", result.chronicConditions)
         assertEquals("allergies", result.allergies)
@@ -71,7 +71,7 @@ class AnamneseRepositoryImplTest {
         assertEquals(firstId, secondId)
         val result = sut.getByPatient(1L)
         assertNotNull(result)
-        assertEquals("updated history", result!!.generalHistory)
+        assertEquals("updated history", assertNotNull(result).generalHistory)
         assertEquals("penicillin", result.allergies)
     }
 
@@ -82,7 +82,7 @@ class AnamneseRepositoryImplTest {
 
         assertNotNull(sut.getByPatient(1L))
         assertNotNull(sut.getByPatient(2L))
-        assertEquals(firstId, sut.getByPatient(1L)!!.id)
-        assertEquals(secondId, sut.getByPatient(2L)!!.id)
+        assertEquals(firstId, assertNotNull(sut.getByPatient(1L)).id)
+        assertEquals(secondId, assertNotNull(sut.getByPatient(2L)).id)
     }
 }

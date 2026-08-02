@@ -55,7 +55,7 @@ class DewormingRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals("Ivermectin", result!!.product)
+        assertEquals("Ivermectin", assertNotNull(result).product)
         assertEquals(LocalDate(2024, 4, 1), result.dateAdministered)
         assertEquals(LocalDate(2024, 10, 1), result.nextDueDate)
         assertEquals("1 tube", result.dose)
@@ -83,7 +83,7 @@ class DewormingRepositoryImplTest {
 
         sut.update(newDeworming(id = id, patientId = 1L, product = "Praziquantel"))
 
-        assertEquals("Praziquantel", sut.getById(id)!!.product)
+        assertEquals("Praziquantel", assertNotNull(sut.getById(id)).product)
     }
 
     @Test

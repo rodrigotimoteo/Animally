@@ -23,6 +23,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -81,7 +82,7 @@ class AnamneseViewModelTest {
                 ),
                 vm.formState.value,
             )
-            assertFalse(vm.formState.value!!.isLoading)
+            assertFalse(assertNotNull(vm.formState.value).isLoading)
         }
 
     @Test

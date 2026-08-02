@@ -58,7 +58,7 @@ class ControlledSubstanceRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 5, 1), result!!.date)
+        assertEquals(LocalDate(2024, 5, 1), assertNotNull(result).date)
         assertEquals("Xylazine", result.drugName)
         assertEquals("1.5", result.dose)
     }
@@ -96,7 +96,7 @@ class ControlledSubstanceRepositoryImplTest {
             ),
         )
 
-        assertEquals("Detomidine", sut.getById(id)!!.drugName)
+        assertEquals("Detomidine", assertNotNull(sut.getById(id)).drugName)
     }
 
     @Test

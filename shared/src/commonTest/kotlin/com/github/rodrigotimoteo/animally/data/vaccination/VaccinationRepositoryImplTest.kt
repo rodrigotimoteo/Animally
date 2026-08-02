@@ -55,7 +55,7 @@ class VaccinationRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals("Tetanus", result!!.vaccineName)
+        assertEquals("Tetanus", assertNotNull(result).vaccineName)
         assertEquals(LocalDate(2024, 1, 15), result.dateAdministered)
         assertEquals(LocalDate(2025, 1, 15), result.nextDueDate)
         assertEquals("B-123", result.batchNumber)
@@ -92,7 +92,7 @@ class VaccinationRepositoryImplTest {
         )
 
         val result = sut.getById(id)
-        assertEquals("Influenza", result!!.vaccineName)
+        assertEquals("Influenza", assertNotNull(result).vaccineName)
         assertEquals(LocalDate(2024, 7, 15), result.nextDueDate)
     }
 

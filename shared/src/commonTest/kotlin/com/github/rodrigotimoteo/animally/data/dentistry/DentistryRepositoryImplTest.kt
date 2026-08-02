@@ -54,7 +54,7 @@ class DentistryRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 6, 1), result!!.date)
+        assertEquals(LocalDate(2024, 6, 1), assertNotNull(result).date)
         assertEquals("Sharp points", result.findings)
         assertEquals("Floating performed", result.treatment)
         assertEquals(LocalDate(2024, 9, 1), result.nextDueDate)
@@ -82,7 +82,7 @@ class DentistryRepositoryImplTest {
 
         sut.update(newDentistry(id = id, patientId = 1L, date = LocalDate(2024, 6, 1)).copy(treatment = "Wolf teeth removed"))
 
-        assertEquals("Wolf teeth removed", sut.getById(id)!!.treatment)
+        assertEquals("Wolf teeth removed", assertNotNull(sut.getById(id)).treatment)
     }
 
     @Test

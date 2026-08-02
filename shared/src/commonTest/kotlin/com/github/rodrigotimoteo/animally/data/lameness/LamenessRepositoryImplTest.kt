@@ -57,7 +57,7 @@ class LamenessRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 5, 1), result!!.date)
+        assertEquals(LocalDate(2024, 5, 1), assertNotNull(result).date)
         assertEquals(3, result.gradeAAEP)
         assertEquals("Suspected tendonitis", result.diagnosis)
     }
@@ -95,7 +95,7 @@ class LamenessRepositoryImplTest {
             ),
         )
 
-        assertEquals(4, sut.getById(id)!!.gradeAAEP)
+        assertEquals(4, assertNotNull(sut.getById(id)).gradeAAEP)
     }
 
     @Test

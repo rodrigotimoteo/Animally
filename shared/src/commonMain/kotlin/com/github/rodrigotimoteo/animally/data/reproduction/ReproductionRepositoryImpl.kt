@@ -15,20 +15,19 @@ import kotlin.time.Instant
 class ReproductionRepositoryImpl(
     @Provided private val database: AnimallyDatabase,
 ) : IReproductionRepository {
-    private val reproductionQueries: ReproductionQueries = database.reproductionQueries
+    private val reproQueries: ReproductionQueries = database.reproductionQueries
 
     override fun getByPatient(patientId: Long): List<ReproductionEvent> =
-        reproductionQueries
+        reproQueries
             .selectByPatient(patientId)
             .executeAsList()
             .map { it.toDomain() }
             .sortedByDescending { it.date }
 
-    @Suppress("MaxLineLength")
-    override fun getById(id: Long): ReproductionEvent? = reproductionQueries.selectById(id).executeAsOneOrNull()?.toDomain()
+    override fun getById(id: Long): ReproductionEvent? = reproQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(reproductionEvent: ReproductionEvent): Long =
-        reproductionQueries
+        reproQueries
             .insert(
                 patientId = reproductionEvent.patientId,
                 eventType = reproductionEvent.eventType,
@@ -42,7 +41,7 @@ class ReproductionRepositoryImpl(
             ).value
 
     override fun update(reproductionEvent: ReproductionEvent): Long =
-        reproductionQueries
+        reproQueries
             .update(
                 id = reproductionEvent.id,
                 patientId = reproductionEvent.patientId,
@@ -59,7 +58,7 @@ class ReproductionRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): Long =
-        reproductionQueries
+        reproQueries
             .setInactive(
                 id = id,
                 updatedAt = updatedAt,

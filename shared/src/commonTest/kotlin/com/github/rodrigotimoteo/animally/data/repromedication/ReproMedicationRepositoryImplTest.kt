@@ -55,7 +55,7 @@ class ReproMedicationRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 5, 1), result!!.dateAdministered)
+        assertEquals(LocalDate(2024, 5, 1), assertNotNull(result).dateAdministered)
         assertEquals("Oxytocin", result.medication)
         assertEquals("10 IU", result.dosage)
         assertEquals("Induce labor", result.purpose)
@@ -94,7 +94,7 @@ class ReproMedicationRepositoryImplTest {
             ),
         )
 
-        assertEquals("Flunixin", sut.getById(id)!!.medication)
+        assertEquals("Flunixin", assertNotNull(sut.getById(id)).medication)
     }
 
     @Test

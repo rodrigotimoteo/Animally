@@ -55,7 +55,7 @@ class FarrierVisitRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 3, 1), result!!.date)
+        assertEquals(LocalDate(2024, 3, 1), assertNotNull(result).date)
         assertEquals("Trim", result.trimOrShoe)
         assertEquals("Steel", result.shoeType)
         assertEquals(LocalDate(2024, 6, 1), result.nextDueDate)
@@ -83,7 +83,7 @@ class FarrierVisitRepositoryImplTest {
 
         sut.update(newFarrierVisit(id = id, patientId = 1L, date = LocalDate(2024, 3, 1)).copy(shoeType = "Aluminum"))
 
-        assertEquals("Aluminum", sut.getById(id)!!.shoeType)
+        assertEquals("Aluminum", assertNotNull(sut.getById(id)).shoeType)
     }
 
     @Test

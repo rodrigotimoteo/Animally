@@ -80,7 +80,7 @@ class OwnerRepositoryImplTest {
         val result = sut.getOwnerById(id)
 
         assertNotNull(result)
-        assertEquals("Alice", result!!.name)
+        assertEquals("Alice", assertNotNull(result).name)
         assertEquals("alice@example.com", result.email)
     }
 
@@ -159,7 +159,7 @@ class OwnerRepositoryImplTest {
         )
         val id = sut.getOwnerList().single().id
 
-        assertEquals("", sut.getOwnerById(id)!!.name)
+        assertEquals("", assertNotNull(sut.getOwnerById(id)).name)
     }
 
     @Test
@@ -177,7 +177,7 @@ class OwnerRepositoryImplTest {
 
         val result = sut.getOwnerById(id)
         assertNotNull(result)
-        assertEquals("NoContact", result!!.name)
+        assertEquals("NoContact", assertNotNull(result).name)
         assertNull(result.email)
         assertNull(result.phone)
         assertNull(result.address)
@@ -209,7 +209,7 @@ class OwnerRepositoryImplTest {
             ),
         )
 
-        with(sut.getOwnerById(id)!!) {
+        with(assertNotNull(sut.getOwnerById(id))) {
             assertEquals("Alice Updated", name)
             assertEquals("alice@new.com", email)
             assertEquals("999", phone)
@@ -243,7 +243,7 @@ class OwnerRepositoryImplTest {
             ),
         )
 
-        with(sut.getOwnerById(id)!!) {
+        with(assertNotNull(sut.getOwnerById(id))) {
             assertNull(email)
             assertNull(phone)
             assertNull(address)

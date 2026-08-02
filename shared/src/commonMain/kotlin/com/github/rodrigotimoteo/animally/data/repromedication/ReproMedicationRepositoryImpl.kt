@@ -15,20 +15,19 @@ import kotlin.time.Instant
 class ReproMedicationRepositoryImpl(
     @Provided private val database: AnimallyDatabase,
 ) : IReproMedicationRepository {
-    private val reproMedicationQueries: ReproMedicationQueries = database.reproMedicationQueries
+    private val reproMedQueries: ReproMedicationQueries = database.reproMedicationQueries
 
     override fun getByPatient(patientId: Long): List<ReproMedication> =
-        reproMedicationQueries
+        reproMedQueries
             .selectByPatient(patientId)
             .executeAsList()
             .map { it.toDomain() }
             .sortedByDescending { it.dateAdministered }
 
-    @Suppress("MaxLineLength")
-    override fun getById(id: Long): ReproMedication? = reproMedicationQueries.selectById(id).executeAsOneOrNull()?.toDomain()
+    override fun getById(id: Long): ReproMedication? = reproMedQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(reproMedication: ReproMedication): Long =
-        reproMedicationQueries
+        reproMedQueries
             .insert(
                 patientId = reproMedication.patientId,
                 medication = reproMedication.medication,
@@ -43,7 +42,7 @@ class ReproMedicationRepositoryImpl(
             ).value
 
     override fun update(reproMedication: ReproMedication): Long =
-        reproMedicationQueries
+        reproMedQueries
             .update(
                 id = reproMedication.id,
                 patientId = reproMedication.patientId,
@@ -61,7 +60,7 @@ class ReproMedicationRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): Long =
-        reproMedicationQueries
+        reproMedQueries
             .setInactive(
                 id = id,
                 updatedAt = updatedAt,

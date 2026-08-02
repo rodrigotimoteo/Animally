@@ -24,6 +24,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -149,6 +150,6 @@ class VaccinationEditViewModelTest {
                 ),
                 vm.formState.value,
             )
-            assertTrue(!vm.formState.value!!.isLoading)
+            assertTrue(!assertNotNull(vm.formState.value).isLoading)
         }
 }

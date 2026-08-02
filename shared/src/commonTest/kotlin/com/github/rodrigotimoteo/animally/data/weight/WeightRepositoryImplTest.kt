@@ -52,7 +52,7 @@ class WeightRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(520.0, result!!.weightKg)
+        assertEquals(520.0, assertNotNull(result).weightKg)
         assertEquals(LocalDate(2024, 5, 1), result.date)
         assertEquals("routine weigh-in", result.notes)
     }
@@ -82,7 +82,7 @@ class WeightRepositoryImplTest {
 
         sut.update(newWeight(id = id, patientId = 1L, weightKg = 515.0, date = LocalDate(2024, 5, 1)))
 
-        assertEquals(515.0, sut.getById(id)!!.weightKg)
+        assertEquals(515.0, assertNotNull(sut.getById(id)).weightKg)
     }
 
     @Test

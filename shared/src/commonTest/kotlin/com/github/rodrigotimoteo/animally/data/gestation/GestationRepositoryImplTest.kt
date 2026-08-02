@@ -57,7 +57,7 @@ class GestationRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 5, 1), result!!.breedingDate)
+        assertEquals(LocalDate(2024, 5, 1), assertNotNull(result).breedingDate)
         assertEquals(LocalDate(2025, 4, 6), result.expectedDueDate)
         assertEquals("Active", result.status)
         assertEquals(1, result.fetalCount)
@@ -85,7 +85,7 @@ class GestationRepositoryImplTest {
         )
 
         val result = sut.getById(id)
-        assertEquals("Confirmed", result!!.status)
+        assertEquals("Confirmed", assertNotNull(result).status)
         assertEquals(100, result.gestationDays)
     }
 

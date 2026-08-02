@@ -73,7 +73,7 @@ class PatientRepositoryImplTest {
         val result = sut.getPatientById(id)
 
         assertNotNull(result)
-        assertEquals("Charlie", result!!.name)
+        assertEquals("Charlie", assertNotNull(result).name)
     }
 
     @Test
@@ -87,7 +87,7 @@ class PatientRepositoryImplTest {
 
         sut.updatePatient(newPatient(id = id, name = "Charlie Updated", updatedAt = Instant.fromEpochMilliseconds(200L)))
 
-        with(sut.getPatientById(id)!!) {
+        with(assertNotNull(sut.getPatientById(id))) {
             assertEquals("Charlie Updated", name)
             assertEquals("Equine", species)
         }
@@ -187,6 +187,6 @@ class PatientRepositoryImplTest {
 
         assertEquals(emptyList(), sut.getPatientsByOwnerId(42L))
         assertEquals(0L, sut.countPatientsByOwnerId(42L))
-        assertEquals("Charlie", sut.getPatientById(id)!!.name)
+        assertEquals("Charlie", assertNotNull(sut.getPatientById(id)).name)
     }
 }

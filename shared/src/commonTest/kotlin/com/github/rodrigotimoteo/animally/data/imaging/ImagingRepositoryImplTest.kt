@@ -57,7 +57,7 @@ class ImagingRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 5, 1), result!!.date)
+        assertEquals(LocalDate(2024, 5, 1), assertNotNull(result).date)
         assertEquals("X-ray", result.type)
         assertEquals("No abnormalities", result.findings)
     }
@@ -96,8 +96,8 @@ class ImagingRepositoryImplTest {
             ),
         )
 
-        assertEquals("MRI", sut.getById(id)!!.type)
-        assertEquals("Soft tissue lesion", sut.getById(id)!!.findings)
+        assertEquals("MRI", assertNotNull(sut.getById(id)).type)
+        assertEquals("Soft tissue lesion", assertNotNull(sut.getById(id)).findings)
     }
 
     @Test

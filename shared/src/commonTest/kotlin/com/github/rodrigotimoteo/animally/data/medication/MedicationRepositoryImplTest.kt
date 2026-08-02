@@ -58,7 +58,7 @@ class MedicationRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals("Phenylbutazone", result!!.name)
+        assertEquals("Phenylbutazone", assertNotNull(result).name)
         assertEquals("2g", result.dosage)
         assertEquals(LocalDate(2024, 5, 1), result.startDate)
     }
@@ -96,7 +96,7 @@ class MedicationRepositoryImplTest {
             ),
         )
 
-        assertEquals("Flunixin", sut.getById(id)!!.name)
+        assertEquals("Flunixin", assertNotNull(sut.getById(id)).name)
     }
 
     @Test

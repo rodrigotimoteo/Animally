@@ -24,6 +24,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -95,7 +96,7 @@ class OwnerEditViewModelTest {
             advanceUntilIdle()
 
             assertEquals(OwnerFormState(id = 1L, name = "Bob", phone = "123", address = "Addr", createdAt = owner.createdAt), vm.formState.value)
-            assertFalse(vm.formState.value!!.isLoading)
+            assertFalse(assertNotNull(vm.formState.value).isLoading)
         }
 
     @Test

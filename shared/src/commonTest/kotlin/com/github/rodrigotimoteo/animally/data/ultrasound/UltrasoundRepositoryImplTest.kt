@@ -57,7 +57,7 @@ class UltrasoundRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 5, 1), result!!.date)
+        assertEquals(LocalDate(2024, 5, 1), assertNotNull(result).date)
         assertEquals(25.0, result.follicleSizeMm)
         assertEquals("Follicles present", result.ovaryStatus)
         assertEquals("Normal tone", result.uterineStatus)
@@ -97,7 +97,7 @@ class UltrasoundRepositoryImplTest {
             ),
         )
 
-        assertEquals(32.5, sut.getById(id)!!.follicleSizeMm)
+        assertEquals(32.5, assertNotNull(sut.getById(id)).follicleSizeMm)
     }
 
     @Test

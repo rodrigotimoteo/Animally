@@ -59,7 +59,7 @@ class ConsultationRepositoryImplTest {
         assertEquals(1L, id)
         val result = sut.getById(id)
         assertNotNull(result)
-        assertEquals(LocalDate(2024, 5, 1), result!!.date)
+        assertEquals(LocalDate(2024, 5, 1), assertNotNull(result).date)
         assertEquals("Owner reports lameness", result.subjective)
         assertEquals("Suspected tendonitis", result.assessment)
     }
@@ -97,7 +97,7 @@ class ConsultationRepositoryImplTest {
             ),
         )
 
-        assertEquals("Tendonitis confirmed", sut.getById(id)!!.assessment)
+        assertEquals("Tendonitis confirmed", assertNotNull(sut.getById(id)).assessment)
     }
 
     @Test
