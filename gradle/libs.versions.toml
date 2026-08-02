@@ -26,6 +26,8 @@ sqlDelight = "2.3.2"
 detekt = "1.23.8"
 ktlintPlugin = "14.2.0"
 turbine = "1.2.1"
+filekit = "0.14.2"
+kmpnotifier = "2.0.0"
 
 [libraries]
 # Base libraries
@@ -86,6 +88,10 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 # Testing libraries
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 mokkery = { module = "dev.mokkery:mokkery-core", version.ref = "mokkery" }
+
+# Phase 2/4 libraries
+filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
+kmpnotifier-local = { module = "io.github.mirzemehdi:kmpnotifier-local", version.ref = "kmpnotifier" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

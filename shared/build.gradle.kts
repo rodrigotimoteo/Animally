@@ -91,6 +91,9 @@ kotlin {
             implementation(libs.sqldelight.runtime)
             implementation(libs.sqldelight.coroutines)
             implementation(libs.sqldelight.primitive.adapter)
+
+            implementation(libs.filekit.dialogs.compose)
+            implementation(libs.kmpnotifier.local)
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.kotlin.test)
