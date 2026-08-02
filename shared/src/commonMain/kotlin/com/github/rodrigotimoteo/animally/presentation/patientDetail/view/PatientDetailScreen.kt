@@ -34,9 +34,25 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.presentation.consultation.view.ConsultationListScreen
+import com.github.rodrigotimoteo.animally.presentation.dentistry.view.DentistryListScreen
+import com.github.rodrigotimoteo.animally.presentation.deworming.view.DewormingListScreen
+import com.github.rodrigotimoteo.animally.presentation.farrier.view.FarrierVisitListScreen
+import com.github.rodrigotimoteo.animally.presentation.gestation.view.GestationListScreen
+import com.github.rodrigotimoteo.animally.presentation.imaging.view.ImagingListScreen
+import com.github.rodrigotimoteo.animally.presentation.labresult.view.LabResultListScreen
+import com.github.rodrigotimoteo.animally.presentation.lameness.view.LamenessListScreen
+import com.github.rodrigotimoteo.animally.presentation.medication.view.MedicationListScreen
 import com.github.rodrigotimoteo.animally.presentation.patientDetail.PatientDetailUiState
 import com.github.rodrigotimoteo.animally.presentation.patientDetail.PatientDetailViewModel
+import com.github.rodrigotimoteo.animally.presentation.reproduction.view.ReproductionEventListScreen
+import com.github.rodrigotimoteo.animally.presentation.repromedication.view.ReproMedicationListScreen
+import com.github.rodrigotimoteo.animally.presentation.substance.view.ControlledSubstanceListScreen
+import com.github.rodrigotimoteo.animally.presentation.surgery.view.SurgeryListScreen
+import com.github.rodrigotimoteo.animally.presentation.ultrasound.view.UltrasoundListScreen
 import com.github.rodrigotimoteo.animally.presentation.vaccination.view.VaccinationListScreen
+import com.github.rodrigotimoteo.animally.presentation.weight.view.WeightListScreen
+import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 /**
  * The five top-level tabs of the patient detail screen, per ADR-0006.
@@ -144,7 +160,8 @@ private fun PatientTabs(
             PatientTab.Overview -> OverviewTab(patient, uiState.ownerName, onAnamneseClick)
             PatientTab.Medical -> MedicalTab(patient.id)
             PatientTab.Preventive -> PreventiveTab(patient.id)
-            else -> PlaceholderTab()
+            PatientTab.Reproduction -> ReproductionTab(patient.id)
+            PatientTab.DiagnosticsFiles -> DiagnosticsFilesTab(patient.id)
         }
     }
 }
@@ -155,10 +172,17 @@ private fun OverviewTab(
     ownerName: String?,
     onAnamneseClick: () -> Unit,
 ) {
-    val scrollModifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-    Column(modifier = scrollModifier) {
-        PatientInfoCard(patient, ownerName)
-        AnamneseCard(onAnamneseClick)
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+        ) {
+            PatientInfoCard(patient, ownerName)
+            AnamneseCard(onAnamneseClick)
+        }
+        WeightListScreen(
+            viewModel = koinViewModel { parametersOf(patient.id) },
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -181,12 +205,47 @@ private fun AnamneseCard(onClick: () -> Unit) {
 
 @Composable
 private fun MedicalTab(patientId: Long) {
-    ConsultationListScreen(patientId = patientId, modifier = Modifier.fillMaxSize())
+    Column(Modifier.fillMaxSize()) {
+        ConsultationListScreen(patientId = patientId, modifier = Modifier.weight(1f))
+        LamenessListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+        SurgeryListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+        MedicationListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+        ControlledSubstanceListScreen(
+            viewModel = koinViewModel { parametersOf(patientId) },
+            modifier = Modifier.weight(1f),
+        )
+    }
 }
 
 @Composable
 private fun PreventiveTab(patientId: Long) {
-    VaccinationListScreen(patientId = patientId, modifier = Modifier.fillMaxSize())
+    Column(Modifier.fillMaxSize()) {
+        VaccinationListScreen(patientId = patientId, modifier = Modifier.weight(1f))
+        DewormingListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+        DentistryListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+        FarrierVisitListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ReproductionTab(patientId: Long) {
+    Column(Modifier.fillMaxSize()) {
+        ReproductionEventListScreen(
+            viewModel = koinViewModel { parametersOf(patientId) },
+            modifier = Modifier.weight(1f),
+        )
+        UltrasoundListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+        GestationListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+        ReproMedicationListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun DiagnosticsFilesTab(patientId: Long) {
+    Column(Modifier.fillMaxSize()) {
+        LabResultListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+        ImagingListScreen(viewModel = koinViewModel { parametersOf(patientId) }, modifier = Modifier.weight(1f))
+    }
 }
 
 @Composable
@@ -227,15 +286,5 @@ private fun InfoRow(
             value,
             style = MaterialTheme.typography.bodyLarge,
         )
-    }
-}
-
-@Composable
-private fun PlaceholderTab() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text("Coming soon", style = MaterialTheme.typography.bodyLarge)
     }
 }
