@@ -34,3 +34,14 @@ setInactive:
 UPDATE Lameness SET isActive = 0, updatedAt = ? WHERE id = ?;
 countActiveByPatient:
 SELECT COUNT(*) FROM Lameness WHERE patientId = ? AND isActive = 1;
+
+-- Backup support --
+deleteAll:
+DELETE FROM Lameness;
+
+selectAllRows:
+SELECT * FROM Lameness;
+
+insertWithId:
+INSERT INTO Lameness (id, patientId, date, gradeAAEP, limbLocation, flexionTest, diagnosis, treatment, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

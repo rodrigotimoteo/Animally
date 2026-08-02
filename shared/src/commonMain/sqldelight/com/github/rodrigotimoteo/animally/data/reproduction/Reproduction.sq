@@ -31,3 +31,14 @@ setInactive:
 UPDATE Reproduction SET isActive = 0, updatedAt = ? WHERE id = ?;
 countActiveByPatient:
 SELECT COUNT(*) FROM Reproduction WHERE patientId = ? AND isActive = 1;
+
+-- Backup support --
+deleteAll:
+DELETE FROM Reproduction;
+
+selectAllRows:
+SELECT * FROM Reproduction;
+
+insertWithId:
+INSERT INTO Reproduction (id, patientId, eventType, date, details, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

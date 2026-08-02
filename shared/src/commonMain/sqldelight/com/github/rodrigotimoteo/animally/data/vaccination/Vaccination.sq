@@ -33,3 +33,14 @@ setInactive:
 UPDATE Vaccination SET isActive = 0, updatedAt = ? WHERE id = ?;
 countActiveByPatient:
 SELECT COUNT(*) FROM Vaccination WHERE patientId = ? AND isActive = 1;
+
+-- Backup support --
+deleteAll:
+DELETE FROM Vaccination;
+
+selectAllRows:
+SELECT * FROM Vaccination;
+
+insertWithId:
+INSERT INTO Vaccination (id, patientId, vaccineName, dateAdministered, nextDueDate, vetName, batchNumber, site, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

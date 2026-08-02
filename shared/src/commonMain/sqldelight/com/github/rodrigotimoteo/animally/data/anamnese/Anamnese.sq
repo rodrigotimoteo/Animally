@@ -21,3 +21,14 @@ selectByPatient:
 SELECT * FROM Anamnese WHERE patientId = ?;
 countActiveByPatient:
 SELECT COUNT(*) FROM Anamnese WHERE patientId = ?;
+
+-- Backup support --
+deleteAll:
+DELETE FROM Anamnese;
+
+selectAllRows:
+SELECT * FROM Anamnese;
+
+insertWithId:
+INSERT INTO Anamnese (id, patientId, generalHistory, chronicConditions, allergies, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?);

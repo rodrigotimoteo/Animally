@@ -41,3 +41,14 @@ SELECT * FROM Patient WHERE ownerId = ? AND isActive = 1;
 
 countActiveByOwnerId:
 SELECT COUNT(*) FROM Patient WHERE ownerId = ? AND isActive = 1;
+
+-- Backup support --
+deleteAll:
+DELETE FROM Patient;
+
+selectAllRows:
+SELECT * FROM Patient;
+
+insertWithId:
+INSERT INTO Patient (id, name, species, breed, dateOfBirth, gender, microchipId, ueln, registrationNumber, stableLocation, photoUri, notes, ownerId, isActive, createdAt, updatedAt, cogginsTestDate, cogginsResult, cogginsExpiryDate)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

@@ -1,13 +1,53 @@
 package com.github.rodrigotimoteo.animally.domain.notification
 
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.CogginsAlert
+import com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder
+import com.mmk.kmpnotifier.KMPNotifier
+import com.mmk.kmpnotifier.local.LocalNotifications
+import com.mmk.kmpnotifier.notification.configuration.NotificationPlatformConfiguration
+import kotlinx.datetime.TimeZone
 
 /**
- * POC stub: iOS notification scheduling is deferred to a later phase.
+ * iOS notification scheduler backed by KMPNotifier local notifications.
+ *
+ * Permission is requested on first use. Reminders are scheduled on the due date; Coggins
+ * alerts are posted immediately.
  */
 actual class NotificationScheduler {
-    /**
-     * No-op for the POC. Real UNUserNotificationCenter scheduling arrives with the notification phase.
-     */
-    actual fun scheduleCogginsNotifications(alerts: List<CogginsAlert>) = Unit
+    actual fun scheduleCogginsNotifications(alerts: List<CogginsAlert>) {
+        if (alerts.isEmpty()) return
+        ensureInitialized()
+        alerts.forEachIndexed { index, alert ->
+            LocalNotifications.notifier.notify(
+                id = index,
+                title = "Coggins ${alert.status.name}",
+                body = "${alert.patient.name} — Coggins expires ${alert.expiryDate}",
+            )
+        }
+    }
+
+    actual fun scheduleReminder(
+        reminder: Reminder,
+        channelId: String,
+    ) {
+        ensureInitialized()
+        LocalNotifications.notifier.notify {
+            id = reminder.notificationId()
+            title = reminder.title
+            body = "${reminder.recordType} due ${reminder.dueDate} — ${reminder.patientName}"
+            scheduledAt = reminder.fireAt(TimeZone.currentSystemDefault())
+        }
+    }
+
+    private fun ensureInitialized() {
+        if (KMPNotifier.isInitialized) return
+        KMPNotifier.initialize(
+            NotificationPlatformConfiguration.Ios(
+                showPushNotification = true,
+                askNotificationPermissionOnStart = true,
+                notificationSoundName = null,
+            ),
+            LocalNotifications,
+        )
+    }
 }

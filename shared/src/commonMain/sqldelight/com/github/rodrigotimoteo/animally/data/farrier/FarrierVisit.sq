@@ -33,3 +33,14 @@ setInactive:
 UPDATE FarrierVisit SET isActive = 0, updatedAt = ? WHERE id = ?;
 countActiveByPatient:
 SELECT COUNT(*) FROM FarrierVisit WHERE patientId = ? AND isActive = 1;
+
+-- Backup support --
+deleteAll:
+DELETE FROM FarrierVisit;
+
+selectAllRows:
+SELECT * FROM FarrierVisit;
+
+insertWithId:
+INSERT INTO FarrierVisit (id, patientId, date, trimOrShoe, shoeType, findings, nextDueDate, farrier, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

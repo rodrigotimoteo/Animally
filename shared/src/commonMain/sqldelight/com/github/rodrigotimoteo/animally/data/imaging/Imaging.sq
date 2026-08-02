@@ -32,3 +32,14 @@ setInactive:
 UPDATE Imaging SET isActive = 0, updatedAt = ? WHERE id = ?;
 countActiveByPatient:
 SELECT COUNT(*) FROM Imaging WHERE patientId = ? AND isActive = 1;
+
+-- Backup support --
+deleteAll:
+DELETE FROM Imaging;
+
+selectAllRows:
+SELECT * FROM Imaging;
+
+insertWithId:
+INSERT INTO Imaging (id, patientId, type, date, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

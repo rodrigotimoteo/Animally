@@ -1,6 +1,10 @@
 package com.github.rodrigotimoteo.animally.presentation.ultrasound
 
 import androidx.lifecycle.viewModelScope
+import com.github.rodrigotimoteo.animally.data.storage.FileStorage
+import com.github.rodrigotimoteo.animally.data.storage.PickedFile
+import com.github.rodrigotimoteo.animally.data.storage.sanitizeFileName
+import com.github.rodrigotimoteo.animally.data.storage.splitImageUris
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundDetailUseCase
@@ -23,6 +27,7 @@ import kotlin.time.Clock
  * @param saveUltrasoundUseCase Use case for persisting the ultrasound.
  * @param animallyNavigator The navigator to use for navigation.
  * @param ioDispatcher Dispatcher for blocking database work.
+ * @param saveFile Persists file bytes to storage and returns the absolute path.
  */
 class UltrasoundEditViewModel(
     private val patientId: Long,
@@ -31,6 +36,9 @@ class UltrasoundEditViewModel(
     private val saveUltrasoundUseCase: SaveUltrasoundUseCase,
     animallyNavigator: AnimallyNavigator,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
+    private val saveFile: (fileName: String, bytes: ByteArray) -> String = { fileName, bytes ->
+        FileStorage.saveBytes(fileName, bytes)
+    },
 ) : BaseAddEditViewModel<UltrasoundFormState>(animallyNavigator) {
     init {
         if (ultrasoundId != null) {
@@ -115,6 +123,39 @@ class UltrasoundEditViewModel(
      */
     fun onImageUrisChange(value: String) {
         formState.value?.let { updateForm(it.copy(imageUris = value.ifBlank { null })) }
+    }
+
+    /**
+     * Saves the picked [files] to storage and appends their paths to [UltrasoundFormState.imageUris].
+     *
+     * @param files The files picked through the platform picker.
+     */
+    fun onFilesPicked(files: List<PickedFile>) {
+        viewModelScope.launch {
+            val savedPaths =
+                withContext(ioDispatcher) {
+                    buildList {
+                        for (file in files) {
+                            val bytes = file.readBytes()
+                            add(saveFile(sanitizeFileName(file.name), bytes))
+                        }
+                    }
+                }
+            val merged = (splitImageUris(formState.value?.imageUris) + savedPaths).distinct()
+            val imageUris = merged.joinToString(",").ifBlank { null }
+            formState.value?.let { updateForm(it.copy(imageUris = imageUris)) }
+        }
+    }
+
+    /**
+     * Removes [uri] from [UltrasoundFormState.imageUris].
+     *
+     * @param uri The absolute path of the attached image to detach.
+     */
+    fun removeImageUri(uri: String) {
+        val remaining = splitImageUris(formState.value?.imageUris).filterNot { it == uri }
+        val imageUris = remaining.joinToString(",").ifBlank { null }
+        formState.value?.let { updateForm(it.copy(imageUris = imageUris)) }
     }
 
     /**

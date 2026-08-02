@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.ultrasound
 
+import com.github.rodrigotimoteo.animally.data.storage.PickedFile
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundDetailUseCase
@@ -15,6 +16,7 @@ import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -22,6 +24,7 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -42,15 +45,18 @@ class UltrasoundEditViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(dispatcher: kotlinx.coroutines.test.TestDispatcher) =
-        UltrasoundEditViewModel(
-            patientId = 1L,
-            ultrasoundId = null,
-            getUltrasoundDetailUseCase = getUltrasoundDetailUseCase,
-            saveUltrasoundUseCase = saveUltrasoundUseCase,
-            animallyNavigator = navigator,
-            ioDispatcher = dispatcher,
-        )
+    private fun createViewModel(
+        dispatcher: TestDispatcher,
+        saveFile: (fileName: String, bytes: ByteArray) -> String = { name, _ -> "/saved/$name" },
+    ) = UltrasoundEditViewModel(
+        patientId = 1L,
+        ultrasoundId = null,
+        getUltrasoundDetailUseCase = getUltrasoundDetailUseCase,
+        saveUltrasoundUseCase = saveUltrasoundUseCase,
+        animallyNavigator = navigator,
+        ioDispatcher = dispatcher,
+        saveFile = saveFile,
+    )
 
     @Test
     fun `blank date sets dateError and does not save`() =
@@ -163,5 +169,67 @@ class UltrasoundEditViewModelTest {
                 vm.formState.value,
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
+        }
+
+    @Test
+    fun `onFilesPicked saves picked files and appends their paths to imageUris`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val saved = mutableListOf<Pair<String, ByteArray>>()
+            val vm =
+                createViewModel(StandardTestDispatcher(testScheduler)) { name, bytes ->
+                    saved += name to bytes
+                    "/saved/$name"
+                }
+
+            vm.onFilesPicked(
+                listOf(
+                    PickedFile(name = "scan-a.jpg") { byteArrayOf(1, 2, 3) },
+                    PickedFile(name = "scan-b.jpg") { byteArrayOf(4, 5) },
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(listOf("scan-a.jpg", "scan-b.jpg"), saved.map { it.first })
+            assertContentEquals(byteArrayOf(1, 2, 3), saved[0].second)
+            assertContentEquals(byteArrayOf(4, 5), saved[1].second)
+            assertEquals("/saved/scan-a.jpg,/saved/scan-b.jpg", vm.formState.value?.imageUris)
+        }
+
+    @Test
+    fun `onFilesPicked appends to existing imageUris without duplication`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            vm.onImageUrisChange("/saved/old.jpg")
+
+            vm.onFilesPicked(listOf(PickedFile(name = "scan-c.jpg") { byteArrayOf(9) }))
+            advanceUntilIdle()
+
+            assertEquals("/saved/old.jpg,/saved/scan-c.jpg", vm.formState.value?.imageUris)
+        }
+
+    @Test
+    fun `removeImageUri drops the requested uri and keeps the others`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            vm.onImageUrisChange("/saved/a.jpg,/saved/b.jpg")
+
+            vm.removeImageUri("/saved/a.jpg")
+
+            assertEquals("/saved/b.jpg", vm.formState.value?.imageUris)
+        }
+
+    @Test
+    fun `removeImageUri nulls imageUris when last uri is removed`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            vm.onImageUrisChange("/saved/only.jpg")
+
+            vm.removeImageUri("/saved/only.jpg")
+
+            assertEquals(null, vm.formState.value?.imageUris)
         }
 }

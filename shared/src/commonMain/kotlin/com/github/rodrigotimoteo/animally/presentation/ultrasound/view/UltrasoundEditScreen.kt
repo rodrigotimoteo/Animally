@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.rodrigotimoteo.animally.presentation.common.attachment.AttachmentImagePicker
 import com.github.rodrigotimoteo.animally.presentation.ultrasound.UltrasoundEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.ultrasound.UltrasoundFormState
 
@@ -136,12 +137,11 @@ private fun UltrasoundFindingsFields(
         minLines = 3,
         modifier = Modifier.fillMaxWidth(),
     )
-    OutlinedTextField(
-        value = form.imageUris.orEmpty(),
-        onValueChange = viewModel::onImageUrisChange,
-        label = { Text("Image URIs") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+    AttachmentImagePicker(
+        imageUris = form.imageUris,
+        onFilesPicked = viewModel::onFilesPicked,
+        onRemove = viewModel::removeImageUri,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
     )
 }
 
