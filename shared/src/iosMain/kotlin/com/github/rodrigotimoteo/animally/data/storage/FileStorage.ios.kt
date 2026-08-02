@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.data.storage
 
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
@@ -9,6 +10,7 @@ import platform.Foundation.NSUserDomainMask
 import platform.Foundation.create
 import platform.Foundation.writeToURL
 
+@OptIn(ExperimentalForeignApi::class)
 actual object FileStorage {
     actual fun saveBytes(
         fileName: String,
@@ -24,15 +26,20 @@ actual object FileStorage {
                 error = null,
             )
         val attachmentsUrl =
-            requireNotNull(documentsUrl)
-                .URLByAppendingPathComponent(ATTACHMENTS_DIR, isDirectory = true)
+            requireNotNull(
+                requireNotNull(documentsUrl)
+                    .URLByAppendingPathComponent(ATTACHMENTS_DIR, isDirectory = true),
+            )
         fileManager.createDirectoryAtURL(
             attachmentsUrl,
             withIntermediateDirectories = true,
             attributes = null,
             error = null,
         )
-        val fileUrl = attachmentsUrl.URLByAppendingPathComponent(sanitizeFileName(fileName), isDirectory = false)
+        val fileUrl =
+            requireNotNull(
+                attachmentsUrl.URLByAppendingPathComponent(sanitizeFileName(fileName), isDirectory = false),
+            )
         val data =
             bytes.usePinned { pinned ->
                 NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())

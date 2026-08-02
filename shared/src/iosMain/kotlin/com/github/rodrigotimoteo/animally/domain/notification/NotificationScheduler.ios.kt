@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.notification
 
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.CogginsAlert
 import com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder
+import com.mmk.kmpnotifier.local.LocalNotifications
 import kotlinx.datetime.TimeZone
 
 /**

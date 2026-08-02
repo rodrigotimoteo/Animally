@@ -27,6 +27,8 @@ kotlin {
         }
     }
 
+    jvm("desktop")
+
     android {
         namespace = "com.github.rodrigotimoteo.animally.shared"
         compileSdk =
@@ -108,12 +110,18 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        val desktopTest by getting {
+            dependencies {
+                implementation(compose.desktop.currentOs)
+            }
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.koin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.turbine)
             implementation(libs.mokkery)
+            implementation("org.jetbrains.compose.ui:ui-test:1.11.1")
         }
     }
 }
