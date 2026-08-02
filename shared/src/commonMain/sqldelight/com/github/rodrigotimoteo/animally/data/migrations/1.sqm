@@ -23,7 +23,7 @@ CREATE TABLE Consultation (
     assessment TEXT,
     plan TEXT,
     vetName TEXT,
-    nextVisitDate TEXT,
+    nextVisitDate TEXT AS LocalDate,
     isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
     createdAt INTEGER AS Instant NOT NULL,
     updatedAt INTEGER AS Instant NOT NULL

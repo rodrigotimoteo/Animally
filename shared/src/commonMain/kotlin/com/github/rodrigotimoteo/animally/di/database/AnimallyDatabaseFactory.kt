@@ -48,6 +48,7 @@ object AnimallyDatabaseFactory {
             ConsultationAdapter =
                 Consultation.Adapter(
                     dateAdapter = LocalDateAdapter,
+                    nextVisitDateAdapter = LocalDateAdapter,
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,
                 ),

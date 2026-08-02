@@ -33,8 +33,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.presentation.consultation.view.ConsultationListScreen
 import com.github.rodrigotimoteo.animally.presentation.patientDetail.PatientDetailUiState
 import com.github.rodrigotimoteo.animally.presentation.patientDetail.PatientDetailViewModel
+import com.github.rodrigotimoteo.animally.presentation.vaccination.view.VaccinationListScreen
 
 /**
  * The five top-level tabs of the patient detail screen, per ADR-0006.
@@ -90,13 +92,18 @@ fun PatientDetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
-        PatientDetailContent(uiState = uiState, modifier = Modifier.padding(innerPadding))
+        PatientDetailContent(
+            uiState = uiState,
+            onAnamneseClick = viewModel::onAnamneseClick,
+            modifier = Modifier.padding(innerPadding),
+        )
     }
 }
 
 @Composable
 private fun PatientDetailContent(
     uiState: PatientDetailUiState,
+    onAnamneseClick: () -> Unit,
     modifier: Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -109,13 +116,16 @@ private fun PatientDetailContent(
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
-            else -> PatientTabs(uiState)
+            else -> PatientTabs(uiState, onAnamneseClick)
         }
     }
 }
 
 @Composable
-private fun PatientTabs(uiState: PatientDetailUiState) {
+private fun PatientTabs(
+    uiState: PatientDetailUiState,
+    onAnamneseClick: () -> Unit,
+) {
     val tabs = PatientTab.entries
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -129,8 +139,11 @@ private fun PatientTabs(uiState: PatientDetailUiState) {
                 )
             }
         }
+        val patient = checkNotNull(uiState.patient)
         when (tabs[selectedTab]) {
-            PatientTab.Overview -> OverviewTab(checkNotNull(uiState.patient), uiState.ownerName)
+            PatientTab.Overview -> OverviewTab(patient, uiState.ownerName, onAnamneseClick)
+            PatientTab.Medical -> MedicalTab(patient.id)
+            PatientTab.Preventive -> PreventiveTab(patient.id)
             else -> PlaceholderTab()
         }
     }
@@ -140,11 +153,40 @@ private fun PatientTabs(uiState: PatientDetailUiState) {
 private fun OverviewTab(
     patient: Patient,
     ownerName: String?,
+    onAnamneseClick: () -> Unit,
 ) {
     val scrollModifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
     Column(modifier = scrollModifier) {
         PatientInfoCard(patient, ownerName)
+        AnamneseCard(onAnamneseClick)
     }
+}
+
+@Composable
+private fun AnamneseCard(onClick: () -> Unit) {
+    val cardModifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+    Card(onClick = onClick, modifier = cardModifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Anamnese", style = MaterialTheme.typography.titleMedium)
+                Text("General history, chronic conditions, allergies", style = MaterialTheme.typography.bodyMedium)
+            }
+            Text("Edit", style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+@Composable
+private fun MedicalTab(patientId: Long) {
+    ConsultationListScreen(patientId = patientId, modifier = Modifier.fillMaxSize())
+}
+
+@Composable
+private fun PreventiveTab(patientId: Long) {
+    VaccinationListScreen(patientId = patientId, modifier = Modifier.fillMaxSize())
 }
 
 @Composable

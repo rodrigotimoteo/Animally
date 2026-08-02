@@ -80,6 +80,13 @@ class PatientDetailViewModel(
     }
 
     /**
+     * Navigates to the anamnese add/edit screen for the current patient.
+     */
+    fun onAnamneseClick() {
+        navigateTo(Route.AddEditAnamnese(patientId))
+    }
+
+    /**
      * Clears the current error message.
      */
     fun onDismissError() {
