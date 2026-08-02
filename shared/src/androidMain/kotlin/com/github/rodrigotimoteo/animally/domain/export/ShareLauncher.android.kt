@@ -14,9 +14,22 @@ actual fun shareFile(
     content: String,
     contentType: String,
 ) {
-    val context = appContext
-    val file = File(context.cacheDir, fileName)
+    val file = File(appContext.cacheDir, fileName)
     file.writeText(content)
+    shareFileAt(fileName, file.absolutePath, contentType)
+}
+
+/**
+ * Android implementation: shares the existing file at [path] through the
+ * system share sheet via `ACTION_SEND` with a content URI.
+ */
+actual fun shareFileAt(
+    fileName: String,
+    path: String,
+    contentType: String,
+) {
+    val context = appContext
+    val file = File(path)
     val contentUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val shareIntent =
         Intent(Intent.ACTION_SEND).apply {
@@ -25,4 +38,17 @@ actual fun shareFile(
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     context.startActivity(Intent.createChooser(shareIntent, "Share $fileName"))
+}
+
+/**
+ * Android implementation: writes [bytes] to the app cache directory and shares
+ * it as an `application/pdf` document.
+ */
+actual fun sharePdf(
+    fileName: String,
+    bytes: ByteArray,
+) {
+    val file = File(appContext.cacheDir, fileName)
+    file.writeBytes(bytes)
+    shareFileAt(fileName, file.absolutePath, "application/pdf")
 }

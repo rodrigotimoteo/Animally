@@ -1,0 +1,18 @@
+import com.github.rodrigotimoteo.animally.data.adapters.InstantAdapter;
+import com.github.rodrigotimoteo.animally.data.adapters.LocalDateAdapter;
+import kotlin.Boolean;
+import kotlin.time.Instant;
+import kotlinx.datetime.LocalDate;
+
+CREATE TABLE CustomReminder (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    dueDate TEXT AS LocalDate NOT NULL,
+    linkedRecordType TEXT,
+    linkedRecordId INTEGER,
+    notes TEXT,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL
+);

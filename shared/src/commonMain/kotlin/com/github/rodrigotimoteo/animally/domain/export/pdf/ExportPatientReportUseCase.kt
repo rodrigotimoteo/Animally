@@ -1,50 +1,53 @@
-package com.github.rodrigotimoteo.animally.domain.export
+package com.github.rodrigotimoteo.animally.domain.export.pdf
 
+import com.github.rodrigotimoteo.animally.domain.export.ExportBasicRecordsUseCase
+import com.github.rodrigotimoteo.animally.domain.export.ExportClinicalRecordsUseCase
+import com.github.rodrigotimoteo.animally.domain.export.ExportRecords
+import com.github.rodrigotimoteo.animally.domain.export.ExportReproductiveRecordsUseCase
+import com.github.rodrigotimoteo.animally.domain.export.buildPdfSections
+import com.github.rodrigotimoteo.animally.domain.export.filterByDate
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import kotlinx.datetime.LocalDate
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
 /**
- * Exports patient records as a CSV document.
+ * Gathers one patient's demographics and record tables into a [PdfReportData]
+ * ready to be rendered by the platform [generatePdf] implementation.
  *
- * When [patientId] is `null`, every active patient is exported, one block per
- * patient. Records carrying a date field are filtered to the inclusive
- * `from`/`to` date range; entities without a meaningful date field
- * (patient, anamnese) are always included.
+ * Reuses the CSV record gatherers, so both export formats stay consistent.
  */
 @Single
-class ExportCsvUseCase(
+class ExportPatientReportUseCase(
     @Provided private val patientRepository: IPatientRepository,
     @Provided private val basicRecords: ExportBasicRecordsUseCase,
     @Provided private val clinicalRecords: ExportClinicalRecordsUseCase,
     @Provided private val reproductiveRecords: ExportReproductiveRecordsUseCase,
-    @Provided private val csvExporter: CsvExporter,
 ) {
     /**
-     * Generates the CSV document.
+     * Builds the PDF report for the patient with the given [patientId].
      *
-     * @param patientId the patient to export, or `null` to export all patients.
+     * @param patientId the patient to export.
      * @param from inclusive lower date bound, or `null` for no lower bound.
      * @param to inclusive upper date bound, or `null` for no upper bound.
-     * @return the CSV document, or an empty string when no patients match.
+     * @throws IllegalArgumentException when the patient is not found.
      */
     operator fun invoke(
-        patientId: Long?,
+        patientId: Long,
         from: LocalDate?,
         to: LocalDate?,
-    ): String {
-        val patients =
-            if (patientId != null) {
-                listOfNotNull(patientRepository.getPatientById(patientId))
-            } else {
-                patientRepository.getPatientList()
+    ): PdfReportData {
+        val patient =
+            requireNotNull(patientRepository.getPatientById(patientId)) {
+                "Patient $patientId not found"
             }
-        if (patients.isEmpty()) return ""
-        return patients.joinToString(separator = "\n") { patient ->
-            val records = gather(patient.id).filterByDate(from, to)
-            csvExporter.exportPatientRecords(patient, records)
-        }
+        val records = gather(patientId).filterByDate(from, to)
+        return PdfReportData(
+            patient = PdfPatient.from(patient),
+            sections = buildPdfSections(records),
+            fromDate = from,
+            toDate = to,
+        )
     }
 
     private fun gather(patientId: Long): ExportRecords {

@@ -4,6 +4,8 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.presentation.anamnese.AnamneseViewModel
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationListViewModel
+import com.github.rodrigotimoteo.animally.presentation.customreminder.CustomReminderEditViewModel
+import com.github.rodrigotimoteo.animally.presentation.customreminder.CustomReminderListViewModel
 import com.github.rodrigotimoteo.animally.presentation.dentistry.DentistryEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.dentistry.DentistryListViewModel
 import com.github.rodrigotimoteo.animally.presentation.deworming.DewormingEditViewModel
@@ -383,6 +385,25 @@ internal class PresentationModule {
                 ReproMedicationListViewModel(
                     patientId = patientId,
                     getReproMedicationsByPatientUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long) ->
+                CustomReminderListViewModel(
+                    patientId = patientId,
+                    getCustomRemindersByPatientUseCase = get(),
+                    deleteCustomReminderUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long, reminderId: Long?) ->
+                CustomReminderEditViewModel(
+                    patientId = patientId,
+                    reminderId = reminderId,
+                    getCustomReminderDetailUseCase = get(),
+                    saveCustomReminderUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )

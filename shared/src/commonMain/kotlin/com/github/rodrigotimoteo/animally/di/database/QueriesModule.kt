@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.di.database
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.anamnese.AnamneseQueries
 import com.github.rodrigotimoteo.animally.data.consultation.ConsultationQueries
+import com.github.rodrigotimoteo.animally.data.customreminder.CustomReminderQueries
 import com.github.rodrigotimoteo.animally.data.dentistry.DentistryQueries
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingQueries
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitQueries
@@ -29,6 +30,7 @@ internal class QueriesModule {
         module {
             single<AnamneseQueries> { get<AnimallyDatabase>().anamneseQueries }
             single<ConsultationQueries> { get<AnimallyDatabase>().consultationQueries }
+            single<CustomReminderQueries> { get<AnimallyDatabase>().customReminderQueries }
             single<DentistryQueries> { get<AnimallyDatabase>().dentistryQueries }
             single<DewormingQueries> { get<AnimallyDatabase>().dewormingQueries }
             single<FarrierVisitQueries> { get<AnimallyDatabase>().farrierVisitQueries }

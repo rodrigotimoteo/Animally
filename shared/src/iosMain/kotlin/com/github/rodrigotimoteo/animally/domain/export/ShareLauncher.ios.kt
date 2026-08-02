@@ -8,3 +8,20 @@ actual fun shareFile(
     content: String,
     contentType: String,
 ) = Unit
+
+/**
+ * iOS stub for the POC — actual `UIActivityViewController` wiring is deferred.
+ */
+actual fun shareFileAt(
+    fileName: String,
+    path: String,
+    contentType: String,
+) = Unit
+
+/**
+ * iOS stub for the POC — actual `UIActivityViewController` wiring is deferred.
+ */
+actual fun sharePdf(
+    fileName: String,
+    bytes: ByteArray,
+) = Unit

@@ -218,4 +218,21 @@ sealed interface Route : NavKey {
         val patientId: Long,
         val substanceId: Long? = null,
     ) : Route
+
+    /**
+     * The route for adding or editing a custom reminder.
+     */
+    @Serializable
+    data class AddEditCustomReminder(
+        val patientId: Long,
+        val reminderId: Long? = null,
+    ) : Route
+
+    /**
+     * The route for displaying the custom reminders of a patient.
+     */
+    @Serializable
+    data class CustomReminderList(
+        val patientId: Long,
+    ) : Route
 }

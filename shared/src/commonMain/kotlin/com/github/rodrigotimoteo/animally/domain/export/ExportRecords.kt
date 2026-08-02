@@ -17,6 +17,7 @@ import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
+import kotlinx.datetime.LocalDate
 
 /**
  * Immutable snapshot of every per-patient record list to include in a CSV export.
@@ -61,3 +62,40 @@ data class ExportRecords(
     val reproMedications: List<ReproMedication> = emptyList(),
     val controlledSubstances: List<ControlledSubstance> = emptyList(),
 )
+
+/**
+ * Returns a copy of this snapshot with every dated record list filtered to the
+ * inclusive [from]/[to] range. Records without a meaningful date field
+ * (anamnese) are always kept.
+ *
+ * Shared by the CSV and PDF exporters so both formats apply identical rules.
+ */
+internal fun ExportRecords.filterByDate(
+    from: LocalDate?,
+    to: LocalDate?,
+): ExportRecords =
+    ExportRecords(
+        anamnese = anamnese,
+        weights = weights.filter { inRange(it.date, from, to) },
+        consultations = consultations.filter { inRange(it.date, from, to) },
+        vaccinations = vaccinations.filter { inRange(it.dateAdministered, from, to) },
+        dewormings = dewormings.filter { inRange(it.dateAdministered, from, to) },
+        dentistries = dentistries.filter { inRange(it.date, from, to) },
+        lamenesses = lamenesses.filter { inRange(it.date, from, to) },
+        surgeries = surgeries.filter { inRange(it.date, from, to) },
+        medications = medications.filter { it.startDate == null || inRange(it.startDate, from, to) },
+        labResults = labResults.filter { inRange(it.date, from, to) },
+        imagings = imagings.filter { inRange(it.date, from, to) },
+        farrierVisits = farrierVisits.filter { inRange(it.date, from, to) },
+        reproductionEvents = reproductionEvents.filter { inRange(it.date, from, to) },
+        ultrasounds = ultrasounds.filter { inRange(it.date, from, to) },
+        gestations = gestations.filter { inRange(it.breedingDate, from, to) },
+        reproMedications = reproMedications.filter { inRange(it.dateAdministered, from, to) },
+        controlledSubstances = controlledSubstances.filter { inRange(it.date, from, to) },
+    )
+
+private fun inRange(
+    date: LocalDate,
+    from: LocalDate?,
+    to: LocalDate?,
+): Boolean = (from == null || date >= from) && (to == null || date <= to)

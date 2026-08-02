@@ -2,6 +2,8 @@ package com.github.rodrigotimoteo.animally.di.navigation
 
 import com.github.rodrigotimoteo.animally.presentation.anamnese.view.AnamneseScreen
 import com.github.rodrigotimoteo.animally.presentation.consultation.view.ConsultationEditScreen
+import com.github.rodrigotimoteo.animally.presentation.customreminder.view.CustomReminderEditScreen
+import com.github.rodrigotimoteo.animally.presentation.customreminder.view.CustomReminderListScreen
 import com.github.rodrigotimoteo.animally.presentation.dentistry.view.DentistryEditScreen
 import com.github.rodrigotimoteo.animally.presentation.deworming.view.DewormingEditScreen
 import com.github.rodrigotimoteo.animally.presentation.farrier.view.FarrierVisitEditScreen
@@ -137,5 +139,15 @@ val navigationEntryModule =
 
         navigation<Route.Settings> {
             SettingsScreen(viewModel = koinViewModel())
+        }
+
+        navigation<Route.CustomReminderList> { route ->
+            CustomReminderListScreen(viewModel = koinViewModel { parametersOf(route.patientId) })
+        }
+
+        navigation<Route.AddEditCustomReminder> { route ->
+            CustomReminderEditScreen(
+                viewModel = koinViewModel { parametersOf(route.patientId, route.reminderId) },
+            )
         }
     }

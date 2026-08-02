@@ -1,0 +1,44 @@
+import kotlinx.datetime.LocalDate;
+
+insert:
+INSERT INTO CustomReminder (id, patientId, title, dueDate, linkedRecordType, linkedRecordId, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE CustomReminder SET
+    patientId = ?,
+    title = ?,
+    dueDate = ?,
+    linkedRecordType = ?,
+    linkedRecordId = ?,
+    notes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM CustomReminder WHERE id = ?;
+
+selectById:
+SELECT * FROM CustomReminder WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM CustomReminder WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM CustomReminder;
+
+selectAllActive:
+SELECT * FROM CustomReminder WHERE isActive = 1 ORDER BY dueDate;
+
+setInactive:
+UPDATE CustomReminder SET isActive = 0, updatedAt = ? WHERE id = ?;
+
+countActiveByPatient:
+SELECT COUNT(*) FROM CustomReminder WHERE patientId = ? AND isActive = 1;
+
+selectUpcoming:
+SELECT * FROM CustomReminder WHERE isActive = 1 AND dueDate >= ? ORDER BY dueDate;
+
+selectOverdue:
+SELECT * FROM CustomReminder WHERE isActive = 1 AND dueDate < ? ORDER BY dueDate;

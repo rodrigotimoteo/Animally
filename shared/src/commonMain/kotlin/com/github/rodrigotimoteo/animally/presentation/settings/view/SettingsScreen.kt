@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,57 +22,117 @@ import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewMode
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * Settings screen. Hosts the CSV export action and the reminders section.
+ * Settings screen. Hosts the CSV export action, backup & restore controls,
+ * the PDF export and the reminders section.
  */
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val reminderViewModel: ReminderSettingsViewModel = koinViewModel()
-    val reminderState by reminderViewModel.uiState.collectAsStateWithLifecycle()
-
     Column(
         modifier = modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Export", style = MaterialTheme.typography.titleMedium)
-            Button(onClick = viewModel::onExportClick) {
-                Text("Export CSV")
+        CsvExportSection(viewModel)
+        BackupSection(viewModel)
+        PdfExportSection(viewModel)
+        RemindersSection()
+    }
+}
+
+@Composable
+private fun CsvExportSection(viewModel: SettingsViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Export", style = MaterialTheme.typography.titleMedium)
+        Button(onClick = viewModel::onExportClick) {
+            Text("Export CSV")
+        }
+    }
+}
+
+@Composable
+private fun BackupSection(viewModel: SettingsViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Backup & Restore", style = MaterialTheme.typography.titleMedium)
+        Button(onClick = viewModel::onExportBackupClick) {
+            Text("Export backup")
+        }
+        viewModel.backupStatus?.let { status ->
+            Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+        OutlinedTextField(
+            value = viewModel.restoreJson,
+            onValueChange = { viewModel.restoreJson = it },
+            label = { Text("Backup JSON") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Button(onClick = viewModel::onRestoreBackupClick) {
+            Text("Restore backup")
+        }
+        viewModel.restoreStatus?.let { status ->
+            Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun PdfExportSection(viewModel: SettingsViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("PDF Export", style = MaterialTheme.typography.titleMedium)
+        viewModel.patients.forEach { patient ->
+            val selected = viewModel.selectedPatientId == patient.id
+            Button(
+                onClick = { viewModel.onSelectPatient(patient.id) },
+                enabled = !selected,
+            ) {
+                Text(patient.name)
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Reminders", style = MaterialTheme.typography.titleMedium)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Schedule vaccination and dentistry reminders",
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(
-                    checked = reminderState.remindersEnabled,
-                    onCheckedChange = reminderViewModel::setRemindersEnabled,
-                )
-            }
-            Button(
-                onClick = reminderViewModel::checkRemindersNow,
-                enabled = !reminderState.isChecking,
-            ) {
-                Text(if (reminderState.isChecking) "Checking…" else "Check reminders now")
-            }
-            reminderState.lastCheckedCount?.let { count ->
-                Text("Found $count reminder(s)")
-            }
-            reminderState.errorMessage?.let { message ->
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
+        Button(onClick = viewModel::onExportPdfClick) {
+            Text("Export PDF")
+        }
+        viewModel.pdfStatus?.let { status ->
+            Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun RemindersSection() {
+    val reminderViewModel: ReminderSettingsViewModel = koinViewModel()
+    val reminderState by reminderViewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Reminders", style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Schedule vaccination and dentistry reminders",
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = reminderState.remindersEnabled,
+                onCheckedChange = reminderViewModel::setRemindersEnabled,
+            )
+        }
+        Button(
+            onClick = reminderViewModel::checkRemindersNow,
+            enabled = !reminderState.isChecking,
+        ) {
+            Text(if (reminderState.isChecking) "Checking…" else "Check reminders now")
+        }
+        reminderState.lastCheckedCount?.let { count ->
+            Text("Found $count reminder(s)")
+        }
+        reminderState.errorMessage?.let { message ->
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

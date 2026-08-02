@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.data.adapters.InstantAdapter
 import com.github.rodrigotimoteo.animally.data.adapters.LocalDateAdapter
 import com.github.rodrigotimoteo.animally.data.migrations.Anamnese
 import com.github.rodrigotimoteo.animally.data.migrations.Consultation
+import com.github.rodrigotimoteo.animally.data.migrations.CustomReminder
 import com.github.rodrigotimoteo.animally.data.migrations.Dentistry
 import com.github.rodrigotimoteo.animally.data.migrations.Deworming
 import com.github.rodrigotimoteo.animally.data.migrations.FarrierVisit
@@ -50,6 +51,12 @@ object AnimallyDatabaseFactory {
                 Consultation.Adapter(
                     dateAdapter = LocalDateAdapter,
                     nextVisitDateAdapter = LocalDateAdapter,
+                    createdAtAdapter = InstantAdapter,
+                    updatedAtAdapter = InstantAdapter,
+                ),
+            CustomReminderAdapter =
+                CustomReminder.Adapter(
+                    dueDateAdapter = LocalDateAdapter,
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,
                 ),
