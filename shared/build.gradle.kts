@@ -66,6 +66,7 @@ kotlin {
         }
         getByName("desktopMain").dependencies {
             implementation(libs.sqldelight.driver.sqlite)
+            implementation(libs.ktor.client.cio)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
