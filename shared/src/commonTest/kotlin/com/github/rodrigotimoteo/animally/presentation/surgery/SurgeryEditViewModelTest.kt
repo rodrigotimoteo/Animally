@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.surgery.usecase.GetSurgeryDetai
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.SaveSurgeryUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -23,6 +24,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -142,5 +144,63 @@ class SurgeryEditViewModelTest {
                 vm.formState.value,
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
+        }
+
+    @Test
+    fun `optional field setters store values and null out on blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDescriptionChange("Enterotomy")
+            vm.onOutcomeChange("Recovered")
+            vm.onSurgeonChange("Dr. Y")
+            vm.onAnesthesiaChange("General")
+            vm.onAnalgesiaChange("Flunixin")
+            vm.onComplicationsChange("None")
+            vm.onRecoveryNotesChange("Smooth")
+
+            val form = assertNotNull(vm.formState.value)
+            assertEquals("Enterotomy", form.description)
+            assertEquals("Recovered", form.outcome)
+            assertEquals("Dr. Y", form.surgeon)
+            assertEquals("General", form.anesthesia)
+            assertEquals("Flunixin", form.analgesia)
+            assertEquals("None", form.complications)
+            assertEquals("Smooth", form.recoveryNotes)
+
+            vm.onDescriptionChange("")
+            vm.onOutcomeChange("")
+            vm.onSurgeonChange("")
+            vm.onAnesthesiaChange("")
+            vm.onAnalgesiaChange("")
+            vm.onComplicationsChange("")
+            vm.onRecoveryNotesChange("")
+
+            val cleared = assertNotNull(vm.formState.value)
+            assertEquals(null, cleared.description)
+            assertEquals(null, cleared.outcome)
+            assertEquals(null, cleared.surgeon)
+            assertEquals(null, cleared.anesthesia)
+            assertEquals(null, cleared.analgesia)
+            assertEquals(null, cleared.complications)
+            assertEquals(null, cleared.recoveryNotes)
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets dateError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { surgeryRepositoryMock.insert(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }

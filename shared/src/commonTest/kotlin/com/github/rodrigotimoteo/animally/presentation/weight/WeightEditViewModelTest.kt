@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.weight.usecase.GetWeightDetailU
 import com.github.rodrigotimoteo.animally.domain.weight.usecase.SaveWeightUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -23,6 +24,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -154,5 +156,74 @@ class WeightEditViewModelTest {
                 vm.formState.value,
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
+        }
+
+    @Test
+    fun `onNotesChange updates notes`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNotesChange("Spring baseline")
+
+            assertEquals("Spring baseline", vm.formState.value?.notes)
+        }
+
+    @Test
+    fun `blank date sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onWeightKgChange("520.0")
+            vm.save()
+
+            assertEquals("Date is required", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { weightRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `invalid date format sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onWeightKgChange("520.0")
+            vm.onDateChange("01-05-2024")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { weightRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `negative weight sets weightError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onWeightKgChange("-1")
+            vm.save()
+
+            assertEquals("Weight must be greater than 0", vm.formState.value?.weightError)
+            verify(VerifyMode.exactly(0)) { weightRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets weightError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { weightRepositoryMock.insert(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onWeightKgChange("520.0")
+            vm.onDateChange("2024-05-01")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.weightError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }

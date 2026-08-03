@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestations
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.mock
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -94,5 +96,32 @@ class GestationListViewModelTest {
             vm.onEditClick(gestation.id)
 
             assertEquals(Route.AddEditGestation(1L, 1L), navigator.backStack.last())
+        }
+
+    @Test
+    fun `load failure sets error message and stops loading`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { gestationRepositoryMock.getByPatient(1L) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            assertEquals("boom", vm.uiState.value.errorMessage)
+            assertFalse(vm.uiState.value.isLoading)
+        }
+
+    @Test
+    fun `on dismiss error clears error message`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { gestationRepositoryMock.getByPatient(1L) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            vm.onDismissError()
+
+            assertNull(vm.uiState.value.errorMessage)
         }
 }

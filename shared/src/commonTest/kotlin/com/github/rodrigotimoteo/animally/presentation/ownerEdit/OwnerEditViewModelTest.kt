@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.domain.owner.usecase.GetOwnerDetailUse
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.SaveOwnerUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -116,5 +117,86 @@ class OwnerEditViewModelTest {
                 ownerRepositoryMock.updateOwner(matches { it.id == 1L && it.name == "Bob Updated" })
             }
             assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `onPhoneChange stores value and nulls when blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
+
+            vm.onPhoneChange("555-1234")
+            assertEquals("555-1234", vm.formState.value?.phone)
+
+            vm.onPhoneChange("")
+            assertEquals(null, vm.formState.value?.phone)
+        }
+
+    @Test
+    fun `onEmailChange stores value and nulls when blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
+
+            vm.onEmailChange("bob@example.com")
+            assertEquals("bob@example.com", vm.formState.value?.email)
+
+            vm.onEmailChange("")
+            assertEquals(null, vm.formState.value?.email)
+        }
+
+    @Test
+    fun `onAddressChange stores value and nulls when blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
+
+            vm.onAddressChange("123 Farm Rd")
+            assertEquals("123 Farm Rd", vm.formState.value?.address)
+
+            vm.onAddressChange("")
+            assertEquals(null, vm.formState.value?.address)
+        }
+
+    @Test
+    fun `whitespace only name sets nameError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
+
+            vm.onNameChange("   ")
+            vm.save()
+
+            assertEquals("Name is required", vm.formState.value?.nameError)
+            verify(VerifyMode.exactly(0)) { ownerRepositoryMock.insertOwner(any()) }
+        }
+
+    @Test
+    fun `edit mode load failure sets nameError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { ownerRepositoryMock.getOwnerById(1L) } throws RuntimeException("boom")
+            val vm = OwnerEditViewModel(1L, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            assertEquals(OwnerFormState(id = 1L, nameError = "boom"), vm.formState.value)
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets nameError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { ownerRepositoryMock.insertOwner(any()) } throws RuntimeException("db down")
+            val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
+
+            vm.onNameChange("Bob")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.nameError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }

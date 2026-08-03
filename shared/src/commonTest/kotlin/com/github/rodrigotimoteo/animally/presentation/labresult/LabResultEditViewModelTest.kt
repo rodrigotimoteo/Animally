@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.labresult.usecase.GetLabResultD
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.SaveLabResultUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -23,6 +24,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -151,5 +153,62 @@ class LabResultEditViewModelTest {
                 vm.formState.value,
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
+        }
+
+    @Test
+    fun `optional field setters store values and null out on blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNormalRangeChange("8-18")
+            vm.onVetNameChange("Dr. X")
+            vm.onNotesChange("Follow-up in 2 weeks")
+
+            val form = assertNotNull(vm.formState.value)
+            assertEquals("8-18", form.normalRange)
+            assertEquals("Dr. X", form.vetName)
+            assertEquals("Follow-up in 2 weeks", form.notes)
+
+            vm.onNormalRangeChange("")
+            vm.onVetNameChange("")
+            vm.onNotesChange("")
+
+            val cleared = assertNotNull(vm.formState.value)
+            assertEquals(null, cleared.normalRange)
+            assertEquals(null, cleared.vetName)
+            assertEquals(null, cleared.notes)
+        }
+
+    @Test
+    fun `invalid date format sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onTestTypeChange("CBC")
+            vm.onDateChange("01-05-2024")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { labResultRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets dateError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { labResultRepositoryMock.insert(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onTestTypeChange("CBC")
+            vm.onDateChange("2024-05-01")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }

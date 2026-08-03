@@ -145,4 +145,61 @@ class PatientDetailViewModelTest {
 
             assertEquals(Route.AddEditAnamnese(patient.id), navigator.backStack.last())
         }
+
+    @Test
+    fun `on back pops back stack`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientById(patient.id) } returns patient
+            every { ownerRepositoryMock.getOwnerById(owner.id) } returns owner
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onTimelineClick()
+            vm.onBack()
+
+            assertEquals(Route.PatientList, navigator.backStack.last())
+        }
+
+    @Test
+    fun `on timeline click navigates to timeline`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientById(patient.id) } returns patient
+            every { ownerRepositoryMock.getOwnerById(owner.id) } returns owner
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onTimelineClick()
+
+            assertEquals(Route.Timeline(patient.id), navigator.backStack.last())
+        }
+
+    @Test
+    fun `on custom reminders click navigates to custom reminder list`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientById(patient.id) } returns patient
+            every { ownerRepositoryMock.getOwnerById(owner.id) } returns owner
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onCustomRemindersClick()
+
+            assertEquals(Route.CustomReminderList(patient.id), navigator.backStack.last())
+        }
+
+    @Test
+    fun `on dismiss error clears error message`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientById(patient.id) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            vm.onDismissError()
+
+            assertNull(vm.uiState.value.errorMessage)
+        }
 }

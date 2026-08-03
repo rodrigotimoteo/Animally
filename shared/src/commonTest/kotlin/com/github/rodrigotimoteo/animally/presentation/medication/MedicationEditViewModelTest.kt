@@ -8,6 +8,7 @@ import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -25,6 +26,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -171,5 +173,71 @@ class MedicationEditViewModelTest {
                 vm.formState.value,
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
+        }
+
+    @Test
+    fun `optional field setters store values and null out on blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onRouteChange("Oral")
+            vm.onFrequencyChange("BID")
+            vm.onEndDateChange("2026-01-30")
+            vm.onPrescribedByChange("Dr. X")
+            vm.onNotesChange("Give with feed")
+
+            val form = assertNotNull(vm.formState.value)
+            assertEquals("Oral", form.route)
+            assertEquals("BID", form.frequency)
+            assertEquals("2026-01-30", form.endDate)
+            assertEquals("Dr. X", form.prescribedBy)
+            assertEquals("Give with feed", form.notes)
+
+            vm.onRouteChange("")
+            vm.onFrequencyChange("")
+            vm.onEndDateChange("")
+            vm.onPrescribedByChange("")
+            vm.onNotesChange("")
+
+            val cleared = assertNotNull(vm.formState.value)
+            assertEquals(null, cleared.route)
+            assertEquals(null, cleared.frequency)
+            assertEquals(null, cleared.endDate)
+            assertEquals(null, cleared.prescribedBy)
+            assertEquals(null, cleared.notes)
+        }
+
+    @Test
+    fun `invalid end date sets endDateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNameChange("Phenylbutazone")
+            vm.onDosageChange("2g")
+            vm.onEndDateChange("not-a-date")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.endDateError)
+            verify(VerifyMode.exactly(0)) { medicationRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets nameError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { medicationRepositoryMock.insert(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNameChange("Phenylbutazone")
+            vm.onDosageChange("2g")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.nameError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }

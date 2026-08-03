@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationD
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.SaveGestationUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -134,6 +135,94 @@ class GestationEditViewModelTest {
                 )
             }
             assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `invalid last check date sets lastCheckDateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onBreedingDateChange("2026-01-01")
+            vm.onStatusChange("Active")
+            vm.onLastCheckDateChange("not-a-date")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.lastCheckDateError)
+            verify(VerifyMode.exactly(0)) { gestationRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `last check date change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onLastCheckDateChange("2026-02-01")
+
+            assertEquals("2026-02-01", vm.formState.value?.lastCheckDate)
+
+            vm.onLastCheckDateChange("  ")
+
+            assertEquals(null, vm.formState.value?.lastCheckDate)
+        }
+
+    @Test
+    fun `notes change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNotesChange("Progressing normally")
+
+            assertEquals("Progressing normally", vm.formState.value?.notes)
+
+            vm.onNotesChange(" ")
+
+            assertEquals(null, vm.formState.value?.notes)
+        }
+
+    @Test
+    fun `future breeding date saves gestation with zero gestation days`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { gestationRepositoryMock.insert(any()) } returns 1L
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            val breedingDate = today.plus(DatePeriod(days = 10))
+
+            vm.onBreedingDateChange(breedingDate.toString())
+            vm.onStatusChange("Active")
+            vm.save()
+            advanceUntilIdle()
+
+            verify(VerifyMode.exactly(1)) {
+                gestationRepositoryMock.insert(
+                    matches {
+                        it.breedingDate == breedingDate &&
+                            it.gestationDays == 0 &&
+                            it.expectedDueDate == breedingDate.plus(DatePeriod(days = 340))
+                    },
+                )
+            }
+            assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `save failure resets isSaving and keeps navigator`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { gestationRepositoryMock.insert(any()) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onBreedingDateChange("2026-01-01")
+            vm.onStatusChange("Active")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.formState.value?.isSaving)
+            assertEquals("boom", vm.formState.value?.breedingDateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 
     @Test

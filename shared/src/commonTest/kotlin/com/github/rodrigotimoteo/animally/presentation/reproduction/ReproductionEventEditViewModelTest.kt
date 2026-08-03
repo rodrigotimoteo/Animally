@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReprodu
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.SaveReproductionEventUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -101,6 +102,107 @@ class ReproductionEventEditViewModelTest {
                 )
             }
             assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `invalid date format sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onEventTypeChange("Heat")
+            vm.onDateChange("15-01-2026")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { reproductionRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `details change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDetailsChange("Healthy foal")
+
+            assertEquals("Healthy foal", vm.formState.value?.details)
+
+            vm.onDetailsChange("  ")
+
+            assertEquals(null, vm.formState.value?.details)
+        }
+
+    @Test
+    fun `vet name change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onVetNameChange("Dr. X")
+
+            assertEquals("Dr. X", vm.formState.value?.vetName)
+
+            vm.onVetNameChange(" ")
+
+            assertEquals(null, vm.formState.value?.vetName)
+        }
+
+    @Test
+    fun `notes change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNotesChange("Uneventful delivery")
+
+            assertEquals("Uneventful delivery", vm.formState.value?.notes)
+
+            vm.onNotesChange("  ")
+
+            assertEquals(null, vm.formState.value?.notes)
+        }
+
+    @Test
+    fun `event type change clears error and save trims whitespace`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { reproductionRepositoryMock.insert(any()) } returns 1L
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.save()
+
+            assertEquals("Event type is required", vm.formState.value?.eventTypeError)
+
+            vm.onEventTypeChange("  Foaling  ")
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(null, vm.formState.value?.eventTypeError)
+            verify(VerifyMode.exactly(1)) {
+                reproductionRepositoryMock.insert(
+                    matches { it.eventType == "Foaling" },
+                )
+            }
+            assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `save failure resets isSaving and keeps navigator`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { reproductionRepositoryMock.insert(any()) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onEventTypeChange("Heat")
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.formState.value?.isSaving)
+            assertEquals("boom", vm.formState.value?.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 
     @Test

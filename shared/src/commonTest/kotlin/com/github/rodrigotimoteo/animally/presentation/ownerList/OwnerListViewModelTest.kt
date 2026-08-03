@@ -86,6 +86,19 @@ class OwnerListViewModelTest {
         }
 
     @Test
+    fun `on add click navigates to add edit owner`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { ownerRepositoryMock.getOwnerList() } returns listOf(owner)
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onAddClick()
+
+            assertEquals(Route.AddEditOwner(), navigator.backStack.last())
+        }
+
+    @Test
     fun `delete success reloads owners`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))

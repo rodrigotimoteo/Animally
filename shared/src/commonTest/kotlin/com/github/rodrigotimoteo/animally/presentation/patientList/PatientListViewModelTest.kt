@@ -87,6 +87,32 @@ class PatientListViewModelTest {
         }
 
     @Test
+    fun `on add click navigates to add edit patient`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientList() } returns listOf(patient)
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onAddClick()
+
+            assertEquals(Route.AddEditPatient(), navigator.backStack.last())
+        }
+
+    @Test
+    fun `on search click navigates to search`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientList() } returns listOf(patient)
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onSearchClick()
+
+            assertEquals(Route.Search, navigator.backStack.last())
+        }
+
+    @Test
     fun `delete success reloads patients`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))

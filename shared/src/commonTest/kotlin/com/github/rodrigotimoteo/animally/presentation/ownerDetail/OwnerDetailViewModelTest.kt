@@ -125,4 +125,33 @@ class OwnerDetailViewModelTest {
 
             assertEquals(Route.AddEditOwner(owner.id), navigator.backStack.last())
         }
+
+    @Test
+    fun `on back pops back stack`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { ownerRepositoryMock.getOwnerById(owner.id) } returns owner
+            every { patientRepositoryMock.getPatientsByOwnerId(owner.id) } returns listOf(patient)
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onEditClick()
+            vm.onBack()
+
+            assertEquals(Route.PatientList, navigator.backStack.last())
+        }
+
+    @Test
+    fun `on dismiss error clears error message`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { ownerRepositoryMock.getOwnerById(owner.id) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            vm.onDismissError()
+
+            assertNull(vm.uiState.value.errorMessage)
+        }
 }

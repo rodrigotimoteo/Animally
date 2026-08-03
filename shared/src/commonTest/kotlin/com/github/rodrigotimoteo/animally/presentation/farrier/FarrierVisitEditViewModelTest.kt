@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.farrier.usecase.GetFarrierVisit
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.SaveFarrierVisitUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -119,6 +120,52 @@ class FarrierVisitEditViewModelTest {
 
             assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.nextDueDateError)
             verify(VerifyMode.exactly(0)) { farrierVisitRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `findings change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onFindingsChange("Balanced hooves")
+
+            assertEquals("Balanced hooves", vm.formState.value?.findings)
+
+            vm.onFindingsChange("  ")
+
+            assertEquals(null, vm.formState.value?.findings)
+        }
+
+    @Test
+    fun `notes change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNotesChange("Reset shoes")
+
+            assertEquals("Reset shoes", vm.formState.value?.notes)
+
+            vm.onNotesChange(" ")
+
+            assertEquals(null, vm.formState.value?.notes)
+        }
+
+    @Test
+    fun `save failure resets isSaving and keeps navigator`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { farrierVisitRepositoryMock.insert(any()) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.formState.value?.isSaving)
+            assertEquals("boom", vm.formState.value?.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 
     @Test

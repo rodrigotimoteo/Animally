@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.consultation.usecase.GetConsult
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.mock
 import kotlinx.coroutines.Dispatchers
@@ -95,5 +96,18 @@ class ConsultationListViewModelTest {
             vm.onEditClick(consultation.id)
 
             assertEquals(Route.AddEditConsultation(1L, 1L), navigator.backStack.last())
+        }
+
+    @Test
+    fun `load failure sets error message and stops loading`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { consultationRepositoryMock.getByPatient(1L) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            assertEquals("boom", vm.uiState.value.errorMessage)
+            assertFalse(vm.uiState.value.isLoading)
         }
 }

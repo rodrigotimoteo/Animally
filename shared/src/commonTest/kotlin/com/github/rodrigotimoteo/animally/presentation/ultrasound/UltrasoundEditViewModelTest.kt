@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoun
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.SaveUltrasoundUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -169,6 +170,76 @@ class UltrasoundEditViewModelTest {
                 vm.formState.value,
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
+        }
+
+    @Test
+    fun `invalid date format sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDateChange("15-01-2026")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { ultrasoundRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `optional field changes store values and blank inputs store null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onUterineStatusChange("Edematous")
+            vm.onFindingsChange("Follicle developing")
+            vm.onVetNameChange("Dr. X")
+            vm.onNotesChange("Repeat in 3 days")
+
+            assertEquals("Edematous", vm.formState.value?.uterineStatus)
+            assertEquals("Follicle developing", vm.formState.value?.findings)
+            assertEquals("Dr. X", vm.formState.value?.vetName)
+            assertEquals("Repeat in 3 days", vm.formState.value?.notes)
+
+            vm.onUterineStatusChange("  ")
+            vm.onFindingsChange(" ")
+            vm.onVetNameChange("  ")
+            vm.onNotesChange(" ")
+
+            assertEquals(null, vm.formState.value?.uterineStatus)
+            assertEquals(null, vm.formState.value?.findings)
+            assertEquals(null, vm.formState.value?.vetName)
+            assertEquals(null, vm.formState.value?.notes)
+        }
+
+    @Test
+    fun `negative follicle size sets follicleSizeMmError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDateChange("2026-01-15")
+            vm.onFollicleSizeMmChange("-5")
+            vm.save()
+
+            assertEquals("Follicle size must be a positive number", vm.formState.value?.follicleSizeMmError)
+            verify(VerifyMode.exactly(0)) { ultrasoundRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `save failure resets isSaving and keeps navigator`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { ultrasoundRepositoryMock.insert(any()) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.formState.value?.isSaving)
+            assertEquals("boom", vm.formState.value?.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 
     @Test

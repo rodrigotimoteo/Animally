@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.patientEdit
 
 import app.cash.turbine.test
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
+import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.GetOwnerListUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
@@ -11,6 +12,7 @@ import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -63,6 +65,16 @@ class PatientEditViewModelTest {
             ownerId = 2L,
             createdAt = Instant.fromEpochMilliseconds(100L),
             updatedAt = Instant.fromEpochMilliseconds(100L),
+        )
+
+    private fun createViewModel(dispatcher: kotlinx.coroutines.test.TestDispatcher) =
+        PatientEditViewModel(
+            null,
+            getPatientDetailUseCase,
+            savePatientUseCase,
+            getOwnerListUseCase,
+            navigator,
+            dispatcher,
         )
 
     @AfterTest
@@ -200,5 +212,153 @@ class PatientEditViewModelTest {
                 patientRepositoryMock.updatePatient(matches { it.id == 1L && it.name == "Midnight Updated" })
             }
             assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `onSpeciesChange updates species`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onSpeciesChange("Feline")
+
+            assertEquals("Feline", vm.formState.value?.species)
+        }
+
+    @Test
+    fun `optional field setters store values and null out on blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onBreedChange("Lusitano")
+            vm.onDateOfBirthChange("2020-05-01")
+            vm.onGenderChange("Mare")
+            vm.onMicrochipIdChange("981000123456789")
+            vm.onRegistrationNumberChange("ABC-123")
+            vm.onStableLocationChange("Stable A")
+            vm.onPhotoUriChange("file://photo.jpg")
+            vm.onNotesChange("Friendly")
+
+            val form = assertNotNull(vm.formState.value)
+            assertEquals("Lusitano", form.breed)
+            assertEquals("2020-05-01", form.dateOfBirth)
+            assertEquals("Mare", form.gender)
+            assertEquals("981000123456789", form.microchipId)
+            assertEquals("ABC-123", form.registrationNumber)
+            assertEquals("Stable A", form.stableLocation)
+            assertEquals("file://photo.jpg", form.photoUri)
+            assertEquals("Friendly", form.notes)
+
+            vm.onBreedChange("")
+            vm.onDateOfBirthChange("")
+            vm.onGenderChange("")
+            vm.onMicrochipIdChange("")
+            vm.onRegistrationNumberChange("")
+            vm.onStableLocationChange("")
+            vm.onPhotoUriChange("")
+            vm.onNotesChange("")
+
+            val cleared = assertNotNull(vm.formState.value)
+            assertEquals(null, cleared.breed)
+            assertEquals(null, cleared.dateOfBirth)
+            assertEquals(null, cleared.gender)
+            assertEquals(null, cleared.microchipId)
+            assertEquals(null, cleared.registrationNumber)
+            assertEquals(null, cleared.stableLocation)
+            assertEquals(null, cleared.photoUri)
+            assertEquals(null, cleared.notes)
+        }
+
+    @Test
+    fun `onOwnerChange updates ownerId`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onOwnerChange(3L)
+            assertEquals(3L, vm.formState.value?.ownerId)
+
+            vm.onOwnerChange(null)
+            assertEquals(null, vm.formState.value?.ownerId)
+        }
+
+    @Test
+    fun `valid 15 digit ueln passes validation and saves`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.insertPatient(any()) } returns 1L
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNameChange("Midnight")
+            vm.onUelnChange("826000000000123")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(null, vm.formState.value?.uelnError)
+            verify(VerifyMode.exactly(1)) {
+                patientRepositoryMock.insertPatient(matches { it.ueln == "826000000000123" })
+            }
+        }
+
+    @Test
+    fun `edit mode load failure sets nameError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientById(1L) } throws RuntimeException("boom")
+            val vm =
+                PatientEditViewModel(
+                    1L,
+                    getPatientDetailUseCase,
+                    savePatientUseCase,
+                    getOwnerListUseCase,
+                    navigator,
+                    StandardTestDispatcher(testScheduler),
+                )
+
+            advanceUntilIdle()
+
+            assertEquals(PatientFormState(id = 1L, nameError = "boom"), vm.formState.value)
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets nameError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.insertPatient(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNameChange("Midnight")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.nameError)
+            assertTrue(navigator.backStack.isNotEmpty())
+        }
+
+    @Test
+    fun `owners are loaded into owners state`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val owners =
+                listOf(
+                    Owner(
+                        id = 1L,
+                        name = "Bob",
+                        email = null,
+                        phone = "123",
+                        address = null,
+                        createdAt = Instant.fromEpochMilliseconds(0L),
+                        updatedAt = Instant.fromEpochMilliseconds(0L),
+                    ),
+                )
+            every { ownerRepositoryMock.getOwnerList() } returns owners
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            assertEquals(owners, vm.owners.value)
         }
 }

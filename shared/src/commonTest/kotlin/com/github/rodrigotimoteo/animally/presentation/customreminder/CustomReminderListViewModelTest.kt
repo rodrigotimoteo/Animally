@@ -114,6 +114,20 @@ class CustomReminderListViewModelTest {
         }
 
     @Test
+    fun `on back pops back stack`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { customReminderRepositoryMock.getByPatient(1L) } returns emptyList()
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onAddClick()
+            vm.onBack()
+
+            assertEquals(Route.PatientList, navigator.backStack.last())
+        }
+
+    @Test
     fun `on delete click deactivates reminder and reloads list`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))

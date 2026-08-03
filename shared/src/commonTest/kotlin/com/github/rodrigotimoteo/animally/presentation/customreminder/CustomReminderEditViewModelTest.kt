@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.SaveCust
 import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -142,6 +143,24 @@ class CustomReminderEditViewModelTest {
                 )
             }
             assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `save failure resets isSaving keeps navigator and does not schedule`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { customReminderRepositoryMock.insert(any()) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onTitleChange("Farrier check")
+            vm.onDueDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.formState.value?.isSaving)
+            assertEquals("boom", vm.formState.value?.titleError)
+            assertTrue(navigator.backStack.isNotEmpty())
+            verify(VerifyMode.exactly(0)) { reminderSchedulerMock.schedule(any()) }
         }
 
     @Test

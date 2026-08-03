@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.anamnese.usecase.GetAnamneseByP
 import com.github.rodrigotimoteo.animally.domain.anamnese.usecase.SaveAnamneseUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -125,5 +126,49 @@ class AnamneseViewModelTest {
             verify(VerifyMode.exactly(1)) {
                 anamneseRepositoryMock.save(matches { it.id == 1L && it.generalHistory == "Updated history" })
             }
+        }
+
+    @Test
+    fun `onChronicConditionsChange updates chronicConditions`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { anamneseRepositoryMock.getByPatient(1L) } returns null
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onChronicConditionsChange("Recurrent colic")
+
+            assertEquals("Recurrent colic", vm.formState.value?.chronicConditions)
+        }
+
+    @Test
+    fun `load failure resets form to blank without error`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { anamneseRepositoryMock.getByPatient(1L) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            assertEquals(AnamneseFormState(), vm.formState.value)
+        }
+
+    @Test
+    fun `save failure resets isSaving without error and does not navigate`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { anamneseRepositoryMock.getByPatient(1L) } returns null
+            every { anamneseRepositoryMock.save(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onGeneralHistoryChange("History")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals(AnamneseFormState(generalHistory = "History"), form)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }

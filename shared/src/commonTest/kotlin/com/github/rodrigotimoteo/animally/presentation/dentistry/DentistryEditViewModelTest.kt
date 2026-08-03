@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.GetDentistryD
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.SaveDentistryUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -117,6 +118,78 @@ class DentistryEditViewModelTest {
 
             assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.nextDueDateError)
             verify(VerifyMode.exactly(0)) { dentistryRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `vet name change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onVetNameChange("Dr. X")
+
+            assertEquals("Dr. X", vm.formState.value?.vetName)
+
+            vm.onVetNameChange("  ")
+
+            assertEquals(null, vm.formState.value?.vetName)
+        }
+
+    @Test
+    fun `notes change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNotesChange("Follow up in 6 months")
+
+            assertEquals("Follow up in 6 months", vm.formState.value?.notes)
+
+            vm.onNotesChange(" ")
+
+            assertEquals(null, vm.formState.value?.notes)
+        }
+
+    @Test
+    fun `schedule selection clears error and saves selected next due date`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { dentistryRepositoryMock.insert(any()) } returns 1L
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDateChange("2026-01-15")
+            vm.onNextDueDateChange("not-a-date")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.nextDueDateError)
+
+            vm.onNextDueDateChange("2026-07-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(null, vm.formState.value?.nextDueDateError)
+            verify(VerifyMode.exactly(1)) {
+                dentistryRepositoryMock.insert(
+                    matches { it.nextDueDate == LocalDate(2026, 7, 15) },
+                )
+            }
+            assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `save failure resets isSaving and keeps navigator`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { dentistryRepositoryMock.insert(any()) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.formState.value?.isSaving)
+            assertEquals("boom", vm.formState.value?.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 
     @Test

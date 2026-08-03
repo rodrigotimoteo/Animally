@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.GetRepr
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.SaveReproMedicationUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -103,6 +104,82 @@ class ReproMedicationEditViewModelTest {
                 )
             }
             assertTrue(navigator.backStack.isEmpty())
+        }
+
+    @Test
+    fun `invalid date format sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onMedicationChange("Regumate")
+            vm.onDateAdministeredChange("15-01-2026")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { reproMedicationRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `purpose change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onPurposeChange("Cycle regulation")
+
+            assertEquals("Cycle regulation", vm.formState.value?.purpose)
+
+            vm.onPurposeChange("  ")
+
+            assertEquals(null, vm.formState.value?.purpose)
+        }
+
+    @Test
+    fun `vet name change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onVetNameChange("Dr. X")
+
+            assertEquals("Dr. X", vm.formState.value?.vetName)
+
+            vm.onVetNameChange(" ")
+
+            assertEquals(null, vm.formState.value?.vetName)
+        }
+
+    @Test
+    fun `notes change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNotesChange("Dose in the morning")
+
+            assertEquals("Dose in the morning", vm.formState.value?.notes)
+
+            vm.onNotesChange("  ")
+
+            assertEquals(null, vm.formState.value?.notes)
+        }
+
+    @Test
+    fun `save failure resets isSaving and keeps navigator`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { reproMedicationRepositoryMock.insert(any()) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onMedicationChange("Regumate")
+            vm.onDateAdministeredChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.formState.value?.isSaving)
+            assertEquals("boom", vm.formState.value?.medicationError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 
     @Test

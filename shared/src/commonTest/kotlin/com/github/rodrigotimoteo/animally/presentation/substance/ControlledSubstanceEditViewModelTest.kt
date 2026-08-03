@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.substance.usecase.GetControlled
 import com.github.rodrigotimoteo.animally.domain.substance.usecase.SaveControlledSubstanceUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -23,6 +24,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -157,5 +159,86 @@ class ControlledSubstanceEditViewModelTest {
                 vm.formState.value,
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
+        }
+
+    @Test
+    fun `optional field setters store values and null out on blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onRouteChange("IV")
+            vm.onAdministeredByChange("Dr. X")
+            vm.onWitnessChange("Dr. Y")
+            vm.onReasonChange("Sedation")
+            vm.onNotesChange("Observe after dose")
+
+            val form = assertNotNull(vm.formState.value)
+            assertEquals("IV", form.route)
+            assertEquals("Dr. X", form.administeredBy)
+            assertEquals("Dr. Y", form.witness)
+            assertEquals("Sedation", form.reason)
+            assertEquals("Observe after dose", form.notes)
+
+            vm.onRouteChange("")
+            vm.onAdministeredByChange("")
+            vm.onWitnessChange("")
+            vm.onReasonChange("")
+            vm.onNotesChange("")
+
+            val cleared = assertNotNull(vm.formState.value)
+            assertEquals(null, cleared.route)
+            assertEquals(null, cleared.administeredBy)
+            assertEquals(null, cleared.witness)
+            assertEquals(null, cleared.reason)
+            assertEquals(null, cleared.notes)
+        }
+
+    @Test
+    fun `blank dose sets doseError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDrugNameChange("Xylazine")
+            vm.onDateChange("2026-01-15")
+            vm.save()
+
+            assertEquals("Dose is required", vm.formState.value?.doseError)
+            verify(VerifyMode.exactly(0)) { substanceRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `invalid date format sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDrugNameChange("Xylazine")
+            vm.onDoseChange("50")
+            vm.onDateChange("15-01-2026")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { substanceRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets drugNameError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { substanceRepositoryMock.insert(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDrugNameChange("Xylazine")
+            vm.onDoseChange("50")
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.drugNameError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }

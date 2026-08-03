@@ -8,6 +8,7 @@ import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -25,6 +26,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -167,5 +169,51 @@ class ConsultationEditViewModelTest {
                 vm.formState.value,
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
+        }
+
+    @Test
+    fun `SOAP note setters update objective assessment and plan`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onObjectiveChange("Left hind lame")
+            vm.onAssessmentChange("Suspensory desmitis")
+            vm.onPlanChange("Rest and NSAIDs")
+
+            val form = assertNotNull(vm.formState.value)
+            assertEquals("Left hind lame", form.objective)
+            assertEquals("Suspensory desmitis", form.assessment)
+            assertEquals("Rest and NSAIDs", form.plan)
+        }
+
+    @Test
+    fun `onVetNameChange stores value and nulls when blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onVetNameChange("Dr. X")
+            assertEquals("Dr. X", vm.formState.value?.vetName)
+
+            vm.onVetNameChange("")
+            assertEquals(null, vm.formState.value?.vetName)
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets dateError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { consultationRepositoryMock.insert(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }

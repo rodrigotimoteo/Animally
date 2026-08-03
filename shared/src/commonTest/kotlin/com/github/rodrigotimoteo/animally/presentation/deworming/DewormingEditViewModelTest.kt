@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.deworming.usecase.GetDewormingD
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.SaveDewormingUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -118,6 +119,67 @@ class DewormingEditViewModelTest {
 
             assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.nextDueDateError)
             verify(VerifyMode.exactly(0)) { dewormingRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `invalid date format sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onProductChange("Ivermectin")
+            vm.onDateAdministeredChange("15-01-2026")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { dewormingRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `vet name change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onVetNameChange("Dr. X")
+
+            assertEquals("Dr. X", vm.formState.value?.vetName)
+
+            vm.onVetNameChange("  ")
+
+            assertEquals(null, vm.formState.value?.vetName)
+        }
+
+    @Test
+    fun `notes change stores value and blank input stores null`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onNotesChange("Administered orally")
+
+            assertEquals("Administered orally", vm.formState.value?.notes)
+
+            vm.onNotesChange(" ")
+
+            assertEquals(null, vm.formState.value?.notes)
+        }
+
+    @Test
+    fun `save failure resets isSaving and keeps navigator`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { dewormingRepositoryMock.insert(any()) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onProductChange("Ivermectin")
+            vm.onDateAdministeredChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.formState.value?.isSaving)
+            assertEquals("boom", vm.formState.value?.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 
     @Test

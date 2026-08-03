@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.domain.imaging.usecase.GetImagingDetai
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.SaveImagingUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.matcher.matches
@@ -26,6 +27,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -219,5 +221,58 @@ class ImagingEditViewModelTest {
             vm.removeImageUri("/saved/only.jpg")
 
             assertEquals(null, vm.formState.value?.imageUris)
+        }
+
+    @Test
+    fun `optional field setters store values and null out on blank`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onVetNameChange("Dr. X")
+            vm.onNotesChange("Repeat if symptoms persist")
+
+            val form = assertNotNull(vm.formState.value)
+            assertEquals("Dr. X", form.vetName)
+            assertEquals("Repeat if symptoms persist", form.notes)
+
+            vm.onVetNameChange("")
+            vm.onNotesChange("")
+
+            val cleared = assertNotNull(vm.formState.value)
+            assertEquals(null, cleared.vetName)
+            assertEquals(null, cleared.notes)
+        }
+
+    @Test
+    fun `invalid date format sets dateError and does not save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onTypeChange("X-ray")
+            vm.onDateChange("01-05-2024")
+            vm.save()
+
+            assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.dateError)
+            verify(VerifyMode.exactly(0)) { imagingRepositoryMock.insert(any()) }
+        }
+
+    @Test
+    fun `save failure resets isSaving and sets dateError`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { imagingRepositoryMock.insert(any()) } throws RuntimeException("db down")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onTypeChange("X-ray")
+            vm.onDateChange("2024-05-01")
+            vm.save()
+            advanceUntilIdle()
+
+            val form = assertNotNull(vm.formState.value)
+            assertFalse(form.isSaving)
+            assertEquals("db down", form.dateError)
+            assertTrue(navigator.backStack.isNotEmpty())
         }
 }
