@@ -61,6 +61,13 @@ class VaccinationListViewModel(
      * Navigates to the edit screen for the vaccination with the given [vaccinationId].
      */
     fun onEditClick(vaccinationId: Long) = navigateTo(Route.AddEditVaccination(patientId, vaccinationId))
+
+    /**
+     * Dismisses the current error message.
+     */
+    fun onDismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
 }
 
 /**

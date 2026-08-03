@@ -22,6 +22,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -106,5 +107,19 @@ class VaccinationListViewModelTest {
 
             assertEquals("boom", vm.uiState.value.errorMessage)
             assertFalse(vm.uiState.value.isLoading)
+        }
+
+    @Test
+    fun `on dismiss error clears error message`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { vaccinationRepositoryMock.getByPatient(1L) } throws RuntimeException("boom")
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            vm.onDismissError()
+
+            assertNull(vm.uiState.value.errorMessage)
         }
 }

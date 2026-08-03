@@ -61,6 +61,13 @@ class ConsultationListViewModel(
      * Navigates to the edit screen for the consultation with the given [consultationId].
      */
     fun onEditClick(consultationId: Long) = navigateTo(Route.AddEditConsultation(patientId, consultationId))
+
+    /**
+     * Dismisses the current error message.
+     */
+    fun onDismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
 }
 
 /**
