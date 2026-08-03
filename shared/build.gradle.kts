@@ -64,6 +64,9 @@ kotlin {
 
             implementation(libs.sqldelight.native.driver)
         }
+        getByName("desktopMain").dependencies {
+            implementation(libs.sqldelight.driver.sqlite)
+        }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
@@ -113,6 +116,7 @@ kotlin {
         val desktopTest by getting {
             dependencies {
                 implementation(compose.desktop.currentOs)
+                implementation(libs.sqldelight.driver.sqlite)
             }
         }
         commonTest.dependencies {

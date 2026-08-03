@@ -25,6 +25,7 @@ import com.github.rodrigotimoteo.animally.presentation.search.view.SearchScreen
 import com.github.rodrigotimoteo.animally.presentation.settings.view.SettingsScreen
 import com.github.rodrigotimoteo.animally.presentation.substance.view.ControlledSubstanceEditScreen
 import com.github.rodrigotimoteo.animally.presentation.surgery.view.SurgeryEditScreen
+import com.github.rodrigotimoteo.animally.presentation.timeline.view.TimelineScreen
 import com.github.rodrigotimoteo.animally.presentation.ultrasound.view.UltrasoundEditScreen
 import com.github.rodrigotimoteo.animally.presentation.vaccination.view.VaccinationEditScreen
 import com.github.rodrigotimoteo.animally.presentation.weight.view.WeightEditScreen
@@ -149,5 +150,9 @@ val navigationEntryModule =
             CustomReminderEditScreen(
                 viewModel = koinViewModel { parametersOf(route.patientId, route.reminderId) },
             )
+        }
+
+        navigation<Route.Timeline> { route ->
+            TimelineScreen(viewModel = koinViewModel { parametersOf(route.patientId) })
         }
     }

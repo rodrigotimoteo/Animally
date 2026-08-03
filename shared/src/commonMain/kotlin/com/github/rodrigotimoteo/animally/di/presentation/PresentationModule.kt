@@ -34,6 +34,7 @@ import com.github.rodrigotimoteo.animally.presentation.substance.ControlledSubst
 import com.github.rodrigotimoteo.animally.presentation.substance.ControlledSubstanceListViewModel
 import com.github.rodrigotimoteo.animally.presentation.surgery.SurgeryEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.surgery.SurgeryListViewModel
+import com.github.rodrigotimoteo.animally.presentation.timeline.TimelineViewModel
 import com.github.rodrigotimoteo.animally.presentation.ultrasound.UltrasoundEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.ultrasound.UltrasoundListViewModel
 import com.github.rodrigotimoteo.animally.presentation.vaccination.VaccinationEditViewModel
@@ -404,6 +405,14 @@ internal class PresentationModule {
                     reminderId = reminderId,
                     getCustomReminderDetailUseCase = get(),
                     saveCustomReminderUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long?) ->
+                TimelineViewModel(
+                    patientId = patientId,
+                    getTimelineUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )

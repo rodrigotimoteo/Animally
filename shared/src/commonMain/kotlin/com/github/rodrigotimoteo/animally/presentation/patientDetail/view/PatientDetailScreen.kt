@@ -100,6 +100,12 @@ fun PatientDetailScreen(
                     }
                 },
                 actions = {
+                    TextButton(onClick = viewModel::onTimelineClick, enabled = uiState.patient != null) {
+                        Text("Timeline")
+                    }
+                    TextButton(onClick = viewModel::onCustomRemindersClick, enabled = uiState.patient != null) {
+                        Text("Reminders")
+                    }
                     TextButton(onClick = viewModel::onEditClick, enabled = uiState.patient != null) {
                         Text("Edit")
                     }

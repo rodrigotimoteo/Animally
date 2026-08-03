@@ -235,4 +235,12 @@ sealed interface Route : NavKey {
     data class CustomReminderList(
         val patientId: Long,
     ) : Route
+
+    /**
+     * The route for displaying the timeline feed for a patient or globally.
+     */
+    @Serializable
+    data class Timeline(
+        val patientId: Long? = null,
+    ) : Route
 }

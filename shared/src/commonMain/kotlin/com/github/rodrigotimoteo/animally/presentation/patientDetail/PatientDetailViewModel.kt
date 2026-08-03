@@ -87,6 +87,20 @@ class PatientDetailViewModel(
     }
 
     /**
+     * Navigates to the timeline feed for the current patient.
+     */
+    fun onTimelineClick() {
+        navigateTo(Route.Timeline(patientId))
+    }
+
+    /**
+     * Navigates to the custom reminders list for the current patient.
+     */
+    fun onCustomRemindersClick() {
+        navigateTo(Route.CustomReminderList(patientId))
+    }
+
+    /**
      * Clears the current error message.
      */
     fun onDismissError() {
