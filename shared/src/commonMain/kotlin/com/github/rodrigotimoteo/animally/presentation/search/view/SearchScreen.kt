@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -19,17 +18,25 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.presentation.common.glass.GlassTopAppBar
+import com.github.rodrigotimoteo.animally.presentation.common.glass.LocalHazeState
+import com.github.rodrigotimoteo.animally.presentation.common.glass.hazeSourceFrom
+import com.github.rodrigotimoteo.animally.presentation.common.glass.rememberHazeState
+import com.github.rodrigotimoteo.animally.presentation.common.state.EmptyState
+import com.github.rodrigotimoteo.animally.presentation.common.state.LoadingState
 import com.github.rodrigotimoteo.animally.presentation.search.SearchUiState
 import com.github.rodrigotimoteo.animally.presentation.search.SearchViewModel
 import kotlinx.datetime.LocalDate
@@ -48,6 +55,7 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val hazeState = rememberHazeState()
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
@@ -56,36 +64,42 @@ fun SearchScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = {
-                    OutlinedTextField(
-                        value = uiState.query,
-                        onValueChange = viewModel::onQueryChange,
-                        label = { Text("Search") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                },
-                navigationIcon = {
-                    TextButton(onClick = viewModel::popBackStack) {
-                        Text("Back")
-                    }
-                },
+    CompositionLocalProvider(LocalHazeState provides hazeState) {
+        Scaffold(
+            modifier = modifier,
+            topBar = {
+                GlassTopAppBar(
+                    title = {
+                        OutlinedTextField(
+                            value = uiState.query,
+                            onValueChange = viewModel::onQueryChange,
+                            label = { Text("Search") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    },
+                    hazeState = hazeState,
+                    navigationIcon = {
+                        TextButton(
+                            onClick = viewModel::popBackStack,
+                            modifier = Modifier.semantics { contentDescription = "Back" },
+                        ) {
+                            Text("Back")
+                        }
+                    },
+                )
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { innerPadding ->
+            SearchContent(
+                uiState = uiState,
+                modifier = Modifier.padding(innerPadding),
+                onToggleRecordType = viewModel::toggleRecordType,
+                onFromDateChange = viewModel::setFromDate,
+                onToDateChange = viewModel::setToDate,
+                onResultClick = viewModel::onResultClick,
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
-        SearchContent(
-            uiState = uiState,
-            modifier = Modifier.padding(innerPadding),
-            onToggleRecordType = viewModel::toggleRecordType,
-            onFromDateChange = viewModel::setFromDate,
-            onToDateChange = viewModel::setToDate,
-            onResultClick = viewModel::onResultClick,
-        )
+        }
     }
 }
 
@@ -98,7 +112,7 @@ private fun SearchContent(
     onToDateChange: (LocalDate?) -> Unit,
     onResultClick: (Long) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().hazeSourceFrom(LocalHazeState.current)) {
         RecordTypeFilters(
             uiState = uiState,
             onToggleRecordType = onToggleRecordType,
@@ -132,11 +146,15 @@ private fun RecordTypeFilters(
 ) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         uiState.recordTypeOptions.forEach { (recordType, label) ->
+            val chipModifier =
+                Modifier
+                    .padding(end = 8.dp)
+                    .semantics { contentDescription = "Filter by $label" }
             FilterChip(
                 selected = recordType in uiState.recordTypes,
                 onClick = { onToggleRecordType(recordType) },
                 label = { Text(label) },
-                modifier = Modifier.padding(end = 8.dp),
+                modifier = chipModifier,
             )
         }
     }
@@ -167,18 +185,17 @@ private fun SearchResults(
 ) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         when {
-            uiState.isLoading -> CircularProgressIndicator(Modifier.padding(top = 32.dp))
+            uiState.isLoading -> LoadingState()
             uiState.query.trim().length < 2 ->
-                Text(
-                    "Type at least 2 characters to search",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(top = 32.dp),
+                EmptyState(
+                    title = "Type at least 2 characters to search",
+                    symbol = "🔍",
                 )
             uiState.results.isEmpty() ->
-                Text(
-                    "No results found",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(top = 32.dp),
+                EmptyState(
+                    title = "No results found",
+                    message = "Try a different query or record type.",
+                    symbol = "🔍",
                 )
             else -> GroupedResults(uiState.results, onResultClick)
         }
@@ -220,9 +237,16 @@ private fun SearchResultCard(
     result: SearchResult,
     onClick: () -> Unit,
 ) {
+    val cardModifier =
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${recordTypeLabel(result.recordType)} result"
+            }
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = cardModifier,
     ) {
         Column(Modifier.padding(16.dp)) {
             val title = listOfNotNull(recordTypeLabel(result.recordType), result.date?.toString()).joinToString(" • ")

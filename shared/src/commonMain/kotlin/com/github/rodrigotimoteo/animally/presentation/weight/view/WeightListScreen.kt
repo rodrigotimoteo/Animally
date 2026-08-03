@@ -1,6 +1,5 @@
 package com.github.rodrigotimoteo.animally.presentation.weight.view
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,7 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +19,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
+import com.github.rodrigotimoteo.animally.presentation.common.state.EmptyState
+import com.github.rodrigotimoteo.animally.presentation.common.state.ErrorState
+import com.github.rodrigotimoteo.animally.presentation.common.state.LoadingState
 import com.github.rodrigotimoteo.animally.presentation.weight.WeightListUiState
 import com.github.rodrigotimoteo.animally.presentation.weight.WeightListViewModel
 
@@ -67,27 +68,14 @@ private fun WeightListContent(
             }
         }
         when {
-            uiState.isLoading ->
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
+            uiState.isLoading -> LoadingState()
             uiState.errorMessage != null ->
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(uiState.errorMessage, style = MaterialTheme.typography.bodyLarge)
-                }
+                ErrorState(
+                    message = uiState.errorMessage,
+                    onRetry = {},
+                )
             uiState.records.isEmpty() ->
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("No weight records yet", style = MaterialTheme.typography.bodyLarge)
-                }
+                EmptyState(title = "No weight records yet")
             else -> WeightList(uiState.records, onEditClick)
         }
     }

@@ -2,7 +2,6 @@ package com.github.rodrigotimoteo.animally.presentation.timeline.view
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,14 +9,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -25,7 +21,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,11 +29,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.timeline.model.TimelineEntry
 import com.github.rodrigotimoteo.animally.domain.timeline.model.TimelineGroup
+import com.github.rodrigotimoteo.animally.presentation.common.glass.GlassTopAppBar
+import com.github.rodrigotimoteo.animally.presentation.common.glass.hazeSourceFrom
+import com.github.rodrigotimoteo.animally.presentation.common.glass.rememberHazeState
+import com.github.rodrigotimoteo.animally.presentation.common.state.EmptyState
+import com.github.rodrigotimoteo.animally.presentation.common.state.ErrorState
+import com.github.rodrigotimoteo.animally.presentation.common.state.LoadingState
 import com.github.rodrigotimoteo.animally.presentation.theme.successColorLight
 import com.github.rodrigotimoteo.animally.presentation.timeline.TimelineUiState
 import com.github.rodrigotimoteo.animally.presentation.timeline.TimelineViewModel
@@ -64,6 +67,7 @@ fun TimelineScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val hazeState = rememberHazeState()
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
@@ -77,11 +81,15 @@ fun TimelineScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
+            GlassTopAppBar(
                 title = { Text(title) },
+                hazeState = hazeState,
                 navigationIcon = {
                     if (uiState.patientId != null) {
-                        TextButton(onClick = viewModel::onBack) {
+                        TextButton(
+                            onClick = viewModel::onBack,
+                            modifier = Modifier.semantics { contentDescription = "Back" },
+                        ) {
                             Text("Back")
                         }
                     }
@@ -92,6 +100,7 @@ fun TimelineScreen(
     ) { innerPadding ->
         TimelineContent(
             uiState = uiState,
+            hazeState = hazeState,
             onEntryClick = viewModel::onEntryClick,
             onRetry = viewModel::load,
             modifier = Modifier.padding(innerPadding),
@@ -102,38 +111,45 @@ fun TimelineScreen(
 @Composable
 private fun TimelineContent(
     uiState: TimelineUiState,
+    hazeState: dev.chrisbanes.haze.HazeState,
     onEntryClick: (recordType: String, patientId: Long, recordId: Long) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
-        when {
-            uiState.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            uiState.errorMessage != null && uiState.groups.isEmpty() ->
-                ErrorState(
-                    message = uiState.errorMessage.orEmpty(),
-                    onRetry = onRetry,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-            uiState.groups.isEmpty() ->
-                EmptyState(modifier = Modifier.align(Alignment.Center))
-            else ->
-                TimelineList(
-                    groups = uiState.groups,
-                    isGlobal = uiState.patientId == null,
-                    onEntryClick = onEntryClick,
-                )
-        }
+    when {
+        uiState.isLoading -> LoadingState(modifier = modifier)
+        uiState.errorMessage != null && uiState.groups.isEmpty() ->
+            ErrorState(
+                message = uiState.errorMessage.orEmpty(),
+                onRetry = onRetry,
+                modifier = modifier,
+            )
+        uiState.groups.isEmpty() ->
+            EmptyState(
+                title = "No events yet",
+                message = "Timeline entries will appear here as records are added.",
+                modifier = modifier,
+            )
+        else ->
+            TimelineList(
+                groups = uiState.groups,
+                hazeState = hazeState,
+                isGlobal = uiState.patientId == null,
+                onEntryClick = onEntryClick,
+                modifier = modifier,
+            )
     }
 }
 
 @Composable
 private fun TimelineList(
     groups: List<TimelineGroup>,
+    hazeState: dev.chrisbanes.haze.HazeState,
     isGlobal: Boolean,
     onEntryClick: (recordType: String, patientId: Long, recordId: Long) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(modifier = modifier.fillMaxSize().hazeSourceFrom(hazeState)) {
         groups.forEach { group ->
             item(key = "header-${group.date}") {
                 DateHeader(group.date)
@@ -181,6 +197,9 @@ private fun TimelineEntryRow(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${entry.title} on ${entry.date}"
+            }
     val barModifier =
         Modifier
             .width(4.dp)
@@ -221,50 +240,6 @@ private fun TimelineEntryRow(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-@Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "No events yet",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Timeline entries will appear here as records are added.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun ErrorState(
-    message: String,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.error,
-        )
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = onRetry) {
-            Text("Retry")
-        }
     }
 }
 

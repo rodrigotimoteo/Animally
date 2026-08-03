@@ -7,17 +7,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.rodrigotimoteo.animally.presentation.common.glass.GlassTopAppBar
+import com.github.rodrigotimoteo.animally.presentation.common.glass.hazeSourceFrom
+import com.github.rodrigotimoteo.animally.presentation.common.glass.rememberHazeState
 import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsUiState
 import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewModel
@@ -28,20 +38,41 @@ import org.koin.compose.viewmodel.koinViewModel
  * Settings screen. Hosts the appearance selector, CSV export action, backup & restore controls,
  * the PDF export and the reminders section.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
-        AppearanceSection(viewModel)
-        CsvExportSection(viewModel)
-        BackupSection(viewModel)
-        PdfExportSection(viewModel)
-        RemindersSection()
+    val hazeState = rememberHazeState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            GlassTopAppBar(
+                title = { Text("Settings") },
+                hazeState = hazeState,
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { innerPadding ->
+        val columnModifier =
+            Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .padding(16.dp)
+                .hazeSourceFrom(hazeState)
+        Column(
+            modifier = columnModifier,
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            AppearanceSection(viewModel)
+            CsvExportSection(viewModel)
+            BackupSection(viewModel)
+            PdfExportSection(viewModel)
+            RemindersSection()
+        }
     }
 }
 
@@ -57,6 +88,7 @@ private fun AppearanceSection(viewModel: SettingsViewModel) {
                     selected = themeMode == mode,
                     onClick = { viewModel.onThemeModeChange(mode) },
                     label = { Text(mode.label) },
+                    modifier = Modifier.semantics { contentDescription = "Theme ${mode.label}" },
                 )
             }
         }

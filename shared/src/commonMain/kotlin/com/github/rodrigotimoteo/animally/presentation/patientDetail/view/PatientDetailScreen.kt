@@ -1,15 +1,14 @@
 package com.github.rodrigotimoteo.animally.presentation.patientDetail.view
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
@@ -19,7 +18,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,10 +27,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.presentation.common.glass.GlassTopAppBar
+import com.github.rodrigotimoteo.animally.presentation.common.glass.hazeSourceFrom
+import com.github.rodrigotimoteo.animally.presentation.common.glass.rememberHazeState
+import com.github.rodrigotimoteo.animally.presentation.common.layout.WindowSizeClass
+import com.github.rodrigotimoteo.animally.presentation.common.layout.withWindowSizeClass
+import com.github.rodrigotimoteo.animally.presentation.common.state.EmptyState
+import com.github.rodrigotimoteo.animally.presentation.common.state.LoadingState
 import com.github.rodrigotimoteo.animally.presentation.consultation.view.ConsultationListScreen
 import com.github.rodrigotimoteo.animally.presentation.dentistry.view.DentistryListScreen
 import com.github.rodrigotimoteo.animally.presentation.deworming.view.DewormingListScreen
@@ -81,6 +88,7 @@ fun PatientDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val hazeState = rememberHazeState()
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
@@ -92,21 +100,37 @@ fun PatientDetailScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
+            GlassTopAppBar(
                 title = { Text(uiState.patient?.name ?: "Patient") },
+                hazeState = hazeState,
                 navigationIcon = {
-                    TextButton(onClick = viewModel::onBack) {
+                    TextButton(
+                        onClick = viewModel::onBack,
+                        modifier = Modifier.semantics { contentDescription = "Back" },
+                    ) {
                         Text("Back")
                     }
                 },
                 actions = {
-                    TextButton(onClick = viewModel::onTimelineClick, enabled = uiState.patient != null) {
+                    TextButton(
+                        onClick = viewModel::onTimelineClick,
+                        enabled = uiState.patient != null,
+                        modifier = Modifier.semantics { contentDescription = "Timeline" },
+                    ) {
                         Text("Timeline")
                     }
-                    TextButton(onClick = viewModel::onCustomRemindersClick, enabled = uiState.patient != null) {
+                    TextButton(
+                        onClick = viewModel::onCustomRemindersClick,
+                        enabled = uiState.patient != null,
+                        modifier = Modifier.semantics { contentDescription = "Reminders" },
+                    ) {
                         Text("Reminders")
                     }
-                    TextButton(onClick = viewModel::onEditClick, enabled = uiState.patient != null) {
+                    TextButton(
+                        onClick = viewModel::onEditClick,
+                        enabled = uiState.patient != null,
+                        modifier = Modifier.semantics { contentDescription = "Edit patient" },
+                    ) {
                         Text("Edit")
                     }
                 },
@@ -116,6 +140,7 @@ fun PatientDetailScreen(
     ) { innerPadding ->
         PatientDetailContent(
             uiState = uiState,
+            hazeState = hazeState,
             onAnamneseClick = viewModel::onAnamneseClick,
             modifier = Modifier.padding(innerPadding),
         )
@@ -125,50 +150,93 @@ fun PatientDetailScreen(
 @Composable
 private fun PatientDetailContent(
     uiState: PatientDetailUiState,
+    hazeState: dev.chrisbanes.haze.HazeState,
     onAnamneseClick: () -> Unit,
     modifier: Modifier,
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
-        when {
-            uiState.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            uiState.patient == null -> {
-                Text(
-                    "Patient not found",
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.bodyLarge,
+    when {
+        uiState.isLoading -> LoadingState(modifier = modifier)
+        uiState.patient == null ->
+            EmptyState(
+                title = "Patient not found",
+                message = "This patient may have been removed.",
+                modifier = modifier,
+            )
+        else ->
+            withWindowSizeClass { sizeClass ->
+                PatientTabs(
+                    uiState = uiState,
+                    hazeState = hazeState,
+                    sizeClass = sizeClass,
+                    onAnamneseClick = onAnamneseClick,
+                    modifier = modifier,
                 )
             }
-            else -> PatientTabs(uiState, onAnamneseClick)
-        }
     }
 }
 
 @Composable
 private fun PatientTabs(
     uiState: PatientDetailUiState,
+    hazeState: dev.chrisbanes.haze.HazeState,
+    sizeClass: WindowSizeClass,
     onAnamneseClick: () -> Unit,
+    modifier: Modifier,
 ) {
     val tabs = PatientTab.entries
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
-    Column(Modifier.fillMaxSize()) {
-        PrimaryTabRow(selectedTabIndex = selectedTab) {
-            tabs.forEach { tab ->
-                Tab(
-                    selected = tab.ordinal == selectedTab,
-                    onClick = { selectedTab = tab.ordinal },
-                    text = { Text(tab.label) },
-                )
+    val patient = checkNotNull(uiState.patient)
+    val contentModifier = modifier.fillMaxSize().hazeSourceFrom(hazeState)
+
+    when (sizeClass) {
+        WindowSizeClass.Compact, WindowSizeClass.Medium ->
+            Column(contentModifier) {
+                PrimaryTabRow(selectedTabIndex = selectedTab) {
+                    tabs.forEach { tab ->
+                        Tab(
+                            selected = tab.ordinal == selectedTab,
+                            onClick = { selectedTab = tab.ordinal },
+                            text = { Text(tab.label) },
+                        )
+                    }
+                }
+                TabContent(selectedTab, tabs, patient, uiState.ownerName, onAnamneseClick)
             }
-        }
-        val patient = checkNotNull(uiState.patient)
-        when (tabs[selectedTab]) {
-            PatientTab.Overview -> OverviewTab(patient, uiState.ownerName, onAnamneseClick)
-            PatientTab.Medical -> MedicalTab(patient.id)
-            PatientTab.Preventive -> PreventiveTab(patient.id)
-            PatientTab.Reproduction -> ReproductionTab(patient.id)
-            PatientTab.DiagnosticsFiles -> DiagnosticsFilesTab(patient.id)
-        }
+        WindowSizeClass.Expanded ->
+            Row(contentModifier) {
+                Column(modifier = Modifier.widthIn(min = 200.dp, max = 280.dp).fillMaxSize()) {
+                    PrimaryTabRow(selectedTabIndex = selectedTab) {
+                        tabs.forEach { tab ->
+                            Tab(
+                                selected = tab.ordinal == selectedTab,
+                                onClick = { selectedTab = tab.ordinal },
+                                text = { Text(tab.label) },
+                            )
+                        }
+                    }
+                }
+                Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    TabContent(selectedTab, tabs, patient, uiState.ownerName, onAnamneseClick)
+                }
+            }
+    }
+}
+
+@Composable
+private fun TabContent(
+    selectedTab: Int,
+    tabs: List<PatientTab>,
+    patient: Patient,
+    ownerName: String?,
+    onAnamneseClick: () -> Unit,
+) {
+    when (tabs[selectedTab]) {
+        PatientTab.Overview -> OverviewTab(patient, ownerName, onAnamneseClick)
+        PatientTab.Medical -> MedicalTab(patient.id)
+        PatientTab.Preventive -> PreventiveTab(patient.id)
+        PatientTab.Reproduction -> ReproductionTab(patient.id)
+        PatientTab.DiagnosticsFiles -> DiagnosticsFilesTab(patient.id)
     }
 }
 

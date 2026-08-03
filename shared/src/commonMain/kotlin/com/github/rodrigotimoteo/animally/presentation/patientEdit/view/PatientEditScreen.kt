@@ -1,14 +1,15 @@
 package com.github.rodrigotimoteo.animally.presentation.patientEdit.view
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -16,7 +17,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.presentation.common.layout.WindowSizeClass
+import com.github.rodrigotimoteo.animally.presentation.common.layout.withWindowSizeClass
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.CogginsField
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.PatientEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.PatientFormState
@@ -46,7 +48,7 @@ fun PatientEditScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
+            androidx.compose.material3.TopAppBar(
                 title = { Text(if (formState?.isEditing == true) "Edit Patient" else "Add Patient") },
                 navigationIcon = {
                     TextButton(onClick = viewModel::onBack) {
@@ -56,12 +58,15 @@ fun PatientEditScreen(
             )
         },
     ) { innerPadding ->
-        PatientEditForm(
-            viewModel = viewModel,
-            formState = formState,
-            owners = owners,
-            modifier = Modifier.padding(innerPadding),
-        )
+        withWindowSizeClass { sizeClass ->
+            PatientEditForm(
+                viewModel = viewModel,
+                formState = formState,
+                owners = owners,
+                sizeClass = sizeClass,
+                modifier = Modifier.padding(innerPadding),
+            )
+        }
     }
 }
 
@@ -70,31 +75,61 @@ private fun PatientEditForm(
     viewModel: PatientEditViewModel,
     formState: PatientFormState?,
     owners: List<Owner>,
+    sizeClass: WindowSizeClass,
     modifier: Modifier,
 ) {
-    val columnModifier = modifier.padding(16.dp).fillMaxSize().verticalScroll(rememberScrollState())
-    Column(modifier = columnModifier) {
-        if (formState?.isLoading == true) {
-            CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
-            return@Column
-        }
-        formState?.let { form ->
-            PatientIdentityFields(viewModel, form)
-            PatientIdFields(viewModel, form)
-            PatientDetailFields(viewModel, form)
-            CogginsFields(viewModel, form)
-            OwnerSelector(
-                owners = owners,
-                selectedOwnerId = form.ownerId,
-                onOwnerChange = viewModel::onOwnerChange,
-            )
-            Button(
-                onClick = viewModel::save,
-                enabled = !form.isSaving,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-            ) {
-                Text(if (form.isEditing) "Save" else "Create")
+    when (sizeClass) {
+        WindowSizeClass.Compact ->
+            Column(modifier = modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+                FormFields(viewModel, formState, owners)
             }
+        WindowSizeClass.Medium, WindowSizeClass.Expanded ->
+            Box(
+                contentAlignment = Alignment.TopCenter,
+                modifier = modifier.fillMaxSize().padding(16.dp),
+            ) {
+                val formModifier =
+                    Modifier
+                        .widthIn(max = 640.dp)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                Column(
+                    modifier = formModifier,
+                ) {
+                    FormFields(viewModel, formState, owners)
+                }
+            }
+    }
+}
+
+@Composable
+private fun FormFields(
+    viewModel: PatientEditViewModel,
+    formState: PatientFormState?,
+    owners: List<Owner>,
+) {
+    if (formState?.isLoading == true) {
+        androidx.compose.material3.CircularProgressIndicator(
+            modifier = Modifier.fillMaxWidth().padding(32.dp),
+        )
+        return
+    }
+    formState?.let { form ->
+        PatientIdentityFields(viewModel, form)
+        PatientIdFields(viewModel, form)
+        PatientDetailFields(viewModel, form)
+        CogginsFields(viewModel, form)
+        OwnerSelector(
+            owners = owners,
+            selectedOwnerId = form.ownerId,
+            onOwnerChange = viewModel::onOwnerChange,
+        )
+        Button(
+            onClick = viewModel::save,
+            enabled = !form.isSaving,
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+        ) {
+            Text(if (form.isEditing) "Save" else "Create")
         }
     }
 }
