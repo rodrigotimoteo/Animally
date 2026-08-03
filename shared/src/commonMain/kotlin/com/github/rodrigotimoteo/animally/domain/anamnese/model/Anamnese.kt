@@ -25,4 +25,5 @@ data class Anamnese(
     val allergies: String,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val serverId: String? = null,
 )

@@ -45,3 +45,13 @@ SELECT * FROM Ultrasound;
 insertWithId:
 INSERT INTO Ultrasound (id, patientId, date, ovaryStatus, uterineStatus, follicleSizeMm, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Ultrasound WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Ultrasound WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Ultrasound SET serverId = ?, updatedAt = ? WHERE id = ?;

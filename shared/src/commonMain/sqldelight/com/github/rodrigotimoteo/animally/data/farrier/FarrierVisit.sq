@@ -44,3 +44,13 @@ SELECT * FROM FarrierVisit;
 insertWithId:
 INSERT INTO FarrierVisit (id, patientId, date, trimOrShoe, shoeType, findings, nextDueDate, farrier, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM FarrierVisit WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM FarrierVisit WHERE updatedAt > ?;
+
+setServerId:
+UPDATE FarrierVisit SET serverId = ?, updatedAt = ? WHERE id = ?;

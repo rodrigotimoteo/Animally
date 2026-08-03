@@ -44,3 +44,13 @@ SELECT * FROM Vaccination;
 insertWithId:
 INSERT INTO Vaccination (id, patientId, vaccineName, dateAdministered, nextDueDate, vetName, batchNumber, site, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Vaccination WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Vaccination WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Vaccination SET serverId = ?, updatedAt = ? WHERE id = ?;

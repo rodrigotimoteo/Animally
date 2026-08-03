@@ -43,3 +43,13 @@ SELECT * FROM Imaging;
 insertWithId:
 INSERT INTO Imaging (id, patientId, type, date, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Imaging WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Imaging WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Imaging SET serverId = ?, updatedAt = ? WHERE id = ?;

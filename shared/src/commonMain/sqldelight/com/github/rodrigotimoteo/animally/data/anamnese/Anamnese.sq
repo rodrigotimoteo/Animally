@@ -32,3 +32,13 @@ SELECT * FROM Anamnese;
 insertWithId:
 INSERT INTO Anamnese (id, patientId, generalHistory, chronicConditions, allergies, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Anamnese WHERE serverId = ?;
+
+selectChangedSince:
+SELECT * FROM Anamnese WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Anamnese SET serverId = ?, updatedAt = ? WHERE id = ?;

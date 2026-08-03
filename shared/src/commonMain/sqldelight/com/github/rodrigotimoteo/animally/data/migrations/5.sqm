@@ -1,0 +1,50 @@
+import com.github.rodrigotimoteo.animally.data.adapters.InstantAdapter;
+import kotlin.time.Instant;
+
+ALTER TABLE Owner ADD COLUMN serverId TEXT;
+ALTER TABLE Patient ADD COLUMN serverId TEXT;
+ALTER TABLE Anamnese ADD COLUMN serverId TEXT;
+ALTER TABLE Consultation ADD COLUMN serverId TEXT;
+ALTER TABLE Dentistry ADD COLUMN serverId TEXT;
+ALTER TABLE Deworming ADD COLUMN serverId TEXT;
+ALTER TABLE FarrierVisit ADD COLUMN serverId TEXT;
+ALTER TABLE Gestation ADD COLUMN serverId TEXT;
+ALTER TABLE Imaging ADD COLUMN serverId TEXT;
+ALTER TABLE LabResult ADD COLUMN serverId TEXT;
+ALTER TABLE Lameness ADD COLUMN serverId TEXT;
+ALTER TABLE Medication ADD COLUMN serverId TEXT;
+ALTER TABLE Reproduction ADD COLUMN serverId TEXT;
+ALTER TABLE ReproMedication ADD COLUMN serverId TEXT;
+ALTER TABLE Substance ADD COLUMN serverId TEXT;
+ALTER TABLE Surgery ADD COLUMN serverId TEXT;
+ALTER TABLE Ultrasound ADD COLUMN serverId TEXT;
+ALTER TABLE Vaccination ADD COLUMN serverId TEXT;
+ALTER TABLE Weight ADD COLUMN serverId TEXT;
+ALTER TABLE CustomReminder ADD COLUMN serverId TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_server_id ON Owner(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_patient_server_id ON Patient(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_anamnese_server_id ON Anamnese(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_consultation_server_id ON Consultation(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dentistry_server_id ON Dentistry(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deworming_server_id ON Deworming(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_farriervisit_server_id ON FarrierVisit(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gestation_server_id ON Gestation(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_imaging_server_id ON Imaging(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_labresult_server_id ON LabResult(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lameness_server_id ON Lameness(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_medication_server_id ON Medication(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reproduction_server_id ON Reproduction(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_repromedication_server_id ON ReproMedication(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_substance_server_id ON Substance(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_surgery_server_id ON Surgery(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ultrasound_server_id ON Ultrasound(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vaccination_server_id ON Vaccination(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_weight_server_id ON Weight(serverId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customreminder_server_id ON CustomReminder(serverId);
+
+CREATE TABLE SyncMetadata (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lastSyncAt INTEGER AS Instant NOT NULL,
+    deviceId TEXT NOT NULL
+);

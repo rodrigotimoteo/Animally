@@ -36,4 +36,5 @@ data class Vaccination(
     val isActive: Boolean = true,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val serverId: String? = null,
 )

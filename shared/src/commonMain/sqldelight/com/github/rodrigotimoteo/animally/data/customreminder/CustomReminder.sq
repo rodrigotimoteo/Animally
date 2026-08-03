@@ -42,3 +42,13 @@ SELECT * FROM CustomReminder WHERE isActive = 1 AND dueDate >= ? ORDER BY dueDat
 
 selectOverdue:
 SELECT * FROM CustomReminder WHERE isActive = 1 AND dueDate < ? ORDER BY dueDate;
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM CustomReminder WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM CustomReminder WHERE updatedAt > ?;
+
+setServerId:
+UPDATE CustomReminder SET serverId = ?, updatedAt = ? WHERE id = ?;

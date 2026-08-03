@@ -44,3 +44,13 @@ SELECT * FROM Gestation;
 insertWithId:
 INSERT INTO Gestation (id, patientId, breedingDate, expectedDueDate, gestationDays, status, fetalCount, lastCheckDate, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Gestation WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Gestation WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Gestation SET serverId = ?, updatedAt = ? WHERE id = ?;

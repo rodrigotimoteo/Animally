@@ -46,3 +46,13 @@ SELECT * FROM Substance;
 insertWithId:
 INSERT INTO Substance (id, patientId, drugName, dose, unit, route, administeredBy, witness, date, reason, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Substance WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Substance WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Substance SET serverId = ?, updatedAt = ? WHERE id = ?;

@@ -52,3 +52,13 @@ SELECT * FROM Patient;
 insertWithId:
 INSERT INTO Patient (id, name, species, breed, dateOfBirth, gender, microchipId, ueln, registrationNumber, stableLocation, photoUri, notes, ownerId, isActive, createdAt, updatedAt, cogginsTestDate, cogginsResult, cogginsExpiryDate)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Patient WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Patient WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Patient SET serverId = ?, updatedAt = ? WHERE id = ?;

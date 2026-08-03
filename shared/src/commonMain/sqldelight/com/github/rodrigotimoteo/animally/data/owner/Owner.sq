@@ -34,3 +34,13 @@ SELECT * FROM Owner;
 insertWithId:
 INSERT INTO Owner (id, name, email, phone, address, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Owner WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Owner WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Owner SET serverId = ?, updatedAt = ? WHERE id = ?;

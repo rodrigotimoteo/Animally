@@ -46,3 +46,13 @@ SELECT * FROM Surgery;
 insertWithId:
 INSERT INTO Surgery (id, patientId, date, type, description, outcome, surgeon, anesthesia, analgesia, complications, recoveryNotes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Surgery WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Surgery WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Surgery SET serverId = ?, updatedAt = ? WHERE id = ?;

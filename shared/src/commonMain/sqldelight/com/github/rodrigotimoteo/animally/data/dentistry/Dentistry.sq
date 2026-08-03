@@ -43,3 +43,13 @@ SELECT * FROM Dentistry;
 insertWithId:
 INSERT INTO Dentistry (id, patientId, date, findings, treatment, nextDueDate, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Dentistry WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Dentistry WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Dentistry SET serverId = ?, updatedAt = ? WHERE id = ?;

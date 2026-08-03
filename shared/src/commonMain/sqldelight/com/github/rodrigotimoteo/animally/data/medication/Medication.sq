@@ -45,3 +45,13 @@ SELECT * FROM Medication;
 insertWithId:
 INSERT INTO Medication (id, patientId, name, dosage, route, frequency, startDate, endDate, prescribedBy, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Medication WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Medication WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Medication SET serverId = ?, updatedAt = ? WHERE id = ?;

@@ -22,6 +22,7 @@ import com.github.rodrigotimoteo.animally.data.migrations.Reproduction
 import com.github.rodrigotimoteo.animally.data.migrations.SearchFtsIndex
 import com.github.rodrigotimoteo.animally.data.migrations.Substance
 import com.github.rodrigotimoteo.animally.data.migrations.Surgery
+import com.github.rodrigotimoteo.animally.data.migrations.SyncMetadata
 import com.github.rodrigotimoteo.animally.data.migrations.Ultrasound
 import com.github.rodrigotimoteo.animally.data.migrations.Vaccination
 import com.github.rodrigotimoteo.animally.data.migrations.Weight
@@ -154,6 +155,10 @@ object AnimallyDatabaseFactory {
                     dateAdapter = LocalDateAdapter,
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,
+                ),
+            SyncMetadataAdapter =
+                SyncMetadata.Adapter(
+                    lastSyncAtAdapter = InstantAdapter,
                 ),
             UltrasoundAdapter =
                 Ultrasound.Adapter(

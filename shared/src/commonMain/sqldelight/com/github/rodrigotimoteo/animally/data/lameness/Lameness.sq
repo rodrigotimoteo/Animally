@@ -45,3 +45,13 @@ SELECT * FROM Lameness;
 insertWithId:
 INSERT INTO Lameness (id, patientId, date, gradeAAEP, limbLocation, flexionTest, diagnosis, treatment, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Lameness WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Lameness WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Lameness SET serverId = ?, updatedAt = ? WHERE id = ?;

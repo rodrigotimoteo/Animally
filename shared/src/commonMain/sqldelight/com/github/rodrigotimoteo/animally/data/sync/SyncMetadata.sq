@@ -1,0 +1,12 @@
+-- Sync support --
+insertMetadata:
+INSERT INTO SyncMetadata(lastSyncAt, deviceId) VALUES (?, ?);
+
+getMetadata:
+SELECT * FROM SyncMetadata ORDER BY id DESC LIMIT 1;
+
+updateLastSyncAt:
+UPDATE SyncMetadata SET lastSyncAt = ? WHERE id = ?;
+
+deleteAll:
+DELETE FROM SyncMetadata;

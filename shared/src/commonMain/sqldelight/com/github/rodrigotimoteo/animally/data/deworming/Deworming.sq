@@ -43,3 +43,13 @@ SELECT * FROM Deworming;
 insertWithId:
 INSERT INTO Deworming (id, patientId, product, dateAdministered, nextDueDate, dose, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Deworming WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Deworming WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Deworming SET serverId = ?, updatedAt = ? WHERE id = ?;

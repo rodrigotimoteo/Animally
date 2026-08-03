@@ -43,3 +43,13 @@ SELECT * FROM LabResult;
 insertWithId:
 INSERT INTO LabResult (id, patientId, testType, date, results, normalRange, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM LabResult WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM LabResult WHERE updatedAt > ?;
+
+setServerId:
+UPDATE LabResult SET serverId = ?, updatedAt = ? WHERE id = ?;

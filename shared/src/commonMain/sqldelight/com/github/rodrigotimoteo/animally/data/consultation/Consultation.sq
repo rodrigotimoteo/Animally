@@ -44,3 +44,13 @@ SELECT * FROM Consultation;
 insertWithId:
 INSERT INTO Consultation (id, patientId, date, subjective, objective, assessment, plan, vetName, nextVisitDate, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Consultation WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Consultation WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Consultation SET serverId = ?, updatedAt = ? WHERE id = ?;

@@ -43,3 +43,13 @@ SELECT * FROM ReproMedication;
 insertWithId:
 INSERT INTO ReproMedication (id, patientId, medication, dateAdministered, dosage, purpose, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM ReproMedication WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM ReproMedication WHERE updatedAt > ?;
+
+setServerId:
+UPDATE ReproMedication SET serverId = ?, updatedAt = ? WHERE id = ?;

@@ -41,3 +41,13 @@ SELECT * FROM Weight;
 insertWithId:
 INSERT INTO Weight (id, patientId, weightKg, date, notes, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support --
+selectByServerId:
+SELECT * FROM Weight WHERE serverId = ? AND isActive = 1;
+
+selectChangedSince:
+SELECT * FROM Weight WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Weight SET serverId = ?, updatedAt = ? WHERE id = ?;
