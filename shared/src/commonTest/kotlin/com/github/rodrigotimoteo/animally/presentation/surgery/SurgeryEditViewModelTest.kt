@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.GetSurgeryDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.SaveSurgeryUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -15,7 +16,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -80,7 +83,7 @@ class SurgeryEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves surgery with parsed date and navigates back`() =
+    fun `valid form saves surgery with parsed date and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { surgeryRepositoryMock.insert(any()) } returns 1L
@@ -88,6 +91,11 @@ class SurgeryEditViewModelTest {
 
             vm.onDateChange("2026-01-15")
             vm.onTypeChange("Colic surgery")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -101,7 +109,8 @@ class SurgeryEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -188,19 +197,25 @@ class SurgeryEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and sets dateError`() =
+    fun `save failure resets isSaving and sets dateError and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { surgeryRepositoryMock.insert(any()) } throws RuntimeException("db down")
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
             vm.onDateChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals("db down", form.dateError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 }

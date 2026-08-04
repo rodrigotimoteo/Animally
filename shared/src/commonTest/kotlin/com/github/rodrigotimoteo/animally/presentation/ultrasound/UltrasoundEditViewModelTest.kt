@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepositor
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.SaveUltrasoundUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -16,8 +17,10 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -100,7 +103,7 @@ class UltrasoundEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves ultrasound with parsed follicle size and navigates back`() =
+    fun `valid form saves ultrasound with parsed follicle size and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { ultrasoundRepositoryMock.insert(any()) } returns 1L
@@ -109,6 +112,11 @@ class UltrasoundEditViewModelTest {
             vm.onDateChange("2026-01-15")
             vm.onOvaryStatusChange("Active")
             vm.onFollicleSizeMmChange("32.5")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -123,7 +131,8 @@ class UltrasoundEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -227,19 +236,25 @@ class UltrasoundEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and keeps navigator`() =
+    fun `save failure resets isSaving and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { ultrasoundRepositoryMock.insert(any()) } throws RuntimeException("boom")
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
             vm.onDateChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             assertEquals(false, vm.formState.value?.isSaving)
             assertEquals("boom", vm.formState.value?.dateError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test

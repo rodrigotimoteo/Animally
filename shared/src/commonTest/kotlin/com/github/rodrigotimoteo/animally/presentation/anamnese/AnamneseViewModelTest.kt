@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.anamnese.IAnamneseRepository
 import com.github.rodrigotimoteo.animally.domain.anamnese.model.Anamnese
 import com.github.rodrigotimoteo.animally.domain.anamnese.usecase.GetAnamneseByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.anamnese.usecase.SaveAnamneseUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -15,7 +16,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -25,7 +28,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -87,7 +89,7 @@ class AnamneseViewModelTest {
         }
 
     @Test
-    fun `save creates new anamnese and navigates back`() =
+    fun `save creates new anamnese and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { anamneseRepositoryMock.getByPatient(1L) } returns null
@@ -97,6 +99,11 @@ class AnamneseViewModelTest {
 
             vm.onGeneralHistoryChange("History")
             vm.onAllergiesChange("Hay")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -107,7 +114,8 @@ class AnamneseViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -154,7 +162,7 @@ class AnamneseViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving without error and does not navigate`() =
+    fun `save failure resets isSaving without error and does not navigate and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { anamneseRepositoryMock.getByPatient(1L) } returns null
@@ -163,12 +171,18 @@ class AnamneseViewModelTest {
             advanceUntilIdle()
 
             vm.onGeneralHistoryChange("History")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals(AnamneseFormState(generalHistory = "History"), form)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 }

@@ -15,11 +15,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationFormState
 
@@ -36,6 +38,13 @@ fun ConsultationEditScreen(
     modifier: Modifier = Modifier,
 ) {
     val formState by viewModel.formState.collectAsStateWithLifecycle()
+    LaunchedEffect(viewModel) {
+        viewModel.effects.collect { effect ->
+            if (effect == EditEffect.Saved) {
+                viewModel.popBackStack()
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier,

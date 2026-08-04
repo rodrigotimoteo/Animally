@@ -206,7 +206,7 @@ class PatientEditViewModel(
             runCatching { withContext(ioDispatcher) { savePatientUseCase(patient) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure { error ->
                     formState.value?.let {
                         updateForm(it.copy(isSaving = false, nameError = error.message ?: "Failed to save patient"))

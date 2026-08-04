@@ -148,7 +148,7 @@ class LabResultEditViewModel(
             runCatching { withContext(ioDispatcher) { saveLabResultUseCase(labResult) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure { error ->
                     formState.value?.let {
                         updateForm(

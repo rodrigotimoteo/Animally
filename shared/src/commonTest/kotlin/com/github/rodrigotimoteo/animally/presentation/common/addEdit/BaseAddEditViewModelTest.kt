@@ -1,14 +1,28 @@
 package com.github.rodrigotimoteo.animally.presentation.common.addEdit
 
+import app.cash.turbine.test
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class BaseAddEditViewModelTest {
     private val navigator = AnimallyNavigator()
+
+    @AfterTest
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     private fun createViewModel() = TestAddEditViewModel(navigator)
 
@@ -57,6 +71,34 @@ class BaseAddEditViewModelTest {
 
         assertTrue(vm.saveInvoked)
     }
+
+    @Test
+    fun `successful save emits Saved effect`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel()
+            vm.saveSucceeds = true
+
+            vm.effects.test {
+                vm.save()
+
+                assertEquals(EditEffect.Saved, awaitItem())
+            }
+        }
+
+    @Test
+    fun `failed save emits no Saved effect`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel()
+            vm.saveSucceeds = false
+
+            vm.effects.test {
+                vm.save()
+
+                expectNoEvents()
+            }
+        }
 }
 
 /**
@@ -66,9 +108,13 @@ private class TestAddEditViewModel(
     navigator: AnimallyNavigator,
 ) : BaseAddEditViewModel<String>(navigator) {
     var saveInvoked = false
+    var saveSucceeds = true
 
     override fun save() {
         saveInvoked = true
+        if (saveSucceeds) {
+            emitSaved()
+        }
     }
 
     fun loadForm(value: String) {

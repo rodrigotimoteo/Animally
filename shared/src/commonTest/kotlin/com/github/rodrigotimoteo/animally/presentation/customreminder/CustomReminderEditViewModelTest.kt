@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomRemi
 import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.GetCustomReminderDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.SaveCustomReminderUseCase
 import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -16,7 +17,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -25,7 +28,6 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -115,7 +117,7 @@ class CustomReminderEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves reminder with parsed fields and navigates back`() =
+    fun `valid form saves reminder with parsed fields and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { customReminderRepositoryMock.insert(any()) } returns 1L
@@ -126,6 +128,11 @@ class CustomReminderEditViewModelTest {
             vm.onLinkedRecordTypeChange("FarrierVisit")
             vm.onLinkedRecordIdChange("7")
             vm.onNotesChange("Call ahead")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -142,11 +149,12 @@ class CustomReminderEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
-    fun `save failure resets isSaving keeps navigator and does not schedule`() =
+    fun `save failure resets isSaving emits no Saved effect and does not schedule`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { customReminderRepositoryMock.insert(any()) } throws RuntimeException("boom")
@@ -154,13 +162,19 @@ class CustomReminderEditViewModelTest {
 
             vm.onTitleChange("Farrier check")
             vm.onDueDateChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             assertEquals(false, vm.formState.value?.isSaving)
             assertEquals("boom", vm.formState.value?.titleError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
             verify(VerifyMode.exactly(0)) { reminderSchedulerMock.schedule(any()) }
+            effectsJob.cancel()
         }
 
     @Test

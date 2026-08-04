@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicatio
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.GetReproMedicationDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.SaveReproMedicationUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -15,7 +16,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -80,7 +83,7 @@ class ReproMedicationEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves medication with parsed date and navigates back`() =
+    fun `valid form saves medication with parsed date and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { reproMedicationRepositoryMock.insert(any()) } returns 1L
@@ -89,6 +92,11 @@ class ReproMedicationEditViewModelTest {
             vm.onMedicationChange("Regumate")
             vm.onDateAdministeredChange("2026-01-15")
             vm.onDosageChange("0.044 mg/kg")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -103,7 +111,8 @@ class ReproMedicationEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -166,7 +175,7 @@ class ReproMedicationEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and keeps navigator`() =
+    fun `save failure resets isSaving and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { reproMedicationRepositoryMock.insert(any()) } throws RuntimeException("boom")
@@ -174,12 +183,18 @@ class ReproMedicationEditViewModelTest {
 
             vm.onMedicationChange("Regumate")
             vm.onDateAdministeredChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             assertEquals(false, vm.formState.value?.isSaving)
             assertEquals("boom", vm.formState.value?.medicationError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test

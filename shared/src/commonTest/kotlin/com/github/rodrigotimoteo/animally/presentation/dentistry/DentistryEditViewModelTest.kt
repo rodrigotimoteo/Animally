@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.GetDentistryDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.SaveDentistryUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -15,7 +16,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -80,7 +83,7 @@ class DentistryEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves dentistry with parsed date and navigates back`() =
+    fun `valid form saves dentistry with parsed date and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { dentistryRepositoryMock.insert(any()) } returns 1L
@@ -89,6 +92,11 @@ class DentistryEditViewModelTest {
             vm.onDateChange("2026-01-15")
             vm.onFindingsChange("Mild tartar")
             vm.onTreatmentChange("Floating")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -103,7 +111,8 @@ class DentistryEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -151,7 +160,7 @@ class DentistryEditViewModelTest {
         }
 
     @Test
-    fun `schedule selection clears error and saves selected next due date`() =
+    fun `schedule selection clears error and saves selected next due date and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { dentistryRepositoryMock.insert(any()) } returns 1L
@@ -164,6 +173,11 @@ class DentistryEditViewModelTest {
             assertEquals("Invalid date (YYYY-MM-DD)", vm.formState.value?.nextDueDateError)
 
             vm.onNextDueDateChange("2026-07-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -173,23 +187,30 @@ class DentistryEditViewModelTest {
                     matches { it.nextDueDate == LocalDate(2026, 7, 15) },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
-    fun `save failure resets isSaving and keeps navigator`() =
+    fun `save failure resets isSaving and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { dentistryRepositoryMock.insert(any()) } throws RuntimeException("boom")
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
             vm.onDateChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             assertEquals(false, vm.formState.value?.isSaving)
             assertEquals("boom", vm.formState.value?.dateError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test

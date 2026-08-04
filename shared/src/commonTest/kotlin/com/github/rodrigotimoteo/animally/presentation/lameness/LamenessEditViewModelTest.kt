@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.GetLamenessDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.SaveLamenessUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -15,7 +16,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -81,7 +84,7 @@ class LamenessEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves lameness with parsed date and grade and navigates back`() =
+    fun `valid form saves lameness with parsed date and grade and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { lamenessRepositoryMock.insert(any()) } returns 1L
@@ -90,6 +93,11 @@ class LamenessEditViewModelTest {
             vm.onDateChange("2026-01-15")
             vm.onGradeAAEPChange("3")
             vm.onDiagnosisChange("Suspensory desmitis")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -104,7 +112,8 @@ class LamenessEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -226,7 +235,7 @@ class LamenessEditViewModelTest {
         }
 
     @Test
-    fun `grade boundary value five is accepted and saves`() =
+    fun `grade boundary value five is accepted and saves and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { lamenessRepositoryMock.insert(any()) } returns 1L
@@ -234,15 +243,21 @@ class LamenessEditViewModelTest {
 
             vm.onDateChange("2026-01-15")
             vm.onGradeAAEPChange("5")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             verify(VerifyMode.exactly(1)) { lamenessRepositoryMock.insert(matches { it.gradeAAEP == 5 }) }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
-    fun `save failure resets isSaving and sets dateError`() =
+    fun `save failure resets isSaving and sets dateError and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { lamenessRepositoryMock.insert(any()) } throws RuntimeException("db down")
@@ -250,12 +265,18 @@ class LamenessEditViewModelTest {
 
             vm.onDateChange("2026-01-15")
             vm.onGradeAAEPChange("3")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals("db down", form.dateError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 }

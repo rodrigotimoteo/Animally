@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 import com.github.rodrigotimoteo.animally.domain.weight.usecase.GetWeightDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.weight.usecase.SaveWeightUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -15,7 +16,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -94,7 +97,7 @@ class WeightEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves weight with parsed value and navigates back`() =
+    fun `valid form saves weight with parsed value and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { weightRepositoryMock.insert(any()) } returns 1L
@@ -102,6 +105,11 @@ class WeightEditViewModelTest {
 
             vm.onWeightKgChange("520.0")
             vm.onDateChange("2024-05-01")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -115,7 +123,8 @@ class WeightEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -210,7 +219,7 @@ class WeightEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and sets weightError`() =
+    fun `save failure resets isSaving and sets weightError and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { weightRepositoryMock.insert(any()) } throws RuntimeException("db down")
@@ -218,12 +227,18 @@ class WeightEditViewModelTest {
 
             vm.onWeightKgChange("520.0")
             vm.onDateChange("2024-05-01")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals("db down", form.weightError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 }

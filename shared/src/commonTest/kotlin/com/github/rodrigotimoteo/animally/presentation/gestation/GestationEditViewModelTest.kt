@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.CalculateGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.SaveGestationUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -16,7 +17,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -106,7 +109,7 @@ class GestationEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves gestation with computed due date and day count and navigates back`() =
+    fun `valid form saves gestation with computed due date and day count and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { gestationRepositoryMock.insert(any()) } returns 1L
@@ -116,6 +119,11 @@ class GestationEditViewModelTest {
             vm.onBreedingDateChange("2026-01-01")
             vm.onStatusChange("Active")
             vm.onFetalCountChange("2")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -134,7 +142,8 @@ class GestationEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -183,7 +192,7 @@ class GestationEditViewModelTest {
         }
 
     @Test
-    fun `future breeding date saves gestation with zero gestation days`() =
+    fun `future breeding date saves gestation with zero gestation days and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { gestationRepositoryMock.insert(any()) } returns 1L
@@ -193,6 +202,11 @@ class GestationEditViewModelTest {
 
             vm.onBreedingDateChange(breedingDate.toString())
             vm.onStatusChange("Active")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -205,11 +219,12 @@ class GestationEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
-    fun `save failure resets isSaving and keeps navigator`() =
+    fun `save failure resets isSaving and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { gestationRepositoryMock.insert(any()) } throws RuntimeException("boom")
@@ -217,12 +232,18 @@ class GestationEditViewModelTest {
 
             vm.onBreedingDateChange("2026-01-01")
             vm.onStatusChange("Active")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             assertEquals(false, vm.formState.value?.isSaving)
             assertEquals("boom", vm.formState.value?.breedingDateError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
