@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.di
 
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.di.database.AnimallyDatabaseFactory
 import org.koin.core.annotation.Module
@@ -16,6 +17,7 @@ import java.io.File
  * `databaseTestModules()` anyway.
  */
 @Module
+@ObjCHidden
 class DesktopDatabaseModule {
     fun provide() =
         module {

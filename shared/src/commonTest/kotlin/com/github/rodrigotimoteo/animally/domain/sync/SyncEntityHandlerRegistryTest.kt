@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
 package com.github.rodrigotimoteo.animally.domain.sync
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase

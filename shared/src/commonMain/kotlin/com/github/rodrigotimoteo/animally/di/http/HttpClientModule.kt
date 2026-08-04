@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.di.http
 
+import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
@@ -16,6 +17,7 @@ import org.koin.core.annotation.Single
  * client tolerates server-side additions.
  */
 @Module
+@ObjCHidden
 class HttpClientModule {
     @Single
     fun provideHttpClient(): HttpClient =

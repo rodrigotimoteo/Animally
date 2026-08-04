@@ -2,17 +2,26 @@ package com.github.rodrigotimoteo.animally.di.infra
 
 import com.github.rodrigotimoteo.animally.di.IosDatabaseModule
 import com.github.rodrigotimoteo.animally.di.database.QueriesModule
+import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule
 import com.github.rodrigotimoteo.animally.di.navigation.navigationEntryModule
 import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
+import com.github.rodrigotimoteo.animally.di.dispatchers.module as dispatchersModule
+import com.github.rodrigotimoteo.animally.di.infra.module as appModule
 
 actual fun initKoin(context: Any?): KoinApplication =
     startKoin {
         modules(
-            navigationEntryModule,
-            IosDatabaseModule().provide(),
-            QueriesModule().provide(),
-            PresentationModule().provide(),
+            buildList {
+                add(navigationEntryModule)
+                // Generated annotation module: @KoinViewModel/@Single definitions
+                // (repos, use cases, view models, navigator).
+                add(AppModule().appModule())
+                add(DispatchersModule().dispatchersModule())
+                add(IosDatabaseModule().provide())
+                add(QueriesModule().provide())
+                add(PresentationModule().provide())
+            },
         )
     }
