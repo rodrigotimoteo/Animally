@@ -37,7 +37,7 @@ class InMemorySyncApiTest {
             assertTrue(response.rejected.isEmpty())
             assertEquals(42L, response.accepted.single().clientId)
             assertNotNull(response.accepted.single().serverId)
-            assertEquals("srv-42", response.accepted.single().serverId)
+            assertEquals("srv-Patient-42", response.accepted.single().serverId)
             assertEquals(serverNow, response.serverTimestamp)
         }
 
@@ -56,7 +56,7 @@ class InMemorySyncApiTest {
                     ),
                 )
 
-            assertEquals(listOf("srv-7", "srv-1"), response.accepted.map { it.serverId })
+            assertEquals(listOf("srv-Patient-7", "srv-Owner-1"), response.accepted.map { it.serverId })
         }
 
     @Test

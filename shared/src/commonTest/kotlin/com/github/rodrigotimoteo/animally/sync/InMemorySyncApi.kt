@@ -15,11 +15,13 @@ import kotlin.time.Instant
 /**
  * In-memory [SyncApi] double modelling the sync server semantics.
  *
- * Records are stored keyed by server id. Push assigns `srv-<clientId>` (or a
- * `srv-<n>` counter id when the client id is absent) to new records; updates
- * replace the stored record when incoming `updatedAt` is newer or equal —
- * the server wins ties. Stale pushes (older `updatedAt`) are rejected with
- * reason `"stale"`. Pull returns stored records strictly newer than `since`.
+ * Records are stored keyed by server id. Push assigns `srv-<type>-<clientId>`
+ * (or a `srv-<type>-<n>` counter id when the client id is absent) to new
+ * records — the type prefix keeps ids unique across tables, since client ids
+ * are only unique per table. Updates replace the stored record when incoming
+ * `updatedAt` is newer or equal — the server wins ties. Stale pushes (older
+ * `updatedAt`) are rejected with reason `"stale"`. Pull returns stored records
+ * strictly newer than `since`.
  */
 class InMemorySyncApi(
     private val serverClock: () -> Instant = { Clock.System.now() },
@@ -53,7 +55,9 @@ class InMemorySyncApi(
                 val serverId = record.serverId
                 if (serverId == null) {
                     val clientId = record.clientId ?: nextId++
-                    val assigned = "srv-$clientId"
+                    // Client ids are per-table local, so namespace the assigned id by
+                    // entity type to keep server ids globally unique across tables.
+                    val assigned = "srv-${record.type}-$clientId"
                     records[assigned] = record.copy(serverId = assigned)
                     accepted += SyncAccepted(record.type, clientId, assigned, record.updatedAt)
                 } else {
