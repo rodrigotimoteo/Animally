@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.di.dispatchers
 
+import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import org.koin.core.annotation.Module
 import org.koin.core.annotation.Named
 import org.koin.core.annotation.Single
@@ -8,6 +9,7 @@ import org.koin.core.annotation.Single
  * Module that provides all the dispatchers based on the platform
  */
 @Module
+@ObjCHidden
 class DispatchersModule {
     @Single
     @Named(IO_DISPATCHER)

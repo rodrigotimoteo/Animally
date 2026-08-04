@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.di.database
 
+import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.anamnese.AnamneseQueries
 import com.github.rodrigotimoteo.animally.data.consultation.ConsultationQueries
@@ -25,6 +26,7 @@ import org.koin.core.annotation.Module
 import org.koin.dsl.module
 
 @Module
+@ObjCHidden
 internal class QueriesModule {
     fun provide() =
         module {

@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.di.presentation
 
+import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import com.github.rodrigotimoteo.animally.presentation.settings.ThemePreferenceStore
 import com.github.rodrigotimoteo.animally.presentation.settings.createPlatformThemePreferenceStore
 import org.koin.core.annotation.Module
@@ -11,6 +12,7 @@ import org.koin.core.annotation.Single
  * The platform-specific implementation is created via [createPlatformThemePreferenceStore].
  */
 @Module
+@ObjCHidden
 class ThemeModule {
     @Single
     fun provideThemePreferenceStore(): ThemePreferenceStore = createPlatformThemePreferenceStore()

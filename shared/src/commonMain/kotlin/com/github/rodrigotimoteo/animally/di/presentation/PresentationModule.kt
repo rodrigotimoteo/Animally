@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.di.presentation
 
+import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.presentation.anamnese.AnamneseViewModel
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationEditViewModel
@@ -51,6 +52,7 @@ import org.koin.dsl.module
  * Module providing navigation-parameterized view models.
  */
 @Module
+@ObjCHidden
 internal class PresentationModule {
     @Suppress("LongMethod")
     fun provide() =
