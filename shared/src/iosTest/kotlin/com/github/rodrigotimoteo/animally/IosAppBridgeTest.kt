@@ -1,14 +1,8 @@
 package com.github.rodrigotimoteo.animally
 
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
-import com.github.rodrigotimoteo.animally.di.database.QueriesModule
-import com.github.rodrigotimoteo.animally.di.database.databaseTestModules
-import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
-import com.github.rodrigotimoteo.animally.di.infra.AppModule
 import com.github.rodrigotimoteo.animally.di.infra.IosAppBridge
-import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
 import com.github.rodrigotimoteo.animally.presentation.patientList.PatientListUiState
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,17 +13,13 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.koin.core.Koin
-import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
-import org.koin.core.qualifier.named
-import org.koin.dsl.module
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import com.github.rodrigotimoteo.animally.di.infra.module as appModule
 
 /**
  * Tests for the Kotlin/Native facade consumed by SwiftUI.
@@ -45,24 +35,7 @@ class IosAppBridgeTest {
         stopKoin()
     }
 
-    private fun startTestKoin(scheduler: TestCoroutineScheduler): Koin {
-        val ioDispatcher = UnconfinedTestDispatcher(scheduler)
-        return startKoin {
-            modules(
-                buildList {
-                    addAll(databaseTestModules())
-                    add(AppModule().appModule())
-                    add(QueriesModule().provide())
-                    add(PresentationModule().provide())
-                    add(
-                        module {
-                            single<CoroutineDispatcher>(named(IO_DISPATCHER)) { ioDispatcher }
-                        },
-                    )
-                },
-            )
-        }.koin
-    }
+    private fun startTestKoin(scheduler: TestCoroutineScheduler): Koin = StoreTestSupport.startKoinWithInMemoryDb(scheduler)
 
     @Test
     fun startBootsKoinWithoutCrashing() =
