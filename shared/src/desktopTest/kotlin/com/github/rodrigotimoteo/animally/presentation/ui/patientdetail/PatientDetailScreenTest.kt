@@ -21,8 +21,8 @@ import com.github.rodrigotimoteo.animally.presentation.ui.restoreMainDispatcher
 import com.github.rodrigotimoteo.animally.presentation.ui.seedPatient
 import com.github.rodrigotimoteo.animally.presentation.ui.seedVaccination
 import com.github.rodrigotimoteo.animally.presentation.ui.seedWeight
+import com.github.rodrigotimoteo.animally.presentation.ui.uiTestIoDispatcher
 import com.github.rodrigotimoteo.animally.presentation.ui.uiTestKoinModules
-import kotlinx.coroutines.Dispatchers
 import kotlinx.datetime.LocalDate
 import org.koin.compose.KoinContext
 import org.koin.core.context.GlobalContext
@@ -55,7 +55,7 @@ class PatientDetailScreenTest {
             getPatientDetailUseCase = GetPatientDetailUseCase(patientRepository),
             getOwnerDetailUseCase = GetOwnerDetailUseCase(ownerRepository),
             animallyNavigator = AnimallyNavigator(),
-            ioDispatcher = Dispatchers.IO,
+            ioDispatcher = uiTestIoDispatcher(),
         )
     }
 

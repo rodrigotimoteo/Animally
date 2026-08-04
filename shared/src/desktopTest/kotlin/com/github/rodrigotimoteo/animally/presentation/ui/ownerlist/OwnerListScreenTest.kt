@@ -21,7 +21,7 @@ import com.github.rodrigotimoteo.animally.presentation.ui.ProvideTestLifecycle
 import com.github.rodrigotimoteo.animally.presentation.ui.installMainDispatcher
 import com.github.rodrigotimoteo.animally.presentation.ui.restoreMainDispatcher
 import com.github.rodrigotimoteo.animally.presentation.ui.seedOwner
-import kotlinx.coroutines.Dispatchers
+import com.github.rodrigotimoteo.animally.presentation.ui.uiTestIoDispatcher
 import kotlin.test.AfterTest
 import kotlin.test.Test
 
@@ -39,7 +39,7 @@ class OwnerListScreenTest {
             getOwnerListUseCase = GetOwnerListUseCase(ownerRepository),
             deleteOwnerUseCase = DeleteOwnerUseCase(ownerRepository, patientRepository),
             animallyNavigator = AnimallyNavigator(),
-            ioDispatcher = Dispatchers.IO,
+            ioDispatcher = uiTestIoDispatcher(),
         )
     }
 

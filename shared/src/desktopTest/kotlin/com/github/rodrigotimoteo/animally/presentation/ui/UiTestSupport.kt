@@ -136,6 +136,18 @@ internal fun restoreMainDispatcher() {
 }
 
 /**
+ * Dispatcher for view-model blocking work in UI tests.
+ *
+ * Eager (unconfined) so `withContext(ioDispatcher)` blocks run inline on the test thread and
+ * complete synchronously, before the test ends. A real [Dispatchers.IO] here lets a
+ * `viewModelScope` coroutine stay in flight past [restoreMainDispatcher]: when it later resumes
+ * onto the now-unset [Dispatchers.Main] it throws, and the leaked exception surfaces in the next
+ * [kotlinx.coroutines.test.runTest] as `UncaughtExceptionsBeforeTest`.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun uiTestIoDispatcher(): CoroutineDispatcher = UnconfinedTestDispatcher()
+
+/**
  * Koin modules wiring the real repos, use cases and view models over an in-memory database.
  *
  * The services are declared explicitly instead of relying on the Koin annotations generated
@@ -151,7 +163,7 @@ internal fun uiTestKoinModules(): List<Module> =
 private fun uiServicesModule(): Module =
     module {
         single<AnimallyNavigator> { AnimallyNavigator() }
-        single<CoroutineDispatcher>(named(IO_DISPATCHER)) { Dispatchers.IO }
+        single<CoroutineDispatcher>(named(IO_DISPATCHER)) { uiTestIoDispatcher() }
         single<ThemePreferenceStore> { DesktopThemePreferenceStore() }
 
         single<IPatientRepository> { PatientRepositoryImpl(get()) }

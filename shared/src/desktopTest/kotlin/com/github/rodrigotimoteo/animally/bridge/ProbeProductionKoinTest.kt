@@ -22,6 +22,7 @@ import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
+import org.koin.dsl.module
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertNotNull
@@ -45,7 +46,15 @@ class ProbeProductionKoinTest {
     fun generatedModuleEnablesViewModelResolution() =
         runTest {
             Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+            // Override only the IO dispatcher binding: resolving the view models below starts their
+            // init `viewModelScope.launch { withContext(ioDispatcher) { ... } }` coroutines, which
+            // would otherwise run on the real Dispatchers.IO. Those coroutines are not children of
+            // this runTest, so under load they outlive it and resume onto Dispatchers.Main after
+            // tearDown's resetMain(), throwing and leaking as UncaughtExceptionsBeforeTest into the
+            // next test's runTest. An eager test dispatcher runs them inline so nothing is left in
+            // flight.
             startKoin {
+                allowOverride(true)
                 modules(
                     buildList {
                         addAll(databaseTestModules())
@@ -53,6 +62,13 @@ class ProbeProductionKoinTest {
                         add(DispatchersModule().dispatchersModule())
                         add(QueriesModule().provide())
                         add(PresentationModule().provide())
+                        add(
+                            module {
+                                single<CoroutineDispatcher>(named(IO_DISPATCHER)) {
+                                    UnconfinedTestDispatcher(testScheduler)
+                                }
+                            },
+                        )
                     },
                 )
             }

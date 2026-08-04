@@ -18,7 +18,7 @@ import com.github.rodrigotimoteo.animally.presentation.ui.restoreMainDispatcher
 import com.github.rodrigotimoteo.animally.presentation.ui.seedPatient
 import com.github.rodrigotimoteo.animally.presentation.ui.seedVaccination
 import com.github.rodrigotimoteo.animally.presentation.ui.seedWeight
-import kotlinx.coroutines.Dispatchers
+import com.github.rodrigotimoteo.animally.presentation.ui.uiTestIoDispatcher
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -38,7 +38,7 @@ class TimelineScreenTest {
             patientId = patientId,
             getTimelineUseCase = GetTimelineUseCase(database),
             animallyNavigator = AnimallyNavigator(),
-            ioDispatcher = Dispatchers.IO,
+            ioDispatcher = uiTestIoDispatcher(),
         )
 
     private fun ComposeUiTest.showTimeline(

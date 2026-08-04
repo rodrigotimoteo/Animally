@@ -20,9 +20,9 @@ import com.github.rodrigotimoteo.animally.presentation.ui.ProvideTestLifecycle
 import com.github.rodrigotimoteo.animally.presentation.ui.installMainDispatcher
 import com.github.rodrigotimoteo.animally.presentation.ui.restoreMainDispatcher
 import com.github.rodrigotimoteo.animally.presentation.ui.seedPatient
+import com.github.rodrigotimoteo.animally.presentation.ui.uiTestIoDispatcher
 import dev.mokkery.MockMode
 import dev.mokkery.mock
-import kotlinx.coroutines.Dispatchers
 import kotlin.test.AfterTest
 import kotlin.test.Test
 
@@ -40,7 +40,7 @@ class PatientListScreenTest {
             getPatientListUseCase = GetPatientListUseCase(patientRepository),
             deletePatientUseCase = DeletePatientUseCase(patientRepository, searchRepository),
             animallyNavigator = AnimallyNavigator(),
-            ioDispatcher = Dispatchers.IO,
+            ioDispatcher = uiTestIoDispatcher(),
         )
     }
 

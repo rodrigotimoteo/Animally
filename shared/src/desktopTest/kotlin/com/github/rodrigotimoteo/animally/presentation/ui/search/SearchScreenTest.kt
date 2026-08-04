@@ -21,11 +21,11 @@ import com.github.rodrigotimoteo.animally.presentation.search.view.SearchScreen
 import com.github.rodrigotimoteo.animally.presentation.ui.ProvideTestLifecycle
 import com.github.rodrigotimoteo.animally.presentation.ui.installMainDispatcher
 import com.github.rodrigotimoteo.animally.presentation.ui.restoreMainDispatcher
+import com.github.rodrigotimoteo.animally.presentation.ui.uiTestIoDispatcher
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.mock
-import kotlinx.coroutines.Dispatchers
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -53,7 +53,7 @@ class SearchScreenTest {
         SearchViewModel(
             searchUseCase = SearchUseCase(searchRepository),
             animallyNavigator = AnimallyNavigator(),
-            ioDispatcher = Dispatchers.IO,
+            ioDispatcher = uiTestIoDispatcher(),
         )
 
     private fun ComposeUiTest.setSearchScreen(
