@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.GetImagingDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.SaveImagingUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -16,8 +17,10 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -89,7 +92,7 @@ class ImagingEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves imaging with parsed date and navigates back`() =
+    fun `valid form saves imaging with parsed date and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { imagingRepositoryMock.insert(any()) } returns 1L
@@ -98,6 +101,11 @@ class ImagingEditViewModelTest {
             vm.onTypeChange("X-ray")
             vm.onDateChange("2024-05-01")
             vm.onFindingsChange("No acute findings")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -112,7 +120,8 @@ class ImagingEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -259,7 +268,7 @@ class ImagingEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and sets dateError`() =
+    fun `save failure resets isSaving and sets dateError and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { imagingRepositoryMock.insert(any()) } throws RuntimeException("db down")
@@ -267,12 +276,18 @@ class ImagingEditViewModelTest {
 
             vm.onTypeChange("X-ray")
             vm.onDateChange("2024-05-01")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals("db down", form.dateError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 }

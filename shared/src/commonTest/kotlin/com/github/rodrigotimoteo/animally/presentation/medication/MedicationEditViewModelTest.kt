@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.GetMedicationDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.SaveMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
@@ -17,7 +18,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -100,7 +103,7 @@ class MedicationEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves medication with parsed dates and navigates back`() =
+    fun `valid form saves medication with parsed dates and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { medicationRepositoryMock.insert(any()) } returns 1L
@@ -109,6 +112,11 @@ class MedicationEditViewModelTest {
             vm.onNameChange("Phenylbutazone")
             vm.onDosageChange("2g")
             vm.onStartDateChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -124,7 +132,8 @@ class MedicationEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -224,7 +233,7 @@ class MedicationEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and sets nameError`() =
+    fun `save failure resets isSaving and sets nameError and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { medicationRepositoryMock.insert(any()) } throws RuntimeException("db down")
@@ -232,12 +241,18 @@ class MedicationEditViewModelTest {
 
             vm.onNameChange("Phenylbutazone")
             vm.onDosageChange("2g")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals("db down", form.nameError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 }

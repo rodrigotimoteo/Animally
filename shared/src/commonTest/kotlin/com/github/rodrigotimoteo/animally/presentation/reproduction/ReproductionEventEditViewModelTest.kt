@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepos
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReproductionEventDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.SaveReproductionEventUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -15,7 +16,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -80,7 +83,7 @@ class ReproductionEventEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves event with parsed date and navigates back`() =
+    fun `valid form saves event with parsed date and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { reproductionRepositoryMock.insert(any()) } returns 1L
@@ -88,6 +91,11 @@ class ReproductionEventEditViewModelTest {
 
             vm.onEventTypeChange("Breeding")
             vm.onDateChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -101,7 +109,8 @@ class ReproductionEventEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -164,7 +173,7 @@ class ReproductionEventEditViewModelTest {
         }
 
     @Test
-    fun `event type change clears error and save trims whitespace`() =
+    fun `event type change clears error and save trims whitespace and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { reproductionRepositoryMock.insert(any()) } returns 1L
@@ -176,6 +185,11 @@ class ReproductionEventEditViewModelTest {
 
             vm.onEventTypeChange("  Foaling  ")
             vm.onDateChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -185,11 +199,12 @@ class ReproductionEventEditViewModelTest {
                     matches { it.eventType == "Foaling" },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
-    fun `save failure resets isSaving and keeps navigator`() =
+    fun `save failure resets isSaving and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { reproductionRepositoryMock.insert(any()) } throws RuntimeException("boom")
@@ -197,12 +212,18 @@ class ReproductionEventEditViewModelTest {
 
             vm.onEventTypeChange("Heat")
             vm.onDateChange("2026-01-15")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             assertEquals(false, vm.formState.value?.isSaving)
             assertEquals("boom", vm.formState.value?.dateError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test

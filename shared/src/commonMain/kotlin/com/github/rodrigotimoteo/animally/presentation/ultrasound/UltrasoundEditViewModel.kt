@@ -213,7 +213,7 @@ class UltrasoundEditViewModel(
             runCatching { withContext(ioDispatcher) { saveUltrasoundUseCase(ultrasound) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure { error ->
                     formState.value?.let {
                         updateForm(

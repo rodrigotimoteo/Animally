@@ -191,7 +191,7 @@ class ControlledSubstanceEditViewModel(
             runCatching { withContext(ioDispatcher) { saveControlledSubstanceUseCase(substance) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure { error ->
                     formState.value?.let {
                         updateForm(

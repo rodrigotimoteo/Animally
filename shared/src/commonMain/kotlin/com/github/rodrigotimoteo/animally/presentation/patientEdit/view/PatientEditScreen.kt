@@ -18,12 +18,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.common.layout.WindowSizeClass
 import com.github.rodrigotimoteo.animally.presentation.common.layout.withWindowSizeClass
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.CogginsField
@@ -43,6 +45,14 @@ fun PatientEditScreen(
     modifier: Modifier = Modifier,
 ) {
     val formState by viewModel.formState.collectAsStateWithLifecycle()
+    LaunchedEffect(viewModel) {
+        viewModel.effects.collect { effect ->
+            if (effect == EditEffect.Saved) {
+                viewModel.popBackStack()
+            }
+        }
+    }
+
     val owners by viewModel.owners.collectAsStateWithLifecycle()
 
     Scaffold(

@@ -140,7 +140,7 @@ class WeightEditViewModel(
             runCatching { withContext(ioDispatcher) { saveWeightUseCase(weight) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure { error ->
                     formState.value?.let {
                         updateForm(

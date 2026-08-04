@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.GetLabResultDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.SaveLabResultUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -15,7 +16,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -83,7 +86,7 @@ class LabResultEditViewModelTest {
         }
 
     @Test
-    fun `valid form saves lab result with parsed date and navigates back`() =
+    fun `valid form saves lab result with parsed date and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { labResultRepositoryMock.insert(any()) } returns 1L
@@ -92,6 +95,11 @@ class LabResultEditViewModelTest {
             vm.onTestTypeChange("CBC")
             vm.onDateChange("2024-05-01")
             vm.onResultsChange("12.5")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
@@ -106,7 +114,8 @@ class LabResultEditViewModelTest {
                     },
                 )
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -195,7 +204,7 @@ class LabResultEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and sets dateError`() =
+    fun `save failure resets isSaving and sets dateError and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { labResultRepositoryMock.insert(any()) } throws RuntimeException("db down")
@@ -203,12 +212,18 @@ class LabResultEditViewModelTest {
 
             vm.onTestTypeChange("CBC")
             vm.onDateChange("2024-05-01")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals("db down", form.dateError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 }

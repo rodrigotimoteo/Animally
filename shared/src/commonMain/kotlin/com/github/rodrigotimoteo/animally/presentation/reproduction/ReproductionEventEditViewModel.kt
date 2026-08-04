@@ -139,7 +139,7 @@ class ReproductionEventEditViewModel(
             runCatching { withContext(ioDispatcher) { saveReproductionEventUseCase(event) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure { error ->
                     formState.value?.let {
                         updateForm(

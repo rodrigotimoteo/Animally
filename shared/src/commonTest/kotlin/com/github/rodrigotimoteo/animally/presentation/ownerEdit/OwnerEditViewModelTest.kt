@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.GetOwnerDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.SaveOwnerUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.throws
@@ -16,7 +17,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -26,7 +29,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -73,18 +75,24 @@ class OwnerEditViewModelTest {
         }
 
     @Test
-    fun `create mode with valid name inserts owner and navigates back`() =
+    fun `create mode with valid name inserts owner and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { ownerRepositoryMock.insertOwner(any()) } returns 1L
             val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
 
             vm.onNameChange("Alice")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             verify(VerifyMode.exactly(1)) { ownerRepositoryMock.insertOwner(any()) }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -101,7 +109,7 @@ class OwnerEditViewModelTest {
         }
 
     @Test
-    fun `edit mode saves with loaded owner id`() =
+    fun `edit mode saves with loaded owner id and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { ownerRepositoryMock.getOwnerById(1L) } returns owner
@@ -110,13 +118,19 @@ class OwnerEditViewModelTest {
             advanceUntilIdle()
 
             vm.onNameChange("Bob Updated")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             verify(VerifyMode.exactly(1)) {
                 ownerRepositoryMock.updateOwner(matches { it.id == 1L && it.name == "Bob Updated" })
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -184,19 +198,25 @@ class OwnerEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and sets nameError`() =
+    fun `save failure resets isSaving and sets nameError and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { ownerRepositoryMock.insertOwner(any()) } throws RuntimeException("db down")
             val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
 
             vm.onNameChange("Bob")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals("db down", form.nameError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 }

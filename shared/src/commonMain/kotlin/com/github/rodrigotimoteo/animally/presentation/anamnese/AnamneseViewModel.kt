@@ -105,7 +105,7 @@ class AnamneseViewModel(
             runCatching { withContext(ioDispatcher) { saveAnamneseUseCase(anamnese) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
                 }

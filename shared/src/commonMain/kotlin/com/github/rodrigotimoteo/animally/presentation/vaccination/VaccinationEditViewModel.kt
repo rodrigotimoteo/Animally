@@ -150,7 +150,7 @@ class VaccinationEditViewModel(
             runCatching { withContext(ioDispatcher) { saveVaccinationUseCase(vaccination) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure { error ->
                     formState.value?.let {
                         updateForm(

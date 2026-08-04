@@ -9,6 +9,7 @@ import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.GetPatientDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.SavePatientUseCase
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
@@ -21,7 +22,9 @@ import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -32,7 +35,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -108,7 +110,7 @@ class PatientEditViewModelTest {
         }
 
     @Test
-    fun `create mode with valid name inserts patient and navigates back`() =
+    fun `create mode with valid name inserts patient and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { patientRepositoryMock.insertPatient(any()) } returns 1L
@@ -123,11 +125,17 @@ class PatientEditViewModelTest {
                 )
 
             vm.onNameChange("Midnight")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             verify(VerifyMode.exactly(1)) { patientRepositoryMock.insertPatient(any()) }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -188,7 +196,7 @@ class PatientEditViewModelTest {
         }
 
     @Test
-    fun `edit mode saves with loaded patient id`() =
+    fun `edit mode saves with loaded patient id and emits Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { patientRepositoryMock.getPatientById(1L) } returns patient
@@ -205,13 +213,19 @@ class PatientEditViewModelTest {
             advanceUntilIdle()
 
             vm.onNameChange("Midnight Updated")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             verify(VerifyMode.exactly(1)) {
                 patientRepositoryMock.updatePatient(matches { it.id == 1L && it.name == "Midnight Updated" })
             }
-            assertTrue(navigator.backStack.isEmpty())
+            assertEquals(listOf(EditEffect.Saved), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test
@@ -322,20 +336,26 @@ class PatientEditViewModelTest {
         }
 
     @Test
-    fun `save failure resets isSaving and sets nameError`() =
+    fun `save failure resets isSaving and sets nameError and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { patientRepositoryMock.insertPatient(any()) } throws RuntimeException("db down")
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
             vm.onNameChange("Midnight")
+            val receivedEffects = ArrayList<EditEffect>()
+            val effectsJob =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    vm.effects.collect { receivedEffects += it }
+                }
             vm.save()
             advanceUntilIdle()
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
             assertEquals("db down", form.nameError)
-            assertTrue(navigator.backStack.isNotEmpty())
+            assertEquals(emptyList(), receivedEffects.toList())
+            effectsJob.cancel()
         }
 
     @Test

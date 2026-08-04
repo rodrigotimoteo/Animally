@@ -158,7 +158,7 @@ class FarrierVisitEditViewModel(
             runCatching { withContext(ioDispatcher) { saveFarrierVisitUseCase(visit) } }
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
-                    popBackStack()
+                    emitSaved()
                 }.onFailure { error ->
                     formState.value?.let {
                         updateForm(
