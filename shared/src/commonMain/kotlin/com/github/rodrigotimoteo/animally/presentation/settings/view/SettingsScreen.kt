@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -31,8 +32,13 @@ import com.github.rodrigotimoteo.animally.presentation.common.glass.rememberHaze
 import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsUiState
 import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewModel
+import com.github.rodrigotimoteo.animally.presentation.settings.SyncUiState
+import com.github.rodrigotimoteo.animally.presentation.settings.SyncViewModel
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.time.Instant
 
 /**
  * Settings screen. Hosts the appearance selector, CSV export action, backup & restore controls,
@@ -71,6 +77,7 @@ fun SettingsScreen(
             CsvExportSection(viewModel)
             BackupSection(viewModel)
             PdfExportSection(viewModel)
+            CloudSyncSection()
             RemindersSection()
         }
     }
@@ -209,4 +216,92 @@ private fun PermissionStatus(state: ReminderSettingsUiState) {
             else -> "Notifications enabled"
         }
     Text(text = text, style = MaterialTheme.typography.bodySmall)
+}
+
+@Composable
+private fun CloudSyncSection() {
+    val syncViewModel: SyncViewModel = koinViewModel()
+    val syncState by syncViewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Cloud Sync", style = MaterialTheme.typography.titleMedium)
+        SyncStatusLine(syncState)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Button(
+                onClick = syncViewModel::syncNow,
+                enabled = !syncState.isSyncing,
+            ) {
+                if (syncState.isSyncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(end = 8.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+                Text(if (syncState.isSyncing) "Syncing…" else "Sync now")
+            }
+            syncState.errorMessage?.let { message ->
+                Button(onClick = syncViewModel::onDismissError) {
+                    Text("Dismiss error")
+                }
+            }
+        }
+        syncState.lastResult?.let { result ->
+            if (result.success) {
+                Text(
+                    text = formatSyncSummary(result),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        syncState.errorMessage?.let { message ->
+            Text(
+                text = "Sync failed — $message",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SyncStatusLine(state: SyncUiState) {
+    val text =
+        when {
+            state.isSyncing -> "Syncing…"
+            state.lastSyncAt != null -> "Last sync: ${formatInstant(state.lastSyncAt)}"
+            else -> "Never synced"
+        }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private const val MONTH_ABBREVIATION_LENGTH = 3
+
+private fun formatInstant(instant: Instant): String {
+    val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
+    val month =
+        local.month.name
+            .take(MONTH_ABBREVIATION_LENGTH)
+            .replaceFirstChar { it.uppercase() }
+    val hour = local.hour.toString().padStart(2, '0')
+    val minute = local.minute.toString().padStart(2, '0')
+    return "${local.day} $month ${local.year}, $hour:$minute"
+}
+
+private fun formatSyncSummary(result: com.github.rodrigotimoteo.animally.domain.sync.SyncResult): String {
+    val parts =
+        buildList {
+            if (result.pushedCount > 0) add("pushed ${result.pushedCount}")
+            if (result.pulledCount > 0) add("pulled ${result.pulledCount}")
+            if (result.rejectedCount > 0) add("rejected ${result.rejectedCount}")
+            if (result.deferredCount > 0) add("deferred ${result.deferredCount}")
+        }
+    return if (parts.isEmpty()) "Sync complete — nothing to transfer" else "Sync complete: ${parts.joinToString(", ")}"
 }

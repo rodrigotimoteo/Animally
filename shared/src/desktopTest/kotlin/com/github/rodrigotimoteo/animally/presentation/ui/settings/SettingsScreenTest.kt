@@ -58,7 +58,7 @@ class SettingsScreenTest {
             installMainDispatcher()
             showSettingsScreen {
                 onNodeWithText("Appearance").assertIsDisplayed()
-                listOf("Export", "Backup & Restore", "PDF Export", "Reminders").forEach { section ->
+                listOf("Export", "Backup & Restore", "PDF Export", "Cloud Sync", "Reminders").forEach { section ->
                     onNodeWithText(section).assertExists()
                 }
                 listOf("Light", "Dark", "System").forEach { mode ->

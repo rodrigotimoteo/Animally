@@ -82,6 +82,9 @@ import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceR
 import com.github.rodrigotimoteo.animally.domain.substance.usecase.GetControlledSubstancesByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.GetSurgeriesByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.sync.SyncEngine
+import com.github.rodrigotimoteo.animally.domain.sync.SyncMetadataRepository
+import com.github.rodrigotimoteo.animally.domain.sync.SyncUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
@@ -94,6 +97,7 @@ import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNaviga
 import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.DesktopThemePreferenceStore
 import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewModel
+import com.github.rodrigotimoteo.animally.presentation.settings.SyncViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.ThemePreferenceStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -205,7 +209,27 @@ private fun uiServicesModule(): Module =
         single { GetVaccinationRemindersUseCase(get(), get()) }
         single { GetDentistryRemindersUseCase(get(), get()) }
         single<NotificationPermissionController> { NotificationPermissionControllerImpl() }
+        single<SyncEngine> { dev.mokkery.mock() }
+        single<SyncMetadataRepository> { FakeSyncMetadataRepository() }
+        single { SyncUseCase(get()) }
     }
+
+private class FakeSyncMetadataRepository : SyncMetadataRepository {
+    private var deviceId: String = "test-device"
+    private var lastSyncAt: kotlin.time.Instant = kotlin.time.Instant.fromEpochMilliseconds(0)
+
+    override suspend fun getOrCreateLastSyncAt(deviceId: String): kotlin.time.Instant = lastSyncAt
+
+    override suspend fun updateLastSyncAt(instant: kotlin.time.Instant) {
+        lastSyncAt = instant
+    }
+
+    override suspend fun getDeviceId(): String = deviceId
+
+    override suspend fun saveDeviceId(deviceId: String) {
+        this.deviceId = deviceId
+    }
+}
 
 private fun uiViewModelModule(): List<Module> =
     module {
@@ -213,6 +237,7 @@ private fun uiViewModelModule(): List<Module> =
         viewModel {
             ReminderSettingsViewModel(get(), get(), get(named(IO_DISPATCHER)), get())
         }
+        viewModel { SyncViewModel(get(), get(), get(named(IO_DISPATCHER))) }
     } + PresentationModule().provide()
 
 /**
