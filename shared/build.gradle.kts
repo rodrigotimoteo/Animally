@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.mokkery)
+    alias(libs.plugins.kover)
 }
 
 kotlin {
@@ -153,6 +154,42 @@ sqldelight {
         create("AnimallyDatabase") {
             packageName.set("com.github.rodrigotimoteo.animally.data")
             deriveSchemaFromMigrations = true
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Kover code-coverage configuration
+//
+// Coverage is aggregated across the JVM unit-test targets:
+//   androidHostTest + desktopTest
+// iOS native tests are NOT measured (Kover only supports JVM/Android targets).
+//
+// Threshold: current measured merged line coverage (57.42% on 2026-08-04).
+// production target: 90%
+val koverMinLineCoverage: Int = 57
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    // SQLDelight-generated code (build/generated/sqldelight)
+                    "com.github.rodrigotimoteo.animally.data.*Queries",
+                    "com.github.rodrigotimoteo.animally.data.*Queries$*",
+                    "com.github.rodrigotimoteo.animally.data.*AnimallyDatabase*",
+                    "com.github.rodrigotimoteo.animally.data.*Migrations*",
+                    // Compose Multiplatform resources generated code (Res class)
+                    "*.generated.resources.*",
+                    // Koin compiler-generated module class (@Module in AppModule.kt)
+                    "com.github.rodrigotimoteo.animally.di.infra.ComGithubRodrigotimoteoAnimallyDiInfraAppModuleModuleKt",
+                )
+            }
+        }
+        verify {
+            rule {
+                minBound(koverMinLineCoverage)
+            }
         }
     }
 }

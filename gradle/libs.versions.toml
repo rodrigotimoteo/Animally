@@ -29,6 +29,7 @@ turbine = "1.2.1"
 filekit = "0.14.2"
 kmpnotifier = "2.0.0"
 haze = "2.0.0-alpha03"
+kover = "0.9.9"
 
 [libraries]
 # Base libraries
@@ -112,3 +113,4 @@ sqldelight = { id = "app.cash.sqldelight", version.ref = "sqlDelight" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }
 mokkery = { id = "dev.mokkery", version.ref = "mokkery" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
