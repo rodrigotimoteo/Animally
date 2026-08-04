@@ -2,8 +2,14 @@
 
 package com.github.rodrigotimoteo.animally.di.infra
 
+import com.github.rodrigotimoteo.animally.presentation.ios.OwnerDetailStore
+import com.github.rodrigotimoteo.animally.presentation.ios.OwnerEditStore
+import com.github.rodrigotimoteo.animally.presentation.ios.OwnerListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.PatientDetailStore
 import com.github.rodrigotimoteo.animally.presentation.ios.PatientListStore
+import com.github.rodrigotimoteo.animally.presentation.ownerDetail.OwnerDetailViewModel
+import com.github.rodrigotimoteo.animally.presentation.ownerEdit.OwnerEditViewModel
+import com.github.rodrigotimoteo.animally.presentation.ownerList.OwnerListViewModel
 import com.github.rodrigotimoteo.animally.presentation.patientDetail.PatientDetailViewModel
 import com.github.rodrigotimoteo.animally.presentation.patientList.PatientListViewModel
 import org.koin.core.Koin
@@ -15,10 +21,14 @@ import kotlin.native.ObjCName
  * Entry point for the native iOS UI.
  *
  * Boots Koin via [initKoin] and resolves the stores that SwiftUI consumes.
+ * The record-list stores live on [IosRecordStores] and the settings-related
+ * stores on [IosSettingsStores].
  */
 @ObjCName("IosAppBridge")
 object IosAppBridge {
-    private lateinit var koin: Koin
+    /** The active Koin instance, shared with the other store bridge objects. */
+    internal lateinit var koin: Koin
+        private set
 
     /** Boots Koin with the production modules and stores the instance. */
     fun start() {
@@ -43,5 +53,26 @@ object IosAppBridge {
     fun patientDetailStore(patientId: Long): PatientDetailStore {
         val viewModel: PatientDetailViewModel = koin.get { parametersOf(patientId) }
         return PatientDetailStore(viewModel)
+    }
+
+    /** Returns a store exposing the owner list. */
+    fun ownerListStore(): OwnerListStore {
+        val viewModel: OwnerListViewModel = koin.get()
+        return OwnerListStore(viewModel)
+    }
+
+    /** Returns a store exposing the detail screen for the owner with [ownerId]. */
+    fun ownerDetailStore(ownerId: Long): OwnerDetailStore {
+        val viewModel: OwnerDetailViewModel = koin.get { parametersOf(ownerId) }
+        return OwnerDetailStore(viewModel)
+    }
+
+    /**
+     * Returns a store exposing the add/edit form for the owner with [ownerId],
+     * or a new-owner form when `null`.
+     */
+    fun ownerEditStore(ownerId: Long?): OwnerEditStore {
+        val viewModel: OwnerEditViewModel = koin.get { parametersOf(ownerId) }
+        return OwnerEditStore(viewModel)
     }
 }
