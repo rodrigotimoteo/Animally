@@ -54,6 +54,7 @@ class SearchScreenTest {
             searchUseCase = SearchUseCase(searchRepository),
             animallyNavigator = AnimallyNavigator(),
             ioDispatcher = uiTestIoDispatcher(),
+            debounceMillis = 0,
         )
 
     private fun ComposeUiTest.setSearchScreen(

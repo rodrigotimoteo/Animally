@@ -42,6 +42,8 @@ import com.github.rodrigotimoteo.animally.presentation.common.layout.WindowSizeC
 import com.github.rodrigotimoteo.animally.presentation.common.layout.withWindowSizeClass
 import com.github.rodrigotimoteo.animally.presentation.common.state.EmptyState
 import com.github.rodrigotimoteo.animally.presentation.common.state.ErrorState
+import com.github.rodrigotimoteo.animally.presentation.common.state.ListActions
+import com.github.rodrigotimoteo.animally.presentation.common.state.ListErrorHandlers
 import com.github.rodrigotimoteo.animally.presentation.common.state.LoadingState
 import com.github.rodrigotimoteo.animally.presentation.patientList.PatientListUiState
 import com.github.rodrigotimoteo.animally.presentation.patientList.PatientListViewModel
@@ -68,6 +70,18 @@ fun PatientListScreen(
             viewModel.onDismissError()
         }
     }
+
+    val actions =
+        ListActions(
+            onAddClick = viewModel::onAddClick,
+            onItemClick = viewModel::onPatientClick,
+            onDeleteClick = viewModel::onDeleteClick,
+        )
+    val errorHandlers =
+        ListErrorHandlers(
+            onRetry = viewModel::loadPatients,
+            onDismiss = viewModel::onDismissError,
+        )
 
     CompositionLocalProvider(LocalHazeState provides hazeState) {
         Scaffold(
@@ -96,9 +110,8 @@ fun PatientListScreen(
             PatientListContent(
                 uiState = uiState,
                 modifier = Modifier.padding(innerPadding),
-                onAddClick = viewModel::onAddClick,
-                onPatientClick = viewModel::onPatientClick,
-                onDeleteClick = viewModel::onDeleteClick,
+                actions = actions,
+                errorHandlers = errorHandlers,
             )
         }
     }
@@ -108,16 +121,16 @@ fun PatientListScreen(
 private fun PatientListContent(
     uiState: PatientListUiState,
     modifier: Modifier,
-    onAddClick: () -> Unit,
-    onPatientClick: (Long) -> Unit,
-    onDeleteClick: (Long) -> Unit,
+    actions: ListActions,
+    errorHandlers: ListErrorHandlers,
 ) {
     when {
         uiState.isLoading -> LoadingState(modifier = modifier)
         uiState.errorMessage != null && uiState.patients.isEmpty() ->
             ErrorState(
                 message = uiState.errorMessage.orEmpty(),
-                onRetry = { onAddClick() },
+                onRetry = errorHandlers.onRetry,
+                onDismiss = errorHandlers.onDismiss,
                 modifier = modifier,
             )
         uiState.patients.isEmpty() ->
@@ -126,7 +139,7 @@ private fun PatientListContent(
                 message = "Add your first horse to start tracking care.",
                 symbol = "🐴",
                 onActionLabel = "Add patient",
-                onAction = onAddClick,
+                onAction = actions.onAddClick,
                 modifier = modifier,
             )
         else ->
@@ -135,8 +148,8 @@ private fun PatientListContent(
                     patients = uiState.patients,
                     sizeClass = sizeClass,
                     modifier = modifier,
-                    onPatientClick = onPatientClick,
-                    onDeleteClick = onDeleteClick,
+                    onPatientClick = actions.onItemClick,
+                    onDeleteClick = actions.onDeleteClick,
                 )
             }
     }

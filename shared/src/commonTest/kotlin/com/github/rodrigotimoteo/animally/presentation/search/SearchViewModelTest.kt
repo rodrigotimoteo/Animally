@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -186,6 +187,7 @@ class SearchViewModelTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
             vm.onQueryChange("flu")
+            advanceUntilIdle()
             vm.setFromDate(LocalDate(2025, 1, 1))
             advanceUntilIdle()
 
@@ -194,6 +196,70 @@ class SearchViewModelTest {
 
             assertNull(vm.uiState.value.fromDate)
             verify(VerifyMode.exactly(2)) { searchRepositoryMock.search("flu*", null, null, null) }
+        }
+
+    @Test
+    fun `rapid query changes collapse into a single debounced search`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result)
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onQueryChange("f")
+            vm.onQueryChange("fl")
+            vm.onQueryChange("flu")
+            vm.onQueryChange("flut")
+            advanceUntilIdle()
+
+            assertEquals("flut", vm.uiState.value.query)
+            assertEquals(listOf(result), vm.uiState.value.results)
+            verify(VerifyMode.exactly(1)) { searchRepositoryMock.search("flut*", null, null, null) }
+        }
+
+    @Test
+    fun `rapid successive queries only latest result lands`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val slowResult = result.copy(patientName = "Slow horse")
+            val fastResult = result.copy(patientName = "Fast horse")
+            val slowRepo =
+                object : ISearchRepository {
+                    override fun search(
+                        query: String,
+                        from: LocalDate?,
+                        to: LocalDate?,
+                        recordTypes: List<String>?,
+                    ): List<SearchResult> = if (query == "flu*") listOf(slowResult) else listOf(fastResult)
+
+                    override fun indexRecord(
+                        recordType: String,
+                        patientId: Long,
+                        recordId: Long,
+                        date: LocalDate?,
+                        searchableText: String,
+                    ) = Unit
+
+                    override fun deleteRecord(
+                        recordType: String,
+                        recordId: Long,
+                    ) = Unit
+
+                    override fun rebuild() = Unit
+                }
+            val vm =
+                SearchViewModel(
+                    searchUseCase = SearchUseCase(slowRepo),
+                    animallyNavigator = navigator,
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
+                )
+
+            vm.onQueryChange("flu")
+            testScheduler.advanceTimeBy(301)
+            vm.onQueryChange("fluu")
+            testScheduler.advanceUntilIdle()
+
+            assertEquals("fluu", vm.uiState.value.query)
+            assertEquals(listOf(fastResult), vm.uiState.value.results)
         }
 
     @Test
