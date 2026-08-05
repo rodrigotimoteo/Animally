@@ -21,6 +21,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
+import com.github.rodrigotimoteo.animally.presentation.common.state.ErrorState
+import com.github.rodrigotimoteo.animally.presentation.common.state.ListErrorHandlers
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationListUiState
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationListViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -46,6 +48,7 @@ fun ConsultationListScreen(
         modifier = modifier,
         onAddClick = viewModel::onAddClick,
         onEditClick = viewModel::onEditClick,
+        errorHandlers = ListErrorHandlers(onRetry = viewModel::load, onDismiss = viewModel::onDismissError),
     )
 }
 
@@ -55,6 +58,7 @@ private fun ConsultationListContent(
     modifier: Modifier,
     onAddClick: () -> Unit,
     onEditClick: (Long) -> Unit,
+    errorHandlers: ListErrorHandlers,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -79,12 +83,11 @@ private fun ConsultationListContent(
                     CircularProgressIndicator()
                 }
             uiState.errorMessage != null ->
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(uiState.errorMessage, style = MaterialTheme.typography.bodyLarge)
-                }
+                ErrorState(
+                    message = uiState.errorMessage,
+                    onRetry = errorHandlers.onRetry,
+                    onDismiss = errorHandlers.onDismiss,
+                )
             uiState.consultations.isEmpty() ->
                 Box(
                     modifier = Modifier.fillMaxSize(),

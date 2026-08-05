@@ -41,6 +41,8 @@ import com.github.rodrigotimoteo.animally.presentation.common.layout.WindowSizeC
 import com.github.rodrigotimoteo.animally.presentation.common.layout.withWindowSizeClass
 import com.github.rodrigotimoteo.animally.presentation.common.state.EmptyState
 import com.github.rodrigotimoteo.animally.presentation.common.state.ErrorState
+import com.github.rodrigotimoteo.animally.presentation.common.state.ListActions
+import com.github.rodrigotimoteo.animally.presentation.common.state.ListErrorHandlers
 import com.github.rodrigotimoteo.animally.presentation.common.state.LoadingState
 import com.github.rodrigotimoteo.animally.presentation.ownerList.OwnerListUiState
 import com.github.rodrigotimoteo.animally.presentation.ownerList.OwnerListViewModel
@@ -68,6 +70,18 @@ fun OwnerListScreen(
         }
     }
 
+    val actions =
+        ListActions(
+            onAddClick = viewModel::onAddClick,
+            onItemClick = viewModel::onOwnerClick,
+            onDeleteClick = viewModel::onDeleteClick,
+        )
+    val errorHandlers =
+        ListErrorHandlers(
+            onRetry = viewModel::loadOwners,
+            onDismiss = viewModel::onDismissError,
+        )
+
     CompositionLocalProvider(LocalHazeState provides hazeState) {
         Scaffold(
             modifier = modifier,
@@ -90,9 +104,8 @@ fun OwnerListScreen(
             OwnerListContent(
                 uiState = uiState,
                 modifier = Modifier.padding(innerPadding),
-                onAddClick = viewModel::onAddClick,
-                onOwnerClick = viewModel::onOwnerClick,
-                onDeleteClick = viewModel::onDeleteClick,
+                actions = actions,
+                errorHandlers = errorHandlers,
             )
         }
     }
@@ -102,16 +115,16 @@ fun OwnerListScreen(
 private fun OwnerListContent(
     uiState: OwnerListUiState,
     modifier: Modifier,
-    onAddClick: () -> Unit,
-    onOwnerClick: (Long) -> Unit,
-    onDeleteClick: (Long) -> Unit,
+    actions: ListActions,
+    errorHandlers: ListErrorHandlers,
 ) {
     when {
         uiState.isLoading -> LoadingState(modifier = modifier)
         uiState.errorMessage != null && uiState.owners.isEmpty() ->
             ErrorState(
                 message = uiState.errorMessage.orEmpty(),
-                onRetry = { onAddClick() },
+                onRetry = errorHandlers.onRetry,
+                onDismiss = errorHandlers.onDismiss,
                 modifier = modifier,
             )
         uiState.owners.isEmpty() ->
@@ -120,7 +133,7 @@ private fun OwnerListContent(
                 message = "Add an owner to link patients to their people.",
                 symbol = "👤",
                 onActionLabel = "Add owner",
-                onAction = onAddClick,
+                onAction = actions.onAddClick,
                 modifier = modifier,
             )
         else ->
@@ -129,8 +142,8 @@ private fun OwnerListContent(
                     owners = uiState.owners,
                     sizeClass = sizeClass,
                     modifier = modifier,
-                    onOwnerClick = onOwnerClick,
-                    onDeleteClick = onDeleteClick,
+                    onOwnerClick = actions.onItemClick,
+                    onDeleteClick = actions.onDeleteClick,
                 )
             }
     }

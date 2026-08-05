@@ -8,7 +8,10 @@ import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,15 +28,19 @@ import org.koin.core.annotation.Named
  * @param searchUseCase Use case for querying the FTS5 index.
  * @param animallyNavigator The navigator to use for navigation.
  * @param ioDispatcher Dispatcher for blocking database work.
+ * @param debounceMillis Debounce window for query changes, in milliseconds.
  */
 @KoinViewModel
 class SearchViewModel(
     private val searchUseCase: SearchUseCase,
     animallyNavigator: AnimallyNavigator,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
+    private val debounceMillis: Long = SEARCH_DEBOUNCE_MS,
 ) : AnimallyNavigationViewModel(animallyNavigator) {
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
+
+    private var searchJob: Job? = null
 
     /**
      * Updates the query text and re-runs the search.
@@ -86,28 +93,39 @@ class SearchViewModel(
     }
 
     private fun search() {
-        val state = _uiState.value
-        if (state.query.trim().length < 2) {
+        searchJob?.cancel()
+        if (_uiState.value.query
+                .trim()
+                .length < 2
+        ) {
             _uiState.update { it.copy(isLoading = false, results = emptyList()) }
             return
         }
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            runCatching {
-                withContext(ioDispatcher) {
-                    searchUseCase(
-                        state.query,
-                        state.fromDate,
-                        state.toDate,
-                        state.recordTypes.toList().ifEmpty { null },
-                    )
+        searchJob =
+            viewModelScope.launch {
+                delay(debounceMillis)
+                val state = _uiState.value
+                _uiState.update { it.copy(isLoading = true) }
+                runCatching {
+                    withContext(ioDispatcher) {
+                        searchUseCase(
+                            state.query,
+                            state.fromDate,
+                            state.toDate,
+                            state.recordTypes.toList().ifEmpty { null },
+                        )
+                    }
+                }.onSuccess { results ->
+                    _uiState.update { it.copy(results = results, isLoading = false) }
+                }.onFailure { error ->
+                    if (error is CancellationException) throw error
+                    _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
                 }
-            }.onSuccess { results ->
-                _uiState.update { it.copy(results = results, isLoading = false) }
-            }.onFailure { error ->
-                _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
             }
-        }
+    }
+
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 300L
     }
 }
 

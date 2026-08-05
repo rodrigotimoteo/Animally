@@ -21,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 import com.github.rodrigotimoteo.animally.presentation.common.state.EmptyState
 import com.github.rodrigotimoteo.animally.presentation.common.state.ErrorState
+import com.github.rodrigotimoteo.animally.presentation.common.state.ListErrorHandlers
 import com.github.rodrigotimoteo.animally.presentation.common.state.LoadingState
 import com.github.rodrigotimoteo.animally.presentation.weight.WeightListUiState
 import com.github.rodrigotimoteo.animally.presentation.weight.WeightListViewModel
@@ -43,6 +44,7 @@ fun WeightListScreen(
         modifier = modifier,
         onAddClick = viewModel::onAddClick,
         onEditClick = viewModel::onEditClick,
+        errorHandlers = ListErrorHandlers(onRetry = viewModel::load, onDismiss = viewModel::onDismissError),
     )
 }
 
@@ -52,6 +54,7 @@ private fun WeightListContent(
     modifier: Modifier,
     onAddClick: () -> Unit,
     onEditClick: (Long) -> Unit,
+    errorHandlers: ListErrorHandlers,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -72,7 +75,8 @@ private fun WeightListContent(
             uiState.errorMessage != null ->
                 ErrorState(
                     message = uiState.errorMessage,
-                    onRetry = {},
+                    onRetry = errorHandlers.onRetry,
+                    onDismiss = errorHandlers.onDismiss,
                 )
             uiState.records.isEmpty() ->
                 EmptyState(title = "No weight records yet")
