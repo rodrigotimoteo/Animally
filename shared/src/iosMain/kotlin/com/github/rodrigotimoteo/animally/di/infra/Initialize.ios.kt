@@ -22,6 +22,7 @@ actual fun initKoin(context: Any?): KoinApplication =
                 add(IosDatabaseModule().provide())
                 add(QueriesModule().provide())
                 add(PresentationModule().provide())
+                add(com.github.rodrigotimoteo.animally.llm.llmModule)
             },
         )
     }

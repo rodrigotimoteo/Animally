@@ -2,7 +2,9 @@
 
 package com.github.rodrigotimoteo.animally.di.infra
 
+import com.github.rodrigotimoteo.animally.presentation.assistant.AssistantViewModel
 import com.github.rodrigotimoteo.animally.presentation.coggins.CogginsViewModel
+import com.github.rodrigotimoteo.animally.presentation.ios.AssistantStore
 import com.github.rodrigotimoteo.animally.presentation.ios.CogginsStore
 import com.github.rodrigotimoteo.animally.presentation.ios.ReminderSettingsStore
 import com.github.rodrigotimoteo.animally.presentation.ios.SearchStore
@@ -48,6 +50,20 @@ object IosSettingsStores {
     fun searchStore(): SearchStore {
         val viewModel: SearchViewModel = IosAppBridge.koin.get()
         return SearchStore(viewModel)
+    }
+
+    /**
+     * Returns a store exposing the AI assistant screen. The view model is constructed
+     * directly because [com.github.rodrigotimoteo.animally.llm.llmModule] provides its
+     * dependencies outside the Koin component scan.
+     */
+    fun assistantStore(): AssistantStore {
+        val viewModel =
+            AssistantViewModel(
+                generateRagResponse = IosAppBridge.koin.get(),
+                llmEngine = IosAppBridge.koin.get(),
+            )
+        return AssistantStore(viewModel)
     }
 
     /**

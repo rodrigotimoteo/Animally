@@ -4,7 +4,7 @@ struct ContentView: View {
     @State private var selectedTab: Tab = .patients
 
     enum Tab: Hashable {
-        case patients, owners, timeline, search, settings
+        case patients, owners, timeline, search, assistant, settings
     }
 
     var body: some View {
@@ -32,6 +32,12 @@ struct ContentView: View {
                     Label("Search", systemImage: "magnifyingglass")
                 }
                 .tag(Tab.search)
+
+            AssistantView()
+                .tabItem {
+                    Label("Assistant", systemImage: "sparkles")
+                }
+                .tag(Tab.assistant)
 
             SettingsView()
                 .tabItem {

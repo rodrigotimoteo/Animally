@@ -191,9 +191,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = "-lsqlite3 -weak_framework FoundationModels";
-				SWIFT_EMIT_LOC_STRINGS = YES;
+				OTHER_LDFLAGS = (
+					"-lsqlite3",
+					"-weak_framework",
+					FoundationModels,
+				);
 				SWIFT_COMPILATION_MODE = singlefile;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

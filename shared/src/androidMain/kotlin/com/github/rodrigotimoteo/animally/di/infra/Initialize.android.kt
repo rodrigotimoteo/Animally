@@ -26,5 +26,6 @@ actual fun initKoin(context: Any?): KoinApplication =
             AndroidDatabaseModule().provide(),
             QueriesModule().provide(),
             PresentationModule().provide(),
+            com.github.rodrigotimoteo.animally.llm.llmModule,
         )
     }
