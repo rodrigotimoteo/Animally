@@ -4,10 +4,13 @@ import Shared
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var theme: ThemeViewModel
 
     var body: some View {
         // Presented as a sheet from the Patients toolbar gear; owns its navigation
         // stack so the title bar and the Restore Backup push work standalone.
+        // Sheets capture color scheme at presentation time, so the scheme is
+        // applied here too — otherwise theme changes only land after reopening.
         // navigationDestination sits on a non-lazy wrapper: registering it directly
         // on a List is ignored by SwiftUI.
         NavigationStack {
@@ -32,6 +35,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .preferredColorScheme(theme.preferredColorScheme)
     }
 
     private var themeModes: [ThemeMode] {

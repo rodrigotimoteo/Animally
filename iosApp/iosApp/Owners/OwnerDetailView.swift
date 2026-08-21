@@ -3,6 +3,7 @@ import Shared
 
 struct OwnerDetailView: View {
     @StateObject private var viewModel: OwnerDetailViewModel
+    @State private var showLinkPatientSheet = false
 
     init(ownerId: Int64) {
         _viewModel = StateObject(wrappedValue: OwnerDetailViewModel(ownerId: ownerId))
@@ -28,12 +29,21 @@ struct OwnerDetailView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    PatientEditView(patientId: nil, preselectedOwnerId: viewModel.state.owner?.id)
+                Button {
+                    showLinkPatientSheet = true
                 } label: {
                     Image(systemName: "plus")
-                        .accessibilityLabel("Add patient")
+                        .accessibilityLabel("Link existing patient")
                 }
+            }
+        }
+        .sheet(isPresented: $showLinkPatientSheet) {
+            LinkPatientSheet(ownerId: viewModel.state.owner?.id ?? 0)
+        }
+        .onChange(of: showLinkPatientSheet) { _, isPresented in
+            // Refresh the patient list after the sheet closes (linked or cancelled).
+            if !isPresented {
+                viewModel.load()
             }
         }
         .overlay(alignment: .top) {
@@ -163,6 +173,137 @@ struct OwnerDetailView: View {
                 .foregroundStyle(Theme.textPrimary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func errorBanner(message: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Theme.amber)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(2)
+            Spacer()
+            Button {
+                viewModel.dismissError()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .accessibilityLabel("Dismiss error")
+            }
+        }
+        .padding(12)
+        .background(Theme.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+        .padding(.horizontal)
+        .padding(.top, 8)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+}
+
+/// Sheet listing patients that can be linked to this owner.
+private struct LinkPatientSheet: View {
+    @StateObject private var viewModel: LinkPatientViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    init(ownerId: Int64) {
+        _viewModel = StateObject(wrappedValue: LinkPatientViewModel(ownerId: ownerId))
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if viewModel.sections.isEmpty {
+                    emptyView
+                } else {
+                    listView
+                }
+            }
+            .navigationTitle("Link Patient")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .overlay(alignment: .top) {
+                if let errorMessage = viewModel.errorMessage {
+                    errorBanner(message: errorMessage)
+                }
+            }
+        }
+        .onAppear {
+            viewModel.onLinked = {
+                dismiss()
+            }
+        }
+    }
+
+    private var listView: some View {
+        List {
+            ForEach(viewModel.sections) { section in
+                Section(section.title) {
+                    ForEach(section.patients, id: \.id) { patient in
+                        Button {
+                            viewModel.link(patient)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "pawprint.fill")
+                                    .font(.body)
+                                    .foregroundStyle(Theme.forestGreen)
+                                    .frame(width: 32, height: 32)
+                                    .background(Theme.forestGreen.opacity(0.12))
+                                    .clipShape(Circle())
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(patient.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    if let breed = patient.breed, !breed.isEmpty {
+                                        Text(breed)
+                                            .font(.caption)
+                                            .foregroundStyle(Theme.textSecondary)
+                                    }
+                                }
+
+                                Spacer()
+
+                                if viewModel.linkingPatientId == patient.id {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "link")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Theme.textTertiary)
+                                }
+                            }
+                        }
+                        .disabled(viewModel.linkingPatientId != nil)
+                    }
+                }
+            }
+        }
+    }
+
+    private var emptyView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "pawprint")
+                .font(.system(size: 56))
+                .foregroundStyle(Theme.textTertiary)
+            Text("No patients to link")
+                .font(.headline)
+                .foregroundStyle(Theme.textPrimary)
+            Text("Every patient is already linked to this owner.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
     }
 
     private func errorBanner(message: String) -> some View {
