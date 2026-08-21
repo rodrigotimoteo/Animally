@@ -1,31 +1,23 @@
 import SwiftUI
 
-struct PatientsTab: View {
+struct OwnersTab: View {
     @State private var navigationPath = NavigationPath()
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            PatientListView()
+            OwnerListView()
                 .navigationDestination(for: Route.self) { route in
                     switch route {
-                    case .patientDetail(let id):
-                        PatientDetailView(patientId: id)
-                    case .patientEdit(let id):
-                        // Patient edit not yet implemented — placeholder
-                        Text("Edit patient")
                     case .ownerDetail(let id):
                         OwnerDetailView(ownerId: id)
                     case .ownerEdit(let id):
                         OwnerEditView(ownerId: id)
+                    case .patientDetail(let id):
+                        PatientDetailView(patientId: id)
+                    case .patientEdit(let id):
+                        Text("Edit patient")
                     }
                 }
         }
     }
-}
-
-enum Route: Hashable {
-    case patientDetail(Int64)
-    case patientEdit(Int64?)
-    case ownerDetail(Int64)
-    case ownerEdit(Int64?)
 }

@@ -33,9 +33,7 @@ struct PatientDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    // TODO: navigate to edit
-                } label: {
+                NavigationLink(value: Route.patientEdit(viewModel.state.patient?.id)) {
                     Image(systemName: "pencil")
                         .accessibilityLabel("Edit patient")
                 }
@@ -66,13 +64,13 @@ struct PatientDetailView: View {
             case .overview:
                 OverviewTab(patient: patient, ownerName: viewModel.state.ownerName)
             case .medical:
-                StubTabView(title: "Medical", systemImage: "cross.case.fill")
+                MedicalTabView(patientId: patient.id)
             case .preventive:
-                StubTabView(title: "Preventive", systemImage: "shield.lefthalf.filled")
+                PreventiveTabView(patientId: patient.id)
             case .reproduction:
-                StubTabView(title: "Reproduction", systemImage: "heart.fill")
+                ReproductionTabView(patientId: patient.id)
             case .diagnostics:
-                StubTabView(title: "Diagnostics & Files", systemImage: "doc.text.fill")
+                DiagnosticsTabView(patientId: patient.id)
             }
         }
     }
