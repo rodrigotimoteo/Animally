@@ -21,6 +21,7 @@ import kotlin.time.Clock
  * View model for the patient add/edit form.
  *
  * @param patientId The id of the patient being edited, or `null` when creating a new one.
+ * @param initialOwnerId Owner to pre-select on the form when creating a new patient, or `null`.
  * @param getPatientDetailUseCase Use case for loading an existing patient.
  * @param savePatientUseCase Use case for persisting the patient.
  * @param getOwnerListUseCase Use case for loading owners for the owner selector.
@@ -29,6 +30,7 @@ import kotlin.time.Clock
  */
 class PatientEditViewModel(
     private val patientId: Long?,
+    private val initialOwnerId: Long? = null,
     private val getPatientDetailUseCase: GetPatientDetailUseCase,
     private val savePatientUseCase: SavePatientUseCase,
     private val getOwnerListUseCase: GetOwnerListUseCase,
@@ -46,7 +48,7 @@ class PatientEditViewModel(
         if (patientId != null) {
             loadPatient(patientId)
         } else {
-            updateForm(PatientFormState())
+            updateForm(PatientFormState(ownerId = initialOwnerId))
         }
     }
 

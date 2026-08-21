@@ -30,6 +30,18 @@ struct SearchView: View {
                     filterChips
                 }
             }
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .patientDetail(let id):
+                    PatientDetailView(patientId: id)
+                case .patientEdit(let id):
+                    PatientEditView(patientId: id)
+                case .ownerDetail(let id):
+                    OwnerDetailView(ownerId: id)
+                case .ownerEdit(let id):
+                    OwnerEditView(ownerId: id)
+                }
+            }
         }
     }
 
@@ -63,7 +75,10 @@ struct SearchView: View {
     private var resultsList: some View {
         List {
             ForEach(Array(viewModel.state.results.enumerated()), id: \.offset) { _, result in
-                SearchResultRow(result: result)
+                NavigationLink(value: Route.patientDetail(result.patientId)) {
+                    SearchResultRow(result: result)
+                }
+                .buttonStyle(.plain)
             }
         }
         .listStyle(.insetGrouped)

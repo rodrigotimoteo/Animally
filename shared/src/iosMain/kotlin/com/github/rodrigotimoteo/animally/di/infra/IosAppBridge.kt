@@ -6,11 +6,13 @@ import com.github.rodrigotimoteo.animally.presentation.ios.OwnerDetailStore
 import com.github.rodrigotimoteo.animally.presentation.ios.OwnerEditStore
 import com.github.rodrigotimoteo.animally.presentation.ios.OwnerListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.PatientDetailStore
+import com.github.rodrigotimoteo.animally.presentation.ios.PatientEditStore
 import com.github.rodrigotimoteo.animally.presentation.ios.PatientListStore
 import com.github.rodrigotimoteo.animally.presentation.ownerDetail.OwnerDetailViewModel
 import com.github.rodrigotimoteo.animally.presentation.ownerEdit.OwnerEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.ownerList.OwnerListViewModel
 import com.github.rodrigotimoteo.animally.presentation.patientDetail.PatientDetailViewModel
+import com.github.rodrigotimoteo.animally.presentation.patientEdit.PatientEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.patientList.PatientListViewModel
 import org.koin.core.Koin
 import org.koin.core.parameter.parametersOf
@@ -74,5 +76,18 @@ object IosAppBridge {
     fun ownerEditStore(ownerId: Long?): OwnerEditStore {
         val viewModel: OwnerEditViewModel = koin.get { parametersOf(ownerId) }
         return OwnerEditStore(viewModel)
+    }
+
+    /**
+     * Returns a store exposing the add/edit form for the patient with
+     * [patientId], or a new-patient form when `null`, with [initialOwnerId]
+     * pre-selected on the form when creating a new patient.
+     */
+    fun patientEditStore(
+        patientId: Long?,
+        initialOwnerId: Long? = null,
+    ): PatientEditStore {
+        val viewModel: PatientEditViewModel = koin.get { parametersOf(patientId, initialOwnerId) }
+        return PatientEditStore(viewModel)
     }
 }

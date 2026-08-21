@@ -3,7 +3,7 @@ import Shared
 
 struct PatientListView: View {
     @StateObject private var viewModel = PatientListViewModel()
-    @State private var navigationPath = NavigationPath()
+    @State private var showSettings = false
 
     var body: some View {
         Group {
@@ -17,14 +17,23 @@ struct PatientListView: View {
         }
         .navigationTitle("Patients")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarLeading) {
                 Button {
-                    // TODO: navigate to add patient
+                    showSettings = true
                 } label: {
+                    Image(systemName: "gearshape")
+                        .accessibilityLabel("Settings")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(value: Route.patientEdit(nil)) {
                     Image(systemName: "plus")
                         .accessibilityLabel("Add patient")
                 }
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
         .overlay(alignment: .top) {
             if let errorMessage = viewModel.state.errorMessage {
@@ -39,12 +48,9 @@ struct PatientListView: View {
     private var listView: some View {
         List {
             ForEach(viewModel.state.patients, id: \.id) { patient in
-                Button {
-                    navigationPath.append(Route.patientDetail(patient.id))
-                } label: {
+                NavigationLink(value: Route.patientDetail(patient.id)) {
                     PatientRowView(patient: patient)
                 }
-                .buttonStyle(.plain)
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
                         viewModel.delete(patientId: patient.id)

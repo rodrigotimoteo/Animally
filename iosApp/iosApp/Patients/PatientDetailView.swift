@@ -4,15 +4,28 @@ import Shared
 struct PatientDetailView: View {
     @StateObject private var viewModel: PatientDetailViewModel
     @State private var selectedTab: DetailTab = .overview
+    @State private var addRecordRoute: RecordEditRoute?
 
     enum DetailTab: String, CaseIterable, Identifiable {
         case overview = "Overview"
         case medical = "Medical"
-        case preventive = "Preventive"
-        case reproduction = "Reproduction"
-        case diagnostics = "Diagnostics & Files"
+        case preventive = "Care"
+        case reproduction = "Repro"
+        case diagnostics = "Files"
 
         var id: String { rawValue }
+
+        /// Full name for accessibility — the short segmented labels are
+        /// compressed, VoiceOver should speak the real section names.
+        var accessibilityName: String {
+            switch self {
+            case .overview: return "Overview"
+            case .medical: return "Medical"
+            case .preventive: return "Preventive"
+            case .reproduction: return "Reproduction"
+            case .diagnostics: return "Diagnostics & Files"
+            }
+        }
     }
 
     init(patientId: Int64) {
@@ -38,6 +51,13 @@ struct PatientDetailView: View {
                         .accessibilityLabel("Edit patient")
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                if let patientId = viewModel.state.patient?.id {
+                    AddRecordMenu(patientId: patientId) { route in
+                        addRecordRoute = route
+                    }
+                }
+            }
         }
         .overlay(alignment: .top) {
             if let errorMessage = viewModel.state.errorMessage {
@@ -47,13 +67,31 @@ struct PatientDetailView: View {
         .onAppear {
             viewModel.load()
         }
+        .navigationDestination(item: $addRecordRoute) { route in
+            switch route {
+            case .weight(_, let recordId):
+                WeightEditView(patientId: route.patientId, weightId: recordId)
+            case .vaccination(_, let recordId):
+                VaccinationEditView(patientId: route.patientId, vaccinationId: recordId)
+            case .deworming(_, let recordId):
+                DewormingEditView(patientId: route.patientId, dewormingId: recordId)
+            case .consultation(_, let recordId):
+                ConsultationEditView(patientId: route.patientId, consultationId: recordId)
+            case .dentistry(_, let recordId):
+                DentistryEditView(patientId: route.patientId, dentistryId: recordId)
+            case .farrierVisit(_, let recordId):
+                FarrierVisitEditView(patientId: route.patientId, farrierVisitId: recordId)
+            }
+        }
     }
 
     private func contentTabs(patient: Patient_) -> some View {
         VStack(spacing: 0) {
             Picker("Detail Tab", selection: $selectedTab) {
                 ForEach(DetailTab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
+                    Text(tab.rawValue)
+                        .tag(tab)
+                        .accessibilityLabel(tab.accessibilityName)
                 }
             }
             .pickerStyle(.segmented)

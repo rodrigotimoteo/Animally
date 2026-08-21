@@ -63,7 +63,7 @@ val navigationEntryModule =
         }
 
         navigation<Route.AddEditPatient> { route ->
-            PatientEditScreen(viewModel = koinViewModel { parametersOf(route.patientId) })
+            PatientEditScreen(viewModel = koinViewModel { parametersOf(route.patientId, null) })
         }
 
         navigation<Route.AddEditAnamnese> { route ->

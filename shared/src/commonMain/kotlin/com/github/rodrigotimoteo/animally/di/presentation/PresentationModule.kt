@@ -84,9 +84,10 @@ internal class PresentationModule {
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
             }
-            viewModel { (patientId: Long?) ->
+            viewModel { (patientId: Long?, initialOwnerId: Long?) ->
                 PatientEditViewModel(
                     patientId = patientId,
+                    initialOwnerId = initialOwnerId,
                     getPatientDetailUseCase = get(),
                     savePatientUseCase = get(),
                     getOwnerListUseCase = get(),

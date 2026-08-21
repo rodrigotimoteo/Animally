@@ -3,7 +3,6 @@ import Shared
 
 struct OwnerDetailView: View {
     @StateObject private var viewModel: OwnerDetailViewModel
-    @State private var navigationPath = NavigationPath()
 
     init(ownerId: Int64) {
         _viewModel = StateObject(wrappedValue: OwnerDetailViewModel(ownerId: ownerId))
@@ -26,6 +25,14 @@ struct OwnerDetailView: View {
                 NavigationLink(value: Route.ownerEdit(viewModel.state.owner?.id)) {
                     Image(systemName: "pencil")
                         .accessibilityLabel("Edit owner")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    PatientEditView(patientId: nil, preselectedOwnerId: viewModel.state.owner?.id)
+                } label: {
+                    Image(systemName: "plus")
+                        .accessibilityLabel("Add patient")
                 }
             }
         }

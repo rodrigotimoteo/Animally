@@ -27,6 +27,18 @@ struct TimelineView: View {
             .refreshable {
                 viewModel.load()
             }
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .patientDetail(let id):
+                    PatientDetailView(patientId: id)
+                case .patientEdit(let id):
+                    PatientEditView(patientId: id)
+                case .ownerDetail(let id):
+                    OwnerDetailView(ownerId: id)
+                case .ownerEdit(let id):
+                    OwnerEditView(ownerId: id)
+                }
+            }
         }
     }
 
@@ -35,7 +47,10 @@ struct TimelineView: View {
             ForEach(viewModel.state.groups, id: \.date) { group in
                 Section {
                     ForEach(group.entries, id: \.recordId) { entry in
-                        TimelineEntryRow(entry: entry, showPatientName: viewModel.state.patientId == nil)
+                        NavigationLink(value: Route.patientDetail(entry.patientId)) {
+                            TimelineEntryRow(entry: entry, showPatientName: viewModel.state.patientId == nil)
+                        }
+                        .buttonStyle(.plain)
                     }
                 } header: {
                     Text(formatDate(group.date))

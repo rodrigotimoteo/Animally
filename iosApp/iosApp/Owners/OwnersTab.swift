@@ -15,7 +15,7 @@ struct OwnersTab: View {
                     case .patientDetail(let id):
                         PatientDetailView(patientId: id)
                     case .patientEdit(let id):
-                        Text("Edit patient")
+                        PatientEditView(patientId: id)
                     }
                 }
         }
