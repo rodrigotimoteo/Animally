@@ -7,7 +7,7 @@
 **Key Characteristics:**
 - Three-layer architecture: `domain` (business logic + models), `data` (persistence + repositories), `presentation` (Compose UI + ViewModels)
 - Unidirectional data flow: Screen → ViewModel → UseCase → Repository → SQLDelight
-- Offline-first: SQLDelight is primary storage. No network calls in Phase 1-3
+- Offline-first: SQLDelight is primary storage. Local operations never require network; cloud sync (Ktor HTTP) is a secondary layer on top
 - Hybrid Koin DI: `@Single`/`@KoinViewModel` annotations on impls + explicit modules for platform-specific singletons and queries
 - Navigation 3 with type-safe sealed interface `Route` hierarchy
 - `expect`/`actual` for platform differences (DB driver, coroutine dispatchers, file storage)
@@ -19,28 +19,28 @@
 **Domain Layer:**
 - Purpose: Business logic, domain models, and use case contracts
 - Location: `shared/src/commonMain/kotlin/.../domain/`
-- Contains: Model data classes, `Identifiable` interface, `IOwnerRepository` interface, use case classes (`GetOwnerListUseCase`, `GetOwnerDetailUseCase`)
+- Contains: Model data classes, `Identifiable` interface, per-entity repository interfaces and use case classes (one `domain/<entity>/` module per entity: `owner/`, `patient/`, `anamnese/`, `consultation/`, ...), plus cross-cutting modules: `search/` (FTS5 search), `sync/` (sync contracts + per-entity sync handlers), `export/` (CSV/PDF), `backup/`, `notification/`, `reminder/`, `timeline/`
 - Depends on: Kotlin stdlib, `kotlinx.serialization`, `kotlinx.datetime`
 - Used by: Presentation layer (ViewModels call use cases)
 
 **Data Layer:**
-- Purpose: Persistence, DB queries, repository implementations, column adapters
+- Purpose: Persistence, DB queries, repository implementations, column adapters, sync engine, file storage
 - Location: `shared/src/commonMain/kotlin/.../data/`
-- Contains: SQLDelight `.sq` query definitions (19 entities), generated `Queries` classes, `OwnerRepositoryImpl`, `InstantAdapter`/`LocalDateAdapter` for column type mapping, `AnimallyDatabaseFactory`
-- Depends on: SQLDelight generated code (`AnimallyDatabase`), domain layer interfaces
+- Contains: SQLDelight `.sq` query definitions (20 entities + `SearchFts` + `SyncMetadata`), generated `Queries` classes, per-entity `*RepositoryImpl` with `mapper/` DTO→model mappers, `InstantAdapter`/`LocalDateAdapter` for column type mapping, `AnimallyDatabaseFactory`, `search/SearchRepository`, `storage/FileStorage` + `BackupStorage`, `backup/` restore impls, `sync/` (`KtorSyncApi`, `SyncEngineImpl`, `SyncChangeTrackerImpl`)
+- Depends on: SQLDelight generated code (`AnimallyDatabase`), domain layer interfaces, Ktor HTTP client (sync only)
 - Used by: DI (`QueriesModule` provides individual `*Queries` singletons), domain layer
 
 **Presentation Layer:**
 - Purpose: Compose UI screens, ViewModels, navigation
 - Location: `shared/src/commonMain/kotlin/.../presentation/`
-- Contains: `AnimallyApp` (root `@Composable`), screen composables (`PatientListScreen`, `OwnerListScreen`, `SettingsScreen`), ViewModels (`PatientListViewModel`, `OwnerListViewModel`, `SettingsViewModel`), navigation (`Route` sealed interface, `AnimallyNavigator`, `AnimallyNavHost`, `AnimallyNavigationViewModel`)
+- Contains: `AnimallyApp` (root `@Composable`), screen composables and ViewModels per feature (`patientList/`, `patientDetail/`, `ownerList/`, `settings/`, `search/`, `timeline/`, plus per-entity `patientEdit/`, `consultation/`, `vaccination/`, ...), `common/` shared UI (`glass/`, `state/`, `addEdit/`, `attachment/`, `layout/`), theme (`theme/` with `ThemeMode`), navigation (`Route` sealed interface, `AnimallyNavigator`, `AnimallyNavHost`, `AnimallyNavigationViewModel`)
 - Depends on: Domain layer (use cases + models)
 - Used by: Platform entry points (Android `MainActivity`, iOS `MainViewController`)
 
 **DI / Infrastructure Layer:**
 - Purpose: Koin module configuration, platform initialization
 - Location: `shared/src/*Main/kotlin/.../di/`
-- Contains: `AppModule` (component scan), `QueriesModule` (query bindings), `DispatchersModule` (named coroutine dispatchers), `NavigationModule` (entry provider bindings), platform database modules (`AndroidDatabaseModule`, `IosDatabaseModule`), `Initialize.kt` (`expect fun initKoin`)
+- Contains: `AppModule` (component scan), `QueriesModule` (query bindings), `DispatchersModule` (named coroutine dispatchers), `HttpClientModule` (Ktor client for sync), `PresentationModule` (presenter bindings), `ThemeModule`, `NavigationModule` (entry provider bindings), platform database modules (`AndroidDatabaseModule`, `IosDatabaseModule`), `Initialize.kt` (`expect fun initKoin`)
 - Depends on: All other layers (provides wiring)
 - Used by: Platform entry points call `initKoin()` on startup
 
@@ -54,7 +54,7 @@
 
 **App Initialization:**
 1. Android: `AnimallyApplication.onCreate()` or iOS: `MainViewController()` → `initKoin(context)`
-2. `initKoin` starts Koin with `AppModule` (component scan), platform `DatabaseModule`, `QueriesModule`, `navigationEntryModule`
+2. `initKoin` starts Koin with `AppModule` (component scan), platform `DatabaseModule`, `QueriesModule`, `HttpClientModule`, `PresentationModule`, `ThemeModule`, `navigationEntryModule`
 3. `AnimallyApp` composable renders → `AnimallyNavHost` renders current route
 4. `AnimallyNavigator` (singleton) manages `backStack: SnapshotStateList<Route>` — starts at `Route.PatientList`
 
@@ -71,9 +71,20 @@
 4. Repository (e.g., `OwnerRepositoryImpl`) receives queries via constructor injection
 5. Use case calls repository; ViewModel calls use case
 
+**Cloud Sync Flow:**
+1. `SyncEngineImpl` drives push/pull via `SyncUseCase`
+2. `SyncChangeTrackerImpl` reads `SyncMetadata` (serverId + dirty flags) to compute changed records
+3. `SyncEntityHandlerRegistry` routes each changed entity to its per-entity `*SyncHandler`
+4. `KtorSyncApi` (wired by `HttpClientModule`) POSTs `SyncPushRequest` and fetches `SyncPullResponse`
+5. Handlers apply pulled records locally, resolving `serverId` mapping; failures return `SyncResult` surfaced in `SettingsScreen` Cloud Sync section
+
+**Search Flow:**
+1. `SearchUseCase` queries the `SearchFts` FTS5 virtual table via `SearchRepository`
+2. Repositories upsert into FTS on entity write; results map to `SearchResult` and render in `SearchScreen`
+
 **Screen Data Flow:**
 1. ViewModel is created via `@KoinViewModel` annotation (Koin manages lifecycle)
-2. ViewModel receives `AnimallyNavigator` (and future use cases) via constructor injection
+2. ViewModel receives `AnimallyNavigator` and use cases via constructor injection
 3. ViewModel exposes `StateFlow<UiState>` for screen state
 4. Screen composable observes state, renders UI, calls ViewModel methods on user interaction
 5. ViewModel invokes use case → repository → SQLDelight → updates state
@@ -110,10 +121,10 @@
 - Location: `shared/src/commonMain/kotlin/.../data/adapters/`
 - Pattern: `object` implementing `ColumnAdapter<T, TColumn>`
 
-**Queries Modules (19 entity `.sq` files):**
+**Queries Modules (20 entity `.sq` files + `SearchFts` + `SyncMetadata`):**
 - Purpose: Define SQL CRUD operations for each entity. Generated into type-safe `*Queries` classes
 - Location: `shared/src/commonMain/sqldelight/.../data/<entity>/<Entity>.sq`
-- Pattern: Each `.sq` file defines `insert`, `update`, `delete`, `selectById`, `selectByPatient`, `selectAll`, `setInactive` queries
+- Pattern: Each `.sq` file defines `insert`, `update`, `delete`, `selectById`, `selectByPatient`, `selectAll`, `setInactive` queries. `QueriesModule` binds each generated class as a Koin singleton
 
 ## Entry Points
 
@@ -126,16 +137,16 @@
 **iOS:**
 - Location: `iosApp/iosApp/iOSApp.swift` → `ContentView.swift` → `MainViewControllerKt.MainViewController()`
 - Triggers: System launches app
-- Responsibilities: Creates `ComposeUIViewController` wrapping `AnimallyApp()`
+- Responsibilities: Creates `ComposeUIViewController` wrapping `AnimallyApp()`; Phase 7 adds a native SwiftUI shell (`Patients/`, `Search/`, `Settings/`, `Theme/`, `Timeline/`) backed by exported Kotlin stores (`bridge/IosRecordStores`, `IosReproAndDiagnosticsStores`, `IosSettingsStores` in `iosMain`)
 - Init: `MainViewController()` calls `initKoin()` before `AnimallyApp()`
 
 **Shared:**
 - Location: `shared/src/commonMain/kotlin/.../presentation/AnimallyApp.kt`
 - Triggers: Called by platform entry points
-- Responsibilities: Root `@Composable` — wraps `AnimallyNavHost` in `MaterialTheme`
+- Responsibilities: Root `@Composable` — wraps `AnimallyNavHost` in `AnimallyTheme` (theme mode read from `SettingsViewModel.themeMode`)
 - Init: Performed before this composable renders (in platform `initKoin`)
 
-## Database Schema (19 Entities)
+## Database Schema (20 Entities + FTS5 + SyncMetadata)
 
 All entities follow this pattern:
 - `id INTEGER PRIMARY KEY AUTOINCREMENT`
@@ -144,8 +155,13 @@ All entities follow this pattern:
 - `createdAt INTEGER AS Instant NOT NULL`
 - `updatedAt INTEGER AS Instant NOT NULL`
 - `date`/`dateAdministered` columns use `TEXT AS LocalDate`
+- Migrations: `migrations/1.sqm` initial schema through `5.sqm` (incremental)
 
-**Entities:** Anamnese, Consultation, Dentistry, Deworming, FarrierVisit, Gestation, Imaging, LabResult, Lameness, Medication, Owner, Patient, Reproduction, ReproMedication, Substance, Surgery, Ultrasound, Vaccination, Weight
+**Entities:** Anamnese, Consultation, CustomReminder, Dentistry, Deworming, FarrierVisit, Gestation, Imaging, LabResult, Lameness, Medication, Owner, Patient, Reproduction, ReproMedication, Substance, Surgery, Ultrasound, Vaccination, Weight
+
+**Support tables:**
+- `SearchFts` (FTS5 virtual table) for global search, populated on entity writes
+- `SyncMetadata` (serverId + sync state) for cloud sync change tracking
 
 ## Error Handling
 
@@ -157,8 +173,10 @@ All entities follow this pattern:
 
 **Caching:** Not needed — SQLite is primary storage (offline-first). No remote cache layer.
 
-**Storage:** SQLite via SQLDelight. File storage (photos, images) planned with `expect`/`actual` platform filesystem. Backup/restore in Phase 4 (ADR-0014).
+**Storage:** SQLite via SQLDelight. File storage (`data/storage/FileStorage`, `BackupStorage`) via `expect`/`actual` platform filesystem — `Context.filesDir` on Android, `NSDocumentDirectory` on iOS. Backup/restore (JSON payloads) and PDF export implemented with platform actuals.
 
-**Testing:** Three test source sets: `commonTest` (multiplatform unit tests), `androidHostTest` (Android JVM-only tests), `iosTest` (iOS simulator tests). In-memory SQLDelight driver for test speed. Mock test doubles via interface implementations.
+**Notifications:** `expect`/`actual` `NotificationScheduler` + `NotificationPermission`; Android uses notification channels, iOS uses its own scheduler. Reminders scheduled via `ReminderScheduler`.
+
+**Testing:** Five test source sets: `commonTest` (multiplatform unit tests), `androidHostTest` (Android JVM-only tests), `iosTest` (iOS simulator tests), `desktopTest` (headless Compose UI tests), plus Kover coverage tooling. In-memory SQLDelight driver for test speed. Mock test doubles via interface implementations.
 
 **Code Quality:** Detekt (custom config at `config/detekt/detekt.yml`), ktlint (via Gradle plugin), baseline files per module at `config/detekt/baseline/`.

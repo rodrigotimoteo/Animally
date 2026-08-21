@@ -26,6 +26,17 @@ kotlin {
         iosTarget.binaries.all {
             linkerOpts("-U", "_OBJC_CLASS_\$_UIViewLayoutRegion")
         }
+        iosTarget.compilations.getByName("main") {
+            cinterops {
+                // Header-only cinterop binding to the Swift @objc shim (FmLlmShim).
+                // The .def lives at src/nativeInterop/cinterop/FoundationModelsShim.def.
+                create("FoundationModelsShim") {
+                    // headers = FmLlmShim.h (referenced from the .def); add its directory to the
+                    // include path with an absolute path so the cinterop finds it regardless of CWD.
+                    compilerOpts("-I$rootDir/shared/src/nativeInterop/cinterop")
+                }
+            }
+        }
     }
 
     jvm("desktop")

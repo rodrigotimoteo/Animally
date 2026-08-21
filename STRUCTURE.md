@@ -7,7 +7,7 @@ Animally/
 ├── androidApp/              # Android application module
 │   └── src/main/kotlin/...  # MainActivity, AnimallyApplication
 ├── iosApp/                  # iOS application module
-│   └── iosApp/              # iOSApp.swift, ContentView.swift
+│   └── iosApp/              # iOSApp.swift, ContentView.swift, native SwiftUI screens
 ├── shared/                  # KMP shared module (all business logic + UI)
 │   └── src/
 │       ├── commonMain/      # Cross-platform code
@@ -18,12 +18,15 @@ Animally/
 │       ├── nativeMain/      # Shared native (Apple) implementations
 │       ├── commonTest/      # Cross-platform tests
 │       ├── androidHostTest/ # Android JVM host tests
+│       ├── desktopTest/     # Headless Compose UI tests (desktop target)
 │       └── iosTest/         # iOS simulator tests
 ├── config/detekt/           # Detekt static analysis config
 ├── docs/adr/                # Architecture Decision Records
-├── build.gradle.kts         # Root build config + detekt plugin
+├── build.gradle.kts         # Root build config + detekt plugin + Kover
 └── settings.gradle.kts      # Module includes
 ```
+
+Root-level markdown also maintained: `CONTEXT.md` (domain glossary), `data.md`, `navigation.md`, `idea.md`, `plan.md`.
 
 ## Module Purposes
 
@@ -45,26 +48,31 @@ Animally/
 - Purpose: All shared business logic, data layer, UI, and platform `expect` declarations.
 - Source sets:
   - `commonMain`: Pure Kotlin code — domain models, SQLDelight queries, Compose UI screens, ViewModels, DI modules, navigation
-  - `androidMain`: `actual` implementations (Android `SqlDriver`, coroutine dispatchers, platform info)
-  - `iosMain`: `actual` implementations (iOS `NativeSqliteDriver`, coroutine dispatchers, platform info)
+  - `androidMain`: `actual` implementations (Android `SqlDriver`, coroutine dispatchers, notifications, file/backup storage, PDF, theme prefs)
+  - `iosMain`: `actual` implementations (iOS `NativeSqliteDriver`, coroutine dispatchers, notifications, file/backup storage, PDF, Swift store bridges)
   - `nativeMain`: Shared Apple-target `actual` implementations (empty currently)
-  - `commonTest`: Multiplatform unit tests (placeholder)
-  - `androidHostTest`: Android host JVM tests (placeholder)
-  - `iosTest`: iOS simulator tests (placeholder)
+  - `commonTest`: Multiplatform unit tests
+  - `androidHostTest`: Android host JVM tests
+  - `desktopTest`: Headless Compose UI tests (Compose UI test suite on desktop target)
+  - `iosTest`: iOS simulator tests
 
 ## Shared Module Internal Layout
 
 ```
 shared/src/commonMain/kotlin/.../
 ├── Platform.kt                    # expect fun getPlatform()
+├── bridge/                        # Kotlin↔Swift bridge (NativeFlow, NativeCancellable, ObjCHidden)
 ├── data/
 │   ├── adapters/                  # ColumnAdapter for Instant, LocalDate
 │   │   ├── InstantAdapter.kt
 │   │   └── LocalDateAdapter.kt
-│   ├── owner/
-│   │   └── OwnerRepositoryImpl.kt  # @Single IOwnerRepository impl
-│   ├── patient/                    # (empty — PatientRepository not yet created)
-│   └── anamnese/ consultation/ ... # (future repository impls)
+│   ├── <entity>/                  # one per entity (owner, patient, anamnese, ...)
+│   │   ├── <Entity>RepositoryImpl.kt  # @Single impl
+│   │   └── mapper/                # DTO → domain model mappers
+│   ├── search/                    # FTS5 SearchRepository
+│   ├── sync/                      # KtorSyncApi, SyncEngineImpl, SyncChangeTrackerImpl, SyncMetadataRepositoryImpl
+│   ├── storage/                   # FileStorage, BackupStorage, PickedFile
+│   ├── backup/                    # BackupRestore* impls
 ├── di/
 │   ├── database/
 │   │   ├── AnimallyDatabaseFactory.kt  # Factory creating DB with adapters
@@ -72,68 +80,49 @@ shared/src/commonMain/kotlin/.../
 │   ├── dispatchers/
 │   │   ├── Dispatchers.kt         # expect declarations (io, main, default)
 │   │   └── DispatchersModule.kt   # @Module providing named dispatchers
+│   ├── http/
+│   │   └── HttpClientModule.kt    # Ktor HTTP client for sync
 │   ├── infra/
 │   │   ├── AppModule.kt           # @Module @ComponentScan for DI
 │   │   └── Initialize.kt          # expect fun initKoin()
-│   └── navigation/
-│       └── NavigationModule.kt    # navigationEntryProvider bindings
+│   ├── navigation/
+│   │   └── NavigationModule.kt    # navigationEntryProvider bindings
+│   └── presentation/
+│       ├── PresentationModule.kt  # presenter bindings
+│       └── ThemeModule.kt         # theme preference binding
 ├── domain/
 │   ├── common/
 │   │   └── Identifiable.kt        # interface { val id: Long }
-│   ├── owner/
-│   │   ├── IOwnerRepository.kt    # Repository interface
-│   │   ├── model/
-│   │   │   └── Owner.kt           # @Serializable data class
-│   │   └── usecase/
-│   │       ├── GetOwnerListUseCase.kt    # @Single (stub)
-│   │       └── GetOwnerDetailUseCase.kt  # @Single (stub)
-│   ├── patient/
-│   │   ├── model/
-│   │   │   └── Patient.kt         # data class (id only, placeholder)
-│   │   └── usecase/               # (empty)
-│   ├── anamnese/ consultation/ ... # (future domain modules — see note)
+│   ├── <entity>/                  # one per entity: model/, usecase/, repository interface
+│   ├── search/                    # ISearchRepository, SearchUseCase, SearchResult
+│   ├── sync/                      # SyncEngine, SyncApi, SyncChangeTracker, SyncEntityHandler + per-entity *SyncHandler
+│   ├── export/                    # CsvExporter, ExportCsvUseCase, PdfGenerator (expect), ExportPatientReportUseCase
+│   ├── backup/                    # BackupPayload, BackupProvider, ExportBackupUseCase, RestoreBackupUseCase
+│   ├── notification/              # NotificationScheduler (expect), NotificationPermission (expect)
+│   ├── reminder/                  # ReminderScheduler
+│   └── timeline/                  # timeline feed models/use cases
 ├── presentation/
-│   ├── AnimallyApp.kt            # Root @Composable: Theme + AnimallyNavHost
+│   ├── AnimallyApp.kt            # Root @Composable: AnimallyTheme + AnimallyNavHost
 │   ├── navigation/
 │   │   ├── Route.kt               # sealed interface Route : NavKey
 │   │   ├── AnimallyNavigator.kt   # @Single: manages backStack StateList
 │   │   ├── AnimallyNavigationViewModel.kt  # Base ViewModel with nav methods
 │   │   └── AnimallyNavHost.kt     # @Composable: NavDisplay with koin entries
-│   ├── ownerList/
-│   │   ├── OwnerListViewModel.kt  # @KoinViewModel (stub)
-│   │   └── view/
-│   │       └── OwnerListScreen.kt # @Composable (stub)
-│   ├── patientList/
-│   │   ├── PatientListViewModel.kt  # @KoinViewModel (stub)
-│   │   └── view/
-│   │       └── PatientListScreen.kt # @Composable (stub)
-│   └── settings/
-│       ├── SettingsViewModel.kt    # @KoinViewModel (stub)
-│       └── view/
-│           └── SettingsScreen.kt   # @Composable (stub)
+│   ├── theme/                     # AnimallyTheme, ThemeMode, Color, Type, DynamicColor
+│   ├── common/                    # shared UI: glass/, state/, addEdit/, attachment/, layout/
+│   ├── <feature>/                 # per-feature: <Feature>ViewModel.kt + view/<Feature>Screen.kt
+│   │   (patientList, patientDetail, patientEdit, ownerList, ownerEdit, ownerDetail,
+│   │    settings, search, timeline, coggins, reminder, customreminder, anamnese,
+│   │    consultation, vaccination, weight, deworming, dentistry, lameness, surgery,
+│   │    medication, labresult, imaging, farrier, reproduction, ultrasound, gestation,
+│   │    repromedication, substance)
 
 shared/src/commonMain/sqldelight/.../
 └── data/
-    ├── anamnese/Anamnese.sq
-    ├── consultation/Consultation.sq
-    ├── dentistry/Dentistry.sq
-    ├── deworming/Deworming.sq
-    ├── farrier/FarrierVisit.sq
-    ├── gestation/Gestation.sq
-    ├── imaging/Imaging.sq
-    ├── labresult/LabResult.sq
-    ├── lameness/Lameness.sq
-    ├── medication/Medication.sq
-    ├── migrations/1.sqm          # Initial schema migration
-    ├── owner/Owner.sq
-    ├── patient/Patient.sq
-    ├── reproduction/Reproduction.sq
-    ├── repromedication/ReproMedication.sq
-    ├── substance/Substance.sq
-    ├── surgery/Surgery.sq
-    ├── ultrasound/Ultrasound.sq
-    ├── vaccination/Vaccination.sq
-    └── weight/Weight.sq
+    ├── <entity>/<Entity>.sq       # one per entity (CRUD + FTS upsert)
+    ├── search/SearchFts.sq        # FTS5 virtual table for global search
+    ├── sync/SyncMetadata.sq       # sync change-tracking table
+    └── migrations/                # 1.sqm initial schema through 5.sqm
 ```
 
 ## Key File Locations
@@ -152,17 +141,23 @@ shared/src/commonMain/sqldelight/.../
 **Core Logic:**
 - `shared/src/commonMain/kotlin/.../di/infra/AppModule.kt`: Koin component scan root
 - `shared/src/commonMain/kotlin/.../di/database/AnimallyDatabaseFactory.kt`: Database creation with all adapters
-- `shared/src/commonMain/kotlin/.../di/database/QueriesModule.kt`: All 19 query class bindings
+- `shared/src/commonMain/kotlin/.../di/database/QueriesModule.kt`: All 20 entity query class bindings
+- `shared/src/commonMain/kotlin/.../di/http/HttpClientModule.kt`: Ktor HTTP client for cloud sync
+- `shared/src/commonMain/kotlin/.../data/sync/SyncEngineImpl.kt`: Sync engine implementation
+- `shared/src/commonMain/kotlin/.../domain/sync/SyncEntityHandlerRegistry.kt`: Per-entity sync handler routing
 - `shared/src/commonMain/kotlin/.../presentation/navigation/AnimallyNavigator.kt`: Back-stack navigation singleton
 
 **Domain Models:**
-- `shared/src/commonMain/kotlin/.../domain/owner/model/Owner.kt`: Owner model (most complete)
-- `shared/src/commonMain/kotlin/.../domain/patient/model/Patient.kt`: Patient model (stub)
+- `shared/src/commonMain/kotlin/.../domain/owner/model/Owner.kt`: Owner model
+- `shared/src/commonMain/kotlin/.../domain/patient/model/Patient.kt`: Patient model
 - `shared/src/commonMain/kotlin/.../domain/common/Identifiable.kt`: Base interface
 
 **Database Schema:**
-- `shared/src/commonMain/sqldelight/.../data/migrations/1.sqm`: Initial migration (all 19 tables)
+- `shared/src/commonMain/sqldelight/.../data/migrations/1.sqm`: Initial migration (all tables)
+- `shared/src/commonMain/sqldelight/.../data/migrations/5.sqm`: Latest incremental migration
 - `shared/src/commonMain/sqldelight/.../data/<entity>/<Entity>.sq`: Per-entity CRUD queries
+- `shared/src/commonMain/sqldelight/.../data/search/SearchFts.sq`: FTS5 global-search table
+- `shared/src/commonMain/sqldelight/.../data/sync/SyncMetadata.sq`: Sync change-tracking table
 
 **Adapters:**
 - `shared/src/commonMain/kotlin/.../data/adapters/InstantAdapter.kt`: Instant ↔ Long column adapter
@@ -195,14 +190,15 @@ shared/src/commonMain/sqldelight/.../
 ## Where to Add New Code
 
 **New entity (e.g., LabResult):**
-1. `shared/src/commonMain/sqldelight/.../data/labresult/LabResult.sq` — SQL CRUD queries
-2. `shared/src/commonMain/kotlin/.../data/labresult/LabResultRepositoryImpl.kt` — `@Single` impl
+1. `shared/src/commonMain/sqldelight/.../data/labresult/LabResult.sq` — SQL CRUD queries (include FTS5 upsert)
+2. `shared/src/commonMain/kotlin/.../data/labresult/LabResultRepositoryImpl.kt` + `data/labresult/mapper/` — `@Single` impl + DTO→model mappers
 3. `shared/src/commonMain/kotlin/.../domain/labresult/model/LabResult.kt` — `@Serializable` data class
 4. `shared/src/commonMain/kotlin/.../domain/labresult/ILabResultRepository.kt` — repository interface
 5. `shared/src/commonMain/kotlin/.../domain/labresult/usecase/` — use cases
 6. `shared/src/commonMain/kotlin/.../presentation/labresult/` — ViewModel + screen composables
-7. Register in `QueriesModule.kt` (queries binding)
+7. Register in `QueriesModule.kt` (queries binding) + `PresentationModule.kt` if explicit
 8. Add adapter entry in `AnimallyDatabaseFactory.create()`
+9. Add `LabResultSyncHandler` in `domain/sync/handlers/` and register in `SyncEntityHandlerRegistry` if the entity syncs
 
 **New screen:**
 1. `shared/src/commonMain/kotlin/.../presentation/<featureName>/<FeatureName>ViewModel.kt` — `@KoinViewModel`
