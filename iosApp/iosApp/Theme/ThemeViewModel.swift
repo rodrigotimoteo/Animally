@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Shared
+import UIKit
 
 /// Root-level observer of the persisted theme preference so the whole SwiftUI
 /// hierarchy honors the Appearance setting chosen in Settings.
@@ -41,7 +42,11 @@ final class ThemeViewModel: ObservableObject {
         switch mode {
         case .light: return .light
         case .dark: return .dark
-        case .system: return nil
+        case .system:
+            // Resolve to a CONCRETE scheme: returning nil defers to
+            // presentation-time inheritance, which leaves already-presented
+            // sheets stale until reopen (reported on device).
+            return UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light
         default: return nil
         }
     }

@@ -2,32 +2,75 @@ import SwiftUI
 import Shared
 
 struct TimelineView: View {
-    @StateObject private var viewModel = TimelineViewModel()
+    @StateObject private var patientListViewModel = PatientListViewModel()
+    @State private var selectedPatientId: Int64?
 
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.state.isLoading && viewModel.state.groups.isEmpty {
-                    loadingView
-                } else if viewModel.state.groups.isEmpty {
-                    emptyView
-                } else {
-                    timelineList
+            TimelineContent(patientId: selectedPatientId)
+                .id(selectedPatientId)
+                .navigationTitle("Timeline")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        patientFilterMenu
+                    }
+                }
+                .onAppear {
+                    patientListViewModel.load()
+                }
+        }
+    }
+
+    private var patientFilterMenu: some View {
+        Menu {
+            Picker("Animal", selection: $selectedPatientId) {
+                Text("All animals").tag(Int64?.none)
+                ForEach(patientListViewModel.state.patients, id: \.id) { patient in
+                    Text(patient.name).tag(Int64?.some(patient.id))
                 }
             }
-            .navigationTitle("Timeline")
-            .overlay(alignment: .top) {
-                if let errorMessage = viewModel.state.errorMessage {
-                    errorBanner(message: errorMessage)
-                }
+        } label: {
+            Image(systemName: selectedPatientId == nil
+                ? "line.3.horizontal.decrease.circle"
+                : "line.3.horizontal.decrease.circle.fill"
+            )
+            .foregroundStyle(selectedPatientId == nil ? Theme.textSecondary : Theme.forestGreen)
+            .accessibilityLabel("Filter timeline by animal")
+        }
+    }
+}
+
+/// The timeline feed itself. Re-created whenever the selected patient changes,
+/// which builds a fresh TimelineViewModel bound to that patient's store.
+private struct TimelineContent: View {
+    @StateObject private var viewModel: TimelineViewModel
+
+    init(patientId: Int64?) {
+        _viewModel = StateObject(wrappedValue: TimelineViewModel(patientId: patientId))
+    }
+
+    var body: some View {
+        Group {
+            if viewModel.state.isLoading && viewModel.state.groups.isEmpty {
+                loadingView
+            } else if viewModel.state.groups.isEmpty {
+                emptyView
+            } else {
+                timelineList
             }
-            .onAppear {
-                viewModel.load()
+        }
+        .overlay(alignment: .top) {
+            if let errorMessage = viewModel.state.errorMessage {
+                errorBanner(message: errorMessage)
             }
-            .refreshable {
-                viewModel.load()
-            }
-            .navigationDestination(for: Route.self) { route in
+        }
+        .onAppear {
+            viewModel.load()
+        }
+        .refreshable {
+            viewModel.load()
+        }
+        .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .patientDetail(let id):
                     PatientDetailView(patientId: id)
@@ -40,7 +83,6 @@ struct TimelineView: View {
                 }
             }
         }
-    }
 
     private var timelineList: some View {
         List {
