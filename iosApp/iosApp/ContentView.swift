@@ -2,9 +2,10 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selectedTab: Tab = .patients
+    @StateObject private var theme = ThemeViewModel()
 
     enum Tab: Hashable {
-        case patients, owners, timeline, search, assistant, settings
+        case patients, owners, timeline, search, assistant
     }
 
     var body: some View {
@@ -38,12 +39,7 @@ struct ContentView: View {
                     Label("Assistant", systemImage: "sparkles")
                 }
                 .tag(Tab.assistant)
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .tag(Tab.settings)
         }
+        .preferredColorScheme(theme.preferredColorScheme)
     }
 }

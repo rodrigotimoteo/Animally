@@ -3,16 +3,34 @@ import Shared
 
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        // Presented as a sheet from the Patients toolbar gear; owns its navigation
+        // stack so the title bar and the Restore Backup push work standalone.
+        // navigationDestination sits on a non-lazy wrapper: registering it directly
+        // on a List is ignored by SwiftUI.
         NavigationStack {
-            List {
-                themeSection
-                dataSection
-                pdfSection
+            Group {
+                List {
+                    themeSection
+                    dataSection
+                    pdfSection
+                }
+                .listStyle(.insetGrouped)
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("Settings")
+            .navigationDestination(for: SettingsRoute.self) { route in
+                switch route {
+                case .restoreBackup:
+                    restoreView
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 
@@ -63,9 +81,7 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.textSecondary)
             }
 
-            NavigationLink {
-                restoreView
-            } label: {
+            NavigationLink(value: SettingsRoute.restoreBackup) {
                 Label("Restore Backup", systemImage: "square.and.arrow.down")
             }
 
@@ -159,4 +175,8 @@ struct SettingsView: View {
             .foregroundStyle(Theme.forestGreen)
             .textCase(nil)
     }
+}
+
+enum SettingsRoute: Hashable {
+    case restoreBackup
 }
