@@ -81,6 +81,30 @@ struct PatientDetailView: View {
                 DentistryEditView(patientId: route.patientId, dentistryId: recordId)
             case .farrierVisit(_, let recordId):
                 FarrierVisitEditView(patientId: route.patientId, farrierVisitId: recordId)
+            case .anamnese(_, let recordId):
+                AnamneseEditView(patientId: route.patientId, anamneseId: recordId)
+            case .lameness(_, let recordId):
+                LamenessEditView(patientId: route.patientId, lamenessId: recordId)
+            case .surgery(_, let recordId):
+                SurgeryEditView(patientId: route.patientId, surgeryId: recordId)
+            case .medication(_, let recordId):
+                MedicationEditView(patientId: route.patientId, medicationId: recordId)
+            case .substance(_, let recordId):
+                SubstanceEditView(patientId: route.patientId, substanceId: recordId)
+            case .labResult(_, let recordId):
+                LabResultEditView(patientId: route.patientId, labResultId: recordId)
+            case .customReminder(_, let recordId):
+                CustomReminderEditView(patientId: route.patientId, customReminderId: recordId)
+            case .reproductionEvent(_, let recordId):
+                ReproductionEventEditView(patientId: route.patientId, reproductionEventId: recordId)
+            case .ultrasound(_, let recordId):
+                UltrasoundEditView(patientId: route.patientId, ultrasoundId: recordId)
+            case .gestation(_, let recordId):
+                GestationEditView(patientId: route.patientId, gestationId: recordId)
+            case .reproMedication(_, let recordId):
+                ReproMedicationEditView(patientId: route.patientId, reproMedicationId: recordId)
+            case .imaging(_, let recordId):
+                ImagingEditView(patientId: route.patientId, imagingId: recordId)
             }
         }
     }

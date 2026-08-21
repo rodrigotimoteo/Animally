@@ -1,14 +1,12 @@
 import Foundation
 import Shared
 
-/// Manages the Medical tab: all 10 record stores for a patient.
+/// Manages the Medical tab: clinical record stores for a patient.
+/// Preventive-care records (vaccinations, dewormings, dentistry, farrier
+/// visits) are owned by PreventiveTabViewModel.
 @MainActor
 final class MedicalTabViewModel: ObservableObject {
     @Published var consultations: [Consultation_] = []
-    @Published var vaccinations: [Vaccination_] = []
-    @Published var dewormings: [Deworming_] = []
-    @Published var dentistryRecords: [Dentistry_] = []
-    @Published var farrierVisits: [FarrierVisit_] = []
     @Published var lamenessRecords: [Lameness_] = []
     @Published var surgeries: [Surgery_] = []
     @Published var medications: [Medication_] = []
@@ -21,10 +19,6 @@ final class MedicalTabViewModel: ObservableObject {
 
     init(patientId: Int64) {
         let consultationStore = IosRecordStores.shared.consultationListStore(patientId: patientId)
-        let vaccinationStore = IosRecordStores.shared.vaccinationListStore(patientId: patientId)
-        let dewormingStore = IosRecordStores.shared.dewormingListStore(patientId: patientId)
-        let dentistryStore = IosRecordStores.shared.dentistryListStore(patientId: patientId)
-        let farrierStore = IosRecordStores.shared.farrierVisitListStore(patientId: patientId)
         let lamenessStore = IosRecordStores.shared.lamenessListStore(patientId: patientId)
         let surgeryStore = IosRecordStores.shared.surgeryListStore(patientId: patientId)
         let medicationStore = IosRecordStores.shared.medicationListStore(patientId: patientId)
@@ -33,18 +27,6 @@ final class MedicalTabViewModel: ObservableObject {
 
         cancellables.append(consultationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.consultations = state.consultations }
-        }))
-        cancellables.append(vaccinationStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.vaccinations = state.vaccinations }
-        }))
-        cancellables.append(dewormingStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.dewormings = state.records }
-        }))
-        cancellables.append(dentistryStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.dentistryRecords = state.records }
-        }))
-        cancellables.append(farrierStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.farrierVisits = state.records }
         }))
         cancellables.append(lamenessStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.lamenessRecords = state.records }
@@ -64,10 +46,6 @@ final class MedicalTabViewModel: ObservableObject {
 
         // Load all stores
         consultationStore.load()
-        vaccinationStore.load()
-        dewormingStore.load()
-        dentistryStore.load()
-        farrierStore.load()
         lamenessStore.load()
         surgeryStore.load()
         medicationStore.load()

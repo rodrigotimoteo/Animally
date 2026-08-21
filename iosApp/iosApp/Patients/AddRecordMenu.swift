@@ -38,13 +38,13 @@ enum AddRecordCatalog {
 
     static let sections: [AddRecordSection] = [
         AddRecordSection(id: "medical", title: "Medical", options: [
-            AddRecordOption("anamnese", "Anamnese", "list.clipboard"),
+            record("anamnese", "Anamnese", "list.clipboard") { .anamnese(patientId: $0, recordId: nil) },
             record("consultation", "Consultation", "stethoscope") { .consultation(patientId: $0, recordId: nil) },
-            AddRecordOption("lameness", "Lameness Evaluation", "figure.walk"),
-            AddRecordOption("surgery", "Surgery", "cross.case.fill"),
-            AddRecordOption("medication", "Medication", "pills"),
-            AddRecordOption("substance", "Controlled Substance", "lock.shield"),
-            AddRecordOption("labResult", "Lab Result", "testtube.2"),
+            record("lameness", "Lameness Evaluation", "figure.walk") { .lameness(patientId: $0, recordId: nil) },
+            record("surgery", "Surgery", "cross.case.fill") { .surgery(patientId: $0, recordId: nil) },
+            record("medication", "Medication", "pills") { .medication(patientId: $0, recordId: nil) },
+            record("substance", "Controlled Substance", "lock.shield") { .substance(patientId: $0, recordId: nil) },
+            record("labResult", "Lab Result", "testtube.2") { .labResult(patientId: $0, recordId: nil) },
         ]),
         AddRecordSection(id: "preventive", title: "Preventive", options: [
             record("vaccination", "Vaccination", "syringe") { .vaccination(patientId: $0, recordId: nil) },
@@ -52,24 +52,23 @@ enum AddRecordCatalog {
             record("dentistry", "Dentistry", "wrench.fill") { .dentistry(patientId: $0, recordId: nil) },
             record("farrierVisit", "Farrier Visit", "hammer.fill") { .farrierVisit(patientId: $0, recordId: nil) },
             record("weight", "Weight Entry", "scalemass") { .weight(patientId: $0, recordId: nil) },
-            AddRecordOption("customReminder", "Custom Reminder", "bell.badge"),
+            record("customReminder", "Custom Reminder", "bell.badge") { .customReminder(patientId: $0, recordId: nil) },
         ]),
         AddRecordSection(id: "reproduction", title: "Reproduction", options: [
-            AddRecordOption("reproductionEvent", "Reproduction Event", ("heart.circle")),
-            AddRecordOption("ultrasound", "Ultrasound", ("waveform.path.ecg")),
-            AddRecordOption("gestation", "Gestation", "hourglass"),
-            AddRecordOption("reproMedication", "Repro Medication", "capsule.fill"),
+            record("reproductionEvent", "Reproduction Event", "heart.circle") { .reproductionEvent(patientId: $0, recordId: nil) },
+            record("ultrasound", "Ultrasound", "waveform.path.ecg") { .ultrasound(patientId: $0, recordId: nil) },
+            record("gestation", "Gestation", "hourglass") { .gestation(patientId: $0, recordId: nil) },
+            record("reproMedication", "Repro Medication", "capsule.fill") { .reproMedication(patientId: $0, recordId: nil) },
         ]),
         AddRecordSection(id: "diagnostics", title: "Diagnostics & Files", options: [
-            AddRecordOption("imaging", "Imaging Study", "photo.stack"),
+            record("imaging", "Imaging Study", "photo.stack") { .imaging(patientId: $0, recordId: nil) },
         ]),
     ]
 }
 
 /// Toolbar "+" menu listing every record type that can be attached to a
-/// patient, grouped by detail-tab section. Unavailable types stay visible
-/// but disabled so the roadmap is discoverable; they light up as iOS
-/// add/edit stores land in the shared module.
+/// patient, grouped by detail-tab section. Options without an iOS add/edit
+/// store render disabled and light up as stores land in the shared module.
 struct AddRecordMenu: View {
     let patientId: Int64
     /// Called with the route of a tapped, available option. The owner view

@@ -26,10 +26,6 @@ struct MedicalTabView: View {
 
     private var totalRecords: Int {
         viewModel.consultations.count +
-        viewModel.vaccinations.count +
-        viewModel.dewormings.count +
-        viewModel.dentistryRecords.count +
-        viewModel.farrierVisits.count +
         viewModel.lamenessRecords.count +
         viewModel.surgeries.count +
         viewModel.medications.count +
@@ -52,57 +48,8 @@ struct MedicalTabView: View {
                 }
             }
 
-            // Vaccinations
-            RecordSection(title: "Vaccinations", icon: "syringe", count: viewModel.vaccinations.count) {
-                ForEach(viewModel.vaccinations, id: \.id) { record in
-                    RecordRowView(
-                        icon: "syringe",
-                        iconTint: Theme.forestGreen,
-                        title: record.vaccineName,
-                        subtitle: record.vetName,
-                        date: record.dateAdministered.displayString
-                    )
-                }
-            }
-
-            // Dewormings
-            RecordSection(title: "Dewormings", icon: "pills.fill", count: viewModel.dewormings.count) {
-                ForEach(viewModel.dewormings, id: \.id) { record in
-                    RecordRowView(
-                        icon: "pills.fill",
-                        iconTint: Theme.forestGreen,
-                        title: record.product,
-                        subtitle: record.dose,
-                        date: record.dateAdministered.displayString
-                    )
-                }
-            }
-
-            // Dentistry
-            RecordSection(title: "Dentistry", icon: "mouth.fill", count: viewModel.dentistryRecords.count) {
-                ForEach(viewModel.dentistryRecords, id: \.id) { record in
-                    RecordRowView(
-                        icon: "mouth.fill",
-                        iconTint: Theme.forestGreen,
-                        title: record.treatment ?? "Dental check",
-                        subtitle: record.findings,
-                        date: record.date.displayString
-                    )
-                }
-            }
-
-            // Farrier
-            RecordSection(title: "Farrier Visits", icon: "figure.walk", count: viewModel.farrierVisits.count) {
-                ForEach(viewModel.farrierVisits, id: \.id) { record in
-                    RecordRowView(
-                        icon: "figure.walk",
-                        iconTint: Theme.forestGreen,
-                        title: record.trimOrShoe ?? "Farrier visit",
-                        subtitle: record.farrier,
-                        date: record.date.displayString
-                    )
-                }
-            }
+            // Preventive-care records (vaccinations, dewormings, dentistry,
+            // farrier visits) live in the Preventive tab only.
 
             // Lameness
             RecordSection(title: "Lameness Evaluations", icon: "figure.run", count: viewModel.lamenessRecords.count) {
