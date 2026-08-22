@@ -29,6 +29,7 @@ import kotlin.time.Clock
  * @param ioDispatcher Dispatcher for blocking database work.
  * @param saveFile Persists file bytes to storage and returns the absolute path.
  */
+@Suppress("TooManyFunctions")
 class UltrasoundEditViewModel(
     private val patientId: Long,
     private val ultrasoundId: Long?,
@@ -63,6 +64,14 @@ class UltrasoundEditViewModel(
                                 ovaryStatus = ultrasound.ovaryStatus,
                                 uterineStatus = ultrasound.uterineStatus,
                                 follicleSizeMm = ultrasound.follicleSizeMm?.toString(),
+                                leftOvaryStatus = ultrasound.leftOvaryStatus,
+                                rightOvaryStatus = ultrasound.rightOvaryStatus,
+                                leftFollicleSizeMm = ultrasound.leftFollicleSizeMm?.toString(),
+                                rightFollicleSizeMm = ultrasound.rightFollicleSizeMm?.toString(),
+                                uterineEdema = ultrasound.uterineEdema,
+                                uterineLiquid = ultrasound.uterineLiquid,
+                                uterineLiquidDescription = ultrasound.uterineLiquidDescription,
+                                uterusDescription = ultrasound.uterusDescription,
                                 findings = ultrasound.findings,
                                 imageUris = ultrasound.imageUris,
                                 vetName = ultrasound.vetName,
@@ -109,6 +118,62 @@ class UltrasoundEditViewModel(
     fun onFollicleSizeMmChange(value: String) {
         formState.value
             ?.let { updateForm(it.copy(follicleSizeMm = value.ifBlank { null }, follicleSizeMmError = null)) }
+    }
+
+    /**
+     * Updates the [UltrasoundFormState.leftOvaryStatus].
+     */
+    fun onLeftOvaryStatusChange(value: String) {
+        formState.value?.let { updateForm(it.copy(leftOvaryStatus = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [UltrasoundFormState.rightOvaryStatus].
+     */
+    fun onRightOvaryStatusChange(value: String) {
+        formState.value?.let { updateForm(it.copy(rightOvaryStatus = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [UltrasoundFormState.leftFollicleSizeMm].
+     */
+    fun onLeftFollicleSizeMmChange(value: String) {
+        formState.value?.let { updateForm(it.copy(leftFollicleSizeMm = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [UltrasoundFormState.rightFollicleSizeMm].
+     */
+    fun onRightFollicleSizeMmChange(value: String) {
+        formState.value?.let { updateForm(it.copy(rightFollicleSizeMm = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [UltrasoundFormState.uterineEdema].
+     */
+    fun onUterineEdemaChange(value: String) {
+        formState.value?.let { updateForm(it.copy(uterineEdema = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [UltrasoundFormState.uterineLiquid].
+     */
+    fun onUterineLiquidChange(value: Boolean?) {
+        formState.value?.let { updateForm(it.copy(uterineLiquid = value)) }
+    }
+
+    /**
+     * Updates the [UltrasoundFormState.uterineLiquidDescription].
+     */
+    fun onUterineLiquidDescriptionChange(value: String) {
+        formState.value?.let { updateForm(it.copy(uterineLiquidDescription = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [UltrasoundFormState.uterusDescription].
+     */
+    fun onUterusDescriptionChange(value: String) {
+        formState.value?.let { updateForm(it.copy(uterusDescription = value.ifBlank { null })) }
     }
 
     /**
@@ -203,6 +268,14 @@ class UltrasoundEditViewModel(
                     ovaryStatus = form.ovaryStatus,
                     uterineStatus = form.uterineStatus,
                     follicleSizeMm = follicleSizeMm,
+                    leftOvaryStatus = form.leftOvaryStatus,
+                    rightOvaryStatus = form.rightOvaryStatus,
+                    leftFollicleSizeMm = form.leftFollicleSizeMm?.toDoubleOrNull(),
+                    rightFollicleSizeMm = form.rightFollicleSizeMm?.toDoubleOrNull(),
+                    uterineEdema = form.uterineEdema,
+                    uterineLiquid = form.uterineLiquid,
+                    uterineLiquidDescription = form.uterineLiquidDescription,
+                    uterusDescription = form.uterusDescription,
                     findings = form.findings,
                     imageUris = form.imageUris,
                     vetName = form.vetName,

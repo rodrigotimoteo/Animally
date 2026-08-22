@@ -54,6 +54,9 @@ class ReproductionEventEditViewModel(
                                 eventType = event.eventType,
                                 date = event.date.toString(),
                                 details = event.details,
+                                initialExamFindings = event.initialExamFindings,
+                                stallionName = event.stallionName,
+                                breedingType = event.breedingType,
                                 vetName = event.vetName,
                                 notes = event.notes,
                                 createdAt = event.createdAt,
@@ -90,6 +93,28 @@ class ReproductionEventEditViewModel(
      */
     fun onDetailsChange(value: String) {
         formState.value?.let { updateForm(it.copy(details = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [ReproductionEventFormState.initialExamFindings].
+     */
+    fun onInitialExamFindingsChange(value: String) {
+        formState.value?.let { updateForm(it.copy(initialExamFindings = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [ReproductionEventFormState.stallionName].
+     */
+    fun onStallionNameChange(value: String) {
+        formState.value?.let { updateForm(it.copy(stallionName = value.ifBlank { null })) }
+    }
+
+    /**
+     * Updates the [ReproductionEventFormState.breedingType]
+     * (`NATURAL_COVER` / `ARTIFICIAL_INSEMINATION` / `EMBRYO_RECIPIENT`).
+     */
+    fun onBreedingTypeChange(value: String) {
+        formState.value?.let { updateForm(it.copy(breedingType = value.ifBlank { null })) }
     }
 
     /**
@@ -131,6 +156,9 @@ class ReproductionEventEditViewModel(
                     eventType = form.eventType.trim(),
                     date = date,
                     details = form.details,
+                    initialExamFindings = form.initialExamFindings,
+                    stallionName = form.stallionName,
+                    breedingType = form.breedingType,
                     vetName = form.vetName,
                     notes = form.notes,
                     createdAt = form.createdAt ?: now,

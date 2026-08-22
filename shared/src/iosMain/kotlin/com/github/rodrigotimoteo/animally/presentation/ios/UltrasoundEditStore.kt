@@ -31,6 +31,7 @@ data class UltrasoundEditStoreState(
  *
  * Exposes only data actions; navigation is owned by SwiftUI.
  */
+@Suppress("TooManyFunctions")
 @ObjCName("UltrasoundEditStore")
 class UltrasoundEditStore(
     private val viewModel: UltrasoundEditViewModel,
@@ -66,6 +67,46 @@ class UltrasoundEditStore(
     /** Updates the follicle size in millimeters. */
     fun onFollicleSizeMmChange(value: String) {
         viewModel.onFollicleSizeMmChange(value)
+    }
+
+    /** Updates the left ovary status. */
+    fun onLeftOvaryStatusChange(value: String) {
+        viewModel.onLeftOvaryStatusChange(value)
+    }
+
+    /** Updates the right ovary status. */
+    fun onRightOvaryStatusChange(value: String) {
+        viewModel.onRightOvaryStatusChange(value)
+    }
+
+    /** Updates the left ovary follicle size in millimeters. */
+    fun onLeftFollicleSizeMmChange(value: String) {
+        viewModel.onLeftFollicleSizeMmChange(value)
+    }
+
+    /** Updates the right ovary follicle size in millimeters. */
+    fun onRightFollicleSizeMmChange(value: String) {
+        viewModel.onRightFollicleSizeMmChange(value)
+    }
+
+    /** Updates the uterine edema description. */
+    fun onUterineEdemaChange(value: String) {
+        viewModel.onUterineEdemaChange(value)
+    }
+
+    /** Updates whether fluid is present in the uterus. */
+    fun onUterineLiquidChange(value: Boolean?) {
+        viewModel.onUterineLiquidChange(value)
+    }
+
+    /** Updates the uterine fluid description. */
+    fun onUterineLiquidDescriptionChange(value: String) {
+        viewModel.onUterineLiquidDescriptionChange(value)
+    }
+
+    /** Updates the general uterus description. */
+    fun onUterusDescriptionChange(value: String) {
+        viewModel.onUterusDescriptionChange(value)
     }
 
     /** Updates the findings. */

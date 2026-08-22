@@ -62,6 +62,21 @@ class ReproductionEventEditStore(
         viewModel.onDetailsChange(value)
     }
 
+    /** Updates the initial reproductive exam findings. */
+    fun onInitialExamFindingsChange(value: String) {
+        viewModel.onInitialExamFindingsChange(value)
+    }
+
+    /** Updates the stallion used for breeding. */
+    fun onStallionNameChange(value: String) {
+        viewModel.onStallionNameChange(value)
+    }
+
+    /** Updates the breeding type (NATURAL_COVER / ARTIFICIAL_INSEMINATION / EMBRYO_RECIPIENT). */
+    fun onBreedingTypeChange(value: String) {
+        viewModel.onBreedingTypeChange(value)
+    }
+
     /** Updates the name of the attending veterinarian. */
     fun onVetNameChange(value: String) {
         viewModel.onVetNameChange(value)
