@@ -67,26 +67,64 @@ struct UltrasoundEditView: View {
             }
 
             Section {
-                RecordFormStyle.textField("Ovary status", value: form.ovaryStatus) {
-                    viewModel.onOvaryStatusChange($0)
+                RecordFormStyle.textField("Left ovary status", value: form.leftOvaryStatus) {
+                    viewModel.onLeftOvaryStatusChange($0)
                 }
 
+                TextField("Left follicle size (mm)", text: Binding(
+                    get: { form.leftFollicleSizeMm ?? "" },
+                    set: { viewModel.onLeftFollicleSizeMmChange($0) }
+                ))
+                .keyboardType(.decimalPad)
+                .textCase(nil)
+            } header: {
+                RecordFormStyle.sectionHeader("Left Ovary")
+            }
+
+            Section {
+                RecordFormStyle.textField("Right ovary status", value: form.rightOvaryStatus) {
+                    viewModel.onRightOvaryStatusChange($0)
+                }
+
+                TextField("Right follicle size (mm)", text: Binding(
+                    get: { form.rightFollicleSizeMm ?? "" },
+                    set: { viewModel.onRightFollicleSizeMmChange($0) }
+                ))
+                .keyboardType(.decimalPad)
+                .textCase(nil)
+            } header: {
+                RecordFormStyle.sectionHeader("Right Ovary")
+            }
+
+            Section {
                 RecordFormStyle.textField("Uterine status", value: form.uterineStatus) {
                     viewModel.onUterineStatusChange($0)
                 }
 
-                TextField("Follicle size (mm)", text: Binding(
-                    get: { form.follicleSizeMm ?? "" },
-                    set: { viewModel.onFollicleSizeMmChange($0) }
+                Toggle("Fluid present", isOn: Binding(
+                    get: { form.uterineLiquid == true },
+                    set: { viewModel.onUterineLiquidChange($0) }
                 ))
-                .keyboardType(.decimalPad)
-                .textCase(nil)
+
+                if form.uterineLiquid == true {
+                    RecordFormStyle.textField("Fluid description", value: form.uterineLiquidDescription) {
+                        viewModel.onUterineLiquidDescriptionChange($0)
+                    }
+                }
+
+                RecordFormStyle.textField("Uterine edema", value: form.uterineEdema) {
+                    viewModel.onUterineEdemaChange($0)
+                }
+
+                RecordFormStyle.textField("Uterus description", value: form.uterusDescription) {
+                    viewModel.onUterusDescriptionChange($0)
+                }
 
                 if let follicleSizeMmError = form.follicleSizeMmError {
                     RecordFormStyle.errorText(follicleSizeMmError)
                 }
             } header: {
-                RecordFormStyle.sectionHeader("Reproductive Findings")
+                RecordFormStyle.sectionHeader("Uterus")
             }
 
             Section {
@@ -136,6 +174,14 @@ final class UltrasoundEditViewModel: RecordFormViewModel<UltrasoundEditStoreStat
     func onOvaryStatusChange(_ value: String) { store.onOvaryStatusChange(value: value) }
     func onUterineStatusChange(_ value: String) { store.onUterineStatusChange(value: value) }
     func onFollicleSizeMmChange(_ value: String) { store.onFollicleSizeMmChange(value: value) }
+    func onLeftOvaryStatusChange(_ value: String) { store.onLeftOvaryStatusChange(value: value) }
+    func onRightOvaryStatusChange(_ value: String) { store.onRightOvaryStatusChange(value: value) }
+    func onLeftFollicleSizeMmChange(_ value: String) { store.onLeftFollicleSizeMmChange(value: value) }
+    func onRightFollicleSizeMmChange(_ value: String) { store.onRightFollicleSizeMmChange(value: value) }
+    func onUterineEdemaChange(_ value: String) { store.onUterineEdemaChange(value: value) }
+    func onUterineLiquidChange(_ value: Bool) { store.onUterineLiquidChange(value: KotlinBoolean(bool: value)) }
+    func onUterineLiquidDescriptionChange(_ value: String) { store.onUterineLiquidDescriptionChange(value: value) }
+    func onUterusDescriptionChange(_ value: String) { store.onUterusDescriptionChange(value: value) }
     func onFindingsChange(_ value: String) { store.onFindingsChange(value: value) }
     func onImageUrisChange(_ value: String) { store.onImageUrisChange(value: value) }
     func onVetNameChange(_ value: String) { store.onVetNameChange(value: value) }

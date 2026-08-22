@@ -5,7 +5,12 @@ struct ReproductionEventEditView: View {
     @StateObject private var viewModel: ReproductionEventEditViewModel
     @Environment(\.dismiss) private var dismiss
 
-    private let eventTypes = ["Heat", "Breeding", "Pregnancy Check", "Foaling"]
+    private let eventTypes = ["Heat", "Breeding", "Pregnancy Check", "Foaling", "Initial Exam"]
+    private let breedingTypes = [
+        ("Natural cover", "NATURAL_COVER"),
+        ("Artificial insemination", "ARTIFICIAL_INSEMINATION"),
+        ("Embryo recipient", "EMBRYO_RECIPIENT"),
+    ]
 
     init(patientId: Int64, reproductionEventId: Int64?) {
         _viewModel = StateObject(wrappedValue: ReproductionEventEditViewModel(patientId: patientId, reproductionEventId: reproductionEventId))
@@ -97,6 +102,40 @@ struct ReproductionEventEditView: View {
             } header: {
                 RecordFormStyle.sectionHeader("Details & Notes")
             }
+
+            if form.eventType == "Breeding" {
+                Section {
+                    RecordFormStyle.textField("Stallion", value: form.stallionName) {
+                        viewModel.onStallionNameChange($0)
+                    }
+
+                    Picker("Breeding type", selection: Binding(
+                        get: { form.breedingType },
+                        set: { viewModel.onBreedingTypeChange($0 ?? "") }
+                    )) {
+                        Text("None").tag(String?.none)
+                        ForEach(breedingTypes, id: \.1) { option in
+                            Text(option.0).tag(String?.some(option.1))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    RecordFormStyle.sectionHeader("Breeding")
+                }
+            }
+
+            if form.eventType == "Initial Exam" {
+                Section {
+                    TextField("Findings", text: Binding(
+                        get: { form.initialExamFindings ?? "" },
+                        set: { viewModel.onInitialExamFindingsChange($0) }
+                    ), axis: .vertical)
+                    .lineLimit(3...6)
+                    .textCase(nil)
+                } header: {
+                    RecordFormStyle.sectionHeader("Initial Exam Findings")
+                }
+            }
         }
     }
 }
@@ -121,6 +160,9 @@ final class ReproductionEventEditViewModel: RecordFormViewModel<ReproductionEven
     func onEventTypeChange(_ value: String) { store.onEventTypeChange(value: value) }
     func onDateChange(_ value: String) { store.onDateChange(date: value) }
     func onDetailsChange(_ value: String) { store.onDetailsChange(value: value) }
+    func onInitialExamFindingsChange(_ value: String) { store.onInitialExamFindingsChange(value: value) }
+    func onStallionNameChange(_ value: String) { store.onStallionNameChange(value: value) }
+    func onBreedingTypeChange(_ value: String) { store.onBreedingTypeChange(value: value) }
     func onVetNameChange(_ value: String) { store.onVetNameChange(value: value) }
     func onNotesChange(_ value: String) { store.onNotesChange(value: value) }
     func save() { store.save() }

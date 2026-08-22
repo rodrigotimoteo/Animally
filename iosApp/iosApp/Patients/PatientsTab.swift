@@ -19,44 +19,7 @@ struct PatientsTab: View {
                     }
                 }
                 .navigationDestination(for: RecordEditRoute.self) { route in
-                    switch route {
-                    case .weight(_, let recordId):
-                        WeightEditView(patientId: route.patientId, weightId: recordId)
-                    case .vaccination(_, let recordId):
-                        VaccinationEditView(patientId: route.patientId, vaccinationId: recordId)
-                    case .deworming(_, let recordId):
-                        DewormingEditView(patientId: route.patientId, dewormingId: recordId)
-                    case .consultation(_, let recordId):
-                        ConsultationEditView(patientId: route.patientId, consultationId: recordId)
-                    case .dentistry(_, let recordId):
-                        DentistryEditView(patientId: route.patientId, dentistryId: recordId)
-                    case .farrierVisit(_, let recordId):
-                        FarrierVisitEditView(patientId: route.patientId, farrierVisitId: recordId)
-                    case .anamnese(_, let recordId):
-                        AnamneseEditView(patientId: route.patientId, anamneseId: recordId)
-                    case .lameness(_, let recordId):
-                        LamenessEditView(patientId: route.patientId, lamenessId: recordId)
-                    case .surgery(_, let recordId):
-                        SurgeryEditView(patientId: route.patientId, surgeryId: recordId)
-                    case .medication(_, let recordId):
-                        MedicationEditView(patientId: route.patientId, medicationId: recordId)
-                    case .substance(_, let recordId):
-                        SubstanceEditView(patientId: route.patientId, substanceId: recordId)
-                    case .labResult(_, let recordId):
-                        LabResultEditView(patientId: route.patientId, labResultId: recordId)
-                    case .customReminder(_, let recordId):
-                        CustomReminderEditView(patientId: route.patientId, customReminderId: recordId)
-                    case .reproductionEvent(_, let recordId):
-                        ReproductionEventEditView(patientId: route.patientId, reproductionEventId: recordId)
-                    case .ultrasound(_, let recordId):
-                        UltrasoundEditView(patientId: route.patientId, ultrasoundId: recordId)
-                    case .gestation(_, let recordId):
-                        GestationEditView(patientId: route.patientId, gestationId: recordId)
-                    case .reproMedication(_, let recordId):
-                        ReproMedicationEditView(patientId: route.patientId, reproMedicationId: recordId)
-                    case .imaging(_, let recordId):
-                        ImagingEditView(patientId: route.patientId, imagingId: recordId)
-                    }
+                    recordEditDestination(route)
                 }
         }
     }
@@ -91,6 +54,8 @@ enum RecordEditRoute: Hashable, Identifiable {
     case gestation(patientId: Int64, recordId: Int64?)
     case reproMedication(patientId: Int64, recordId: Int64?)
     case imaging(patientId: Int64, recordId: Int64?)
+    case embryoTransfer(patientId: Int64, recordId: Int64?)
+    case icsi(patientId: Int64, recordId: Int64?)
 
     var id: Self { self }
 
@@ -113,7 +78,9 @@ enum RecordEditRoute: Hashable, Identifiable {
              .ultrasound(let patientId, _),
              .gestation(let patientId, _),
              .reproMedication(let patientId, _),
-             .imaging(let patientId, _):
+             .imaging(let patientId, _),
+             .embryoTransfer(let patientId, _),
+             .icsi(let patientId, _):
             return patientId
         }
     }
@@ -144,6 +111,8 @@ enum RecordEditRoute: Hashable, Identifiable {
         case "gestation": self = .gestation(patientId: patientId, recordId: recordId)
         case "repro medication", "repro_medication": self = .reproMedication(patientId: patientId, recordId: recordId)
         case "imaging": self = .imaging(patientId: patientId, recordId: recordId)
+        case "embryo transfer", "embryo_transfer": self = .embryoTransfer(patientId: patientId, recordId: recordId)
+        case "icsi": self = .icsi(patientId: patientId, recordId: recordId)
         default: return nil
         }
     }
@@ -190,5 +159,9 @@ func recordEditDestination(_ route: RecordEditRoute) -> some View {
         ReproMedicationEditView(patientId: route.patientId, reproMedicationId: recordId)
     case .imaging(_, let recordId):
         ImagingEditView(patientId: route.patientId, imagingId: recordId)
+    case .embryoTransfer(_, let recordId):
+        EmbryoTransferEditView(patientId: route.patientId, embryoTransferId: recordId)
+    case .icsi(_, let recordId):
+        IcsiEditView(patientId: route.patientId, icsiId: recordId)
     }
 }

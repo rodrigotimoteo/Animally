@@ -59,6 +59,8 @@ enum AddRecordCatalog {
             record("ultrasound", "Ultrasound", "waveform.path.ecg") { .ultrasound(patientId: $0, recordId: nil) },
             record("gestation", "Gestation", "hourglass") { .gestation(patientId: $0, recordId: nil) },
             record("reproMedication", "Repro Medication", "capsule.fill") { .reproMedication(patientId: $0, recordId: nil) },
+            record("embryoTransfer", "Embryo Transfer", "arrow.triangle.branch") { .embryoTransfer(patientId: $0, recordId: nil) },
+            record("icsi", "ICSI", "scope") { .icsi(patientId: $0, recordId: nil) },
         ]),
         AddRecordSection(id: "diagnostics", title: "Diagnostics & Files", options: [
             record("imaging", "Imaging Study", "photo.stack") { .imaging(patientId: $0, recordId: nil) },

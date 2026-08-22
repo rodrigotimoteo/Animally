@@ -34,7 +34,9 @@ struct ReproductionTabView: View {
         viewModel.reproductionEvents.count +
         viewModel.ultrasounds.count +
         viewModel.gestations.count +
-        viewModel.reproMedications.count
+        viewModel.reproMedications.count +
+        viewModel.embryoTransfers.count +
+        viewModel.icsiRecords.count
     }
 
     private var recordList: some View {
@@ -165,6 +167,46 @@ struct ReproductionTabView: View {
 
                     .recordSwipeDelete(title: "Repro Medication") {
                         viewModel.deleteReproMedication(record.id)
+                    }
+                }
+            }
+
+            // Embryo Transfers
+            RecordSection(title: "Embryo Transfers", icon: "arrow.triangle.branch", count: viewModel.embryoTransfers.count) {
+                ForEach(viewModel.embryoTransfers, id: \.id) { record in
+                    RecordRowView(
+                        icon: "arrow.triangle.branch",
+                        iconTint: Theme.forestGreen,
+                        title: "\(record.embryoCount) embryo\(record.embryoCount == 1 ? "" : "s")",
+                        subtitle: record.recipientMares,
+                        date: record.date.displayString
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onEditRecord?("Embryo Transfer", record.id)
+                    }
+                    .recordSwipeDelete(title: "Embryo Transfer") {
+                        viewModel.deleteEmbryoTransfer(record.id)
+                    }
+                }
+            }
+
+            // ICSI
+            RecordSection(title: "ICSI", icon: "scope", count: viewModel.icsiRecords.count) {
+                ForEach(viewModel.icsiRecords, id: \.id) { record in
+                    RecordRowView(
+                        icon: "scope",
+                        iconTint: Theme.forestGreen,
+                        title: "\(record.folliclesRecovered) follicle\(record.folliclesRecovered == 1 ? "" : "s") recovered",
+                        subtitle: record.vetName,
+                        date: record.date.displayString
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onEditRecord?("ICSI", record.id)
+                    }
+                    .recordSwipeDelete(title: "ICSI") {
+                        viewModel.deleteIcsi(record.id)
                     }
                 }
             }

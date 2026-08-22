@@ -6,6 +6,22 @@ import Shared
 /// parallel lane). If a factory ends up on the other shared object, the fix
 /// is one line here — views never reference the shared objects directly.
 enum RecordStores {
+    // MARK: Reproduction group (IosEditStoresRepro)
+
+    static func embryoTransferEditStore(patientId: Int64, embryoTransferId: Int64?) -> EmbryoTransferEditStore {
+        IosEditStoresRepro.shared.embryoTransferEditStore(
+            patientId: patientId,
+            embryoTransferId: embryoTransferId.map { KotlinLong(longLong: $0) }
+        )
+    }
+
+    static func icsiEditStore(patientId: Int64, icsiId: Int64?) -> IcsiEditStore {
+        IosEditStoresRepro.shared.icsiEditStore(
+            patientId: patientId,
+            icsiId: icsiId.map { KotlinLong(longLong: $0) }
+        )
+    }
+
     // MARK: Medical / Preventive group (IosEditStores)
 
     static func anamneseEditStore(patientId: Int64, anamneseId: Int64?) -> AnamneseEditStore {

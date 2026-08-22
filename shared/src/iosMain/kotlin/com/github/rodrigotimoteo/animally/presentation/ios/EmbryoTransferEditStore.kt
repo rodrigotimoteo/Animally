@@ -73,4 +73,9 @@ class EmbryoTransferEditStore(
     fun save() {
         viewModel.save()
     }
+
+    /** Clears the current form error. */
+    fun dismissError() {
+        viewModel.onDismissError()
+    }
 }
