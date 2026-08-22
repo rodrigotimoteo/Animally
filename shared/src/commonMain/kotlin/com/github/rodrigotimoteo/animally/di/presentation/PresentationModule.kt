@@ -11,10 +11,14 @@ import com.github.rodrigotimoteo.animally.presentation.dentistry.DentistryEditVi
 import com.github.rodrigotimoteo.animally.presentation.dentistry.DentistryListViewModel
 import com.github.rodrigotimoteo.animally.presentation.deworming.DewormingEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.deworming.DewormingListViewModel
+import com.github.rodrigotimoteo.animally.presentation.embryotransfer.EmbryoTransferEditViewModel
+import com.github.rodrigotimoteo.animally.presentation.embryotransfer.EmbryoTransferListViewModel
 import com.github.rodrigotimoteo.animally.presentation.farrier.FarrierVisitEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.farrier.FarrierVisitListViewModel
 import com.github.rodrigotimoteo.animally.presentation.gestation.GestationEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.gestation.GestationListViewModel
+import com.github.rodrigotimoteo.animally.presentation.icsi.IcsiEditViewModel
+import com.github.rodrigotimoteo.animally.presentation.icsi.IcsiListViewModel
 import com.github.rodrigotimoteo.animally.presentation.imaging.ImagingEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.imaging.ImagingListViewModel
 import com.github.rodrigotimoteo.animally.presentation.labresult.LabResultEditViewModel
@@ -139,6 +143,44 @@ internal class PresentationModule {
                     patientId = patientId,
                     getVaccinationsByPatientUseCase = get(),
                     deleteVaccinationUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long, embryoTransferId: Long?) ->
+                EmbryoTransferEditViewModel(
+                    patientId = patientId,
+                    embryoTransferId = embryoTransferId,
+                    getEmbryoTransferDetailUseCase = get(),
+                    saveEmbryoTransferUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long) ->
+                EmbryoTransferListViewModel(
+                    patientId = patientId,
+                    getEmbryoTransfersByPatientUseCase = get(),
+                    deleteEmbryoTransferUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long, icsiId: Long?) ->
+                IcsiEditViewModel(
+                    patientId = patientId,
+                    icsiId = icsiId,
+                    getIcsiDetailUseCase = get(),
+                    saveIcsiUseCase = get(),
+                    animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long) ->
+                IcsiListViewModel(
+                    patientId = patientId,
+                    getIcsiByPatientUseCase = get(),
+                    deleteIcsiUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )

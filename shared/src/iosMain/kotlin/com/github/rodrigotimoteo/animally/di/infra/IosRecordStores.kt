@@ -5,11 +5,15 @@ package com.github.rodrigotimoteo.animally.di.infra
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationListViewModel
 import com.github.rodrigotimoteo.animally.presentation.dentistry.DentistryListViewModel
 import com.github.rodrigotimoteo.animally.presentation.deworming.DewormingListViewModel
+import com.github.rodrigotimoteo.animally.presentation.embryotransfer.EmbryoTransferListViewModel
 import com.github.rodrigotimoteo.animally.presentation.farrier.FarrierVisitListViewModel
+import com.github.rodrigotimoteo.animally.presentation.icsi.IcsiListViewModel
 import com.github.rodrigotimoteo.animally.presentation.ios.ConsultationListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.DentistryListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.DewormingListStore
+import com.github.rodrigotimoteo.animally.presentation.ios.EmbryoTransferListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.FarrierVisitListStore
+import com.github.rodrigotimoteo.animally.presentation.ios.IcsiListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.LamenessListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.MedicationListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.SubstanceListStore
@@ -32,6 +36,8 @@ import kotlin.native.ObjCName
  * function-count budget.
  */
 @ObjCName("IosRecordStores")
+/** iOS bridge facade for per-entity list stores; method count mirrors the entity roster. */
+@Suppress("TooManyFunctions")
 object IosRecordStores {
     /** Returns a store exposing the consultation list for the patient with [patientId]. */
     fun consultationListStore(patientId: Long): ConsultationListStore {
@@ -43,6 +49,18 @@ object IosRecordStores {
     fun vaccinationListStore(patientId: Long): VaccinationListStore {
         val viewModel: VaccinationListViewModel = IosAppBridge.koin.get { parametersOf(patientId) }
         return VaccinationListStore(viewModel)
+    }
+
+    /** Returns a store exposing the embryo transfer list for the patient with [patientId]. */
+    fun embryoTransferListStore(patientId: Long): EmbryoTransferListStore {
+        val viewModel: EmbryoTransferListViewModel = IosAppBridge.koin.get { parametersOf(patientId) }
+        return EmbryoTransferListStore(viewModel)
+    }
+
+    /** Returns a store exposing the ICSI list for the patient with [patientId]. */
+    fun icsiListStore(patientId: Long): IcsiListStore {
+        val viewModel: IcsiListViewModel = IosAppBridge.koin.get { parametersOf(patientId) }
+        return IcsiListStore(viewModel)
     }
 
     /** Returns a store exposing the deworming list for the patient with [patientId]. */

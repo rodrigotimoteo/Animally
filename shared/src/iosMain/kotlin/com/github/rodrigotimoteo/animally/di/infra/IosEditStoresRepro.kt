@@ -2,8 +2,12 @@
 
 package com.github.rodrigotimoteo.animally.di.infra
 
+import com.github.rodrigotimoteo.animally.presentation.embryotransfer.EmbryoTransferEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.gestation.GestationEditViewModel
+import com.github.rodrigotimoteo.animally.presentation.icsi.IcsiEditViewModel
+import com.github.rodrigotimoteo.animally.presentation.ios.EmbryoTransferEditStore
 import com.github.rodrigotimoteo.animally.presentation.ios.GestationEditStore
+import com.github.rodrigotimoteo.animally.presentation.ios.IcsiEditStore
 import com.github.rodrigotimoteo.animally.presentation.ios.ReproMedicationEditStore
 import com.github.rodrigotimoteo.animally.presentation.ios.ReproductionEventEditStore
 import com.github.rodrigotimoteo.animally.presentation.ios.UltrasoundEditStore
@@ -46,6 +50,32 @@ object IosEditStoresRepro {
     ): UltrasoundEditStore {
         val viewModel: UltrasoundEditViewModel = IosAppBridge.koin.get { parametersOf(patientId, ultrasoundId) }
         return UltrasoundEditStore(viewModel)
+    }
+
+    /**
+     * Returns a store exposing the add/edit form for the embryo transfer record with
+     * [embryoTransferId], or a new-record form when `null`, for the patient with
+     * [patientId].
+     */
+    fun embryoTransferEditStore(
+        patientId: Long,
+        embryoTransferId: Long? = null,
+    ): EmbryoTransferEditStore {
+        val viewModel: EmbryoTransferEditViewModel = IosAppBridge.koin.get { parametersOf(patientId, embryoTransferId) }
+        return EmbryoTransferEditStore(viewModel)
+    }
+
+    /**
+     * Returns a store exposing the add/edit form for the ICSI record with
+     * [icsiId], or a new-record form when `null`, for the patient with
+     * [patientId].
+     */
+    fun icsiEditStore(
+        patientId: Long,
+        icsiId: Long? = null,
+    ): IcsiEditStore {
+        val viewModel: IcsiEditViewModel = IosAppBridge.koin.get { parametersOf(patientId, icsiId) }
+        return IcsiEditStore(viewModel)
     }
 
     /**
