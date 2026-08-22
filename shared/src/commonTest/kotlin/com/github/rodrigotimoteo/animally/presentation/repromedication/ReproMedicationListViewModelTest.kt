@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.repromedication
 
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
+import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.DeleteReproMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.GetReproMedicationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class ReproMedicationListViewModelTest {
 
     private val getReproMedicationsByPatientUseCase = GetReproMedicationsByPatientUseCase(reproMedicationRepositoryMock)
 
+    private val deleteReproMedicationUseCase = DeleteReproMedicationUseCase(reproMedicationRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val reproMedication =
@@ -53,6 +56,7 @@ class ReproMedicationListViewModelTest {
         ReproMedicationListViewModel(
             patientId = 1L,
             getReproMedicationsByPatientUseCase = getReproMedicationsByPatientUseCase,
+            deleteReproMedicationUseCase = deleteReproMedicationUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

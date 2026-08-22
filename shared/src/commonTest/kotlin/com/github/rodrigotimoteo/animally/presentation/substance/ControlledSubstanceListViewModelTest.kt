@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.substance
 
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
+import com.github.rodrigotimoteo.animally.domain.substance.usecase.DeleteControlledSubstanceUseCase
 import com.github.rodrigotimoteo.animally.domain.substance.usecase.GetControlledSubstancesByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -30,6 +31,8 @@ class ControlledSubstanceListViewModelTest {
 
     private val getControlledSubstancesByPatientUseCase = GetControlledSubstancesByPatientUseCase(substanceRepositoryMock)
 
+    private val deleteControlledSubstanceUseCase = DeleteControlledSubstanceUseCase(substanceRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val substance =
@@ -53,6 +56,7 @@ class ControlledSubstanceListViewModelTest {
         ControlledSubstanceListViewModel(
             patientId = 1L,
             getControlledSubstancesByPatientUseCase = getControlledSubstancesByPatientUseCase,
+            deleteControlledSubstanceUseCase = deleteControlledSubstanceUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

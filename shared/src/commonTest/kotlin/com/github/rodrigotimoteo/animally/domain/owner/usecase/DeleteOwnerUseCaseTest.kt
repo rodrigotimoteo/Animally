@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.owner.usecase
 
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -19,11 +20,13 @@ class DeleteOwnerUseCaseTest {
 
     private val patientRepositoryMock: IPatientRepository = mock()
 
+    private val searchRepository = FakeSearchRepository()
+
     private lateinit var sut: DeleteOwnerUseCase
 
     @BeforeTest
     fun setup() {
-        sut = DeleteOwnerUseCase(ownerRepositoryMock, patientRepositoryMock)
+        sut = DeleteOwnerUseCase(ownerRepositoryMock, patientRepositoryMock, searchRepository)
     }
 
     @Test

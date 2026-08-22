@@ -135,10 +135,6 @@ struct OwnerRowView: View {
             }
 
             Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.textTertiary)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

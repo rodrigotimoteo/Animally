@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.owner.usecase
 
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -17,12 +18,14 @@ class SaveOwnerUseCaseTest {
     /** Mock of [IOwnerRepository] */
     private val ownerRepositoryMock: IOwnerRepository = mock()
 
+    private val searchRepository = FakeSearchRepository()
+
     /** System under test [SaveOwnerUseCase] */
     private lateinit var sut: SaveOwnerUseCase
 
     @BeforeTest
     fun setup() {
-        sut = SaveOwnerUseCase(ownerRepositoryMock)
+        sut = SaveOwnerUseCase(ownerRepositoryMock, searchRepository)
     }
 
     private fun newOwner(id: Long) =

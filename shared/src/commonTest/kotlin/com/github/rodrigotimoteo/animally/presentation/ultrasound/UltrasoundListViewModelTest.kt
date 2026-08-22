@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.ultrasound
 
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
+import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.DeleteUltrasoundUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class UltrasoundListViewModelTest {
 
     private val getUltrasoundsByPatientUseCase = GetUltrasoundsByPatientUseCase(ultrasoundRepositoryMock)
 
+    private val deleteUltrasoundUseCase = DeleteUltrasoundUseCase(ultrasoundRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val ultrasound =
@@ -53,6 +56,7 @@ class UltrasoundListViewModelTest {
         UltrasoundListViewModel(
             patientId = 1L,
             getUltrasoundsByPatientUseCase = getUltrasoundsByPatientUseCase,
+            deleteUltrasoundUseCase = deleteUltrasoundUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

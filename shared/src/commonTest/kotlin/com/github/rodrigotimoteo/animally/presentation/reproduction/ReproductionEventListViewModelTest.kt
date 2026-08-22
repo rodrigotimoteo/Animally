@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.reproduction
 
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
+import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.DeleteReproductionEventUseCase
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReproductionEventsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class ReproductionEventListViewModelTest {
 
     private val getReproductionEventsByPatientUseCase = GetReproductionEventsByPatientUseCase(reproductionRepositoryMock)
 
+    private val deleteReproductionEventUseCase = DeleteReproductionEventUseCase(reproductionRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val reproductionEvent =
@@ -53,6 +56,7 @@ class ReproductionEventListViewModelTest {
         ReproductionEventListViewModel(
             patientId = 1L,
             getReproductionEventsByPatientUseCase = getReproductionEventsByPatientUseCase,
+            deleteReproductionEventUseCase = deleteReproductionEventUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

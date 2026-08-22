@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.dentistry
 
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
+import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.DeleteDentistryUseCase
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.GetDentistryListByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class DentistryListViewModelTest {
 
     private val getDentistryListByPatientUseCase = GetDentistryListByPatientUseCase(dentistryRepositoryMock)
 
+    private val deleteDentistryUseCase = DeleteDentistryUseCase(dentistryRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val record =
@@ -52,6 +55,7 @@ class DentistryListViewModelTest {
         DentistryListViewModel(
             patientId = 1L,
             getDentistryListByPatientUseCase = getDentistryListByPatientUseCase,
+            deleteDentistryUseCase = deleteDentistryUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

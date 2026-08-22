@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.lameness
 
 import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
+import com.github.rodrigotimoteo.animally.domain.lameness.usecase.DeleteLamenessUseCase
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.GetLamenessListByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -30,6 +31,8 @@ class LamenessListViewModelTest {
 
     private val getLamenessListByPatientUseCase = GetLamenessListByPatientUseCase(lamenessRepositoryMock)
 
+    private val deleteLamenessUseCase = DeleteLamenessUseCase(lamenessRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val lameness =
@@ -52,6 +55,7 @@ class LamenessListViewModelTest {
         LamenessListViewModel(
             patientId = 1L,
             getLamenessListByPatientUseCase = getLamenessListByPatientUseCase,
+            deleteLamenessUseCase = deleteLamenessUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

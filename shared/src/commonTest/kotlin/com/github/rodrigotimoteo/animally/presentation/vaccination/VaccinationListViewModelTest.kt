@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.vaccination
 
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
+import com.github.rodrigotimoteo.animally.domain.vaccination.usecase.DeleteVaccinationUseCase
 import com.github.rodrigotimoteo.animally.domain.vaccination.usecase.GetVaccinationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class VaccinationListViewModelTest {
 
     private val getVaccinationsByPatientUseCase = GetVaccinationsByPatientUseCase(vaccinationRepositoryMock)
 
+    private val deleteVaccinationUseCase = DeleteVaccinationUseCase(vaccinationRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val vaccination =
@@ -52,6 +55,7 @@ class VaccinationListViewModelTest {
         VaccinationListViewModel(
             patientId = 1L,
             getVaccinationsByPatientUseCase = getVaccinationsByPatientUseCase,
+            deleteVaccinationUseCase = deleteVaccinationUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

@@ -17,7 +17,7 @@ class SearchRepositoryImplTest {
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
-        sut = SearchRepositoryImpl(database)
+        sut = SearchRepositoryImpl(database, database.ownerQueries)
     }
 
     private fun insertPatient(name: String): Long =

@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.DeleteOwnerUseCase
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.GetOwnerListUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -36,7 +37,9 @@ class OwnerListViewModelTest {
 
     private val getOwnerListUseCase = GetOwnerListUseCase(ownerRepositoryMock)
 
-    private val deleteOwnerUseCase = DeleteOwnerUseCase(ownerRepositoryMock, patientRepositoryMock)
+    private val searchRepository = FakeSearchRepository()
+
+    private val deleteOwnerUseCase = DeleteOwnerUseCase(ownerRepositoryMock, patientRepositoryMock, searchRepository)
 
     private val navigator = AnimallyNavigator()
 

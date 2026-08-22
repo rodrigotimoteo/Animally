@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.consultation
 
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
+import com.github.rodrigotimoteo.animally.domain.consultation.usecase.DeleteConsultationUseCase
 import com.github.rodrigotimoteo.animally.domain.consultation.usecase.GetConsultationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class ConsultationListViewModelTest {
 
     private val getConsultationsByPatientUseCase = GetConsultationsByPatientUseCase(consultationRepositoryMock)
 
+    private val deleteConsultationUseCase = DeleteConsultationUseCase(consultationRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val consultation =
@@ -55,6 +58,7 @@ class ConsultationListViewModelTest {
         ConsultationListViewModel(
             patientId = 1L,
             getConsultationsByPatientUseCase = getConsultationsByPatientUseCase,
+            deleteConsultationUseCase = deleteConsultationUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

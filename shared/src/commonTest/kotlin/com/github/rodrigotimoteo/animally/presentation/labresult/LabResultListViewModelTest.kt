@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.labresult
 
 import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
+import com.github.rodrigotimoteo.animally.domain.labresult.usecase.DeleteLabResultUseCase
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.GetLabResultsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class LabResultListViewModelTest {
 
     private val getLabResultsByPatientUseCase = GetLabResultsByPatientUseCase(labResultRepositoryMock)
 
+    private val deleteLabResultUseCase = DeleteLabResultUseCase(labResultRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val labResult =
@@ -52,6 +55,7 @@ class LabResultListViewModelTest {
         LabResultListViewModel(
             patientId = 1L,
             getLabResultsByPatientUseCase = getLabResultsByPatientUseCase,
+            deleteLabResultUseCase = deleteLabResultUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

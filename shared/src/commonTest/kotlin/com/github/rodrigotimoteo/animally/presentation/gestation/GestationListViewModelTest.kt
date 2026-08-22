@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.gestation
 
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.gestation.usecase.DeleteGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class GestationListViewModelTest {
 
     private val getGestationsByPatientUseCase = GetGestationsByPatientUseCase(gestationRepositoryMock)
 
+    private val deleteGestationUseCase = DeleteGestationUseCase(gestationRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val gestation =
@@ -54,6 +57,7 @@ class GestationListViewModelTest {
         GestationListViewModel(
             patientId = 1L,
             getGestationsByPatientUseCase = getGestationsByPatientUseCase,
+            deleteGestationUseCase = deleteGestationUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

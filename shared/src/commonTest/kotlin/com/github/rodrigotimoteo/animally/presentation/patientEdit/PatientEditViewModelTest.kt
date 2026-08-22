@@ -71,12 +71,12 @@ class PatientEditViewModelTest {
 
     private fun createViewModel(dispatcher: kotlinx.coroutines.test.TestDispatcher) =
         PatientEditViewModel(
-            null,
-            getPatientDetailUseCase,
-            savePatientUseCase,
-            getOwnerListUseCase,
-            navigator,
-            dispatcher,
+            patientId = null,
+            getPatientDetailUseCase = getPatientDetailUseCase,
+            savePatientUseCase = savePatientUseCase,
+            getOwnerListUseCase = getOwnerListUseCase,
+            animallyNavigator = navigator,
+            ioDispatcher = dispatcher,
         )
 
     @AfterTest
@@ -90,12 +90,12 @@ class PatientEditViewModelTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val vm =
                 PatientEditViewModel(
-                    null,
-                    getPatientDetailUseCase,
-                    savePatientUseCase,
-                    getOwnerListUseCase,
-                    navigator,
-                    StandardTestDispatcher(testScheduler),
+                    patientId = null,
+                    getPatientDetailUseCase = getPatientDetailUseCase,
+                    savePatientUseCase = savePatientUseCase,
+                    getOwnerListUseCase = getOwnerListUseCase,
+                    animallyNavigator = navigator,
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
                 )
 
             vm.formState.test {
@@ -116,12 +116,12 @@ class PatientEditViewModelTest {
             every { patientRepositoryMock.insertPatient(any()) } returns 1L
             val vm =
                 PatientEditViewModel(
-                    null,
-                    getPatientDetailUseCase,
-                    savePatientUseCase,
-                    getOwnerListUseCase,
-                    navigator,
-                    StandardTestDispatcher(testScheduler),
+                    patientId = null,
+                    getPatientDetailUseCase = getPatientDetailUseCase,
+                    savePatientUseCase = savePatientUseCase,
+                    getOwnerListUseCase = getOwnerListUseCase,
+                    animallyNavigator = navigator,
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
                 )
 
             vm.onNameChange("Midnight")
@@ -144,12 +144,12 @@ class PatientEditViewModelTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val vm =
                 PatientEditViewModel(
-                    null,
-                    getPatientDetailUseCase,
-                    savePatientUseCase,
-                    getOwnerListUseCase,
-                    navigator,
-                    StandardTestDispatcher(testScheduler),
+                    patientId = null,
+                    getPatientDetailUseCase = getPatientDetailUseCase,
+                    savePatientUseCase = savePatientUseCase,
+                    getOwnerListUseCase = getOwnerListUseCase,
+                    animallyNavigator = navigator,
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
                 )
 
             vm.onNameChange("Midnight")
@@ -167,12 +167,12 @@ class PatientEditViewModelTest {
             every { patientRepositoryMock.getPatientById(1L) } returns patient
             val vm =
                 PatientEditViewModel(
-                    1L,
-                    getPatientDetailUseCase,
-                    savePatientUseCase,
-                    getOwnerListUseCase,
-                    navigator,
-                    StandardTestDispatcher(testScheduler),
+                    patientId = 1L,
+                    getPatientDetailUseCase = getPatientDetailUseCase,
+                    savePatientUseCase = savePatientUseCase,
+                    getOwnerListUseCase = getOwnerListUseCase,
+                    animallyNavigator = navigator,
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
                 )
 
             advanceUntilIdle()
@@ -203,12 +203,12 @@ class PatientEditViewModelTest {
             every { patientRepositoryMock.updatePatient(any()) } returns 1L
             val vm =
                 PatientEditViewModel(
-                    1L,
-                    getPatientDetailUseCase,
-                    savePatientUseCase,
-                    getOwnerListUseCase,
-                    navigator,
-                    StandardTestDispatcher(testScheduler),
+                    patientId = 1L,
+                    getPatientDetailUseCase = getPatientDetailUseCase,
+                    savePatientUseCase = savePatientUseCase,
+                    getOwnerListUseCase = getOwnerListUseCase,
+                    animallyNavigator = navigator,
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
                 )
             advanceUntilIdle()
 
@@ -322,12 +322,12 @@ class PatientEditViewModelTest {
             every { patientRepositoryMock.getPatientById(1L) } throws RuntimeException("boom")
             val vm =
                 PatientEditViewModel(
-                    1L,
-                    getPatientDetailUseCase,
-                    savePatientUseCase,
-                    getOwnerListUseCase,
-                    navigator,
-                    StandardTestDispatcher(testScheduler),
+                    patientId = 1L,
+                    getPatientDetailUseCase = getPatientDetailUseCase,
+                    savePatientUseCase = savePatientUseCase,
+                    getOwnerListUseCase = getOwnerListUseCase,
+                    animallyNavigator = navigator,
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
                 )
 
             advanceUntilIdle()

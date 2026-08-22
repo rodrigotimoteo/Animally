@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.farrier
 
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
+import com.github.rodrigotimoteo.animally.domain.farrier.usecase.DeleteFarrierVisitUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.GetFarrierVisitsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class FarrierVisitListViewModelTest {
 
     private val getFarrierVisitsByPatientUseCase = GetFarrierVisitsByPatientUseCase(farrierVisitRepositoryMock)
 
+    private val deleteFarrierVisitUseCase = DeleteFarrierVisitUseCase(farrierVisitRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val visit =
@@ -52,6 +55,7 @@ class FarrierVisitListViewModelTest {
         FarrierVisitListViewModel(
             patientId = 1L,
             getFarrierVisitsByPatientUseCase = getFarrierVisitsByPatientUseCase,
+            deleteFarrierVisitUseCase = deleteFarrierVisitUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

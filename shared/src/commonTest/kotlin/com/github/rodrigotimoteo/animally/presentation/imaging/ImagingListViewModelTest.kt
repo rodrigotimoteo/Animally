@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.imaging
 
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
+import com.github.rodrigotimoteo.animally.domain.imaging.usecase.DeleteImagingUseCase
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.GetImagingListByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class ImagingListViewModelTest {
 
     private val getImagingListByPatientUseCase = GetImagingListByPatientUseCase(imagingRepositoryMock)
 
+    private val deleteImagingUseCase = DeleteImagingUseCase(imagingRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val imaging =
@@ -52,6 +55,7 @@ class ImagingListViewModelTest {
         ImagingListViewModel(
             patientId = 1L,
             getImagingListByPatientUseCase = getImagingListByPatientUseCase,
+            deleteImagingUseCase = deleteImagingUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

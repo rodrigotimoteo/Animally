@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.surgery
 
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
+import com.github.rodrigotimoteo.animally.domain.surgery.usecase.DeleteSurgeryUseCase
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.GetSurgeriesByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -30,6 +31,8 @@ class SurgeryListViewModelTest {
 
     private val getSurgeriesByPatientUseCase = GetSurgeriesByPatientUseCase(surgeryRepositoryMock)
 
+    private val deleteSurgeryUseCase = DeleteSurgeryUseCase(surgeryRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val surgery =
@@ -51,6 +54,7 @@ class SurgeryListViewModelTest {
         SurgeryListViewModel(
             patientId = 1L,
             getSurgeriesByPatientUseCase = getSurgeriesByPatientUseCase,
+            deleteSurgeryUseCase = deleteSurgeryUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

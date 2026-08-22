@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.medication
 
 import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
+import com.github.rodrigotimoteo.animally.domain.medication.usecase.DeleteMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.GetMedicationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -29,6 +30,8 @@ class MedicationListViewModelTest {
 
     private val getMedicationsByPatientUseCase = GetMedicationsByPatientUseCase(medicationRepositoryMock)
 
+    private val deleteMedicationUseCase = DeleteMedicationUseCase(medicationRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val medication =
@@ -50,6 +53,7 @@ class MedicationListViewModelTest {
         MedicationListViewModel(
             patientId = 1L,
             getMedicationsByPatientUseCase = getMedicationsByPatientUseCase,
+            deleteMedicationUseCase = deleteMedicationUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

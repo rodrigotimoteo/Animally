@@ -17,6 +17,12 @@ ktlint_standard_no-wildcard-imports = disabled
 ktlint_standard_filename = disabled
 ktlint_standard_function-naming = disabled
 
+# Block-bodied throws are required here: this Kotlin Gradle plugin version
+# rejects expression-bodied `actual`s whose expression type is Nothing
+# ("Return type 'Nothing' needs to be specified explicitly").
+[*shared/src/androidMain/**/sync/cloudkit/*.kt]
+ktlint_standard_function-expression-body = disabled
+
 [*.{yaml,yml}]
 indent_size = 2
 

@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.GetOwnerDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.SaveOwnerUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -37,7 +38,9 @@ class OwnerEditViewModelTest {
 
     private val getOwnerDetailUseCase = GetOwnerDetailUseCase(ownerRepositoryMock)
 
-    private val saveOwnerUseCase = SaveOwnerUseCase(ownerRepositoryMock)
+    private val searchRepository = FakeSearchRepository()
+
+    private val saveOwnerUseCase = SaveOwnerUseCase(ownerRepositoryMock, searchRepository)
 
     private val navigator = AnimallyNavigator()
 

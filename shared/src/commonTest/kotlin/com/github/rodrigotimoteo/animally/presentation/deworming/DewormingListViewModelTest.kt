@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.deworming
 
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
+import com.github.rodrigotimoteo.animally.domain.deworming.usecase.DeleteDewormingUseCase
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.GetDewormingsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class DewormingListViewModelTest {
 
     private val getDewormingsByPatientUseCase = GetDewormingsByPatientUseCase(dewormingRepositoryMock)
 
+    private val deleteDewormingUseCase = DeleteDewormingUseCase(dewormingRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val deworming =
@@ -52,6 +55,7 @@ class DewormingListViewModelTest {
         DewormingListViewModel(
             patientId = 1L,
             getDewormingsByPatientUseCase = getDewormingsByPatientUseCase,
+            deleteDewormingUseCase = deleteDewormingUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )

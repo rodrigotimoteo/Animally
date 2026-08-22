@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.weight
 
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
+import com.github.rodrigotimoteo.animally.domain.weight.usecase.DeleteWeightUseCase
 import com.github.rodrigotimoteo.animally.domain.weight.usecase.GetWeightsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -31,6 +32,8 @@ class WeightListViewModelTest {
 
     private val getWeightsByPatientUseCase = GetWeightsByPatientUseCase(weightRepositoryMock)
 
+    private val deleteWeightUseCase = DeleteWeightUseCase(weightRepositoryMock)
+
     private val navigator = AnimallyNavigator()
 
     private val weight =
@@ -52,6 +55,7 @@ class WeightListViewModelTest {
         WeightListViewModel(
             patientId = 1L,
             getWeightsByPatientUseCase = getWeightsByPatientUseCase,
+            deleteWeightUseCase = deleteWeightUseCase,
             animallyNavigator = navigator,
             ioDispatcher = dispatcher,
         )
