@@ -400,6 +400,8 @@ internal class PresentationModule {
                     ultrasoundId = ultrasoundId,
                     getUltrasoundDetailUseCase = get(),
                     saveUltrasoundUseCase = get(),
+                    getFolliclesByUltrasoundUseCase = get(),
+                    saveFolliclesUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )

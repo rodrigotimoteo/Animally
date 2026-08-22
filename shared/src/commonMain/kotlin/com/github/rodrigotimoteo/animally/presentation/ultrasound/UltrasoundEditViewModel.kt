@@ -6,6 +6,9 @@ import com.github.rodrigotimoteo.animally.data.storage.PickedFile
 import com.github.rodrigotimoteo.animally.data.storage.sanitizeFileName
 import com.github.rodrigotimoteo.animally.data.storage.splitImageUris
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
+import com.github.rodrigotimoteo.animally.domain.follicle.model.Follicle
+import com.github.rodrigotimoteo.animally.domain.follicle.usecase.GetFolliclesByUltrasoundUseCase
+import com.github.rodrigotimoteo.animally.domain.follicle.usecase.SaveFolliclesUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.SaveUltrasoundUseCase
@@ -17,6 +20,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import org.koin.core.annotation.Named
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * View model for the ultrasound add/edit form.
@@ -29,12 +33,14 @@ import kotlin.time.Clock
  * @param ioDispatcher Dispatcher for blocking database work.
  * @param saveFile Persists file bytes to storage and returns the absolute path.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList")
 class UltrasoundEditViewModel(
     private val patientId: Long,
     private val ultrasoundId: Long?,
     private val getUltrasoundDetailUseCase: GetUltrasoundDetailUseCase,
     private val saveUltrasoundUseCase: SaveUltrasoundUseCase,
+    private val getFolliclesByUltrasoundUseCase: GetFolliclesByUltrasoundUseCase,
+    private val saveFolliclesUseCase: SaveFolliclesUseCase,
     animallyNavigator: AnimallyNavigator,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
     private val saveFile: (fileName: String, bytes: ByteArray) -> String = { fileName, bytes ->
@@ -79,6 +85,7 @@ class UltrasoundEditViewModel(
                                 createdAt = ultrasound.createdAt,
                             ),
                         )
+                        loadFollicleRows(ultrasound.id)
                     }
                 }.onFailure { error ->
                     updateForm(
@@ -177,6 +184,159 @@ class UltrasoundEditViewModel(
     }
 
     /**
+     * Adds an empty follicle row on the given ovary [side] (`LEFT`/`RIGHT`).
+     */
+    fun onAddFollicle(side: String) {
+        formState.value?.let { current ->
+            updateForm(
+                if (side == Follicle.SIDE_LEFT) {
+                    current.copy(leftFollicles = current.leftFollicles + FollicleRow())
+                } else {
+                    current.copy(rightFollicles = current.rightFollicles + FollicleRow())
+                },
+            )
+        }
+    }
+
+    /**
+     * Removes the follicle row at [index] on the given ovary [side].
+     */
+    fun onRemoveFollicle(
+        side: String,
+        index: Int,
+    ) {
+        formState.value?.let { current ->
+            updateForm(
+                if (side == Follicle.SIDE_LEFT) {
+                    current.copy(leftFollicles = current.leftFollicles.filterIndexed { i, _ -> i != index })
+                } else {
+                    current.copy(rightFollicles = current.rightFollicles.filterIndexed { i, _ -> i != index })
+                },
+            )
+        }
+    }
+
+    /**
+     * Updates the size of the follicle row at [index] on the given ovary [side].
+     */
+    fun onFollicleSizeChange(
+        side: String,
+        index: Int,
+        value: String,
+    ) {
+        formState.value?.let { current ->
+            updateForm(
+                if (side == Follicle.SIDE_LEFT) {
+                    current.copy(leftFollicles = current.leftFollicles.withSizeAt(index, value))
+                } else {
+                    current.copy(rightFollicles = current.rightFollicles.withSizeAt(index, value))
+                },
+            )
+        }
+    }
+
+    /**
+     * Updates the description of the follicle row at [index] on the given ovary [side].
+     */
+    fun onFollicleDescriptionChange(
+        side: String,
+        index: Int,
+        value: String,
+    ) {
+        formState.value?.let { current ->
+            val updated =
+                if (side == Follicle.SIDE_LEFT) {
+                    current.copy(leftFollicles = current.leftFollicles.withDescriptionAt(index, value))
+                } else {
+                    current.copy(rightFollicles = current.rightFollicles.withDescriptionAt(index, value))
+                }
+            updateForm(updated)
+        }
+    }
+
+    private fun List<FollicleRow>.withSizeAt(
+        index: Int,
+        value: String,
+    ): List<FollicleRow> = mapIndexed { i, r -> if (i == index) r.copy(sizeMm = value) else r }
+
+    private fun List<FollicleRow>.withDescriptionAt(
+        index: Int,
+        value: String,
+    ): List<FollicleRow> = mapIndexed { i, r -> if (i == index) r.copy(description = value.ifBlank { null }) else r }
+
+    private fun loadFollicleRows(ultrasoundId: Long) {
+        viewModelScope.launch {
+            runCatching { withContext(ioDispatcher) { getFolliclesByUltrasoundUseCase(ultrasoundId) } }
+                .onSuccess { follicles ->
+                    formState.value?.let { current ->
+                        val left = follicles.filter { it.side == Follicle.SIDE_LEFT }.map { it.toRow() }
+                        val right = follicles.filter { it.side == Follicle.SIDE_RIGHT }.map { it.toRow() }
+                        updateForm(current.copy(leftFollicles = left, rightFollicles = right))
+                    }
+                }
+        }
+    }
+
+    private fun Follicle.toRow(): FollicleRow =
+        FollicleRow(id = id, sizeMm = sizeMm.toString(), description = description)
+
+    private fun FollicleRow.toDomain(
+        ultrasoundId: Long,
+        side: String,
+        now: Instant,
+    ): Follicle =
+        Follicle(
+            id = id,
+            ultrasoundId = ultrasoundId,
+            side = side,
+            sizeMm = sizeMm.toDoubleOrNull() ?: 0.0,
+            description = description,
+            createdAt = now,
+            updatedAt = now,
+        )
+
+    /** Replaces the stored follicle set of [ultrasoundId] with the rows currently in [form]. */
+    private suspend fun persistFollicles(
+        form: UltrasoundFormState,
+        ultrasoundId: Long,
+        now: Instant,
+    ) {
+        val follicles =
+            form.leftFollicles.map { it.toDomain(ultrasoundId, Follicle.SIDE_LEFT, now) } +
+                form.rightFollicles.map { it.toDomain(ultrasoundId, Follicle.SIDE_RIGHT, now) }
+        runCatching { withContext(ioDispatcher) { saveFolliclesUseCase(ultrasoundId, follicles) } }
+    }
+
+    private fun buildUltrasound(
+        form: UltrasoundFormState,
+        date: LocalDate,
+        follicleSizeMm: Double?,
+        now: Instant,
+    ): Ultrasound =
+        Ultrasound(
+            id = form.id ?: 0L,
+            patientId = patientId,
+            date = date,
+            ovaryStatus = form.ovaryStatus,
+            uterineStatus = form.uterineStatus,
+            follicleSizeMm = follicleSizeMm,
+            leftOvaryStatus = form.leftOvaryStatus,
+            rightOvaryStatus = form.rightOvaryStatus,
+            leftFollicleSizeMm = form.leftFollicleSizeMm?.toDoubleOrNull(),
+            rightFollicleSizeMm = form.rightFollicleSizeMm?.toDoubleOrNull(),
+            uterineEdema = form.uterineEdema,
+            uterineLiquid = form.uterineLiquid,
+            uterineLiquidDescription = form.uterineLiquidDescription,
+            uterusDescription = form.uterusDescription,
+            findings = form.findings,
+            imageUris = form.imageUris,
+            vetName = form.vetName,
+            notes = form.notes,
+            createdAt = form.createdAt ?: now,
+            updatedAt = now,
+        )
+
+    /**
      * Updates the [UltrasoundFormState.findings].
      */
     fun onFindingsChange(value: String) {
@@ -260,31 +420,10 @@ class UltrasoundEditViewModel(
         viewModelScope.launch {
             updateForm(form.copy(isSaving = true))
             val now = Clock.System.now()
-            val ultrasound =
-                Ultrasound(
-                    id = form.id ?: 0L,
-                    patientId = patientId,
-                    date = date,
-                    ovaryStatus = form.ovaryStatus,
-                    uterineStatus = form.uterineStatus,
-                    follicleSizeMm = follicleSizeMm,
-                    leftOvaryStatus = form.leftOvaryStatus,
-                    rightOvaryStatus = form.rightOvaryStatus,
-                    leftFollicleSizeMm = form.leftFollicleSizeMm?.toDoubleOrNull(),
-                    rightFollicleSizeMm = form.rightFollicleSizeMm?.toDoubleOrNull(),
-                    uterineEdema = form.uterineEdema,
-                    uterineLiquid = form.uterineLiquid,
-                    uterineLiquidDescription = form.uterineLiquidDescription,
-                    uterusDescription = form.uterusDescription,
-                    findings = form.findings,
-                    imageUris = form.imageUris,
-                    vetName = form.vetName,
-                    notes = form.notes,
-                    createdAt = form.createdAt ?: now,
-                    updatedAt = now,
-                )
+            val ultrasound = buildUltrasound(form, date, follicleSizeMm, now)
             runCatching { withContext(ioDispatcher) { saveUltrasoundUseCase(ultrasound) } }
-                .onSuccess {
+                .onSuccess { savedId ->
+                    persistFollicles(form, savedId, now)
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
                     emitSaved()
                 }.onFailure { error ->

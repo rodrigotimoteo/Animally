@@ -48,6 +48,40 @@ struct UltrasoundEditView: View {
         }
     }
 
+    /// One editable follicle row: size, optional description, remove action.
+    private func follicleRow(
+        side: String,
+        index: Int,
+        follicle: FollicleRow,
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                TextField("Size (mm)", text: Binding(
+                    get: { follicle.sizeMm },
+                    set: { viewModel.onFollicleSizeChange(side, index: index, $0) }
+                ))
+                .keyboardType(.decimalPad)
+                .textCase(nil)
+
+                Button {
+                    viewModel.onRemoveFollicle(side, index: index)
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove follicle")
+            }
+
+            TextField("Description (optional)", text: Binding(
+                get: { follicle.description ?? "" },
+                set: { viewModel.onFollicleDescriptionChange(side, index: index, $0) }
+            ))
+            .font(.subheadline)
+            .textCase(nil)
+        }
+    }
+
     private func formView(_ form: UltrasoundFormState) -> some View {
         List {
             Section {
@@ -71,12 +105,18 @@ struct UltrasoundEditView: View {
                     viewModel.onLeftOvaryStatusChange($0)
                 }
 
-                TextField("Left follicle size (mm)", text: Binding(
-                    get: { form.leftFollicleSizeMm ?? "" },
-                    set: { viewModel.onLeftFollicleSizeMmChange($0) }
-                ))
-                .keyboardType(.decimalPad)
-                .textCase(nil)
+                ForEach(Array(form.leftFollicles.enumerated()), id: \.offset) { index, follicle in
+                    follicleRow(side: "LEFT", index: index, follicle: follicle)
+                }
+
+                Button {
+                    viewModel.onAddFollicle("LEFT")
+                } label: {
+                    Label("Add follicle", systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.forestGreen)
+                }
+                .buttonStyle(.plain)
             } header: {
                 RecordFormStyle.sectionHeader("Left Ovary")
             }
@@ -86,12 +126,18 @@ struct UltrasoundEditView: View {
                     viewModel.onRightOvaryStatusChange($0)
                 }
 
-                TextField("Right follicle size (mm)", text: Binding(
-                    get: { form.rightFollicleSizeMm ?? "" },
-                    set: { viewModel.onRightFollicleSizeMmChange($0) }
-                ))
-                .keyboardType(.decimalPad)
-                .textCase(nil)
+                ForEach(Array(form.rightFollicles.enumerated()), id: \.offset) { index, follicle in
+                    follicleRow(side: "RIGHT", index: index, follicle: follicle)
+                }
+
+                Button {
+                    viewModel.onAddFollicle("RIGHT")
+                } label: {
+                    Label("Add follicle", systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.forestGreen)
+                }
+                .buttonStyle(.plain)
             } header: {
                 RecordFormStyle.sectionHeader("Right Ovary")
             }
@@ -182,6 +228,14 @@ final class UltrasoundEditViewModel: RecordFormViewModel<UltrasoundEditStoreStat
     func onUterineLiquidChange(_ value: Bool) { store.onUterineLiquidChange(value: KotlinBoolean(bool: value)) }
     func onUterineLiquidDescriptionChange(_ value: String) { store.onUterineLiquidDescriptionChange(value: value) }
     func onUterusDescriptionChange(_ value: String) { store.onUterusDescriptionChange(value: value) }
+    func onAddFollicle(_ side: String) { store.onAddFollicle(side: side) }
+    func onRemoveFollicle(_ side: String, index: Int) { store.onRemoveFollicle(side: side, index: Int64(index)) }
+    func onFollicleSizeChange(_ side: String, index: Int, _ value: String) {
+        store.onFollicleSizeChange(side: side, index: Int64(index), value: value)
+    }
+    func onFollicleDescriptionChange(_ side: String, index: Int, _ value: String) {
+        store.onFollicleDescriptionChange(side: side, index: Int64(index), value: value)
+    }
     func onFindingsChange(_ value: String) { store.onFindingsChange(value: value) }
     func onImageUrisChange(_ value: String) { store.onImageUrisChange(value: value) }
     func onVetNameChange(_ value: String) { store.onVetNameChange(value: value) }

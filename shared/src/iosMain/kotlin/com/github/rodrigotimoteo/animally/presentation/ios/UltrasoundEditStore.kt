@@ -109,6 +109,37 @@ class UltrasoundEditStore(
         viewModel.onUterusDescriptionChange(value)
     }
 
+    /** Adds an empty follicle row on the given ovary side. */
+    fun onAddFollicle(side: String) {
+        viewModel.onAddFollicle(side)
+    }
+
+    /** Removes the follicle row at index on the given ovary side. */
+    fun onRemoveFollicle(
+        side: String,
+        index: Long,
+    ) {
+        viewModel.onRemoveFollicle(side, index.toInt())
+    }
+
+    /** Updates the size of the follicle row at index on the given ovary side. */
+    fun onFollicleSizeChange(
+        side: String,
+        index: Long,
+        value: String,
+    ) {
+        viewModel.onFollicleSizeChange(side, index.toInt(), value)
+    }
+
+    /** Updates the description of the follicle row at index on the given ovary side. */
+    fun onFollicleDescriptionChange(
+        side: String,
+        index: Long,
+        value: String,
+    ) {
+        viewModel.onFollicleDescriptionChange(side, index.toInt(), value)
+    }
+
     /** Updates the findings. */
     fun onFindingsChange(value: String) {
         viewModel.onFindingsChange(value)

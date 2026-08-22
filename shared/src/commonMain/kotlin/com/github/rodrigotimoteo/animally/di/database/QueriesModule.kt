@@ -9,6 +9,7 @@ import com.github.rodrigotimoteo.animally.data.dentistry.DentistryQueries
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingQueries
 import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferQueries
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitQueries
+import com.github.rodrigotimoteo.animally.data.follicle.FollicleQueries
 import com.github.rodrigotimoteo.animally.data.gestation.GestationQueries
 import com.github.rodrigotimoteo.animally.data.icsi.IcsiQueries
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingQueries
@@ -39,6 +40,7 @@ internal class QueriesModule {
             single<DentistryQueries> { get<AnimallyDatabase>().dentistryQueries }
             single<DewormingQueries> { get<AnimallyDatabase>().dewormingQueries }
             single<EmbryoTransferQueries> { get<AnimallyDatabase>().embryoTransferQueries }
+            single<FollicleQueries> { get<AnimallyDatabase>().follicleQueries }
             single<IcsiQueries> { get<AnimallyDatabase>().icsiQueries }
             single<FarrierVisitQueries> { get<AnimallyDatabase>().farrierVisitQueries }
             single<GestationQueries> { get<AnimallyDatabase>().gestationQueries }

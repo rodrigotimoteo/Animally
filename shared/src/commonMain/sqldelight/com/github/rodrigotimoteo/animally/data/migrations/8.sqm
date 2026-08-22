@@ -1,0 +1,17 @@
+import kotlin.Boolean;
+import kotlin.time.Instant;
+import kotlinx.datetime.LocalDate;
+
+-- Multiple follicles per ovary: each ultrasound can record any number of
+-- follicles, each tied to one ovary side with its own size and description.
+CREATE TABLE Follicle (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    ultrasoundId INTEGER NOT NULL,
+    side TEXT NOT NULL,
+    sizeMm REAL NOT NULL,
+    description TEXT,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL,
+    serverId TEXT
+);

@@ -11,6 +11,7 @@ import com.github.rodrigotimoteo.animally.data.migrations.Dentistry
 import com.github.rodrigotimoteo.animally.data.migrations.Deworming
 import com.github.rodrigotimoteo.animally.data.migrations.EmbryoTransfer
 import com.github.rodrigotimoteo.animally.data.migrations.FarrierVisit
+import com.github.rodrigotimoteo.animally.data.migrations.Follicle
 import com.github.rodrigotimoteo.animally.data.migrations.Gestation
 import com.github.rodrigotimoteo.animally.data.migrations.Icsi
 import com.github.rodrigotimoteo.animally.data.migrations.Imaging
@@ -190,6 +191,11 @@ object AnimallyDatabaseFactory {
             IcsiAdapter =
                 Icsi.Adapter(
                     dateAdapter = LocalDateAdapter,
+                    createdAtAdapter = InstantAdapter,
+                    updatedAtAdapter = InstantAdapter,
+                ),
+            FollicleAdapter =
+                Follicle.Adapter(
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,
                 ),
