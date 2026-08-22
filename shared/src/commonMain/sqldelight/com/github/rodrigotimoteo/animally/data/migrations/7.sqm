@@ -1,0 +1,51 @@
+import kotlin.Boolean;
+import kotlin.time.Instant;
+import kotlinx.datetime.LocalDate;
+
+-- Reproduction domain expansion: ovary-side ultrasound detail, uterine
+-- findings, initial exam observations, breeding details, embryo transfer
+-- and ICSI tracking.
+
+-- Ultrasound: follicle size belongs to an ovary (left/right), not the uterus.
+ALTER TABLE Ultrasound ADD COLUMN leftOvaryStatus TEXT;
+ALTER TABLE Ultrasound ADD COLUMN rightOvaryStatus TEXT;
+ALTER TABLE Ultrasound ADD COLUMN leftFollicleSizeMm REAL;
+ALTER TABLE Ultrasound ADD COLUMN rightFollicleSizeMm REAL;
+ALTER TABLE Ultrasound ADD COLUMN uterineEdema TEXT;
+ALTER TABLE Ultrasound ADD COLUMN uterineLiquid INTEGER AS Boolean;
+ALTER TABLE Ultrasound ADD COLUMN uterineLiquidDescription TEXT;
+ALTER TABLE Ultrasound ADD COLUMN uterusDescription TEXT;
+
+-- Reproduction: initial reproductive exam findings + breeding details.
+ALTER TABLE Reproduction ADD COLUMN initialExamFindings TEXT;
+ALTER TABLE Reproduction ADD COLUMN stallionName TEXT;
+ALTER TABLE Reproduction ADD COLUMN breedingType TEXT;
+
+-- Embryo transfer records (donor mare perspective).
+CREATE TABLE EmbryoTransfer (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    embryoCount INTEGER NOT NULL DEFAULT 0,
+    recipientMares TEXT,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL,
+    serverId TEXT
+);
+
+-- ICSI (intracytoplasmic sperm injection) records.
+CREATE TABLE Icsi (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    date TEXT AS LocalDate NOT NULL,
+    folliclesRecovered INTEGER NOT NULL DEFAULT 0,
+    vetName TEXT,
+    notes TEXT,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    createdAt INTEGER AS Instant NOT NULL,
+    updatedAt INTEGER AS Instant NOT NULL,
+    serverId TEXT
+);

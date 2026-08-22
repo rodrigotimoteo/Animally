@@ -7,8 +7,10 @@ import com.github.rodrigotimoteo.animally.data.consultation.ConsultationQueries
 import com.github.rodrigotimoteo.animally.data.customreminder.CustomReminderQueries
 import com.github.rodrigotimoteo.animally.data.dentistry.DentistryQueries
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingQueries
+import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferQueries
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitQueries
 import com.github.rodrigotimoteo.animally.data.gestation.GestationQueries
+import com.github.rodrigotimoteo.animally.data.icsi.IcsiQueries
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingQueries
 import com.github.rodrigotimoteo.animally.data.labresult.LabResultQueries
 import com.github.rodrigotimoteo.animally.data.lameness.LamenessQueries
@@ -36,6 +38,8 @@ internal class QueriesModule {
             single<CustomReminderQueries> { get<AnimallyDatabase>().customReminderQueries }
             single<DentistryQueries> { get<AnimallyDatabase>().dentistryQueries }
             single<DewormingQueries> { get<AnimallyDatabase>().dewormingQueries }
+            single<EmbryoTransferQueries> { get<AnimallyDatabase>().embryoTransferQueries }
+            single<IcsiQueries> { get<AnimallyDatabase>().icsiQueries }
             single<FarrierVisitQueries> { get<AnimallyDatabase>().farrierVisitQueries }
             single<GestationQueries> { get<AnimallyDatabase>().gestationQueries }
             single<ImagingQueries> { get<AnimallyDatabase>().imagingQueries }

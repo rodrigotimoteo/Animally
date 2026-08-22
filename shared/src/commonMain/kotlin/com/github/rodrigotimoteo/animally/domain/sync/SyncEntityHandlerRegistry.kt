@@ -5,8 +5,10 @@ import com.github.rodrigotimoteo.animally.domain.sync.handlers.ConsultationSyncH
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.CustomReminderSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.DentistrySyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.DewormingSyncHandler
+import com.github.rodrigotimoteo.animally.domain.sync.handlers.EmbryoTransferSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.FarrierVisitSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.GestationSyncHandler
+import com.github.rodrigotimoteo.animally.domain.sync.handlers.IcsiSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.ImagingSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.LabResultSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.LamenessSyncHandler
@@ -53,6 +55,8 @@ class SyncEntityHandlerRegistry(
     vaccinationHandler: VaccinationSyncHandler,
     weightHandler: WeightSyncHandler,
     customReminderHandler: CustomReminderSyncHandler,
+    embryoTransferHandler: EmbryoTransferSyncHandler,
+    icsiHandler: IcsiSyncHandler,
 ) {
     private val allHandlers: List<SyncEntityHandler> =
         listOf(
@@ -76,6 +80,8 @@ class SyncEntityHandlerRegistry(
             vaccinationHandler,
             weightHandler,
             customReminderHandler,
+            embryoTransferHandler,
+            icsiHandler,
         )
 
     private val byType: Map<SyncEntityType, SyncEntityHandler> = allHandlers.associateBy { it.entityType }

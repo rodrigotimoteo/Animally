@@ -9,8 +9,10 @@ import com.github.rodrigotimoteo.animally.data.migrations.Consultation
 import com.github.rodrigotimoteo.animally.data.migrations.CustomReminder
 import com.github.rodrigotimoteo.animally.data.migrations.Dentistry
 import com.github.rodrigotimoteo.animally.data.migrations.Deworming
+import com.github.rodrigotimoteo.animally.data.migrations.EmbryoTransfer
 import com.github.rodrigotimoteo.animally.data.migrations.FarrierVisit
 import com.github.rodrigotimoteo.animally.data.migrations.Gestation
+import com.github.rodrigotimoteo.animally.data.migrations.Icsi
 import com.github.rodrigotimoteo.animally.data.migrations.Imaging
 import com.github.rodrigotimoteo.animally.data.migrations.LabResult
 import com.github.rodrigotimoteo.animally.data.migrations.Lameness
@@ -175,6 +177,18 @@ object AnimallyDatabaseFactory {
                 ),
             WeightAdapter =
                 Weight.Adapter(
+                    dateAdapter = LocalDateAdapter,
+                    createdAtAdapter = InstantAdapter,
+                    updatedAtAdapter = InstantAdapter,
+                ),
+            EmbryoTransferAdapter =
+                EmbryoTransfer.Adapter(
+                    dateAdapter = LocalDateAdapter,
+                    createdAtAdapter = InstantAdapter,
+                    updatedAtAdapter = InstantAdapter,
+                ),
+            IcsiAdapter =
+                Icsi.Adapter(
                     dateAdapter = LocalDateAdapter,
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,

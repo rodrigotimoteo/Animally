@@ -183,6 +183,8 @@ class SyncEngineImpl(
             SyncEntityType.VACCINATION,
             SyncEntityType.WEIGHT,
             SyncEntityType.CUSTOM_REMINDER,
+            SyncEntityType.EMBRYO_TRANSFER,
+            SyncEntityType.ICSI,
             -> writeRemainingServerId(type, serverId, clientId, updatedAt)
             SyncEntityType.OWNER,
             SyncEntityType.PATIENT,

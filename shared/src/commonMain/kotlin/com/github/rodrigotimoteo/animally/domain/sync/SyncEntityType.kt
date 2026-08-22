@@ -33,6 +33,8 @@ enum class SyncEntityType(
     VACCINATION("Vaccination"),
     WEIGHT("Weight"),
     CUSTOM_REMINDER("CustomReminder"),
+    EMBRYO_TRANSFER("EmbryoTransfer"),
+    ICSI("Icsi"),
     ;
 
     companion object {

@@ -1,7 +1,7 @@
 -- CRUD Operations --
 insert:
-INSERT INTO Reproduction (id, patientId, eventType, date, details, vetName, notes, isActive, createdAt, updatedAt)
-VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Reproduction (id, patientId, eventType, date, details, initialExamFindings, stallionName, breedingType, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE Reproduction SET
@@ -9,6 +9,9 @@ UPDATE Reproduction SET
     eventType = ?,
     date = ?,
     details = ?,
+    initialExamFindings = ?,
+    stallionName = ?,
+    breedingType = ?,
     vetName = ?,
     notes = ?,
     isActive = ?,

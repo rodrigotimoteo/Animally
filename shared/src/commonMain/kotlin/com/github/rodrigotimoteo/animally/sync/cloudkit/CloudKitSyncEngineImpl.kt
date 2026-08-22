@@ -137,6 +137,12 @@ private class RecordNameAssigner(
             SyncEntityType.CUSTOM_REMINDER to { name, updatedAt, id ->
                 database.customReminderQueries.setServerId(name, updatedAt, id)
             },
+            SyncEntityType.EMBRYO_TRANSFER to { name, updatedAt, id ->
+                database.embryoTransferQueries.setServerId(name, updatedAt, id)
+            },
+            SyncEntityType.ICSI to { name, updatedAt, id ->
+                database.icsiQueries.setServerId(name, updatedAt, id)
+            },
         )
 
     /** Generates a UUID record name, persists it on row [entityId], returns it. */

@@ -1,0 +1,54 @@
+-- CRUD Operations --
+insert:
+INSERT INTO EmbryoTransfer (id, patientId, date, embryoCount, recipientMares, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE EmbryoTransfer SET
+    patientId = ?,
+    date = ?,
+    embryoCount = ?,
+    recipientMares = ?,
+    vetName = ?,
+    notes = ?,
+    isActive = ?,
+    updatedAt = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM EmbryoTransfer WHERE id = ?;
+
+selectById:
+SELECT * FROM EmbryoTransfer WHERE id = ? AND isActive = 1;
+
+selectByPatient:
+SELECT * FROM EmbryoTransfer WHERE patientId = ? AND isActive = 1;
+
+selectAll:
+SELECT * FROM EmbryoTransfer WHERE isActive = 1;
+
+setInactive:
+UPDATE EmbryoTransfer SET isActive = 0, updatedAt = ? WHERE id = ?;
+
+countActiveByPatient:
+SELECT COUNT(*) FROM EmbryoTransfer WHERE patientId = ? AND isActive = 1;
+
+-- Backup support --
+deleteAll:
+DELETE FROM EmbryoTransfer;
+
+selectAllRows:
+SELECT * FROM EmbryoTransfer;
+
+insertWithId:
+INSERT INTO EmbryoTransfer (id, patientId, date, embryoCount, recipientMares, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectByServerId:
+SELECT * FROM EmbryoTransfer WHERE serverId = ?;
+
+selectChangedSince:
+SELECT * FROM EmbryoTransfer WHERE updatedAt > ? AND isActive = 1;
+
+setServerId:
+UPDATE EmbryoTransfer SET serverId = ?, updatedAt = ? WHERE id = ?;
