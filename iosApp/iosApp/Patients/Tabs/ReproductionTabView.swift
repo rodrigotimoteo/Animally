@@ -3,9 +3,15 @@ import Shared
 
 struct ReproductionTabView: View {
     @StateObject private var viewModel: ReproductionTabViewModel
+    /// Fires when a record row is tapped; args are the display type name and record id.
+    var onEditRecord: ((String, Int64) -> Void)? = nil
 
-    init(patientId: Int64) {
+    init(
+        patientId: Int64,
+        onEditRecord: ((String, Int64) -> Void)? = nil,
+    ) {
         _viewModel = StateObject(wrappedValue: ReproductionTabViewModel(patientId: patientId))
+        self.onEditRecord = onEditRecord
     }
 
     var body: some View {
@@ -43,6 +49,14 @@ struct ReproductionTabView: View {
                         subtitle: record.details,
                         date: record.date.displayString
                     )
+                    .contentShape(Rectangle())
+
+                    .onTapGesture {
+
+                        onEditRecord?("Reproduction", record.id)
+
+                    }
+
                     .recordSwipeDelete(title: "Reproduction Event") {
                         viewModel.deleteReproductionEvent(record.id)
                     }
@@ -71,6 +85,14 @@ struct ReproductionTabView: View {
                             .padding(.leading, 48)
                         }
                     }
+                    .contentShape(Rectangle())
+
+                    .onTapGesture {
+
+                        onEditRecord?("Ultrasound", record.id)
+
+                    }
+
                     .recordSwipeDelete(title: "Ultrasound") {
                         viewModel.deleteUltrasound(record.id)
                     }
@@ -109,6 +131,14 @@ struct ReproductionTabView: View {
                         }
                         .padding(.leading, 48)
                     }
+                    .contentShape(Rectangle())
+
+                    .onTapGesture {
+
+                        onEditRecord?("Gestation", record.id)
+
+                    }
+
                     .recordSwipeDelete(title: "Gestation") {
                         viewModel.deleteGestation(record.id)
                     }
@@ -125,6 +155,14 @@ struct ReproductionTabView: View {
                         subtitle: record.purpose ?? record.dosage,
                         date: record.dateAdministered.displayString
                     )
+                    .contentShape(Rectangle())
+
+                    .onTapGesture {
+
+                        onEditRecord?("Repro Medication", record.id)
+
+                    }
+
                     .recordSwipeDelete(title: "Repro Medication") {
                         viewModel.deleteReproMedication(record.id)
                     }

@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.owner.usecase
 
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -14,11 +15,13 @@ import kotlin.time.Clock
  *
  * @param ownerRepository Repository instance for accessing owner data.
  * @param patientRepository Repository instance for checking linked patients.
+ * @param searchRepository Repository instance for the global search index.
  */
 @Single
 class DeleteOwnerUseCase(
     @Provided private val ownerRepository: IOwnerRepository,
     @Provided private val patientRepository: IPatientRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the owner identified by [ownerId] as inactive.
@@ -32,5 +35,6 @@ class DeleteOwnerUseCase(
             throw OwnerHasPatientsException(patientCount)
         }
         ownerRepository.setInactive(ownerId, Clock.System.now())
+        searchRepository.deleteRecord(ISearchRepository.TYPE_OWNER, ownerId)
     }
 }

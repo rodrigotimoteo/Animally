@@ -55,3 +55,19 @@ WHERE SearchFts MATCH :query
     AND (:fromDate IS NULL OR i.date >= :fromDate)
     AND (:toDate IS NULL OR i.date <= :toDate)
 ORDER BY p.name, i.date;
+
+-- Owner hits share the same index but join the Owner table instead of
+-- Patient: owner rows are stored with patientId = 0 and recordId = ownerId.
+-- Date bounds do not apply (owners carry no indexed date).
+searchOwners:
+SELECT
+    o.id AS ownerId,
+    o.name AS ownerName,
+    i.recordId AS recordId,
+    i.searchableText AS searchableText
+FROM SearchFts f
+JOIN SearchFtsIndex i ON i.id = f.rowid
+JOIN Owner o ON o.id = i.recordId AND o.isActive = 1
+WHERE SearchFts MATCH :query
+    AND i.recordType = 'OWNER'
+ORDER BY o.name;

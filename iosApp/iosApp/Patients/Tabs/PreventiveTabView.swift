@@ -3,9 +3,15 @@ import Shared
 
 struct PreventiveTabView: View {
     @StateObject private var viewModel: PreventiveTabViewModel
+    /// Fires when a record row is tapped; args are the display type name and record id.
+    var onEditRecord: ((String, Int64) -> Void)? = nil
 
-    init(patientId: Int64) {
+    init(
+        patientId: Int64,
+        onEditRecord: ((String, Int64) -> Void)? = nil,
+    ) {
         _viewModel = StateObject(wrappedValue: PreventiveTabViewModel(patientId: patientId))
+        self.onEditRecord = onEditRecord
     }
 
     var body: some View {
@@ -55,6 +61,10 @@ struct PreventiveTabView: View {
                             .padding(.leading, 48)
                         }
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onEditRecord?("Vaccination", record.id)
+                    }
                     .recordSwipeDelete(title: "Vaccination") {
                         viewModel.deleteVaccination(record.id)
                     }
@@ -82,6 +92,10 @@ struct PreventiveTabView: View {
                             .foregroundStyle(Theme.amber)
                             .padding(.leading, 48)
                         }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onEditRecord?("Deworming", record.id)
                     }
                     .recordSwipeDelete(title: "Deworming") {
                         viewModel.deleteDeworming(record.id)
@@ -111,6 +125,10 @@ struct PreventiveTabView: View {
                             .padding(.leading, 48)
                         }
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onEditRecord?("Dentistry", record.id)
+                    }
                     .recordSwipeDelete(title: "Dentistry Record") {
                         viewModel.deleteDentistry(record.id)
                     }
@@ -138,6 +156,10 @@ struct PreventiveTabView: View {
                             .foregroundStyle(Theme.amber)
                             .padding(.leading, 48)
                         }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onEditRecord?("Farrier", record.id)
                     }
                     .recordSwipeDelete(title: "Farrier Visit") {
                         viewModel.deleteFarrierVisit(record.id)

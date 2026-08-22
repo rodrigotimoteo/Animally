@@ -5,6 +5,7 @@ struct PatientDetailView: View {
     @StateObject private var viewModel: PatientDetailViewModel
     @State private var selectedTab: DetailTab = .overview
     @State private var addRecordRoute: RecordEditRoute?
+    @State private var editRoute: RecordEditRoute?
     /// Bumped when returning from a record editor so the visible tab's
     /// view model is recreated and reloads fresh data.
     @State private var recordsRefreshToken = 0
@@ -79,45 +80,18 @@ struct PatientDetailView: View {
                 viewModel.load()
             }
         }
-        .navigationDestination(item: $addRecordRoute) { route in
-            switch route {
-            case .weight(_, let recordId):
-                WeightEditView(patientId: route.patientId, weightId: recordId)
-            case .vaccination(_, let recordId):
-                VaccinationEditView(patientId: route.patientId, vaccinationId: recordId)
-            case .deworming(_, let recordId):
-                DewormingEditView(patientId: route.patientId, dewormingId: recordId)
-            case .consultation(_, let recordId):
-                ConsultationEditView(patientId: route.patientId, consultationId: recordId)
-            case .dentistry(_, let recordId):
-                DentistryEditView(patientId: route.patientId, dentistryId: recordId)
-            case .farrierVisit(_, let recordId):
-                FarrierVisitEditView(patientId: route.patientId, farrierVisitId: recordId)
-            case .anamnese(_, let recordId):
-                AnamneseEditView(patientId: route.patientId, anamneseId: recordId)
-            case .lameness(_, let recordId):
-                LamenessEditView(patientId: route.patientId, lamenessId: recordId)
-            case .surgery(_, let recordId):
-                SurgeryEditView(patientId: route.patientId, surgeryId: recordId)
-            case .medication(_, let recordId):
-                MedicationEditView(patientId: route.patientId, medicationId: recordId)
-            case .substance(_, let recordId):
-                SubstanceEditView(patientId: route.patientId, substanceId: recordId)
-            case .labResult(_, let recordId):
-                LabResultEditView(patientId: route.patientId, labResultId: recordId)
-            case .customReminder(_, let recordId):
-                CustomReminderEditView(patientId: route.patientId, customReminderId: recordId)
-            case .reproductionEvent(_, let recordId):
-                ReproductionEventEditView(patientId: route.patientId, reproductionEventId: recordId)
-            case .ultrasound(_, let recordId):
-                UltrasoundEditView(patientId: route.patientId, ultrasoundId: recordId)
-            case .gestation(_, let recordId):
-                GestationEditView(patientId: route.patientId, gestationId: recordId)
-            case .reproMedication(_, let recordId):
-                ReproMedicationEditView(patientId: route.patientId, reproMedicationId: recordId)
-            case .imaging(_, let recordId):
-                ImagingEditView(patientId: route.patientId, imagingId: recordId)
+        .onChange(of: editRoute) { oldValue, newValue in
+            // Same refresh contract when returning from editing an existing record.
+            if oldValue != nil, newValue == nil {
+                recordsRefreshToken += 1
+                viewModel.load()
             }
+        }
+        .navigationDestination(item: $addRecordRoute) { route in
+            recordEditDestination(route)
+        }
+        .navigationDestination(item: $editRoute) { route in
+            recordEditDestination(route)
         }
     }
 
@@ -138,16 +112,52 @@ struct PatientDetailView: View {
             case .overview:
                 OverviewTab(patient: patient, ownerName: viewModel.state.ownerName)
             case .medical:
-                MedicalTabView(patientId: patient.id)
-                    .id(recordsRefreshToken)
+                MedicalTabView(
+                    patientId: patient.id,
+                    onEditRecord: { type, recordId in
+                        editRoute = RecordEditRoute(
+                            displayType: type,
+                            patientId: patient.id,
+                            recordId: recordId
+                        )
+                    }
+                )
+                .id(recordsRefreshToken)
             case .preventive:
-                PreventiveTabView(patientId: patient.id)
+                PreventiveTabView(
+                    patientId: patient.id,
+                    onEditRecord: { type, recordId in
+                        editRoute = RecordEditRoute(
+                            displayType: type,
+                            patientId: patient.id,
+                            recordId: recordId
+                        )
+                    }
+                )
                     .id(recordsRefreshToken)
             case .reproduction:
-                ReproductionTabView(patientId: patient.id)
+                ReproductionTabView(
+                    patientId: patient.id,
+                    onEditRecord: { type, recordId in
+                        editRoute = RecordEditRoute(
+                            displayType: type,
+                            patientId: patient.id,
+                            recordId: recordId
+                        )
+                    }
+                )
                     .id(recordsRefreshToken)
             case .diagnostics:
-                DiagnosticsTabView(patientId: patient.id)
+                DiagnosticsTabView(
+                    patientId: patient.id,
+                    onEditRecord: { type, recordId in
+                        editRoute = RecordEditRoute(
+                            displayType: type,
+                            patientId: patient.id,
+                            recordId: recordId
+                        )
+                    }
+                )
                     .id(recordsRefreshToken)
             }
         }

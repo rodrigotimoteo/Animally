@@ -3,9 +3,10 @@ import Shared
 
 struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if viewModel.state.query.isEmpty && viewModel.state.results.isEmpty {
                     emptySearchView
@@ -42,6 +43,9 @@ struct SearchView: View {
                     OwnerEditView(ownerId: id)
                 }
             }
+            .navigationDestination(for: RecordEditRoute.self) { route in
+                recordEditDestination(route)
+            }
         }
     }
 
@@ -75,10 +79,37 @@ struct SearchView: View {
     private var resultsList: some View {
         List {
             ForEach(Array(viewModel.state.results.enumerated()), id: \.offset) { _, result in
-                NavigationLink(value: Route.patientDetail(result.patientId)) {
-                    SearchResultRow(result: result)
+                Group {
+                    if result.recordType == "OWNER" {
+                        // Owner hits navigate to the owner; patientId mirrors
+                        // the owner id for these rows.
+                        NavigationLink(value: Route.ownerDetail(result.patientId)) {
+                            SearchResultRow(result: result)
+                        }
+                        .buttonStyle(.plain)
+                    } else if result.recordType == "PATIENT" {
+                        NavigationLink(value: Route.patientDetail(result.patientId)) {
+                            SearchResultRow(result: result)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // Record hits deep-link straight into the record editor
+                        // with the patient page underneath so Back returns to it.
+                        Button {
+                            path.append(Route.patientDetail(result.patientId))
+                            if let editRoute = RecordEditRoute(
+                                displayType: result.recordType,
+                                patientId: result.patientId,
+                                recordId: result.recordId
+                            ) {
+                                path.append(editRoute)
+                            }
+                        } label: {
+                            SearchResultRow(result: result)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
         .listStyle(.insetGrouped)
@@ -190,6 +221,8 @@ struct SearchResultRow: View {
         switch type.uppercased() {
         case "PATIENT":
             return "pawprint.fill"
+        case "OWNER":
+            return "person.fill"
         case "CONSULTATION":
             return "stethoscope"
         case "MEDICATION":

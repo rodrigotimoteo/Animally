@@ -50,9 +50,17 @@ interface ISearchRepository {
      */
     fun rebuild()
 
+    /**
+     * Re-indexes every active owner. Idempotent: existing entries are replaced.
+     * Called at startup so owners created before owner indexing existed appear
+     * in search results.
+     */
+    fun reindexOwners()
+
     companion object {
         const val TYPE_PATIENT = "PATIENT"
         const val TYPE_CONSULTATION = "CONSULTATION"
         const val TYPE_MEDICATION = "MEDICATION"
+        const val TYPE_OWNER = "OWNER"
     }
 }

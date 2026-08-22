@@ -117,4 +117,78 @@ enum RecordEditRoute: Hashable, Identifiable {
             return patientId
         }
     }
+
+    /// Maps a timeline/search type ("Farrier", "Lab Result", "FARRIER_VISIT", …)
+    /// to the matching edit route so feeds can deep-link straight into a record.
+    /// Accepts both display names and uppercase wire names, case-insensitively.
+    init?(
+        displayType: String,
+        patientId: Int64,
+        recordId: Int64,
+    ) {
+        switch displayType.lowercased() {
+        case "weight": self = .weight(patientId: patientId, recordId: recordId)
+        case "vaccination": self = .vaccination(patientId: patientId, recordId: recordId)
+        case "deworming": self = .deworming(patientId: patientId, recordId: recordId)
+        case "consultation": self = .consultation(patientId: patientId, recordId: recordId)
+        case "dentistry": self = .dentistry(patientId: patientId, recordId: recordId)
+        case "farrier", "farrier_visit": self = .farrierVisit(patientId: patientId, recordId: recordId)
+        case "anamnese": self = .anamnese(patientId: patientId, recordId: recordId)
+        case "lameness": self = .lameness(patientId: patientId, recordId: recordId)
+        case "surgery": self = .surgery(patientId: patientId, recordId: recordId)
+        case "medication": self = .medication(patientId: patientId, recordId: recordId)
+        case "controlled substance", "substance": self = .substance(patientId: patientId, recordId: recordId)
+        case "lab result", "lab_result": self = .labResult(patientId: patientId, recordId: recordId)
+        case "reproduction", "reproduction_event": self = .reproductionEvent(patientId: patientId, recordId: recordId)
+        case "ultrasound": self = .ultrasound(patientId: patientId, recordId: recordId)
+        case "gestation": self = .gestation(patientId: patientId, recordId: recordId)
+        case "repro medication", "repro_medication": self = .reproMedication(patientId: patientId, recordId: recordId)
+        case "imaging": self = .imaging(patientId: patientId, recordId: recordId)
+        default: return nil
+        }
+    }
+}
+
+/// Push destination for every record editor, shared by the Patients stack
+/// (add/edit from detail), and the Timeline/Search stacks (deep-links).
+@ViewBuilder
+func recordEditDestination(_ route: RecordEditRoute) -> some View {
+    switch route {
+    case .weight(_, let recordId):
+        WeightEditView(patientId: route.patientId, weightId: recordId)
+    case .vaccination(_, let recordId):
+        VaccinationEditView(patientId: route.patientId, vaccinationId: recordId)
+    case .deworming(_, let recordId):
+        DewormingEditView(patientId: route.patientId, dewormingId: recordId)
+    case .consultation(_, let recordId):
+        ConsultationEditView(patientId: route.patientId, consultationId: recordId)
+    case .dentistry(_, let recordId):
+        DentistryEditView(patientId: route.patientId, dentistryId: recordId)
+    case .farrierVisit(_, let recordId):
+        FarrierVisitEditView(patientId: route.patientId, farrierVisitId: recordId)
+    case .anamnese(_, let recordId):
+        AnamneseEditView(patientId: route.patientId, anamneseId: recordId)
+    case .lameness(_, let recordId):
+        LamenessEditView(patientId: route.patientId, lamenessId: recordId)
+    case .surgery(_, let recordId):
+        SurgeryEditView(patientId: route.patientId, surgeryId: recordId)
+    case .medication(_, let recordId):
+        MedicationEditView(patientId: route.patientId, medicationId: recordId)
+    case .substance(_, let recordId):
+        SubstanceEditView(patientId: route.patientId, substanceId: recordId)
+    case .labResult(_, let recordId):
+        LabResultEditView(patientId: route.patientId, labResultId: recordId)
+    case .customReminder(_, let recordId):
+        CustomReminderEditView(patientId: route.patientId, customReminderId: recordId)
+    case .reproductionEvent(_, let recordId):
+        ReproductionEventEditView(patientId: route.patientId, reproductionEventId: recordId)
+    case .ultrasound(_, let recordId):
+        UltrasoundEditView(patientId: route.patientId, ultrasoundId: recordId)
+    case .gestation(_, let recordId):
+        GestationEditView(patientId: route.patientId, gestationId: recordId)
+    case .reproMedication(_, let recordId):
+        ReproMedicationEditView(patientId: route.patientId, reproMedicationId: recordId)
+    case .imaging(_, let recordId):
+        ImagingEditView(patientId: route.patientId, imagingId: recordId)
+    }
 }

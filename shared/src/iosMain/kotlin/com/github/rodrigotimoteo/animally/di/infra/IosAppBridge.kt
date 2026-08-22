@@ -2,6 +2,7 @@
 
 package com.github.rodrigotimoteo.animally.di.infra
 
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.presentation.ios.OwnerDetailStore
 import com.github.rodrigotimoteo.animally.presentation.ios.OwnerEditStore
 import com.github.rodrigotimoteo.animally.presentation.ios.OwnerListStore
@@ -35,6 +36,8 @@ object IosAppBridge {
     /** Boots Koin with the production modules and stores the instance. */
     fun start() {
         koin = initKoin().koin
+        // Owners created before owner indexing existed must still be searchable.
+        koin.get<ISearchRepository>().reindexOwners()
     }
 
     /**

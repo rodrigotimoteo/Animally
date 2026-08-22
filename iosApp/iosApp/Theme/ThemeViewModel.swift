@@ -43,10 +43,9 @@ final class ThemeViewModel: ObservableObject {
         case .light: return .light
         case .dark: return .dark
         case .system:
-            // Resolve to a CONCRETE scheme: returning nil defers to
-            // presentation-time inheritance, which leaves already-presented
-            // sheets stale until reopen (reported on device).
-            return UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light
+            // nil defers to presentation-time inheritance so iOS tracks live
+            // system-appearance changes instead of a scheme pinned at init.
+            return nil
         default: return nil
         }
     }

@@ -3,9 +3,15 @@ import Shared
 
 struct DiagnosticsTabView: View {
     @StateObject private var viewModel: DiagnosticsTabViewModel
+    /// Fires when a record row is tapped; args are the display type name and record id.
+    var onEditRecord: ((String, Int64) -> Void)? = nil
 
-    init(patientId: Int64) {
+    init(
+        patientId: Int64,
+        onEditRecord: ((String, Int64) -> Void)? = nil,
+    ) {
         _viewModel = StateObject(wrappedValue: DiagnosticsTabViewModel(patientId: patientId))
+        self.onEditRecord = onEditRecord
     }
 
     var body: some View {
@@ -63,6 +69,14 @@ struct DiagnosticsTabView: View {
                             .padding(.leading, 48)
                         }
                     }
+                    .contentShape(Rectangle())
+
+                    .onTapGesture {
+
+                        onEditRecord?("Lab Result", record.id)
+
+                    }
+
                     .recordSwipeDelete(title: "Lab Result") {
                         viewModel.deleteLabResult(record.id)
                     }
@@ -92,6 +106,14 @@ struct DiagnosticsTabView: View {
                             .padding(.leading, 48)
                         }
                     }
+                    .contentShape(Rectangle())
+
+                    .onTapGesture {
+
+                        onEditRecord?("Imaging", record.id)
+
+                    }
+
                     .recordSwipeDelete(title: "Imaging Study") {
                         viewModel.deleteImaging(record.id)
                     }

@@ -4,10 +4,11 @@ import Shared
 struct TimelineView: View {
     @StateObject private var patientListViewModel = PatientListViewModel()
     @State private var selectedPatientId: Int64?
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
-            TimelineContent(patientId: selectedPatientId)
+        NavigationStack(path: $path) {
+            TimelineContent(patientId: selectedPatientId, path: $path)
                 .id(selectedPatientId)
                 .navigationTitle("Timeline")
                 .toolbar {
@@ -44,9 +45,14 @@ struct TimelineView: View {
 /// which builds a fresh TimelineViewModel bound to that patient's store.
 private struct TimelineContent: View {
     @StateObject private var viewModel: TimelineViewModel
+    @Binding var path: NavigationPath
 
-    init(patientId: Int64?) {
+    init(
+        patientId: Int64?,
+        path: Binding<NavigationPath>,
+    ) {
         _viewModel = StateObject(wrappedValue: TimelineViewModel(patientId: patientId))
+        _path = path
     }
 
     var body: some View {
@@ -82,6 +88,9 @@ private struct TimelineContent: View {
                     OwnerEditView(ownerId: id)
                 }
             }
+        .navigationDestination(for: RecordEditRoute.self) { route in
+            recordEditDestination(route)
+        }
         }
 
     private var timelineList: some View {
@@ -89,7 +98,18 @@ private struct TimelineContent: View {
             ForEach(viewModel.state.groups, id: \.date) { group in
                 Section {
                     ForEach(group.entries, id: \.recordId) { entry in
-                        NavigationLink(value: Route.patientDetail(entry.patientId)) {
+                        Button {
+                            // Deep-link straight into the record editor with the
+                            // patient page underneath so Back returns to it.
+                            path.append(Route.patientDetail(entry.patientId))
+                            if let editRoute = RecordEditRoute(
+                                displayType: entry.recordType,
+                                patientId: entry.patientId,
+                                recordId: entry.recordId
+                            ) {
+                                path.append(editRoute)
+                            }
+                        } label: {
                             TimelineEntryRow(entry: entry, showPatientName: viewModel.state.patientId == nil)
                         }
                         .buttonStyle(.plain)

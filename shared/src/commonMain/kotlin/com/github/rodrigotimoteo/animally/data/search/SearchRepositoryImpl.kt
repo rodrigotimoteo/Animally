@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.data.search
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.owner.OwnerQueries
 import com.github.rodrigotimoteo.animally.data.search.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
@@ -18,6 +19,7 @@ import org.koin.core.annotation.Single
 @Single(binds = [ISearchRepository::class])
 class SearchRepositoryImpl(
     @Provided private val database: AnimallyDatabase,
+    @Provided private val ownerQueries: OwnerQueries,
 ) : ISearchRepository {
     private val searchQueries: SearchFtsQueries = database.searchFtsQueries
 
@@ -49,18 +51,45 @@ class SearchRepositoryImpl(
         from: LocalDate?,
         to: LocalDate?,
         recordTypes: List<String>?,
-    ): List<SearchResult> =
-        searchQueries
-            .search(query, from, to)
-            .executeAsList()
-            .filter { recordTypes == null || it.recordType in recordTypes }
-            .map { it.toDomain() }
+    ): List<SearchResult> {
+        val recordHits =
+            searchQueries
+                .search(query, from, to)
+                .executeAsList()
+                .filter { recordTypes == null || it.recordType in recordTypes }
+                .map { it.toDomain() }
+        val ownerHits =
+            if (recordTypes == null || ISearchRepository.TYPE_OWNER in recordTypes) {
+                searchQueries.searchOwners(query).executeAsList().map { it.toDomain() }
+            } else {
+                emptyList()
+            }
+        return recordHits + ownerHits
+    }
 
     override fun rebuild() {
         database.transaction {
             searchQueries.deleteAllFts().value
             searchQueries.reseed().value
         }
+    }
+
+    override fun reindexOwners() {
+        ownerQueries
+            .selectAll()
+            .executeAsList()
+            .forEach { owner ->
+                val searchableText =
+                    listOfNotNull(owner.name, owner.email, owner.phone, owner.address)
+                        .joinToString(" ")
+                indexRecord(
+                    recordType = ISearchRepository.TYPE_OWNER,
+                    patientId = 0L,
+                    recordId = owner.id,
+                    date = null,
+                    searchableText = searchableText,
+                )
+            }
     }
 
     private fun removeIndexRow(
