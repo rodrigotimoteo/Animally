@@ -14,7 +14,7 @@ private struct RecordSwipeDelete: ViewModifier {
                 Button(role: .destructive) {
                     isConfirming = true
                 } label: {
-                    Label("Delete", systemImage: "trash")
+                    Text("Delete")
                 }
             }
             .confirmationDialog(
