@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.di.infra
 
 import com.github.rodrigotimoteo.animally.di.IosDatabaseModule
+import com.github.rodrigotimoteo.animally.di.cloudKitModule
 import com.github.rodrigotimoteo.animally.di.database.QueriesModule
 import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule
 import com.github.rodrigotimoteo.animally.di.navigation.navigationEntryModule
@@ -15,6 +16,9 @@ actual fun initKoin(context: Any?): KoinApplication =
         modules(
             buildList {
                 add(navigationEntryModule)
+                // CloudKit sync engine — inert while cloud_enabled flag is off.
+                // Must precede AppModule: first-registered SyncEngine binding wins.
+                add(cloudKitModule)
                 // Generated annotation module: @KoinViewModel/@Single definitions
                 // (repos, use cases, view models, navigator).
                 add(AppModule().appModule())

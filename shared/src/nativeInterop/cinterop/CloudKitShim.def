@@ -1,0 +1,3 @@
+language = Objective-C
+package = com.github.rodrigotimoteo.animally.sync.cloudkit
+headers = AnimallySyncShim.h

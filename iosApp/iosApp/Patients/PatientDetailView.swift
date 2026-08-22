@@ -5,6 +5,9 @@ struct PatientDetailView: View {
     @StateObject private var viewModel: PatientDetailViewModel
     @State private var selectedTab: DetailTab = .overview
     @State private var addRecordRoute: RecordEditRoute?
+    /// Bumped when returning from a record editor so the visible tab's
+    /// view model is recreated and reloads fresh data.
+    @State private var recordsRefreshToken = 0
 
     enum DetailTab: String, CaseIterable, Identifiable {
         case overview = "Overview"
@@ -67,6 +70,15 @@ struct PatientDetailView: View {
         .onAppear {
             viewModel.load()
         }
+
+        .onChange(of: addRecordRoute) { oldValue, newValue in
+            // Returning from a record editor: force the visible tab to reload
+            // so freshly saved records appear without switching tabs.
+            if oldValue != nil, newValue == nil {
+                recordsRefreshToken += 1
+                viewModel.load()
+            }
+        }
         .navigationDestination(item: $addRecordRoute) { route in
             switch route {
             case .weight(_, let recordId):
@@ -127,12 +139,16 @@ struct PatientDetailView: View {
                 OverviewTab(patient: patient, ownerName: viewModel.state.ownerName)
             case .medical:
                 MedicalTabView(patientId: patient.id)
+                    .id(recordsRefreshToken)
             case .preventive:
                 PreventiveTabView(patientId: patient.id)
+                    .id(recordsRefreshToken)
             case .reproduction:
                 ReproductionTabView(patientId: patient.id)
+                    .id(recordsRefreshToken)
             case .diagnostics:
                 DiagnosticsTabView(patientId: patient.id)
+                    .id(recordsRefreshToken)
             }
         }
     }

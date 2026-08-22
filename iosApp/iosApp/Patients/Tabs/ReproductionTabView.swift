@@ -43,6 +43,9 @@ struct ReproductionTabView: View {
                         subtitle: record.details,
                         date: record.date.displayString
                     )
+                    .recordSwipeDelete(title: "Reproduction Event") {
+                        viewModel.deleteReproductionEvent(record.id)
+                    }
                 }
             }
 
@@ -67,6 +70,9 @@ struct ReproductionTabView: View {
                             .foregroundStyle(Theme.textSecondary)
                             .padding(.leading, 48)
                         }
+                    }
+                    .recordSwipeDelete(title: "Ultrasound") {
+                        viewModel.deleteUltrasound(record.id)
                     }
                 }
             }
@@ -103,6 +109,9 @@ struct ReproductionTabView: View {
                         }
                         .padding(.leading, 48)
                     }
+                    .recordSwipeDelete(title: "Gestation") {
+                        viewModel.deleteGestation(record.id)
+                    }
                 }
             }
 
@@ -116,6 +125,9 @@ struct ReproductionTabView: View {
                         subtitle: record.purpose ?? record.dosage,
                         date: record.dateAdministered.displayString
                     )
+                    .recordSwipeDelete(title: "Repro Medication") {
+                        viewModel.deleteReproMedication(record.id)
+                    }
                 }
             }
         }

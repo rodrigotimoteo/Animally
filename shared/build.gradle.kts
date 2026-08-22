@@ -35,6 +35,10 @@ kotlin {
                     // include path with an absolute path so the cinterop finds it regardless of CWD.
                     compilerOpts("-I$rootDir/shared/src/nativeInterop/cinterop")
                 }
+                // The .def lives at src/nativeInterop/cinterop/CloudKitShim.def.
+                create("CloudKitShim") {
+                    compilerOpts("-I$rootDir/shared/src/nativeInterop/cinterop")
+                }
             }
         }
     }

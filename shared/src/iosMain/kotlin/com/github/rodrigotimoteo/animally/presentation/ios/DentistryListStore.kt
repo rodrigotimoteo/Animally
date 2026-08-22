@@ -26,6 +26,11 @@ class DentistryListStore(
         viewModel.load()
     }
 
+    /** Soft-deletes the record with the given [recordId] and reloads the list. */
+    fun delete(recordId: Long) {
+        viewModel.onDeleteClick(recordId)
+    }
+
     /** Clears the current error message. */
     fun dismissError() {
         viewModel.onDismissError()

@@ -11,9 +11,12 @@ final class DiagnosticsTabViewModel: ObservableObject {
 
     private var cancellables: [NativeCancellable] = []
 
+    private let labStore: LabResultListStore
+    private let imagingStore: ImagingListStore
+
     init(patientId: Int64) {
-        let labStore = IosReproAndDiagnosticsStores.shared.labResultListStore(patientId: patientId)
-        let imagingStore = IosReproAndDiagnosticsStores.shared.imagingListStore(patientId: patientId)
+        labStore = IosReproAndDiagnosticsStores.shared.labResultListStore(patientId: patientId)
+        imagingStore = IosReproAndDiagnosticsStores.shared.imagingListStore(patientId: patientId)
 
         cancellables.append(labStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.labResults = state.records }
@@ -29,6 +32,16 @@ final class DiagnosticsTabViewModel: ObservableObject {
             try? await Task.sleep(for: .milliseconds(100))
             self.isLoading = false
         }
+    }
+
+    /// Soft-deletes the record and reloads the list via the store.
+    func deleteLabResult(_ recordId: Int64) {
+        labStore.delete(recordId: recordId)
+    }
+
+    /// Soft-deletes the record and reloads the list via the store.
+    func deleteImaging(_ recordId: Int64) {
+        imagingStore.delete(recordId: recordId)
     }
 
     deinit {

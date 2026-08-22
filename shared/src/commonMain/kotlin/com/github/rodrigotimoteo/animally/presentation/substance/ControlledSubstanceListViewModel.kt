@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.substance
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
+import com.github.rodrigotimoteo.animally.domain.substance.usecase.DeleteControlledSubstanceUseCase
 import com.github.rodrigotimoteo.animally.domain.substance.usecase.GetControlledSubstancesByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
@@ -21,12 +22,14 @@ import org.koin.core.annotation.Named
  *
  * @param patientId The id of the patient whose controlled-substance records are listed.
  * @param getControlledSubstancesByPatientUseCase Use case for loading the controlled-substance records.
+ * @param deleteControlledSubstanceUseCase Use case for soft-deleting a record.
  * @param animallyNavigator The navigator to use for navigation.
  * @param ioDispatcher Dispatcher for blocking database work.
  */
 class ControlledSubstanceListViewModel(
     private val patientId: Long,
     private val getControlledSubstancesByPatientUseCase: GetControlledSubstancesByPatientUseCase,
+    private val deleteControlledSubstanceUseCase: DeleteControlledSubstanceUseCase,
     animallyNavigator: AnimallyNavigator,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
 ) : AnimallyNavigationViewModel(animallyNavigator) {
@@ -48,6 +51,19 @@ class ControlledSubstanceListViewModel(
                     _uiState.update { it.copy(records = substances, isLoading = false) }
                 }.onFailure { error ->
                     _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
+                }
+        }
+    }
+
+    /**
+     * Soft-deletes the record with the given [recordId] and reloads the list.
+     */
+    fun onDeleteClick(recordId: Long) {
+        viewModelScope.launch {
+            runCatching { withContext(ioDispatcher) { deleteControlledSubstanceUseCase(recordId) } }
+                .onSuccess { load() }
+                .onFailure { error ->
+                    _uiState.update { it.copy(errorMessage = error.message) }
                 }
         }
     }

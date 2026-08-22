@@ -66,12 +66,27 @@ enum RecordFormStyle {
             .foregroundStyle(.red)
     }
 
+    /// ISO yyyy-MM-dd formatter shared by every date field.
+    static let isoDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    /// Native compact date picker bound through an ISO yyyy-MM-dd string so
+    /// it can drive the Kotlin-backed form fields without any parsing glue
+    /// at the call sites.
     static func dateField(_ placeholder: String, value: String, onChange: @escaping (String) -> Void) -> some View {
-        TextField(placeholder, text: Binding(
-            get: { value },
-            set: { onChange($0) }
-        ))
-        .keyboardType(.numbersAndPunctuation)
+        DatePicker(
+            placeholder,
+            selection: Binding(
+                get: { isoDateFormatter.date(from: value) ?? Date() },
+                set: { onChange(isoDateFormatter.string(from: $0)) }
+            ),
+            displayedComponents: .date
+        )
+        .datePickerStyle(.compact)
         .textCase(nil)
     }
 

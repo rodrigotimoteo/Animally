@@ -84,7 +84,7 @@ struct ImagingEditView: View {
                 .lineLimit(3...8)
                 .textCase(nil)
 
-                RecordFormStyle.textField("Image URIs", value: form.imageUris) {
+                ImageAttachmentField(title: "Imaging Study", imagePath: form.imageUris) {
                     viewModel.onImageUrisChange($0)
                 }
             } header: {

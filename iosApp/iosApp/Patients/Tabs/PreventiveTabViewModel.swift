@@ -13,11 +13,16 @@ final class PreventiveTabViewModel: ObservableObject {
 
     private var cancellables: [NativeCancellable] = []
 
+    private let vaccinationStore: VaccinationListStore
+    private let dewormingStore: DewormingListStore
+    private let dentistryStore: DentistryListStore
+    private let farrierStore: FarrierVisitListStore
+
     init(patientId: Int64) {
-        let vaccinationStore = IosRecordStores.shared.vaccinationListStore(patientId: patientId)
-        let dewormingStore = IosRecordStores.shared.dewormingListStore(patientId: patientId)
-        let dentistryStore = IosRecordStores.shared.dentistryListStore(patientId: patientId)
-        let farrierStore = IosRecordStores.shared.farrierVisitListStore(patientId: patientId)
+        vaccinationStore = IosRecordStores.shared.vaccinationListStore(patientId: patientId)
+        dewormingStore = IosRecordStores.shared.dewormingListStore(patientId: patientId)
+        dentistryStore = IosRecordStores.shared.dentistryListStore(patientId: patientId)
+        farrierStore = IosRecordStores.shared.farrierVisitListStore(patientId: patientId)
 
         cancellables.append(vaccinationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.vaccinations = state.vaccinations }
@@ -41,6 +46,26 @@ final class PreventiveTabViewModel: ObservableObject {
             try? await Task.sleep(for: .milliseconds(100))
             self.isLoading = false
         }
+    }
+
+    /// Soft-deletes the record and reloads the list via the store.
+    func deleteVaccination(_ recordId: Int64) {
+        vaccinationStore.delete(recordId: recordId)
+    }
+
+    /// Soft-deletes the record and reloads the list via the store.
+    func deleteDeworming(_ recordId: Int64) {
+        dewormingStore.delete(recordId: recordId)
+    }
+
+    /// Soft-deletes the record and reloads the list via the store.
+    func deleteDentistry(_ recordId: Int64) {
+        dentistryStore.delete(recordId: recordId)
+    }
+
+    /// Soft-deletes the record and reloads the list via the store.
+    func deleteFarrierVisit(_ recordId: Int64) {
+        farrierStore.delete(recordId: recordId)
     }
 
     deinit {

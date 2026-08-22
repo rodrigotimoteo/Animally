@@ -55,6 +55,9 @@ struct PreventiveTabView: View {
                             .padding(.leading, 48)
                         }
                     }
+                    .recordSwipeDelete(title: "Vaccination") {
+                        viewModel.deleteVaccination(record.id)
+                    }
                 }
             }
 
@@ -79,6 +82,9 @@ struct PreventiveTabView: View {
                             .foregroundStyle(Theme.amber)
                             .padding(.leading, 48)
                         }
+                    }
+                    .recordSwipeDelete(title: "Deworming") {
+                        viewModel.deleteDeworming(record.id)
                     }
                 }
             }
@@ -105,6 +111,9 @@ struct PreventiveTabView: View {
                             .padding(.leading, 48)
                         }
                     }
+                    .recordSwipeDelete(title: "Dentistry Record") {
+                        viewModel.deleteDentistry(record.id)
+                    }
                 }
             }
 
@@ -129,6 +138,9 @@ struct PreventiveTabView: View {
                             .foregroundStyle(Theme.amber)
                             .padding(.leading, 48)
                         }
+                    }
+                    .recordSwipeDelete(title: "Farrier Visit") {
+                        viewModel.deleteFarrierVisit(record.id)
                     }
                 }
             }

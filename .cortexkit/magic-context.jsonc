@@ -1,0 +1,8 @@
+{
+  "dreamer": {
+    "model": "opencode/x-preview-f-free"
+  },
+  "sidekick": {
+    "model": "opencode/x-preview-f-free"
+  }
+}

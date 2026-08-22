@@ -104,12 +104,9 @@ struct PatientEditView: View {
             }
             .pickerStyle(.menu)
 
-            TextField("YYYY-MM-DD", text: Binding(
-                get: { form.dateOfBirth ?? "" },
-                set: { viewModel.onDateOfBirthChange($0) }
-            ))
-            .keyboardType(.numbersAndPunctuation)
-            .textCase(nil)
+            RecordFormStyle.dateField("Date of Birth", value: form.dateOfBirth ?? "") {
+                viewModel.onDateOfBirthChange($0)
+            }
         } header: {
             sectionHeader("Basic Information")
         }

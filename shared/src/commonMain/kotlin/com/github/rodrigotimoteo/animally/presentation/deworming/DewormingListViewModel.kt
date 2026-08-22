@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.deworming
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
+import com.github.rodrigotimoteo.animally.domain.deworming.usecase.DeleteDewormingUseCase
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.GetDewormingsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
@@ -21,12 +22,14 @@ import org.koin.core.annotation.Named
  *
  * @param patientId The id of the patient whose dewormings are listed.
  * @param getDewormingsByPatientUseCase Use case for loading the dewormings.
+ * @param deleteDewormingUseCase Use case for soft-deleting a record.
  * @param animallyNavigator The navigator to use for navigation.
  * @param ioDispatcher Dispatcher for blocking database work.
  */
 class DewormingListViewModel(
     private val patientId: Long,
     private val getDewormingsByPatientUseCase: GetDewormingsByPatientUseCase,
+    private val deleteDewormingUseCase: DeleteDewormingUseCase,
     animallyNavigator: AnimallyNavigator,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
 ) : AnimallyNavigationViewModel(animallyNavigator) {
@@ -48,6 +51,19 @@ class DewormingListViewModel(
                     _uiState.update { it.copy(records = dewormings, isLoading = false) }
                 }.onFailure { error ->
                     _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
+                }
+        }
+    }
+
+    /**
+     * Soft-deletes the record with the given [recordId] and reloads the list.
+     */
+    fun onDeleteClick(recordId: Long) {
+        viewModelScope.launch {
+            runCatching { withContext(ioDispatcher) { deleteDewormingUseCase(recordId) } }
+                .onSuccess { load() }
+                .onFailure { error ->
+                    _uiState.update { it.copy(errorMessage = error.message) }
                 }
         }
     }

@@ -45,6 +45,9 @@ struct MedicalTabView: View {
                         subtitle: record.vetName,
                         date: record.date.displayString
                     )
+                    .recordSwipeDelete(title: "Consultation") {
+                        viewModel.deleteConsultation(record.id)
+                    }
                 }
             }
 
@@ -61,6 +64,9 @@ struct MedicalTabView: View {
                         subtitle: record.limbLocation,
                         date: record.date.displayString
                     )
+                    .recordSwipeDelete(title: "Lameness Evaluation") {
+                        viewModel.deleteLameness(record.id)
+                    }
                 }
             }
 
@@ -74,6 +80,9 @@ struct MedicalTabView: View {
                         subtitle: record.surgeon,
                         date: record.date.displayString
                     )
+                    .recordSwipeDelete(title: "Surgery") {
+                        viewModel.deleteSurgery(record.id)
+                    }
                 }
             }
 
@@ -87,6 +96,9 @@ struct MedicalTabView: View {
                         subtitle: record.dosage,
                         date: record.startDate?.displayString
                     )
+                    .recordSwipeDelete(title: "Medication") {
+                        viewModel.deleteMedication(record.id)
+                    }
                 }
             }
 
@@ -100,6 +112,9 @@ struct MedicalTabView: View {
                         subtitle: "\(record.dose)\(record.unit.map { " \($0)" } ?? "")",
                         date: record.date.displayString
                     )
+                    .recordSwipeDelete(title: "Controlled Substance") {
+                        viewModel.deleteSubstance(record.id)
+                    }
                 }
             }
 
@@ -113,6 +128,9 @@ struct MedicalTabView: View {
                         subtitle: nil,
                         date: record.date.displayString
                     )
+                    .recordSwipeDelete(title: "Weight Entry") {
+                        viewModel.deleteWeight(record.id)
+                    }
                 }
             }
         }

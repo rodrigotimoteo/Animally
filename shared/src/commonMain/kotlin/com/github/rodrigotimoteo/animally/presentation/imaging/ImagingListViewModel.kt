@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.imaging
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
+import com.github.rodrigotimoteo.animally.domain.imaging.usecase.DeleteImagingUseCase
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.GetImagingListByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
@@ -21,12 +22,14 @@ import org.koin.core.annotation.Named
  *
  * @param patientId The id of the patient whose imaging records are listed.
  * @param getImagingListByPatientUseCase Use case for loading the imaging records.
+ * @param deleteImagingUseCase Use case for soft-deleting a record.
  * @param animallyNavigator The navigator to use for navigation.
  * @param ioDispatcher Dispatcher for blocking database work.
  */
 class ImagingListViewModel(
     private val patientId: Long,
     private val getImagingListByPatientUseCase: GetImagingListByPatientUseCase,
+    private val deleteImagingUseCase: DeleteImagingUseCase,
     animallyNavigator: AnimallyNavigator,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
 ) : AnimallyNavigationViewModel(animallyNavigator) {
@@ -48,6 +51,19 @@ class ImagingListViewModel(
                     _uiState.update { it.copy(records = records, isLoading = false) }
                 }.onFailure { error ->
                     _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
+                }
+        }
+    }
+
+    /**
+     * Soft-deletes the record with the given [recordId] and reloads the list.
+     */
+    fun onDeleteClick(recordId: Long) {
+        viewModelScope.launch {
+            runCatching { withContext(ioDispatcher) { deleteImagingUseCase(recordId) } }
+                .onSuccess { load() }
+                .onFailure { error ->
+                    _uiState.update { it.copy(errorMessage = error.message) }
                 }
         }
     }

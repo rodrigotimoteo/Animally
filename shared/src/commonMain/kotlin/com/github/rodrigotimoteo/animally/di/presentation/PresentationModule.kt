@@ -119,6 +119,7 @@ internal class PresentationModule {
                 ConsultationListViewModel(
                     patientId = patientId,
                     getConsultationsByPatientUseCase = get(),
+                    deleteConsultationUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -137,6 +138,7 @@ internal class PresentationModule {
                 VaccinationListViewModel(
                     patientId = patientId,
                     getVaccinationsByPatientUseCase = get(),
+                    deleteVaccinationUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -155,6 +157,7 @@ internal class PresentationModule {
                 WeightListViewModel(
                     patientId = patientId,
                     getWeightsByPatientUseCase = get(),
+                    deleteWeightUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -173,6 +176,7 @@ internal class PresentationModule {
                 LabResultListViewModel(
                     patientId = patientId,
                     getLabResultsByPatientUseCase = get(),
+                    deleteLabResultUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -191,6 +195,7 @@ internal class PresentationModule {
                 ImagingListViewModel(
                     patientId = patientId,
                     getImagingListByPatientUseCase = get(),
+                    deleteImagingUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -209,6 +214,7 @@ internal class PresentationModule {
                 LamenessListViewModel(
                     patientId = patientId,
                     getLamenessListByPatientUseCase = get(),
+                    deleteLamenessUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -227,6 +233,7 @@ internal class PresentationModule {
                 SurgeryListViewModel(
                     patientId = patientId,
                     getSurgeriesByPatientUseCase = get(),
+                    deleteSurgeryUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -245,6 +252,7 @@ internal class PresentationModule {
                 MedicationListViewModel(
                     patientId = patientId,
                     getMedicationsByPatientUseCase = get(),
+                    deleteMedicationUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -263,6 +271,7 @@ internal class PresentationModule {
                 ControlledSubstanceListViewModel(
                     patientId = patientId,
                     getControlledSubstancesByPatientUseCase = get(),
+                    deleteControlledSubstanceUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -281,6 +290,7 @@ internal class PresentationModule {
                 DewormingListViewModel(
                     patientId = patientId,
                     getDewormingsByPatientUseCase = get(),
+                    deleteDewormingUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -299,6 +309,7 @@ internal class PresentationModule {
                 DentistryListViewModel(
                     patientId = patientId,
                     getDentistryListByPatientUseCase = get(),
+                    deleteDentistryUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -317,6 +328,7 @@ internal class PresentationModule {
                 FarrierVisitListViewModel(
                     patientId = patientId,
                     getFarrierVisitsByPatientUseCase = get(),
+                    deleteFarrierVisitUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -335,6 +347,7 @@ internal class PresentationModule {
                 ReproductionEventListViewModel(
                     patientId = patientId,
                     getReproductionEventsByPatientUseCase = get(),
+                    deleteReproductionEventUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -353,6 +366,7 @@ internal class PresentationModule {
                 UltrasoundListViewModel(
                     patientId = patientId,
                     getUltrasoundsByPatientUseCase = get(),
+                    deleteUltrasoundUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -371,6 +385,7 @@ internal class PresentationModule {
                 GestationListViewModel(
                     patientId = patientId,
                     getGestationsByPatientUseCase = get(),
+                    deleteGestationUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
@@ -389,6 +404,7 @@ internal class PresentationModule {
                 ReproMedicationListViewModel(
                     patientId = patientId,
                     getReproMedicationsByPatientUseCase = get(),
+                    deleteReproMedicationUseCase = get(),
                     animallyNavigator = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )

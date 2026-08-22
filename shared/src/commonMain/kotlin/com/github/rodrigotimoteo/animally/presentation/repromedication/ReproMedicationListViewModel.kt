@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.repromedication
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
+import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.DeleteReproMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.GetReproMedicationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
@@ -21,12 +22,14 @@ import org.koin.core.annotation.Named
  *
  * @param patientId The id of the patient whose reproduction medications are listed.
  * @param getReproMedicationsByPatientUseCase Use case for loading the reproduction medications.
+ * @param deleteReproMedicationUseCase Use case for soft-deleting a record.
  * @param animallyNavigator The navigator to use for navigation.
  * @param ioDispatcher Dispatcher for blocking database work.
  */
 class ReproMedicationListViewModel(
     private val patientId: Long,
     private val getReproMedicationsByPatientUseCase: GetReproMedicationsByPatientUseCase,
+    private val deleteReproMedicationUseCase: DeleteReproMedicationUseCase,
     animallyNavigator: AnimallyNavigator,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
 ) : AnimallyNavigationViewModel(animallyNavigator) {
@@ -48,6 +51,19 @@ class ReproMedicationListViewModel(
                     _uiState.update { it.copy(records = medications, isLoading = false) }
                 }.onFailure { error ->
                     _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
+                }
+        }
+    }
+
+    /**
+     * Soft-deletes the record with the given [recordId] and reloads the list.
+     */
+    fun onDeleteClick(recordId: Long) {
+        viewModelScope.launch {
+            runCatching { withContext(ioDispatcher) { deleteReproMedicationUseCase(recordId) } }
+                .onSuccess { load() }
+                .onFailure { error ->
+                    _uiState.update { it.copy(errorMessage = error.message) }
                 }
         }
     }

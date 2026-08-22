@@ -97,7 +97,7 @@ struct UltrasoundEditView: View {
                 .lineLimit(3...6)
                 .textCase(nil)
 
-                RecordFormStyle.textField("Image URIs", value: form.imageUris) {
+                ImageAttachmentField(title: "Ultrasound Image", imagePath: form.imageUris) {
                     viewModel.onImageUrisChange($0)
                 }
             } header: {

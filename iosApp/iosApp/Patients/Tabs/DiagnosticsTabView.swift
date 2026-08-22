@@ -63,6 +63,9 @@ struct DiagnosticsTabView: View {
                             .padding(.leading, 48)
                         }
                     }
+                    .recordSwipeDelete(title: "Lab Result") {
+                        viewModel.deleteLabResult(record.id)
+                    }
                 }
             }
 
@@ -88,6 +91,9 @@ struct DiagnosticsTabView: View {
                             .foregroundStyle(Theme.textSecondary)
                             .padding(.leading, 48)
                         }
+                    }
+                    .recordSwipeDelete(title: "Imaging Study") {
+                        viewModel.deleteImaging(record.id)
                     }
                 }
             }

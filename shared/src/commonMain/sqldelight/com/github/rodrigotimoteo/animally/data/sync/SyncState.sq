@@ -1,0 +1,9 @@
+-- CloudKit sync engine key/value state (export cursor, feature flag, markers) --
+upsert:
+INSERT OR REPLACE INTO SyncState(key, value) VALUES (?, ?);
+
+selectValueByKey:
+SELECT value FROM SyncState WHERE key = ?;
+
+deleteByKey:
+DELETE FROM SyncState WHERE key = ?;

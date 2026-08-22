@@ -19,6 +19,7 @@ import com.github.rodrigotimoteo.animally.data.reproduction.ReproductionQueries
 import com.github.rodrigotimoteo.animally.data.repromedication.ReproMedicationQueries
 import com.github.rodrigotimoteo.animally.data.substance.SubstanceQueries
 import com.github.rodrigotimoteo.animally.data.surgery.SurgeryQueries
+import com.github.rodrigotimoteo.animally.data.sync.SyncStateQueries
 import com.github.rodrigotimoteo.animally.data.ultrasound.UltrasoundQueries
 import com.github.rodrigotimoteo.animally.data.vaccination.VaccinationQueries
 import com.github.rodrigotimoteo.animally.data.weight.WeightQueries
@@ -47,6 +48,7 @@ internal class QueriesModule {
             single<ReproMedicationQueries> { get<AnimallyDatabase>().reproMedicationQueries }
             single<SubstanceQueries> { get<AnimallyDatabase>().substanceQueries }
             single<SurgeryQueries> { get<AnimallyDatabase>().surgeryQueries }
+            single<SyncStateQueries> { get<AnimallyDatabase>().syncStateQueries }
             single<UltrasoundQueries> { get<AnimallyDatabase>().ultrasoundQueries }
             single<VaccinationQueries> { get<AnimallyDatabase>().vaccinationQueries }
             single<WeightQueries> { get<AnimallyDatabase>().weightQueries }
