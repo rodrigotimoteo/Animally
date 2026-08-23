@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.DeleteLabResultUseCase
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.GetLabResultsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -32,7 +33,7 @@ class LabResultListViewModelTest {
 
     private val getLabResultsByPatientUseCase = GetLabResultsByPatientUseCase(labResultRepositoryMock)
 
-    private val deleteLabResultUseCase = DeleteLabResultUseCase(labResultRepositoryMock)
+    private val deleteLabResultUseCase = DeleteLabResultUseCase(labResultRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.DeleteGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -32,7 +33,7 @@ class GestationListViewModelTest {
 
     private val getGestationsByPatientUseCase = GetGestationsByPatientUseCase(gestationRepositoryMock)
 
-    private val deleteGestationUseCase = DeleteGestationUseCase(gestationRepositoryMock)
+    private val deleteGestationUseCase = DeleteGestationUseCase(gestationRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

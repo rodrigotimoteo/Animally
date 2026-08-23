@@ -1,5 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.substance.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
@@ -13,6 +15,7 @@ import kotlin.time.Clock
 @Single
 class DeleteControlledSubstanceUseCase(
     @Provided private val substanceRepository: IControlledSubstanceRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the record identified by [id] as inactive.
@@ -21,5 +24,6 @@ class DeleteControlledSubstanceUseCase(
      */
     operator fun invoke(id: Long) {
         substanceRepository.setInactive(id, Clock.System.now())
+        searchRepository.deleteRecord(RecordType.ControlledSubstance.wireName, id)
     }
 }

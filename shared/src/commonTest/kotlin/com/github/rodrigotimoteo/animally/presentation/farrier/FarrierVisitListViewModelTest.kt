@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.DeleteFarrierVisitUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.GetFarrierVisitsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -32,7 +33,7 @@ class FarrierVisitListViewModelTest {
 
     private val getFarrierVisitsByPatientUseCase = GetFarrierVisitsByPatientUseCase(farrierVisitRepositoryMock)
 
-    private val deleteFarrierVisitUseCase = DeleteFarrierVisitUseCase(farrierVisitRepositoryMock)
+    private val deleteFarrierVisitUseCase = DeleteFarrierVisitUseCase(farrierVisitRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

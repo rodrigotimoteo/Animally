@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.weight
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 import com.github.rodrigotimoteo.animally.domain.weight.usecase.GetWeightDetailUseCase
@@ -38,7 +39,7 @@ class WeightEditViewModelTest {
 
     private val getWeightDetailUseCase = GetWeightDetailUseCase(weightRepositoryMock)
 
-    private val saveWeightUseCase = SaveWeightUseCase(weightRepositoryMock)
+    private val saveWeightUseCase = SaveWeightUseCase(weightRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

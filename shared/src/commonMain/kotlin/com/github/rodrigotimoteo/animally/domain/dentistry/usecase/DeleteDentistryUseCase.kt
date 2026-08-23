@@ -1,6 +1,8 @@
 package com.github.rodrigotimoteo.animally.domain.dentistry.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -13,6 +15,7 @@ import kotlin.time.Clock
 @Single
 class DeleteDentistryUseCase(
     @Provided private val dentistryRepository: IDentistryRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the record identified by [id] as inactive.
@@ -21,5 +24,6 @@ class DeleteDentistryUseCase(
      */
     operator fun invoke(id: Long) {
         dentistryRepository.setInactive(id, Clock.System.now())
+        searchRepository.deleteRecord(RecordType.Dentistry.wireName, id)
     }
 }

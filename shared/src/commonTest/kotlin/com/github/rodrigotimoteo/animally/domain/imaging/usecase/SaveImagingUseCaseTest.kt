@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.imaging.usecase
 
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -23,7 +24,7 @@ class SaveImagingUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveImagingUseCase(imagingRepositoryMock)
+        sut = SaveImagingUseCase(imagingRepositoryMock, FakeSearchRepository())
     }
 
     private fun imaging(id: Long): Imaging =

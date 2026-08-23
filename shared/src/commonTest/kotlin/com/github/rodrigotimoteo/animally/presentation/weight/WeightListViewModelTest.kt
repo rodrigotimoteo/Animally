@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.weight
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 import com.github.rodrigotimoteo.animally.domain.weight.usecase.DeleteWeightUseCase
@@ -32,7 +33,7 @@ class WeightListViewModelTest {
 
     private val getWeightsByPatientUseCase = GetWeightsByPatientUseCase(weightRepositoryMock)
 
-    private val deleteWeightUseCase = DeleteWeightUseCase(weightRepositoryMock)
+    private val deleteWeightUseCase = DeleteWeightUseCase(weightRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

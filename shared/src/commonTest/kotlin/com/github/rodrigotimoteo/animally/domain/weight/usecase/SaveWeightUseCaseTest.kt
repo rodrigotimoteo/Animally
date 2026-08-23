@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.weight.usecase
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 import dev.mokkery.answering.returns
@@ -21,7 +22,7 @@ class SaveWeightUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveWeightUseCase(weightRepositoryMock)
+        sut = SaveWeightUseCase(weightRepositoryMock, FakeSearchRepository())
     }
 
     private fun newWeight(id: Long) =

@@ -1,6 +1,8 @@
 package com.github.rodrigotimoteo.animally.domain.repromedication.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -13,6 +15,7 @@ import kotlin.time.Clock
 @Single
 class DeleteReproMedicationUseCase(
     @Provided private val reproMedicationRepository: IReproMedicationRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the record identified by [id] as inactive.
@@ -21,5 +24,6 @@ class DeleteReproMedicationUseCase(
      */
     operator fun invoke(id: Long) {
         reproMedicationRepository.setInactive(id, Clock.System.now())
+        searchRepository.deleteRecord(RecordType.ReproMedication.wireName, id)
     }
 }

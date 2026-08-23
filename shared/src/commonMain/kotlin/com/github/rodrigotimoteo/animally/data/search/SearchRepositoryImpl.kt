@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.data.search
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.owner.OwnerQueries
 import com.github.rodrigotimoteo.animally.data.search.mapper.toDomain
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import kotlinx.datetime.LocalDate
@@ -121,6 +122,281 @@ class SearchRepositoryImpl(
                     searchableText = searchableText,
                 )
             }
+    }
+
+    override fun reindexRecords() {
+        reindexVaccinationRows()
+        reindexDewormingRows()
+        reindexDentistryRows()
+        reindexFarrierVisitRows()
+        reindexLamenessRows()
+        reindexSurgeryRows()
+        reindexControlledSubstanceRows()
+        reindexWeightRows()
+        reindexReproductionEventRows()
+        reindexUltrasoundRows()
+        reindexGestationRows()
+        reindexReproMedicationRows()
+        reindexLabResultRows()
+        reindexImagingRows()
+    }
+
+    private val reindexVaccinationRows: () -> Unit = {
+        database.vaccinationQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.vaccineName,
+                    it.batchNumber,
+                    it.vetName,
+                    it.site,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Vaccination.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.dateAdministered,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexDewormingRows: () -> Unit = {
+        database.dewormingQueries.selectAll().executeAsList().forEach {
+            val searchableText = listOfNotNull(it.product, it.dose, it.vetName, it.notes).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Deworming.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.dateAdministered,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexDentistryRows: () -> Unit = {
+        database.dentistryQueries.selectAll().executeAsList().forEach {
+            val searchableText = listOfNotNull(it.findings, it.treatment, it.vetName, it.notes).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Dentistry.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexFarrierVisitRows: () -> Unit = {
+        database.farrierVisitQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.trimOrShoe,
+                    it.shoeType,
+                    it.findings,
+                    it.farrier,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.FarrierVisit.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexLamenessRows: () -> Unit = {
+        database.lamenessQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.gradeAAEP.toString(),
+                    it.limbLocation,
+                    it.flexionTest,
+                    it.diagnosis,
+                    it.treatment,
+                    it.vetName,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Lameness.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexSurgeryRows: () -> Unit = {
+        database.surgeryQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.type,
+                    it.description,
+                    it.outcome,
+                    it.surgeon,
+                    it.anesthesia,
+                    it.analgesia,
+                    it.complications,
+                    it.recoveryNotes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Surgery.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexControlledSubstanceRows: () -> Unit = {
+        database.substanceQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.drugName,
+                    it.dose,
+                    it.unit,
+                    it.route,
+                    it.administeredBy,
+                    it.witness,
+                    it.reason,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.ControlledSubstance.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexWeightRows: () -> Unit = {
+        database.weightQueries.selectAll().executeAsList().forEach {
+            val searchableText = listOfNotNull(it.weightKg.toString(), it.notes).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Weight.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexReproductionEventRows: () -> Unit = {
+        database.reproductionQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.eventType,
+                    it.details,
+                    it.initialExamFindings,
+                    it.stallionName,
+                    it.breedingType,
+                    it.vetName,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.ReproductionEvent.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexUltrasoundRows: () -> Unit = {
+        database.ultrasoundQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.ovaryStatus,
+                    it.uterineStatus,
+                    it.uterineEdema,
+                    it.uterineLiquidDescription,
+                    it.uterusDescription,
+                    it.findings,
+                    it.vetName,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Ultrasound.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexGestationRows: () -> Unit = {
+        database.gestationQueries.selectAll().executeAsList().forEach {
+            val searchableText = listOfNotNull(it.status, it.notes).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Gestation.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.breedingDate,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexReproMedicationRows: () -> Unit = {
+        database.reproMedicationQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.medication,
+                    it.dosage,
+                    it.purpose,
+                    it.vetName,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.ReproMedication.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.dateAdministered,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexLabResultRows: () -> Unit = {
+        database.labResultQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.testType,
+                    it.results,
+                    it.normalRange,
+                    it.vetName,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.LabResult.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexImagingRows: () -> Unit = {
+        database.imagingQueries.selectAll().executeAsList().forEach {
+            val searchableText = listOfNotNull(it.type, it.findings, it.vetName, it.notes).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Imaging.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
     }
 
     /** Appends prefix stars to plain tokens, preserving explicit FTS syntax.

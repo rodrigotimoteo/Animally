@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.vaccination
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import com.github.rodrigotimoteo.animally.domain.vaccination.usecase.DeleteVaccinationUseCase
@@ -32,7 +33,7 @@ class VaccinationListViewModelTest {
 
     private val getVaccinationsByPatientUseCase = GetVaccinationsByPatientUseCase(vaccinationRepositoryMock)
 
-    private val deleteVaccinationUseCase = DeleteVaccinationUseCase(vaccinationRepositoryMock)
+    private val deleteVaccinationUseCase = DeleteVaccinationUseCase(vaccinationRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

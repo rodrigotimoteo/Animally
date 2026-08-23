@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.gestation.usecase
 
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.calls
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -23,7 +24,7 @@ class SaveGestationUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveGestationUseCase(gestationRepositoryMock, CalculateGestationUseCase())
+        sut = SaveGestationUseCase(gestationRepositoryMock, CalculateGestationUseCase(), FakeSearchRepository())
     }
 
     private val breedingDate = LocalDate(2024, 3, 1)

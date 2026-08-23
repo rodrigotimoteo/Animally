@@ -249,6 +249,8 @@ class SearchViewModelTest {
                     override fun reindexOwners() = Unit
 
                     override fun reindexPatients() = Unit
+
+                    override fun reindexRecords() = Unit
                 }
             val vm =
                 SearchViewModel(

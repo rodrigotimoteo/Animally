@@ -1,5 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.weight.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
@@ -13,6 +15,7 @@ import kotlin.time.Clock
 @Single
 class DeleteWeightUseCase(
     @Provided private val weightRepository: IWeightRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the record identified by [id] as inactive.
@@ -21,5 +24,6 @@ class DeleteWeightUseCase(
      */
     operator fun invoke(id: Long) {
         weightRepository.setInactive(id, Clock.System.now())
+        searchRepository.deleteRecord(RecordType.Weight.wireName, id)
     }
 }

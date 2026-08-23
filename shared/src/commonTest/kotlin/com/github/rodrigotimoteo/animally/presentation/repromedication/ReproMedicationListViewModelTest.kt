@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicatio
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.DeleteReproMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.GetReproMedicationsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -32,7 +33,7 @@ class ReproMedicationListViewModelTest {
 
     private val getReproMedicationsByPatientUseCase = GetReproMedicationsByPatientUseCase(reproMedicationRepositoryMock)
 
-    private val deleteReproMedicationUseCase = DeleteReproMedicationUseCase(reproMedicationRepositoryMock)
+    private val deleteReproMedicationUseCase = DeleteReproMedicationUseCase(reproMedicationRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepos
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.DeleteReproductionEventUseCase
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReproductionEventsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -32,7 +33,7 @@ class ReproductionEventListViewModelTest {
 
     private val getReproductionEventsByPatientUseCase = GetReproductionEventsByPatientUseCase(reproductionRepositoryMock)
 
-    private val deleteReproductionEventUseCase = DeleteReproductionEventUseCase(reproductionRepositoryMock)
+    private val deleteReproductionEventUseCase = DeleteReproductionEventUseCase(reproductionRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

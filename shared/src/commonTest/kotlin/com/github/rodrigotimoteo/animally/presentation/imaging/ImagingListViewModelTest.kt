@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.DeleteImagingUseCase
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.GetImagingListByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -32,7 +33,7 @@ class ImagingListViewModelTest {
 
     private val getImagingListByPatientUseCase = GetImagingListByPatientUseCase(imagingRepositoryMock)
 
-    private val deleteImagingUseCase = DeleteImagingUseCase(imagingRepositoryMock)
+    private val deleteImagingUseCase = DeleteImagingUseCase(imagingRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

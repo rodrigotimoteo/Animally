@@ -1,6 +1,8 @@
 package com.github.rodrigotimoteo.animally.domain.reproduction.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -13,6 +15,7 @@ import kotlin.time.Clock
 @Single
 class DeleteReproductionEventUseCase(
     @Provided private val reproductionRepository: IReproductionRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the record identified by [id] as inactive.
@@ -21,5 +24,6 @@ class DeleteReproductionEventUseCase(
      */
     operator fun invoke(id: Long) {
         reproductionRepository.setInactive(id, Clock.System.now())
+        searchRepository.deleteRecord(RecordType.ReproductionEvent.wireName, id)
     }
 }

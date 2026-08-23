@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.substance.usecase
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
 import dev.mokkery.answering.calls
@@ -21,7 +22,7 @@ class SaveControlledSubstanceUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveControlledSubstanceUseCase(substanceRepositoryMock)
+        sut = SaveControlledSubstanceUseCase(substanceRepositoryMock, FakeSearchRepository())
     }
 
     private fun newControlledSubstance(id: Long = 0L) =

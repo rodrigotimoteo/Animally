@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.farrier.usecase
 
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -21,7 +22,7 @@ class SaveFarrierVisitUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveFarrierVisitUseCase(farrierVisitRepositoryMock)
+        sut = SaveFarrierVisitUseCase(farrierVisitRepositoryMock, FakeSearchRepository())
     }
 
     private fun newFarrierVisit(id: Long) =

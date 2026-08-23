@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicatio
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.GetReproMedicationDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.SaveReproMedicationUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -37,7 +38,7 @@ class ReproMedicationEditViewModelTest {
 
     private val getReproMedicationDetailUseCase = GetReproMedicationDetailUseCase(reproMedicationRepositoryMock)
 
-    private val saveReproMedicationUseCase = SaveReproMedicationUseCase(reproMedicationRepositoryMock)
+    private val saveReproMedicationUseCase = SaveReproMedicationUseCase(reproMedicationRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

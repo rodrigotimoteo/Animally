@@ -41,6 +41,7 @@ object IosAppBridge {
         koin.get<ISearchRepository>().apply {
             reindexOwners()
             reindexPatients()
+            reindexRecords()
             rebuild()
         }
     }

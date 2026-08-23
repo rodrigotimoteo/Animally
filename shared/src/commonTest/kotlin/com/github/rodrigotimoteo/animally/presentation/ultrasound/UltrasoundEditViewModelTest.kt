@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.data.storage.PickedFile
 import com.github.rodrigotimoteo.animally.domain.follicle.IFollicleRepository
 import com.github.rodrigotimoteo.animally.domain.follicle.usecase.GetFolliclesByUltrasoundUseCase
 import com.github.rodrigotimoteo.animally.domain.follicle.usecase.SaveFolliclesUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundDetailUseCase
@@ -45,7 +46,7 @@ class UltrasoundEditViewModelTest {
 
     private val getUltrasoundDetailUseCase = GetUltrasoundDetailUseCase(ultrasoundRepositoryMock)
 
-    private val saveUltrasoundUseCase = SaveUltrasoundUseCase(ultrasoundRepositoryMock)
+    private val saveUltrasoundUseCase = SaveUltrasoundUseCase(ultrasoundRepositoryMock, FakeSearchRepository())
 
     private val getFolliclesByUltrasoundUseCase = GetFolliclesByUltrasoundUseCase(follicleRepositoryMock)
 

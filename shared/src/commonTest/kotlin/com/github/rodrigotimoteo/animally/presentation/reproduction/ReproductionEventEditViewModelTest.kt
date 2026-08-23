@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepos
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReproductionEventDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.SaveReproductionEventUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -37,7 +38,7 @@ class ReproductionEventEditViewModelTest {
 
     private val getReproductionEventDetailUseCase = GetReproductionEventDetailUseCase(reproductionRepositoryMock)
 
-    private val saveReproductionEventUseCase = SaveReproductionEventUseCase(reproductionRepositoryMock)
+    private val saveReproductionEventUseCase = SaveReproductionEventUseCase(reproductionRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

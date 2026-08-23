@@ -1,7 +1,9 @@
 package com.github.rodrigotimoteo.animally.domain.dentistry.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -16,6 +18,7 @@ import org.koin.core.annotation.Single
 @Single
 class SaveDentistryUseCase(
     @Provided private val dentistryRepository: IDentistryRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Persists the given [dentistry] and returns the generated identifier for new records.
@@ -23,10 +26,27 @@ class SaveDentistryUseCase(
      * @param dentistry the dentistry record to persist.
      * @return the id of the persisted dentistry record.
      */
-    operator fun invoke(dentistry: Dentistry): Long =
-        if (dentistry.id == 0L) {
-            dentistryRepository.insert(dentistry)
-        } else {
-            dentistryRepository.update(dentistry)
-        }
+    operator fun invoke(dentistry: Dentistry): Long {
+        val savedId =
+            if (dentistry.id == 0L) {
+                dentistryRepository.insert(dentistry)
+            } else {
+                dentistryRepository.update(dentistry)
+            }
+        val searchableText =
+            listOfNotNull(
+                dentistry.findings,
+                dentistry.treatment,
+                dentistry.vetName,
+                dentistry.notes,
+            ).joinToString(" ")
+        searchRepository.indexRecord(
+            recordType = RecordType.Dentistry.wireName,
+            patientId = dentistry.patientId,
+            recordId = savedId,
+            date = dentistry.date,
+            searchableText = searchableText,
+        )
+        return savedId
+    }
 }

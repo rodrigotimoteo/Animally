@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.reproduction.usecase
 
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -21,7 +22,7 @@ class SaveReproductionEventUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveReproductionEventUseCase(reproductionRepositoryMock)
+        sut = SaveReproductionEventUseCase(reproductionRepositoryMock, FakeSearchRepository())
     }
 
     private fun newEvent(id: Long) =

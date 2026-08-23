@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.lameness.usecase
 
 import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.calls
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -21,7 +22,7 @@ class SaveLamenessUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveLamenessUseCase(lamenessRepositoryMock)
+        sut = SaveLamenessUseCase(lamenessRepositoryMock, FakeSearchRepository())
     }
 
     private fun newLameness(id: Long = 0L) =

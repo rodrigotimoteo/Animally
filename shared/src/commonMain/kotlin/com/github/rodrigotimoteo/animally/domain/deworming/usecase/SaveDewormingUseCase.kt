@@ -1,7 +1,9 @@
 package com.github.rodrigotimoteo.animally.domain.deworming.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -16,6 +18,7 @@ import org.koin.core.annotation.Single
 @Single
 class SaveDewormingUseCase(
     @Provided private val dewormingRepository: IDewormingRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Persists the given [deworming] and returns the generated identifier for new records.
@@ -23,10 +26,27 @@ class SaveDewormingUseCase(
      * @param deworming the deworming record to persist.
      * @return the id of the persisted deworming record.
      */
-    operator fun invoke(deworming: Deworming): Long =
-        if (deworming.id == 0L) {
-            dewormingRepository.insert(deworming)
-        } else {
-            dewormingRepository.update(deworming)
-        }
+    operator fun invoke(deworming: Deworming): Long {
+        val savedId =
+            if (deworming.id == 0L) {
+                dewormingRepository.insert(deworming)
+            } else {
+                dewormingRepository.update(deworming)
+            }
+        val searchableText =
+            listOfNotNull(
+                deworming.product,
+                deworming.dose,
+                deworming.vetName,
+                deworming.notes,
+            ).joinToString(" ")
+        searchRepository.indexRecord(
+            recordType = RecordType.Deworming.wireName,
+            patientId = deworming.patientId,
+            recordId = savedId,
+            date = deworming.dateAdministered,
+            searchableText = searchableText,
+        )
+        return savedId
+    }
 }

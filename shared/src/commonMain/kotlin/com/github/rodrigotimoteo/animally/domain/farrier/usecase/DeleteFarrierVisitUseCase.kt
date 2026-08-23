@@ -1,6 +1,8 @@
 package com.github.rodrigotimoteo.animally.domain.farrier.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -13,6 +15,7 @@ import kotlin.time.Clock
 @Single
 class DeleteFarrierVisitUseCase(
     @Provided private val farrierVisitRepository: IFarrierVisitRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the record identified by [id] as inactive.
@@ -21,5 +24,6 @@ class DeleteFarrierVisitUseCase(
      */
     operator fun invoke(id: Long) {
         farrierVisitRepository.setInactive(id, Clock.System.now())
+        searchRepository.deleteRecord(RecordType.FarrierVisit.wireName, id)
     }
 }

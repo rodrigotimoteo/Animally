@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.surgery
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.DeleteSurgeryUseCase
@@ -31,7 +32,7 @@ class SurgeryListViewModelTest {
 
     private val getSurgeriesByPatientUseCase = GetSurgeriesByPatientUseCase(surgeryRepositoryMock)
 
-    private val deleteSurgeryUseCase = DeleteSurgeryUseCase(surgeryRepositoryMock)
+    private val deleteSurgeryUseCase = DeleteSurgeryUseCase(surgeryRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

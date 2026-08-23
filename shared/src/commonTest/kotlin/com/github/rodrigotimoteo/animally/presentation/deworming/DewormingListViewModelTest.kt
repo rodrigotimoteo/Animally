@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.DeleteDewormingUseCase
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.GetDewormingsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -32,7 +33,7 @@ class DewormingListViewModelTest {
 
     private val getDewormingsByPatientUseCase = GetDewormingsByPatientUseCase(dewormingRepositoryMock)
 
-    private val deleteDewormingUseCase = DeleteDewormingUseCase(dewormingRepositoryMock)
+    private val deleteDewormingUseCase = DeleteDewormingUseCase(dewormingRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

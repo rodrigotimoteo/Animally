@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.labresult.usecase
 
 import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -23,7 +24,7 @@ class SaveLabResultUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveLabResultUseCase(labResultRepositoryMock)
+        sut = SaveLabResultUseCase(labResultRepositoryMock, FakeSearchRepository())
     }
 
     private fun labResult(id: Long): LabResult =

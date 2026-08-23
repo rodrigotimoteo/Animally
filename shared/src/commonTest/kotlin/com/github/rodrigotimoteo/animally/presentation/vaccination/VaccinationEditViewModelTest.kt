@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.vaccination
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import com.github.rodrigotimoteo.animally.domain.vaccination.usecase.CalculateNextDueDateUseCase
@@ -40,7 +41,7 @@ class VaccinationEditViewModelTest {
     private val getVaccinationDetailUseCase = GetVaccinationDetailUseCase(vaccinationRepositoryMock)
 
     private val saveVaccinationUseCase =
-        SaveVaccinationUseCase(vaccinationRepositoryMock, CalculateNextDueDateUseCase())
+        SaveVaccinationUseCase(vaccinationRepositoryMock, CalculateNextDueDateUseCase(), FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

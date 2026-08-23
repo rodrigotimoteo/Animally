@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.GetDewormingDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.SaveDewormingUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -37,7 +38,7 @@ class DewormingEditViewModelTest {
 
     private val getDewormingDetailUseCase = GetDewormingDetailUseCase(dewormingRepositoryMock)
 
-    private val saveDewormingUseCase = SaveDewormingUseCase(dewormingRepositoryMock)
+    private val saveDewormingUseCase = SaveDewormingUseCase(dewormingRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.GetDentistryDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.SaveDentistryUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -37,7 +38,7 @@ class DentistryEditViewModelTest {
 
     private val getDentistryDetailUseCase = GetDentistryDetailUseCase(dentistryRepositoryMock)
 
-    private val saveDentistryUseCase = SaveDentistryUseCase(dentistryRepositoryMock)
+    private val saveDentistryUseCase = SaveDentistryUseCase(dentistryRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

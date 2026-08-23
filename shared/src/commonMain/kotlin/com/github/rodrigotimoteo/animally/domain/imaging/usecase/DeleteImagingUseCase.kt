@@ -1,6 +1,8 @@
 package com.github.rodrigotimoteo.animally.domain.imaging.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -13,6 +15,7 @@ import kotlin.time.Clock
 @Single
 class DeleteImagingUseCase(
     @Provided private val imagingRepository: IImagingRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the record identified by [id] as inactive.
@@ -21,5 +24,6 @@ class DeleteImagingUseCase(
      */
     operator fun invoke(id: Long) {
         imagingRepository.setInactive(id, Clock.System.now())
+        searchRepository.deleteRecord(RecordType.Imaging.wireName, id)
     }
 }

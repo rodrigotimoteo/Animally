@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.GetImagingDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.SaveImagingUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -41,7 +42,7 @@ class ImagingEditViewModelTest {
 
     private val getImagingDetailUseCase = GetImagingDetailUseCase(imagingRepositoryMock)
 
-    private val saveImagingUseCase = SaveImagingUseCase(imagingRepositoryMock)
+    private val saveImagingUseCase = SaveImagingUseCase(imagingRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.repromedication.usecase
 
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -21,7 +22,7 @@ class SaveReproMedicationUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveReproMedicationUseCase(reproMedicationRepositoryMock)
+        sut = SaveReproMedicationUseCase(reproMedicationRepositoryMock, FakeSearchRepository())
     }
 
     private fun newReproMedication(id: Long) =

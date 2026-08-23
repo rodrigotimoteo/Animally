@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.vaccination.usecase
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import dev.mokkery.answering.calls
@@ -21,7 +22,7 @@ class SaveVaccinationUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveVaccinationUseCase(vaccinationRepositoryMock, CalculateNextDueDateUseCase())
+        sut = SaveVaccinationUseCase(vaccinationRepositoryMock, CalculateNextDueDateUseCase(), FakeSearchRepository())
     }
 
     private fun newVaccination(

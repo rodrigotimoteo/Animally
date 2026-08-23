@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.GetLabResultDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.SaveLabResultUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -38,7 +39,7 @@ class LabResultEditViewModelTest {
 
     private val getLabResultDetailUseCase = GetLabResultDetailUseCase(labResultRepositoryMock)
 
-    private val saveLabResultUseCase = SaveLabResultUseCase(labResultRepositoryMock)
+    private val saveLabResultUseCase = SaveLabResultUseCase(labResultRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

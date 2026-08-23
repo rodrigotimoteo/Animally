@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.surgery.usecase
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
 import dev.mokkery.answering.calls
@@ -21,7 +22,7 @@ class SaveSurgeryUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveSurgeryUseCase(surgeryRepositoryMock)
+        sut = SaveSurgeryUseCase(surgeryRepositoryMock, FakeSearchRepository())
     }
 
     private fun newSurgery(id: Long = 0L) =

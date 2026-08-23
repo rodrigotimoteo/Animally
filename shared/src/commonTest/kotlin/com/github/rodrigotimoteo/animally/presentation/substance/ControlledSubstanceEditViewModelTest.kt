@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.substance
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
 import com.github.rodrigotimoteo.animally.domain.substance.usecase.GetControlledSubstanceDetailUseCase
@@ -38,7 +39,7 @@ class ControlledSubstanceEditViewModelTest {
 
     private val getControlledSubstanceDetailUseCase = GetControlledSubstanceDetailUseCase(substanceRepositoryMock)
 
-    private val saveControlledSubstanceUseCase = SaveControlledSubstanceUseCase(substanceRepositoryMock)
+    private val saveControlledSubstanceUseCase = SaveControlledSubstanceUseCase(substanceRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

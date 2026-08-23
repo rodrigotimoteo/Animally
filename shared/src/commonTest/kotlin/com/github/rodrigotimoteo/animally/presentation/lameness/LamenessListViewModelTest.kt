@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.DeleteLamenessUseCase
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.GetLamenessListByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -31,7 +32,7 @@ class LamenessListViewModelTest {
 
     private val getLamenessListByPatientUseCase = GetLamenessListByPatientUseCase(lamenessRepositoryMock)
 
-    private val deleteLamenessUseCase = DeleteLamenessUseCase(lamenessRepositoryMock)
+    private val deleteLamenessUseCase = DeleteLamenessUseCase(lamenessRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

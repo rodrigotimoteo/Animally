@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.dentistry.usecase
 
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -21,7 +22,7 @@ class SaveDentistryUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveDentistryUseCase(dentistryRepositoryMock)
+        sut = SaveDentistryUseCase(dentistryRepositoryMock, FakeSearchRepository())
     }
 
     private fun newDentistry(id: Long) =

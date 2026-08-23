@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.DeleteDentistryUseCase
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.GetDentistryListByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -32,7 +33,7 @@ class DentistryListViewModelTest {
 
     private val getDentistryListByPatientUseCase = GetDentistryListByPatientUseCase(dentistryRepositoryMock)
 
-    private val deleteDentistryUseCase = DeleteDentistryUseCase(dentistryRepositoryMock)
+    private val deleteDentistryUseCase = DeleteDentistryUseCase(dentistryRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

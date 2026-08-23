@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.deworming.usecase
 
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -21,7 +22,7 @@ class SaveDewormingUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveDewormingUseCase(dewormingRepositoryMock)
+        sut = SaveDewormingUseCase(dewormingRepositoryMock, FakeSearchRepository())
     }
 
     private fun newDeworming(id: Long) =

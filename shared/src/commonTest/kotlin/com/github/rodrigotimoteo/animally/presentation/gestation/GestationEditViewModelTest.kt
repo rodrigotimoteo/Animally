@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.CalculateGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.SaveGestationUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -48,6 +49,7 @@ class GestationEditViewModelTest {
         SaveGestationUseCase(
             gestationRepositoryMock,
             CalculateGestationUseCase(),
+            FakeSearchRepository(),
         )
 
     private val navigator = AnimallyNavigator()

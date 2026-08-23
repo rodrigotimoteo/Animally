@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.GetFarrierVisitDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.SaveFarrierVisitUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -37,7 +38,7 @@ class FarrierVisitEditViewModelTest {
 
     private val getFarrierVisitDetailUseCase = GetFarrierVisitDetailUseCase(farrierVisitRepositoryMock)
 
-    private val saveFarrierVisitUseCase = SaveFarrierVisitUseCase(farrierVisitRepositoryMock)
+    private val saveFarrierVisitUseCase = SaveFarrierVisitUseCase(farrierVisitRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

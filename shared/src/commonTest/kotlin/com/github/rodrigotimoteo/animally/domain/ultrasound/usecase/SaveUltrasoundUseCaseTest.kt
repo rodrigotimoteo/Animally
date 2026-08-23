@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.ultrasound.usecase
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import dev.mokkery.answering.returns
@@ -21,7 +22,7 @@ class SaveUltrasoundUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveUltrasoundUseCase(ultrasoundRepositoryMock)
+        sut = SaveUltrasoundUseCase(ultrasoundRepositoryMock, FakeSearchRepository())
     }
 
     private fun newUltrasound(id: Long) =

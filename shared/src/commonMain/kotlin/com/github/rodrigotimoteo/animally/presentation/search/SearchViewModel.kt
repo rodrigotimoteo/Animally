@@ -153,10 +153,29 @@ data class SearchUiState(
      * The record-type filter chips and their display labels.
      */
     val recordTypeOptions: List<Pair<String, String>>
-        get() =
+        get() = SEARCHABLE_TYPES.map { it.wireName to it.displayName }
+
+    companion object {
+        /** Record types offered as search filter chips (every indexed type). */
+        val SEARCHABLE_TYPES =
             listOf(
                 RecordType.Patient,
                 RecordType.Consultation,
                 RecordType.Medication,
-            ).map { it.wireName to it.displayName }
+                RecordType.Vaccination,
+                RecordType.Deworming,
+                RecordType.Dentistry,
+                RecordType.FarrierVisit,
+                RecordType.Lameness,
+                RecordType.Surgery,
+                RecordType.ControlledSubstance,
+                RecordType.Weight,
+                RecordType.ReproductionEvent,
+                RecordType.Ultrasound,
+                RecordType.Gestation,
+                RecordType.ReproMedication,
+                RecordType.LabResult,
+                RecordType.Imaging,
+            )
+    }
 }

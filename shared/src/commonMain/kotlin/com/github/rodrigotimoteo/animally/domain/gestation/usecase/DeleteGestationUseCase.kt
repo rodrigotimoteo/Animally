@@ -1,6 +1,8 @@
 package com.github.rodrigotimoteo.animally.domain.gestation.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -13,6 +15,7 @@ import kotlin.time.Clock
 @Single
 class DeleteGestationUseCase(
     @Provided private val gestationRepository: IGestationRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the record identified by [id] as inactive.
@@ -21,5 +24,6 @@ class DeleteGestationUseCase(
      */
     operator fun invoke(id: Long) {
         gestationRepository.setInactive(id, Clock.System.now())
+        searchRepository.deleteRecord(RecordType.Gestation.wireName, id)
     }
 }

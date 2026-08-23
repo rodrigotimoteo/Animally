@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.substance
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
 import com.github.rodrigotimoteo.animally.domain.substance.usecase.DeleteControlledSubstanceUseCase
@@ -31,7 +32,7 @@ class ControlledSubstanceListViewModelTest {
 
     private val getControlledSubstancesByPatientUseCase = GetControlledSubstancesByPatientUseCase(substanceRepositoryMock)
 
-    private val deleteControlledSubstanceUseCase = DeleteControlledSubstanceUseCase(substanceRepositoryMock)
+    private val deleteControlledSubstanceUseCase = DeleteControlledSubstanceUseCase(substanceRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

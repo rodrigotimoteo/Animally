@@ -61,6 +61,13 @@ interface ISearchRepository {
     /** Re-indexes every active patient; heals rows whose index entry was lost or clobbered. */
     fun reindexPatients()
 
+    /**
+     * Backfills the index for every clinical/preventive/reproductive record type
+     * from its table; heals rows created before record-type indexing existed.
+     * Idempotent: existing entries are replaced.
+     */
+    fun reindexRecords()
+
     companion object {
         /** Wire names are sourced from [RecordType] so the two cannot drift. */
         val TYPE_PATIENT = RecordType.Patient.wireName

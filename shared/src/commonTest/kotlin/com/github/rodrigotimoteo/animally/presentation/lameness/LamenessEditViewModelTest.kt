@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.GetLamenessDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.SaveLamenessUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -38,7 +39,7 @@ class LamenessEditViewModelTest {
 
     private val getLamenessDetailUseCase = GetLamenessDetailUseCase(lamenessRepositoryMock)
 
-    private val saveLamenessUseCase = SaveLamenessUseCase(lamenessRepositoryMock)
+    private val saveLamenessUseCase = SaveLamenessUseCase(lamenessRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

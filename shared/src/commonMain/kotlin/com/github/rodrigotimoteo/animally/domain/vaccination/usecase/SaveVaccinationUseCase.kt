@@ -1,5 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.vaccination.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import org.koin.core.annotation.Provided
@@ -19,6 +21,7 @@ import org.koin.core.annotation.Single
 class SaveVaccinationUseCase(
     @Provided private val vaccinationRepository: IVaccinationRepository,
     @Provided private val calculateNextDueDateUseCase: CalculateNextDueDateUseCase,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Persists the given [vaccination] and returns the generated identifier for new vaccinations.
@@ -29,10 +32,27 @@ class SaveVaccinationUseCase(
     operator fun invoke(vaccination: Vaccination): Long {
         val nextDueDate = calculateNextDueDateUseCase(vaccination.vaccineName, vaccination.dateAdministered)
         val toSave = vaccination.copy(nextDueDate = nextDueDate)
-        return if (toSave.id == 0L) {
-            vaccinationRepository.insert(toSave)
-        } else {
-            vaccinationRepository.update(toSave)
-        }
+        val savedId =
+            if (toSave.id == 0L) {
+                vaccinationRepository.insert(toSave)
+            } else {
+                vaccinationRepository.update(toSave)
+            }
+        val searchableText =
+            listOfNotNull(
+                toSave.vaccineName,
+                toSave.batchNumber,
+                toSave.vetName,
+                toSave.site,
+                toSave.notes,
+            ).joinToString(" ")
+        searchRepository.indexRecord(
+            recordType = RecordType.Vaccination.wireName,
+            patientId = toSave.patientId,
+            recordId = savedId,
+            date = toSave.dateAdministered,
+            searchableText = searchableText,
+        )
+        return savedId
     }
 }
