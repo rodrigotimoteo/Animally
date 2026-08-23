@@ -249,9 +249,21 @@ struct OverviewTab: View {
     let patient: Patient_
     let ownerName: String?
 
+    @StateObject private var careModel: CareDuePanelModel
+
+    init(
+        patient: Patient_,
+        ownerName: String?
+    ) {
+        self.patient = patient
+        self.ownerName = ownerName
+        _careModel = StateObject(wrappedValue: CareDuePanelModel(patientId: patient.id))
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                careDueSection
                 patientHeader
                 basicInfoSection
                 if ownerName != nil {
@@ -261,6 +273,85 @@ struct OverviewTab: View {
             }
             .padding()
         }
+    }
+
+    /// Upcoming and overdue care, surfaced where the vet looks first.
+    /// Static rows for v1; tapping through to the record is a follow-up.
+    private var careDueSection: some View {
+        Group {
+            if !careModel.items.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bell.badge")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Care Due")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.forestGreen)
+
+                    ForEach(
+                        Array(careModel.items.enumerated()),
+                        id: \.offset
+                    ) { _, item in
+                        HStack(spacing: 12) {
+                            Image(systemName: item.overdue ? "exclamationmark.circle.fill" : "clock")
+                                .foregroundStyle(item.overdue ? Theme.amber : Theme.forestGreen)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Theme.textPrimary)
+                                Text(item.typeLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
+                            Spacer()
+                            Text(Self.dueText(for: item))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Self.dueColor(for: item))
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(item.typeLabel): \(item.title), \(Self.dueText(for: item))")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Theme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    private static func dueText(for item: CareDueItem) -> String {
+        let due = "\(item.dueDate.dayOfMonth) \(monthAbbreviation(item.dueDate.monthNumber)) \(item.dueDate.year)"
+        if item.overdue {
+            return "Overdue — due \(due)"
+        }
+        if daysUntil(item.dueDate) == 0 {
+            return "Due today"
+        }
+        let days = daysUntil(item.dueDate)
+        return "Due in \(days) day\(days == 1 ? "" : "s")"
+    }
+
+    private static func dueColor(for item: CareDueItem) -> Color {
+        if item.overdue { return .red }
+        if daysUntil(item.dueDate) <= 3 { return .orange }
+        return Theme.amber
+    }
+
+    private static func daysUntil(_ date: Kotlinx_datetimeLocalDate) -> Int {
+        let formatter = RecordFormStyle.isoDateFormatter
+        let iso = "\(date.year)-\(String(format: "%02d", date.monthNumber))-\(String(format: "%02d", date.dayOfMonth))"
+        guard let due = formatter.date(from: iso) else { return 0 }
+        return Calendar.current.dateComponents([.day], from: Date(), to: due).day ?? 0
+    }
+
+    private static func monthAbbreviation(_ monthNumber: Int32) -> String {
+        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        let index = Int(monthNumber) - 1
+        return index >= 0 && index < months.count ? months[index] : ""
     }
 
     private var patientHeader: some View {
@@ -336,6 +427,29 @@ struct OverviewTab: View {
     private func formatDate(_ date: Kotlinx_datetimeLocalDate?) -> String? {
         guard let date = date else { return nil }
         return "\(date.year)-\(String(format: "%02d", date.monthNumber))-\(String(format: "%02d", date.dayOfMonth))"
+    }
+}
+
+/// Swift-side observation for the Care Due panel: bridges the Kotlin
+/// UpcomingCareStore's state flow into published properties.
+@MainActor
+final class CareDuePanelModel: ObservableObject {
+    @Published var items: [CareDueItem] = []
+
+    private var cancellable: NativeCancellable?
+
+    init(patientId: Int64) {
+        let store = IosRecordStores.shared.upcomingCareStore(patientId: patientId)
+        cancellable = store.state.subscribe(onEach: { [weak self] state in
+            Task { @MainActor in
+                self?.items = state.items
+            }
+        })
+        store.load()
+    }
+
+    deinit {
+        cancellable?.cancel()
     }
 }
 

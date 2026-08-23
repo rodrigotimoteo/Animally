@@ -2,6 +2,7 @@
 
 package com.github.rodrigotimoteo.animally.di.infra
 
+import com.github.rodrigotimoteo.animally.presentation.care.UpcomingCareViewModel
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationListViewModel
 import com.github.rodrigotimoteo.animally.presentation.dentistry.DentistryListViewModel
 import com.github.rodrigotimoteo.animally.presentation.deworming.DewormingListViewModel
@@ -18,6 +19,7 @@ import com.github.rodrigotimoteo.animally.presentation.ios.LamenessListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.MedicationListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.SubstanceListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.SurgeryListStore
+import com.github.rodrigotimoteo.animally.presentation.ios.UpcomingCareStore
 import com.github.rodrigotimoteo.animally.presentation.ios.VaccinationListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.WeightListStore
 import com.github.rodrigotimoteo.animally.presentation.lameness.LamenessListViewModel
@@ -49,6 +51,12 @@ object IosRecordStores {
     fun vaccinationListStore(patientId: Long): VaccinationListStore {
         val viewModel: VaccinationListViewModel = IosAppBridge.koin.get { parametersOf(patientId) }
         return VaccinationListStore(viewModel)
+    }
+
+    /** Returns a store exposing the Care Due panel for the patient with [patientId]. */
+    fun upcomingCareStore(patientId: Long): UpcomingCareStore {
+        val viewModel: UpcomingCareViewModel = IosAppBridge.koin.get { parametersOf(patientId) }
+        return UpcomingCareStore(viewModel)
     }
 
     /** Returns a store exposing the embryo transfer list for the patient with [patientId]. */

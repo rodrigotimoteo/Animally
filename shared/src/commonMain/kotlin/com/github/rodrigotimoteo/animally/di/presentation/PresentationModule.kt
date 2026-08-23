@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.di.presentation
 import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.presentation.anamnese.AnamneseViewModel
+import com.github.rodrigotimoteo.animally.presentation.care.UpcomingCareViewModel
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationListViewModel
 import com.github.rodrigotimoteo.animally.presentation.customreminder.CustomReminderEditViewModel
@@ -144,6 +145,13 @@ internal class PresentationModule {
                     getVaccinationsByPatientUseCase = get(),
                     deleteVaccinationUseCase = get(),
                     animallyNavigator = get(),
+                    ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                )
+            }
+            viewModel { (patientId: Long) ->
+                UpcomingCareViewModel(
+                    patientId = patientId,
+                    getUpcomingRemindersUseCase = get(),
                     ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 )
             }
