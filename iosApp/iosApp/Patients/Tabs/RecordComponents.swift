@@ -7,6 +7,14 @@ extension Kotlinx_datetimeLocalDate {
     var displayString: String {
         "\(year)-\(String(format: "%02d", monthNumber))-\(String(format: "%02d", dayOfMonth))"
     }
+
+    /// Human-friendly date, e.g. "22 Aug 2026".
+    var friendlyString: String {
+        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        let index = Int(monthNumber) - 1
+        let month = index >= 0 && index < months.count ? months[index] : ""
+        return "\(dayOfMonth) \(month) \(year)"
+    }
 }
 
 // MARK: - Generic Record Row
@@ -137,41 +145,106 @@ struct RecordSectionSpec<Item> {
 }
 
 /// Renders a `RecordSectionSpec`: section container, rows, optional extra
-/// lines, tap-to-open-record wiring, and swipe-to-delete.
+/// lines, tap-to-open-record wiring, and swipe-to-delete. When more than
+/// `RecordSectionRowsConfig.collapseLimit` records exist, only the 5 most recent
+/// (by row date, newest first) are shown until the user expands inline.
 @ViewBuilder
 func recordSection<Item>(
     _ spec: RecordSectionSpec<Item>,
     onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)?
 ) -> some View {
     RecordSection(title: spec.title, icon: spec.icon, count: spec.items.count) {
-        ForEach(spec.items.indices, id: \.self) { index in
-            let item = spec.items[index]
-            VStack(alignment: .leading, spacing: 6) {
-                RecordRowView(
-                    icon: spec.icon,
-                    iconTint: Theme.forestGreen,
-                    title: spec.rowTitle(item),
-                    subtitle: spec.rowSubtitle(item),
-                    date: spec.rowDate(item)
-                )
-                if let extra = spec.extraLine?(item), !extra.isEmpty {
-                    HStack(spacing: 4) {
-                        Image(systemName: "calendar")
-                            .font(.caption2)
-                        Text("Next due: \(extra)")
-                            .font(.caption2)
-                    }
-                    .foregroundStyle(Theme.amber)
-                    .padding(.leading, 48)
+        RecordSectionRows(spec: spec, onOpenRecord: onOpenRecord)
+    }
+}
+
+/// Collapse threshold shared by every section: sections with more rows show
+/// only the most recent N until expanded.
+private enum RecordSectionRowsConfig {
+    static let collapseLimit = 5
+}
+
+/// Row list for one record section with the >5 collapse/expand behavior.
+/// Rows are always shown newest-first by row date; expanding reveals the rest.
+private struct RecordSectionRows<Item>: View {
+    let spec: RecordSectionSpec<Item>
+    let onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)?
+
+    @State private var isExpanded = false
+
+    private var sortedItems: [Item] {
+        spec.items.sorted { a, b in
+            let da = spec.rowDate(a) ?? ""
+            let db = spec.rowDate(b) ?? ""
+            if da != db { return da > db }
+            // Same-date ties (bulk-created records): newer auto-increment id wins
+            // so freshly created rows always surface in the recent window.
+            return spec.recordId(a) > spec.recordId(b)
+        }
+    }
+
+    var body: some View {
+        let items = sortedItems
+        let visibleCount = isExpanded ? items.count : min(items.count, RecordSectionRowsConfig.collapseLimit)
+
+        Group {
+            ForEach(Array(items.prefix(visibleCount).enumerated()), id: \.offset) { _, item in
+                row(item)
+            }
+
+            if items.count > RecordSectionRowsConfig.collapseLimit {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
                 }
+            } label: {
+                HStack(spacing: 4) {
+                    Spacer()
+                    Text(isExpanded ? "Show less" : "Show all \(items.count)")
+                        .font(.subheadline.weight(.medium))
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                }
+                    .foregroundStyle(Theme.forestGreen)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? "Show fewer \(spec.title)" : "Show all \(items.count) \(spec.title)")
             }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onOpenRecord?(spec.displayType, spec.recordId(item), spec.fields(item).filter { !$0.value.isEmpty })
+        }
+        .onChange(of: items.count) { _, _ in
+            // Fresh data (reload/delete): collapse back to the recent top 5.
+            isExpanded = false
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ item: Item) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            RecordRowView(
+                icon: spec.icon,
+                iconTint: Theme.forestGreen,
+                title: spec.rowTitle(item),
+                subtitle: spec.rowSubtitle(item),
+                date: spec.rowDate(item)
+            )
+            if let extra = spec.extraLine?(item), !extra.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "calendar")
+                        .font(.caption2)
+                    Text("Next due: \(extra)")
+                        .font(.caption2)
+                }
+                .foregroundStyle(Theme.amber)
+                .padding(.leading, 48)
             }
-            .recordSwipeDelete(title: spec.deleteTitle ?? spec.title) {
-                spec.onDelete(item)
-            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onOpenRecord?(spec.displayType, spec.recordId(item), spec.fields(item).filter { !$0.value.isEmpty })
+        }
+        .recordSwipeDelete(title: spec.deleteTitle ?? spec.title) {
+            spec.onDelete(item)
         }
     }
 }

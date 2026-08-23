@@ -50,6 +50,18 @@ struct ReproductionTabView: View {
 
     private var recordList: some View {
         List {
+            // Active pregnancy pinned to the very top — the most important
+            // information on this tab.
+            if let active = viewModel.gestations.first(where: { Self.isActive($0) }) {
+                Section {
+                    ActiveGestationCard(gestation: active) {
+                        onOpenRecord?("Gestation", active.id, Self.gestationFields(active))
+                    }
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            }
+
             // Reproduction Events
             recordSection(
                 RecordSectionSpec(
@@ -76,6 +88,50 @@ struct ReproductionTabView: View {
                 ),
                 onOpenRecord: onOpenRecord
             )
+
+            // Gestations
+            RecordSection(title: "Gestations", icon: "baby.fill", count: viewModel.gestations.count) {
+                ForEach(viewModel.gestations, id: \.id) { record in
+                    VStack(alignment: .leading, spacing: 6) {
+                        RecordRowView(
+                            icon: "baby.fill",
+                            iconTint: Theme.forestGreen,
+                            title: "Day \(record.gestationDays)",
+                            subtitle: record.status,
+                            date: record.breedingDate.displayString
+                        )
+                        HStack(spacing: 12) {
+                            Label {
+                                Text("Due: \(record.expectedDueDate.displayString)")
+                            } icon: {
+                                Image(systemName: "calendar.badge.clock")
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+
+                            if let fetalCount = record.fetalCount {
+                                Label {
+                                    Text("\(fetalCount) fetus\(fetalCount.intValue > 1 ? "es" : "")")
+                                } icon: {
+                                    Image(systemName: "number")
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(Theme.textSecondary)
+                            }
+                        }
+                        .padding(.leading, 48)
+                    }
+                    .contentShape(Rectangle())
+
+                    .onTapGesture {
+                        onOpenRecord?("Gestation", record.id, Self.gestationFields(record))
+                    }
+
+                    .recordSwipeDelete(title: "Gestation") {
+                        viewModel.deleteGestation(record.id)
+                    }
+                }
+            }
 
             // Ultrasounds
             RecordSection(title: "Ultrasounds", icon: "waveform.path.ecg", count: viewModel.ultrasounds.count) {
@@ -132,61 +188,6 @@ struct ReproductionTabView: View {
 
                     .recordSwipeDelete(title: "Ultrasound") {
                         viewModel.deleteUltrasound(record.id)
-                    }
-                }
-            }
-
-            // Gestations
-            RecordSection(title: "Gestations", icon: "baby.fill", count: viewModel.gestations.count) {
-                ForEach(viewModel.gestations, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "baby.fill",
-                            iconTint: Theme.forestGreen,
-                            title: "Day \(record.gestationDays)",
-                            subtitle: record.status,
-                            date: record.breedingDate.displayString
-                        )
-                        HStack(spacing: 12) {
-                            Label {
-                                Text("Due: \(record.expectedDueDate.displayString)")
-                            } icon: {
-                                Image(systemName: "calendar.badge.clock")
-                            }
-                            .font(.caption2)
-                            .foregroundStyle(Theme.textSecondary)
-
-                            if let fetalCount = record.fetalCount {
-                                Label {
-                                    Text("\(fetalCount) fetus\(fetalCount.intValue > 1 ? "es" : "")")
-                                } icon: {
-                                    Image(systemName: "number")
-                                }
-                                .font(.caption2)
-                                .foregroundStyle(Theme.textSecondary)
-                            }
-                        }
-                        .padding(.leading, 48)
-                    }
-                    .contentShape(Rectangle())
-
-                    .onTapGesture {
-                        var fields: [RecordDetailNav.FieldRow] = [
-                            .init(label: "Breeding Date", value: record.breedingDate.displayString),
-                            .init(label: "Expected Due Date", value: record.expectedDueDate.displayString),
-                            .init(label: "Gestation Day", value: "\(record.gestationDays)"),
-                            .init(label: "Status", value: record.status ?? ""),
-                        ]
-                        if let fetalCount = record.fetalCount {
-                            fields.append(.init(label: "Fetal Count", value: "\(fetalCount.intValue)"))
-                        }
-                        fields.append(.init(label: "Last Check Date", value: record.lastCheckDate?.displayString ?? ""))
-                        fields.append(.init(label: "Notes", value: record.notes ?? ""))
-                        onOpenRecord?("Gestation", record.id, fields.filter { !$0.value.isEmpty })
-                    }
-
-                    .recordSwipeDelete(title: "Gestation") {
-                        viewModel.deleteGestation(record.id)
                     }
                 }
             }
@@ -261,5 +262,129 @@ struct ReproductionTabView: View {
             )
         }
         .listStyle(.insetGrouped)
+    }
+
+    /// A gestation counts as an ongoing pregnancy while its status is "Active".
+    private static func isActive(_ gestation: Gestation_) -> Bool {
+        gestation.status == "Active"
+    }
+
+    /// Shared field rows for the read-only gestation detail screen.
+    private static func gestationFields(_ record: Gestation_) -> [RecordDetailNav.FieldRow] {
+        var fields: [RecordDetailNav.FieldRow] = [
+            .init(label: "Breeding Date", value: record.breedingDate.displayString),
+            .init(label: "Expected Due Date", value: record.expectedDueDate.displayString),
+            .init(label: "Gestation Day", value: "\(record.gestationDays)"),
+            .init(label: "Status", value: record.status),
+        ]
+        if let fetalCount = record.fetalCount {
+            fields.append(.init(label: "Fetal Count", value: "\(fetalCount.intValue)"))
+        }
+        fields.append(.init(label: "Last Check Date", value: record.lastCheckDate?.displayString ?? ""))
+        fields.append(.init(label: "Notes", value: record.notes ?? ""))
+        return fields.filter { !$0.value.isEmpty }
+    }
+}
+
+/// Prominent pinned card for an active pregnancy: breeding date, computed
+/// gestation day count, and the expected foaling date front and center.
+/// Amber accents once foaling is within 30 days or overdue.
+private struct ActiveGestationCard: View {
+    let gestation: Gestation_
+    let onTap: () -> Void
+
+    private static let dueSoonDays = 30
+
+    private var dueDate: Date? {
+        RecordFormStyle.isoDateFormatter.date(from: gestation.expectedDueDate.displayString)
+    }
+
+    /// Days until foaling; negative when overdue.
+    private var daysUntilDue: Int? {
+        guard let dueDate else { return nil }
+        return Calendar.current.dateComponents([.day], from: Date(), to: dueDate).day
+    }
+
+    private var isDueSoon: Bool {
+        (daysUntilDue ?? Int.max) <= Self.dueSoonDays
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "heart.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(Theme.forestGreen)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("In Foal")
+                            .font(.caption.weight(.bold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Theme.forestGreen)
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+
+                        Text("Day \(gestation.gestationDays)")
+                            .font(.title.weight(.bold))
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(gestation.expectedDueDate.friendlyString)
+                            .font(.headline)
+                            .foregroundStyle(isDueSoon ? Theme.amber : Theme.textPrimary)
+                        Text(dueLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(isDueSoon ? Theme.amber : Theme.textSecondary)
+                    }
+                }
+
+                Divider()
+
+                HStack(spacing: 16) {
+                    Label {
+                        Text("Bred \(gestation.breedingDate.friendlyString)")
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+
+                    if let fetalCount = gestation.fetalCount {
+                        Label {
+                            Text("\(fetalCount) fetus\(fetalCount.intValue > 1 ? "es" : "")")
+                        } icon: {
+                            Image(systemName: "number")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+            .padding(14)
+            .background(Theme.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("In foal, day \(gestation.gestationDays), due \(gestation.expectedDueDate.friendlyString)")
+    }
+
+    private var dueLabel: String {
+        guard let days = daysUntilDue else { return "" }
+        if days < 0 { return "Overdue by \(-days) day\(-days == 1 ? "" : "s")" }
+        if days == 0 { return "Due today" }
+        return "Due in \(days) day\(days == 1 ? "" : "s")"
     }
 }

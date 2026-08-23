@@ -133,7 +133,9 @@ struct PatientDetailView: View {
 
             switch selectedTab {
             case .overview:
-                OverviewTab(patient: patient, ownerName: viewModel.state.ownerName)
+                OverviewTab(patient: patient, ownerName: viewModel.state.ownerName) {
+                    selectedTab = .reproduction
+                }
             case .medical:
                 MedicalTabView(
                     patientId: patient.id,
@@ -248,21 +250,30 @@ struct PatientDetailView: View {
 struct OverviewTab: View {
     let patient: Patient_
     let ownerName: String?
+    /// Switches the detail screen to the Reproduction tab.
+    var onOpenReproduction: (() -> Void)? = nil
 
     @StateObject private var careModel: CareDuePanelModel
+    @StateObject private var gestationModel: GestationPanelModel
 
     init(
         patient: Patient_,
-        ownerName: String?
+        ownerName: String?,
+        onOpenReproduction: (() -> Void)? = nil
     ) {
         self.patient = patient
         self.ownerName = ownerName
+        self.onOpenReproduction = onOpenReproduction
         _careModel = StateObject(wrappedValue: CareDuePanelModel(patientId: patient.id))
+        _gestationModel = StateObject(wrappedValue: GestationPanelModel(patientId: patient.id))
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                if let activeGestation = gestationModel.activeGestation {
+                    pregnancyCard(activeGestation)
+                }
                 careDueSection
                 patientHeader
                 basicInfoSection
@@ -273,6 +284,46 @@ struct OverviewTab: View {
             }
             .padding()
         }
+    }
+
+    /// Compact "In Foal" status card shown only while a gestation is active;
+    /// taps through to the Reproduction tab.
+    private func pregnancyCard(_ gestation: Gestation_) -> some View {
+        Button {
+            onOpenReproduction?()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "heart.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Theme.forestGreen)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("In Foal")
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Theme.forestGreen)
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+
+                    Text("Day \(gestation.gestationDays) · Due \(gestation.expectedDueDate.friendlyString)")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.textPrimary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .padding(14)
+            .background(Theme.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("In foal, day \(gestation.gestationDays), due \(gestation.expectedDueDate.friendlyString). Opens reproduction tab")
     }
 
     /// Upcoming and overdue care, surfaced where the vet looks first.
@@ -443,6 +494,29 @@ final class CareDuePanelModel: ObservableObject {
         cancellable = store.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
                 self?.items = state.items
+            }
+        })
+        store.load()
+    }
+
+    deinit {
+        cancellable?.cancel()
+    }
+}
+
+/// Observes the patient's gestation list so the Overview can surface an
+/// active pregnancy. Non-active (Completed/Failed) gestations are ignored.
+@MainActor
+final class GestationPanelModel: ObservableObject {
+    @Published var activeGestation: Gestation_?
+
+    private var cancellable: NativeCancellable?
+
+    init(patientId: Int64) {
+        let store = IosReproAndDiagnosticsStores.shared.gestationListStore(patientId: patientId)
+        cancellable = store.state.subscribe(onEach: { [weak self] state in
+            Task { @MainActor in
+                self?.activeGestation = state.records.first { $0.status == "Active" && $0.isActive }
             }
         })
         store.load()
