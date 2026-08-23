@@ -2,7 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.search
 
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
-import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
@@ -155,8 +155,8 @@ data class SearchUiState(
     val recordTypeOptions: List<Pair<String, String>>
         get() =
             listOf(
-                ISearchRepository.TYPE_PATIENT to "Patient",
-                ISearchRepository.TYPE_CONSULTATION to "Consultation",
-                ISearchRepository.TYPE_MEDICATION to "Medication",
-            )
+                RecordType.Patient,
+                RecordType.Consultation,
+                RecordType.Medication,
+            ).map { it.wireName to it.displayName }
 }

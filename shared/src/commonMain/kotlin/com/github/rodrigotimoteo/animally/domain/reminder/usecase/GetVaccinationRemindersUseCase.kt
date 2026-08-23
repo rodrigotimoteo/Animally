@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.reminder.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
@@ -48,6 +49,6 @@ class GetVaccinationRemindersUseCase(
     }
 
     private companion object {
-        const val RECORD_TYPE = "Vaccination"
+        val RECORD_TYPE = RecordType.Vaccination.displayName
     }
 }

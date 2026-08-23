@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.timeline.mapper
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
@@ -20,7 +21,7 @@ internal fun Weight.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Weight",
+        recordType = RecordType.Weight.displayName,
         recordId = id,
         date = date,
         title = "Weight",
@@ -31,7 +32,7 @@ internal fun Deworming.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Deworming",
+        recordType = RecordType.Deworming.displayName,
         recordId = id,
         date = dateAdministered,
         title = "Deworming",
@@ -42,7 +43,7 @@ internal fun Dentistry.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Dentistry",
+        recordType = RecordType.Dentistry.displayName,
         recordId = id,
         date = date,
         title = "Dentistry",
@@ -53,7 +54,7 @@ internal fun Lameness.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Lameness",
+        recordType = RecordType.Lameness.displayName,
         recordId = id,
         date = date,
         title = "Lameness",
@@ -64,7 +65,7 @@ internal fun Surgery.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Surgery",
+        recordType = RecordType.Surgery.displayName,
         recordId = id,
         date = date,
         title = "Surgery",
@@ -76,7 +77,7 @@ internal fun Medication.toTimelineEntryOrNull(patientName: String): TimelineEntr
         TimelineEntry(
             patientId = patientId,
             patientName = patientName,
-            recordType = "Medication",
+            recordType = RecordType.Medication.displayName,
             recordId = id,
             date = date,
             title = "Medication",
@@ -88,7 +89,7 @@ internal fun LabResult.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Lab Result",
+        recordType = RecordType.LabResult.displayName,
         recordId = id,
         date = date,
         title = "Lab Result",
@@ -99,7 +100,7 @@ internal fun Imaging.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Imaging",
+        recordType = RecordType.Imaging.displayName,
         recordId = id,
         date = date,
         title = "Imaging",

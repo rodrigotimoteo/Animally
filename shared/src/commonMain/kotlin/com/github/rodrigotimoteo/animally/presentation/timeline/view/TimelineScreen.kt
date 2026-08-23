@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.timeline.model.TimelineEntry
 import com.github.rodrigotimoteo.animally.domain.timeline.model.TimelineGroup
 import com.github.rodrigotimoteo.animally.presentation.common.glass.GlassTopAppBar
@@ -255,11 +256,26 @@ private fun TimelineEntryRow(
  */
 @Composable
 private fun accentForRecordType(recordType: String): Color =
-    when (recordType) {
-        "Vaccination", "Deworming", "Dentistry", "Farrier" -> successColorLight
-        "Weight", "Consultation", "Medication", "Controlled Substance" -> ClinicalAmber
-        "Lab Result", "Imaging", "Lameness" -> DiagnosticsPurple
-        "Surgery" -> ProceduresRed
-        "Reproduction", "Ultrasound", "Gestation", "Repro Medication" -> ReproductionPink
+    when (RecordType.fromDisplayName(recordType)) {
+        RecordType.Vaccination,
+        RecordType.Deworming,
+        RecordType.Dentistry,
+        RecordType.FarrierVisit,
+        -> successColorLight
+        RecordType.Weight,
+        RecordType.Consultation,
+        RecordType.Medication,
+        RecordType.ControlledSubstance,
+        -> ClinicalAmber
+        RecordType.LabResult,
+        RecordType.Imaging,
+        RecordType.Lameness,
+        -> DiagnosticsPurple
+        RecordType.Surgery -> ProceduresRed
+        RecordType.ReproductionEvent,
+        RecordType.Ultrasound,
+        RecordType.Gestation,
+        RecordType.ReproMedication,
+        -> ReproductionPink
         else -> DefaultSage
     }

@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.timeline.mapper
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
@@ -16,7 +17,7 @@ internal fun ReproductionEvent.toTimelineEntry(patientName: String): TimelineEnt
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Reproduction",
+        recordType = RecordType.ReproductionEvent.displayName,
         recordId = id,
         date = date,
         title = "Reproduction",
@@ -27,7 +28,7 @@ internal fun Ultrasound.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Ultrasound",
+        recordType = RecordType.Ultrasound.displayName,
         recordId = id,
         date = date,
         title = "Ultrasound",
@@ -38,7 +39,7 @@ internal fun Gestation.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Gestation",
+        recordType = RecordType.Gestation.displayName,
         recordId = id,
         date = breedingDate,
         title = "Gestation",
@@ -49,7 +50,7 @@ internal fun ReproMedication.toTimelineEntry(patientName: String): TimelineEntry
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Repro Medication",
+        recordType = RecordType.ReproMedication.displayName,
         recordId = id,
         date = dateAdministered,
         title = "Repro Medication",

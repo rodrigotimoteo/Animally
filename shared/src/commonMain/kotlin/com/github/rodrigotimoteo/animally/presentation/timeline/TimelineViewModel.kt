@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.timeline
 
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.timeline.model.TimelineGroup
 import com.github.rodrigotimoteo.animally.domain.timeline.usecase.GetTimelineUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
@@ -86,26 +87,43 @@ class TimelineViewModel(
         patientId: Long,
         recordId: Long,
     ): Route {
-        val routeMap =
+        // Parse the wire string back to the enum, then look up the editor route.
+        // Keys are enum constants, so an unknown display literal can never match;
+        // unmapped types land on the patient detail instead of a wrong editor.
+        return recordRoutes[RecordType.fromDisplayName(recordType)]
+            ?.invoke(patientId, recordId)
+            ?: Route.PatientDetail(patientId)
+    }
+
+    private companion object {
+        /** Editor route factories keyed by [RecordType]; types without editors are absent. */
+        val recordRoutes: Map<RecordType, (patientId: Long, recordId: Long) -> Route> =
             mapOf(
-                "Vaccination" to Route.AddEditVaccination(patientId, recordId),
-                "Consultation" to Route.AddEditConsultation(patientId, recordId),
-                "Deworming" to Route.AddEditDeworming(patientId, recordId),
-                "Dentistry" to Route.AddEditDentistry(patientId, recordId),
-                "Weight" to Route.AddEditWeight(patientId, recordId),
-                "Lameness" to Route.AddEditLameness(patientId, recordId),
-                "Surgery" to Route.AddEditSurgery(patientId, recordId),
-                "Medication" to Route.AddEditMedication(patientId, recordId),
-                "Lab Result" to Route.AddEditLabResult(patientId, recordId),
-                "Imaging" to Route.AddEditImaging(patientId, recordId),
-                "Farrier" to Route.AddEditFarrierVisit(patientId, recordId),
-                "Reproduction" to Route.AddEditReproductionEvent(patientId, recordId),
-                "Ultrasound" to Route.AddEditUltrasound(patientId, recordId),
-                "Gestation" to Route.AddEditGestation(patientId, recordId),
-                "Repro Medication" to Route.AddEditReproMed(patientId, recordId),
-                "Controlled Substance" to Route.AddEditControlledSubstance(patientId, recordId),
+                RecordType.Vaccination to { patientId, recordId -> Route.AddEditVaccination(patientId, recordId) },
+                RecordType.Consultation to { patientId, recordId -> Route.AddEditConsultation(patientId, recordId) },
+                RecordType.Deworming to { patientId, recordId -> Route.AddEditDeworming(patientId, recordId) },
+                RecordType.Dentistry to { patientId, recordId -> Route.AddEditDentistry(patientId, recordId) },
+                RecordType.Weight to { patientId, recordId -> Route.AddEditWeight(patientId, recordId) },
+                RecordType.Lameness to { patientId, recordId -> Route.AddEditLameness(patientId, recordId) },
+                RecordType.Surgery to { patientId, recordId -> Route.AddEditSurgery(patientId, recordId) },
+                RecordType.Medication to { patientId, recordId -> Route.AddEditMedication(patientId, recordId) },
+                RecordType.LabResult to { patientId, recordId -> Route.AddEditLabResult(patientId, recordId) },
+                RecordType.Imaging to { patientId, recordId -> Route.AddEditImaging(patientId, recordId) },
+                RecordType.FarrierVisit to { patientId, recordId -> Route.AddEditFarrierVisit(patientId, recordId) },
+                RecordType.ReproductionEvent to { patientId, recordId ->
+                    Route.AddEditReproductionEvent(patientId, recordId)
+                },
+                RecordType.Ultrasound to { patientId, recordId -> Route.AddEditUltrasound(patientId, recordId) },
+                RecordType.Gestation to { patientId, recordId -> Route.AddEditGestation(patientId, recordId) },
+                RecordType.ReproMedication to { patientId, recordId -> Route.AddEditReproMed(patientId, recordId) },
+                RecordType.ControlledSubstance to { patientId, recordId ->
+                    Route.AddEditControlledSubstance(patientId, recordId)
+                },
+                RecordType.Anamnese to { patientId, recordId -> Route.AddEditAnamnese(patientId, recordId) },
+                RecordType.CustomReminder to { patientId, recordId ->
+                    Route.AddEditCustomReminder(patientId, recordId)
+                },
             )
-        return routeMap[recordType] ?: Route.PatientDetail(patientId)
     }
 
     /**

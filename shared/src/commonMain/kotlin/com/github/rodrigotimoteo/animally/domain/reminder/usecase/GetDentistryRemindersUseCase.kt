@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.reminder.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder
@@ -48,7 +49,7 @@ class GetDentistryRemindersUseCase(
     }
 
     private companion object {
-        const val RECORD_TYPE = "Dentistry"
+        val RECORD_TYPE = RecordType.Dentistry.displayName
 
         const val TITLE = "Dental check"
     }

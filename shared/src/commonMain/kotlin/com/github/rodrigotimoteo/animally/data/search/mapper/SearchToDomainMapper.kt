@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.data.search.mapper
 
 import com.github.rodrigotimoteo.animally.data.search.Search
 import com.github.rodrigotimoteo.animally.data.search.SearchOwners
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 
 /**
@@ -36,7 +37,7 @@ fun SearchOwners.toDomain(): SearchResult =
         patientName = ownerName,
         breed = null,
         microchipId = null,
-        recordType = "OWNER",
+        recordType = ISearchRepository.TYPE_OWNER,
         recordId = recordId,
         date = null,
         snippet = searchableText,

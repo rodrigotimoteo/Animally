@@ -29,7 +29,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.presentation.common.glass.GlassTopAppBar
 import com.github.rodrigotimoteo.animally.presentation.common.glass.LocalHazeState
@@ -262,10 +262,4 @@ private fun SearchResultCard(
     }
 }
 
-private fun recordTypeLabel(recordType: String): String =
-    when (recordType) {
-        ISearchRepository.TYPE_PATIENT -> "Patient"
-        ISearchRepository.TYPE_CONSULTATION -> "Consultation"
-        ISearchRepository.TYPE_MEDICATION -> "Medication"
-        else -> recordType
-    }
+private fun recordTypeLabel(recordType: String): String = RecordType.fromWireName(recordType)?.displayName ?: recordType

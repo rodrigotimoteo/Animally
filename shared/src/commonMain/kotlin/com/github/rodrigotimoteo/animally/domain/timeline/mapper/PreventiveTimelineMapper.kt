@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.timeline.mapper
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
@@ -16,7 +17,7 @@ internal fun FarrierVisit.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Farrier",
+        recordType = RecordType.FarrierVisit.displayName,
         recordId = id,
         date = date,
         title = "Farrier",
@@ -27,7 +28,7 @@ internal fun Vaccination.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Vaccination",
+        recordType = RecordType.Vaccination.displayName,
         recordId = id,
         date = dateAdministered,
         title = "Vaccination",
@@ -38,7 +39,7 @@ internal fun ControlledSubstance.toTimelineEntry(patientName: String): TimelineE
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Controlled Substance",
+        recordType = RecordType.ControlledSubstance.displayName,
         recordId = id,
         date = date,
         title = "Controlled Substance",
@@ -49,7 +50,7 @@ internal fun Consultation.toTimelineEntry(patientName: String): TimelineEntry =
     TimelineEntry(
         patientId = patientId,
         patientName = patientName,
-        recordType = "Consultation",
+        recordType = RecordType.Consultation.displayName,
         recordId = id,
         date = date,
         title = "Consultation",

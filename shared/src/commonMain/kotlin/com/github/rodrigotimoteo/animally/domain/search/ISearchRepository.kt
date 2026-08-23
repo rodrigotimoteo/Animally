@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.search
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import kotlinx.datetime.LocalDate
 
@@ -61,9 +62,10 @@ interface ISearchRepository {
     fun reindexPatients()
 
     companion object {
-        const val TYPE_PATIENT = "PATIENT"
-        const val TYPE_CONSULTATION = "CONSULTATION"
-        const val TYPE_MEDICATION = "MEDICATION"
-        const val TYPE_OWNER = "OWNER"
+        /** Wire names are sourced from [RecordType] so the two cannot drift. */
+        val TYPE_PATIENT = RecordType.Patient.wireName
+        val TYPE_CONSULTATION = RecordType.Consultation.wireName
+        val TYPE_MEDICATION = RecordType.Medication.wireName
+        val TYPE_OWNER = RecordType.Owner.wireName
     }
 }
