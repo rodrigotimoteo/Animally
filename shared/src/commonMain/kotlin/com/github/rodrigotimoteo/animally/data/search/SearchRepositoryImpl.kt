@@ -25,9 +25,13 @@ class SearchRepositoryImpl(
     private val searchQueries: SearchFtsQueries = database.searchFtsQueries
 
     /**
-     * While a full reindex is running, only the metadata table is written;
-     * [rebuild] performs the single FTS build afterwards. Save-time
-     * single-record indexing keeps writing both tables.
+     * Suppresses save-time FTS writes while the bulk heal runs: only the
+     * metadata table is written; [rebuild] performs the single FTS build
+     * afterwards. Save-time single-record indexing keeps writing both tables.
+     *
+     * Confined to the main thread by convention: reindexIfNeeded is invoked
+     * once at app start and every indexRecord caller is UI-driven on the same
+     * thread. A future background writer would need real synchronization here.
      */
     private var suppressFtsWrites = false
 

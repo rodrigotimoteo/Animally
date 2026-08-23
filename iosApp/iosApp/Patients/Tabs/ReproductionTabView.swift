@@ -52,7 +52,9 @@ struct ReproductionTabView: View {
         List {
             // Active pregnancy pinned to the very top — the most important
             // information on this tab.
-            if let active = viewModel.gestations.first(where: { Self.isActive($0) }) {
+            if let active = viewModel.gestations
+                .filter({ Self.isActive($0) })
+                .max(by: { $0.breedingDate.displayString < $1.breedingDate.displayString }) {
                 Section {
                     ActiveGestationCard(gestation: active) {
                         onOpenRecord?("Gestation", active.id, Self.gestationFields(active))

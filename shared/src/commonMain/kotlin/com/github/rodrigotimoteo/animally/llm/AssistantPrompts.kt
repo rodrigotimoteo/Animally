@@ -34,6 +34,12 @@ object AssistantPrompts {
             "have",
             "has",
             "had",
+            "she",
+            "he",
+            "her",
+            "his",
+            "it",
+            "there",
         )
 
     /**
@@ -46,7 +52,8 @@ object AssistantPrompts {
         You are the on-device veterinary records assistant inside the Animally app,
         used by the treating veterinarian. Answer ONLY from the provided context.
         Rules:
-        - Cite every fact inline as [RecordType • PatientName • date].
+        - Cite every fact inline using the bracketed source header from the
+          context verbatim, e.g. [Vaccination #123] Thunder.
         - Lead with the direct answer, then details as short labeled bullets.
         - Bracketed headers in the context are source references; use them verbatim.
         - If the context lacks the answer, say what is missing. Never invent

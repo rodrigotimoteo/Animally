@@ -188,7 +188,10 @@ private struct RecordSectionRows<Item>: View {
         let visibleCount = isExpanded ? items.count : min(items.count, RecordSectionRowsConfig.collapseLimit)
 
         Group {
-            ForEach(Array(items.prefix(visibleCount).enumerated()), id: \.offset) { _, item in
+            ForEach(
+                items.prefix(visibleCount).map { (spec.recordId($0), $0) },
+                id: \.0
+            ) { _, item in
                 row(item)
             }
 
