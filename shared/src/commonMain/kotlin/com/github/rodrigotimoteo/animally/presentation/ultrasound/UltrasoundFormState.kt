@@ -9,12 +9,12 @@ import kotlin.time.Instant
  *
  * @property id Persisted follicle id; `0` for a not-yet-saved row.
  * @property sizeMm Follicle size in millimeters as a display string.
- * @property description Optional free-form description of the follicle.
+ * @property note Optional free-form note for the follicle.
  */
 data class FollicleRow(
     val id: Long = 0L,
     val sizeMm: String = "",
-    val description: String? = null,
+    val note: String? = null,
 )
 
 /**

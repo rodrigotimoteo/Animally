@@ -262,7 +262,7 @@ class UltrasoundEditViewModel(
     private fun List<FollicleRow>.withDescriptionAt(
         index: Int,
         value: String,
-    ): List<FollicleRow> = mapIndexed { i, r -> if (i == index) r.copy(description = value.ifBlank { null }) else r }
+    ): List<FollicleRow> = mapIndexed { i, r -> if (i == index) r.copy(note = value.ifBlank { null }) else r }
 
     private fun loadFollicleRows(ultrasoundId: Long) {
         viewModelScope.launch {
@@ -281,7 +281,7 @@ class UltrasoundEditViewModel(
         FollicleRow(
             id = id,
             sizeMm = sizeMm.toString(),
-            description = description,
+            note = description,
         )
 
     private fun FollicleRow.toDomain(
@@ -294,7 +294,7 @@ class UltrasoundEditViewModel(
             ultrasoundId = ultrasoundId,
             side = side,
             sizeMm = sizeMm.toDoubleOrNull() ?: 0.0,
-            description = description,
+            description = note,
             createdAt = now,
             updatedAt = now,
         )

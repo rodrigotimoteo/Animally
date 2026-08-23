@@ -12,6 +12,7 @@ private struct RecordSwipeDelete: ViewModifier {
                 Button(role: .destructive, action: onDelete) {
                     Text("Delete")
                 }
+                .tint(.red)
             }
     }
 }

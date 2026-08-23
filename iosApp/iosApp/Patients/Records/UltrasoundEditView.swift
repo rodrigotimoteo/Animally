@@ -133,7 +133,7 @@ struct UltrasoundEditView: View {
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
                 TextField("e.g. mature, soft edema", text: Binding(
-                    get: { follicle.description ?? "" },
+                    get: { follicle.note ?? "" },
                     set: { viewModel.onFollicleDescriptionChange(side, index: index, $0) }
                 ))
                 .font(.subheadline)
