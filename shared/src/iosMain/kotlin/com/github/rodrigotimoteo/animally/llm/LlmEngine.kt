@@ -17,11 +17,16 @@ actual class LlmEngine actual constructor(
 ) {
     private val shim = FmLlmShim()
 
-    actual fun generate(prompt: String): Flow<String> =
+    actual fun generate(prompt: String): Flow<String> = generate(prompt, instructions = "")
+
+    actual fun generate(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> =
         flow {
             val result =
                 suspendCancellableCoroutine { cont ->
-                    shim.generate(prompt) { text, error ->
+                    shim.generateWithInstructions(prompt, instructions) { text, error ->
                         cont.resume(if (error != null) null else text)
                     }
                 }

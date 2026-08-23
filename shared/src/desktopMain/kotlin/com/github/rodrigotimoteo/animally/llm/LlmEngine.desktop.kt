@@ -16,6 +16,14 @@ actual class LlmEngine actual constructor(
             emit("LLM assistant is not available on desktop.")
         }
 
+    actual fun generate(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> =
+        flow {
+            emit("LLM assistant is not available on desktop.")
+        }
+
     actual fun generateStructured(
         prompt: String,
         schema: String,

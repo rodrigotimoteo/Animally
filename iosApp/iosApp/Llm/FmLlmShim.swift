@@ -39,15 +39,30 @@ class FmLlmShim: NSObject {
 
     @objc
     func generate(_ prompt: String, completion: @escaping (String?, String?) -> Void) {
+        generateWithInstructions(prompt, instructions: "", completion: completion)
+    }
+
+    /// Generates a response for `prompt` grounded in `instructions` (system
+    /// prompt). Creates a fresh LanguageModelSession per call carrying the
+    /// instructions (LanguageModelSession is single-request-at-a-time, #144).
+    @objc
+    func generateWithInstructions(
+        _ prompt: String,
+        instructions: String,
+        completion: @escaping (String?, String?) -> Void
+    ) {
         guard #available(iOS 26.0, *) else {
             completion(nil, "FoundationModels requires iOS 26.0")
             return
         }
         Task {
             do {
-                // LanguageModelSession is single-request-at-a-time (#144): create a fresh
-                // session per call so concurrent requests don't throw concurrentRequests.
-                let session = LanguageModelSession()
+                let session =
+                    if instructions.isEmpty {
+                        LanguageModelSession()
+                    } else {
+                        LanguageModelSession(instructions: instructions)
+                    }
                 let response = try await session.respond(to: Prompt(prompt))
                 completion(response.content, nil)
             } catch {

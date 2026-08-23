@@ -18,21 +18,33 @@ class GenerateRagResponseUseCase(
 
     operator fun invoke(query: String): Flow<String> =
         flow {
-            val results = searchUseCase(query, from = null, to = null, recordTypes = null)
+            val enriched = AssistantPrompts.enrichQuery(query)
+            val results = searchUseCase(enriched, from = null, to = null, recordTypes = null)
             val chunks = results.map { result -> formatChunk(result) }
             val context = buildContext(chunks, query)
-            llmEngine.generate(context).collect { emit(it) }
+            llmEngine.generate(context, AssistantPrompts.SYSTEM_PROMPT).collect { emit(it) }
         }
 
+    /**
+     * Formats one search hit as a citable source block. The bracketed header
+     * carries record id and patient id so the model can cite precisely; the
+     * system prompt tells the model these headers are source references.
+     */
     private fun formatChunk(result: SearchResult): String {
         val date = result.date?.toString() ?: "unknown date"
         val breed = result.breed ?: "unknown breed"
         return buildString {
-            appendLine("[${result.recordType}] ${result.patientName} ($breed, $date)")
+            val header = "[${result.recordType} #${result.recordId}] ${result.patientName} ($breed, $date)"
+            appendLine("$header | patient #${result.patientId}")
             appendLine(result.snippet)
         }
     }
 
+    /**
+     * Assembles the user-turn prompt: retrieved context plus the raw question.
+     * Role/scope/citation rules live in [AssistantPrompts.SYSTEM_PROMPT] and
+     * are passed as instructions, not inline.
+     */
     private fun buildContext(
         chunks: List<String>,
         query: String,
@@ -48,11 +60,10 @@ class GenerateRagResponseUseCase(
             used += est
         }
         val prompt = StringBuilder()
-        prompt.appendLine("You are Animally Assistant. Answer using only the context below. If unknown, say so.")
-        prompt.appendLine("---")
         prompt.appendLine("Context:")
         prompt.appendLine(sb.toString().trimEnd())
-        prompt.appendLine("---")
+        prompt.append("---")
+        prompt.appendLine()
         prompt.append("Question: ").append(query)
         return prompt.toString()
     }

@@ -12,6 +12,12 @@ expect class LlmEngine(
 ) {
     fun generate(prompt: String): Flow<String>
 
+    /** Generates a response for [prompt] grounded in [instructions] (system prompt). */
+    fun generate(
+        prompt: String,
+        instructions: String,
+    ): Flow<String>
+
     fun generateStructured(
         prompt: String,
         schema: String,

@@ -21,6 +21,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)generate:(NSString *)prompt
       completion:(void (^)(NSString *_Nullable text, NSString *_Nullable error))completion;
 
+/// Generates a response for `prompt` grounded in `instructions` (system prompt).
+/// Empty `instructions` behaves like `-generate:completion:`.
+/// Same completion contract as `-generate:completion:`.
+- (void)generateWithInstructions:(NSString *)prompt
+                    instructions:(NSString *)instructions
+                      completion:(void (^)(NSString *_Nullable text, NSString *_Nullable error))completion;
+
 /// Generates a structured (JSON) response conforming to `schema`.
 /// Same completion contract as `-generate:completion:`.
 - (void)generateJson:(NSString *)prompt
