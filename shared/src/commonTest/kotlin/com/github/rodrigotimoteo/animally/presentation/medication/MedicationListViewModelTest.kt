@@ -1,10 +1,10 @@
 package com.github.rodrigotimoteo.animally.presentation.medication
 
-import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.DeleteMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.GetMedicationsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns

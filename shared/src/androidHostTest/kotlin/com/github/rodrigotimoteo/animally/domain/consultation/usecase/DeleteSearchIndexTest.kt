@@ -6,10 +6,10 @@ import com.github.rodrigotimoteo.animally.data.search.SearchRepositoryImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Clock
-import kotlinx.datetime.LocalDate
 
 /**
  * Regression tests proving deleted records leave the global search index.
