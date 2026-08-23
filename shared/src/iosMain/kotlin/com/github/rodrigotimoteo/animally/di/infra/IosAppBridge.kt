@@ -36,14 +36,9 @@ object IosAppBridge {
     /** Boots Koin with the production modules and stores the instance. */
     fun start() {
         koin = initKoin().koin
-        // Heal search index rows lost or clobbered before id-correct indexing,
-        // then realign FTS content rowids with the metadata table (rebuild).
-        koin.get<ISearchRepository>().apply {
-            reindexOwners()
-            reindexPatients()
-            reindexRecords()
-            rebuild()
-        }
+        // Heal the search index only when its layout version changed or the
+        // index is empty; every other launch takes the one-read fast path.
+        koin.get<ISearchRepository>().reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
     }
 
     /**

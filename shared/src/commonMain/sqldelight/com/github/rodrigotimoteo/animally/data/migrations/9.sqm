@@ -1,0 +1,6 @@
+-- Key/value state for the search index healing gate: stores the last-healed
+-- index version so every-launch reindexing can take a no-op fast path.
+CREATE TABLE SearchIndexState (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);

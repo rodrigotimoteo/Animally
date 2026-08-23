@@ -68,11 +68,27 @@ interface ISearchRepository {
      */
     fun reindexRecords()
 
+    /**
+     * Runs the full healing pass ([reindexOwners], [reindexPatients],
+     * [reindexRecords], [rebuild]) only when needed: the stored healed version
+     * differs from [indexVersion] or the index is empty. Otherwise a no-op.
+     *
+     * @param indexVersion the version the caller expects the index to be healed for.
+     */
+    fun reindexIfNeeded(indexVersion: String)
+
     companion object {
         /** Wire names are sourced from [RecordType] so the two cannot drift. */
         val TYPE_PATIENT = RecordType.Patient.wireName
         val TYPE_CONSULTATION = RecordType.Consultation.wireName
         val TYPE_MEDICATION = RecordType.Medication.wireName
         val TYPE_OWNER = RecordType.Owner.wireName
+
+        /**
+         * Current search-index layout version. Bump whenever indexing logic,
+         * indexed record types, or searchableText field selection changes so
+         * every launch after the change performs one healing pass.
+         */
+        const val SEARCH_INDEX_VERSION = "5"
     }
 }

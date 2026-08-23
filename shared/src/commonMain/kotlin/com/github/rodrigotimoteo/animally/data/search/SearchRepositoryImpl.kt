@@ -126,6 +126,7 @@ class SearchRepositoryImpl(
 
     override fun reindexRecords() {
         reindexVaccinationRows()
+        reindexConsultationRows()
         reindexDewormingRows()
         reindexDentistryRows()
         reindexFarrierVisitRows()
@@ -139,6 +140,26 @@ class SearchRepositoryImpl(
         reindexReproMedicationRows()
         reindexLabResultRows()
         reindexImagingRows()
+    }
+
+    private val reindexConsultationRows: () -> Unit = {
+        database.consultationQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.subjective,
+                    it.objective,
+                    it.assessment,
+                    it.plan,
+                    it.vetName,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Consultation.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
     }
 
     private val reindexVaccinationRows: () -> Unit = {
@@ -428,5 +449,25 @@ class SearchRepositoryImpl(
         if (existing != null) {
             searchQueries.deleteFts(existing.id).value
         }
+    }
+
+    override fun reindexIfNeeded(indexVersion: String) {
+        val storedVersion =
+            database.searchIndexStateQueries
+                .selectState(VERSION_KEY)
+                .executeAsOneOrNull()
+        val hasIndexRows = searchQueries.countIndexRows().executeAsOne() > 0L
+        if (storedVersion == indexVersion && hasIndexRows) {
+            return
+        }
+        reindexOwners()
+        reindexPatients()
+        reindexRecords()
+        rebuild()
+        database.searchIndexStateQueries.upsertState(VERSION_KEY, indexVersion)
+    }
+
+    private companion object {
+        const val VERSION_KEY = "search_index_version"
     }
 }

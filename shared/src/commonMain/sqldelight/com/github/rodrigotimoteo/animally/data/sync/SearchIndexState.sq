@@ -1,0 +1,10 @@
+-- Key/value state backing the search-index healing gate (see
+-- SearchRepositoryImpl.reindexIfNeeded). Created in migration 9.
+
+-- Insert or overwrite the value for a key.
+upsertState:
+INSERT OR REPLACE INTO SearchIndexState(key, value) VALUES (?, ?);
+
+-- Read the value for a key, or NULL when never stored.
+selectState:
+SELECT value AS storedValue FROM SearchIndexState WHERE key = ?;

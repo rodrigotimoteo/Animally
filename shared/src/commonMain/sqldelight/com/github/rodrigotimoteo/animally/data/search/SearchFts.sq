@@ -35,6 +35,10 @@ DELETE FROM SearchFts;
 reseed:
 INSERT INTO SearchFts(rowid, searchableText) SELECT id, searchableText FROM SearchFtsIndex;
 
+-- Number of indexed records; the healing gate treats zero as "never healed".
+countIndexRows:
+SELECT COUNT(*) FROM SearchFtsIndex;
+
 -- Global search across patients, consultations and medications.
 -- Date filtering is applied in SQL (nullable bounds), record-type filtering
 -- is applied in Kotlin because SQLDelight cannot bind list parameters.
