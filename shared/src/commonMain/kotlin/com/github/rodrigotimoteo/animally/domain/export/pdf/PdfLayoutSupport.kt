@@ -12,18 +12,21 @@ internal fun buildTableBlock(section: PdfSection): TableBlock {
     val headers = section.rows.first()
     val bodyRows = section.rows.drop(1)
     val widths = computeColumnWidths(headers, bodyRows)
+    val columnChars = widths.map(::charsPerLine)
     return TableBlock(
         title = section.title,
-        headers = headers,
         widths = widths,
         alignRight = computeNumericAlignment(bodyRows, headers.size),
-        bodyRows = bodyRows.map { row -> row.mapIndexed { index, cell -> ellipsize(cell, widths[index]) } },
+        headerLines = headers.mapIndexed { index, header -> wrapCell(header, columnChars[index]) },
+        bodyRowLines = bodyRows.map { row -> row.mapIndexed { index, cell -> wrapCell(cell, columnChars[index]) } },
     )
 }
 
 /**
  * Proportional column widths: each column's weight is its longest content
- * length (header included), clamped so no column collapses or dominates.
+ * length (header included), normalized so the columns fill the available
+ * width exactly. No clamping — long cells simply wrap instead of shrinking
+ * other columns or losing text.
  */
 internal fun computeColumnWidths(
     headers: List<String>,
@@ -33,13 +36,17 @@ internal fun computeColumnWidths(
         headers.indices.map { index ->
             val longest =
                 maxOf(headers[index].length, rows.maxOfOrNull { it.getOrNull(index)?.length ?: 0 } ?: 0)
-            longest
-                .coerceIn(PdfTheme.MIN_COLUMN_CHARS, PdfTheme.MAX_COLUMN_CHARS)
-                .toDouble() + PdfTheme.WIDTH_WEIGHT_PADDING
+            longest.toDouble() + PdfTheme.WIDTH_WEIGHT_PADDING
         }
     val totalWeight = weights.sum()
     return weights.map { PdfTheme.CONTENT_WIDTH * it / totalWeight }
 }
+
+/** Usable characters per line for a cell of [width] points at the cell font size. */
+internal fun charsPerLine(width: Double): Int =
+    ((width - 2 * PdfTheme.CELL_PAD_H) / (PdfTheme.CELL_SIZE * PdfTheme.CHAR_WIDTH_FACTOR))
+        .toInt()
+        .coerceAtLeast(1)
 
 /** Right-aligns a column only when every populated body cell is numeric. */
 internal fun computeNumericAlignment(
@@ -53,14 +60,44 @@ internal fun computeNumericAlignment(
 
 internal const val ELLIPSIS = "…"
 
-/** Truncates [text] with an ellipsis so it fits [maxWidth] at the cell font size. */
-internal fun ellipsize(
+/** Truncates [text] to [maxChars] characters with an ellipsis. Last resort only. */
+internal fun ellipsizeToChars(
     text: String,
-    maxWidth: Double,
+    maxChars: Int,
 ): String {
-    val maxChars = ((maxWidth - 2 * PdfTheme.CELL_PAD_H) / (PdfTheme.CELL_SIZE * PdfTheme.CHAR_WIDTH_FACTOR)).toInt()
     if (text.length <= maxChars) return text
     return if (maxChars <= ELLIPSIS.length) ELLIPSIS else text.take(maxChars - ELLIPSIS.length) + ELLIPSIS
+}
+
+/**
+ * Greedy word wrap for a table cell at [maxChars] characters per line.
+ *
+ * Everything wraps and renders in full; the ONLY truncation is a single
+ * unbreakable token (no spaces) that is wider than the entire column — that
+ * token is ellipsized, per the layout contract.
+ */
+internal fun wrapCell(
+    text: String,
+    maxChars: Int,
+): List<String> {
+    if (text.isBlank()) return listOf("")
+    val words =
+        text.split(' ').map { word ->
+            if (word.length > maxChars) ellipsizeToChars(word, maxChars) else word
+        }
+    val lines = mutableListOf<String>()
+    var current = ""
+    words.forEach { word ->
+        val candidate = if (current.isEmpty()) word else "$current $word"
+        if (candidate.length > maxChars && current.isNotEmpty()) {
+            lines += current
+            current = word
+        } else {
+            current = candidate
+        }
+    }
+    if (current.isNotEmpty()) lines += current
+    return lines
 }
 
 /** Greedy word wrap used for long free-text values such as patient notes. */

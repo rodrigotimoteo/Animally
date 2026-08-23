@@ -147,35 +147,57 @@ internal data class KeyValueLine(
     val value: String,
 )
 
-/** A section table prepared for drawing: widths, alignment and ellipsized cells resolved. */
+/**
+ * A section table prepared for drawing: column widths, alignment and every
+ * cell already wrapped into its final lines. Row heights are dynamic — the
+ * tallest cell's line count drives them — so no content is ever truncated.
+ */
 internal class TableBlock(
     val title: String,
-    val headers: List<String>,
     val widths: List<Double>,
     val alignRight: List<Boolean>,
-    val bodyRows: List<List<String>>,
+    val headerLines: List<List<String>>,
+    val bodyRowLines: List<List<List<String>>>,
 ) {
-    /** Draws one row of cells at [y] using the table's column geometry. */
+    /** Height of a row whose cells wrap to [cells] lines. */
+    fun rowHeight(cells: List<List<String>>): Double =
+        cells
+            .maxOf { it.size } * PdfTheme.CELL_LINE_HEIGHT + PdfTheme.CELL_ROW_PAD_V
+
+    /** Height of the wrapped header row. */
+    fun headerHeight(): Double = rowHeight(headerLines)
+
+    /**
+     * Draws one row of wrapped cells at [y]. Each cell's lines are stacked
+     * vertically and centered within the row height; right-aligned columns
+     * align each line's right edge.
+     */
     fun textOps(
-        cells: List<String>,
+        cells: List<List<String>>,
         y: Double,
         bold: Boolean,
         color: Long,
-    ): List<PdfOp> =
-        cells.mapIndexed { index, cell ->
+    ): List<PdfOp> {
+        val rowHeight = rowHeight(cells)
+        return cells.flatMapIndexed { index, lines ->
             val cellX = PdfTheme.MARGIN + widths.take(index).sum()
             val rightAligned = alignRight.getOrElse(index) { false }
             val textX = if (rightAligned) cellX + widths[index] - PdfTheme.CELL_PAD_H else cellX + PdfTheme.CELL_PAD_H
-            PdfOp.Text(
-                cell,
-                textX,
-                y + PdfTheme.CELL_TEXT_OFFSET_Y,
-                PdfTheme.CELL_SIZE,
-                bold,
-                color,
-                rightAligned = rightAligned,
-            )
+            val blockHeight = lines.size * PdfTheme.CELL_LINE_HEIGHT
+            val topOffset = (rowHeight - blockHeight) / 2
+            lines.mapIndexed { lineIndex, line ->
+                PdfOp.Text(
+                    line,
+                    textX,
+                    y + topOffset + lineIndex * PdfTheme.CELL_LINE_HEIGHT,
+                    PdfTheme.CELL_SIZE,
+                    bold,
+                    color,
+                    rightAligned = rightAligned,
+                )
+            }
         }
+    }
 }
 
 private fun paginate(report: PdfReportData): List<List<PdfOp>> {
@@ -247,9 +269,10 @@ private fun emptyNoticeOp(y: Double): PdfOp =
 
 /**
  * Draws [table] starting at [y], splitting across pages at row boundaries.
- * The header row is never orphaned: when it would not fit together with at
- * least one body row, the whole table moves to the next page. Continuation
- * pages repeat the section title and header row. Returns the new y cursor.
+ * Row heights are dynamic (wrapped cells grow). The header row is never
+ * orphaned: when it would not fit together with at least one body row, the
+ * whole table moves to the next page. Continuation pages repeat the section
+ * title and header row. Returns the new y cursor.
  */
 private fun drawTable(
     table: TableBlock,
@@ -258,28 +281,30 @@ private fun drawTable(
 ): Double {
     var ops = pages.last()
     var y = startY
-    val tableHeaderHeight = PdfTheme.SECTION_TITLE_HEIGHT + PdfTheme.TITLE_TO_TABLE_GAP + PdfTheme.HEADER_ROW_HEIGHT
+    val headBlockHeight = PdfTheme.SECTION_TITLE_HEIGHT + PdfTheme.TITLE_TO_TABLE_GAP + table.headerHeight()
 
-    fun ensureRoomForHeaderWithFirstRow() {
-        if (y + tableHeaderHeight + PdfTheme.ROW_HEIGHT > PdfTheme.CONTENT_BOTTOM) {
-            ops = newContentPage(pages)
-            y = PdfTheme.CONTENT_TOP
-        }
+    fun startNewPage() {
+        ops = newContentPage(pages)
+        y = PdfTheme.CONTENT_TOP
+        ops += tableHeadOps(table, y)
+        y += headBlockHeight
     }
 
-    ensureRoomForHeaderWithFirstRow()
+    val firstRowHeight = table.bodyRowLines.firstOrNull()?.let(table::rowHeight) ?: 0.0
+    if (y + headBlockHeight + firstRowHeight > PdfTheme.CONTENT_BOTTOM) {
+        ops = newContentPage(pages)
+        y = PdfTheme.CONTENT_TOP
+    }
     ops += tableHeadOps(table, y)
-    y += tableHeaderHeight
+    y += headBlockHeight
 
-    table.bodyRows.forEachIndexed { index, row ->
-        if (y + PdfTheme.ROW_HEIGHT > PdfTheme.CONTENT_BOTTOM) {
-            ops = newContentPage(pages)
-            y = PdfTheme.CONTENT_TOP
-            ops += tableHeadOps(table, y)
-            y += tableHeaderHeight
+    table.bodyRowLines.forEachIndexed { index, cells ->
+        val rowHeight = table.rowHeight(cells)
+        if (y + rowHeight > PdfTheme.CONTENT_BOTTOM) {
+            startNewPage()
         }
-        ops += bodyRowOps(table, row, y, zebra = index % 2 == 1)
-        y += PdfTheme.ROW_HEIGHT
+        ops += bodyRowOps(table, cells, y, zebra = index % 2 == 1)
+        y += rowHeight
     }
     return y + PdfTheme.SECTION_GAP
 }
@@ -298,33 +323,33 @@ private fun tableHeadOps(
                 PdfTheme.MARGIN,
                 headerY,
                 PdfTheme.CONTENT_WIDTH,
-                PdfTheme.HEADER_ROW_HEIGHT,
+                table.headerHeight(),
                 PdfTheme.COLOR_BRAND,
             ),
         )
-        addAll(table.textOps(table.headers, headerY, bold = true, color = PdfTheme.COLOR_WHITE))
+        addAll(table.textOps(table.headerLines, headerY, bold = true, color = PdfTheme.COLOR_WHITE))
     }
 
 private fun bodyRowOps(
     table: TableBlock,
-    row: List<String>,
+    cells: List<List<String>>,
     y: Double,
     zebra: Boolean,
-): List<PdfOp> =
-    buildList {
+): List<PdfOp> {
+    val rowHeight = table.rowHeight(cells)
+    return buildList {
         if (zebra) {
-            add(
-                PdfOp.Rect(PdfTheme.MARGIN, y, PdfTheme.CONTENT_WIDTH, PdfTheme.ROW_HEIGHT, PdfTheme.COLOR_ROW_ALT),
-            )
+            add(PdfOp.Rect(PdfTheme.MARGIN, y, PdfTheme.CONTENT_WIDTH, rowHeight, PdfTheme.COLOR_ROW_ALT))
         }
         add(
             PdfOp.Rect(
                 PdfTheme.MARGIN,
-                y + PdfTheme.ROW_HEIGHT - PdfTheme.SEPARATOR_THICKNESS,
+                y + rowHeight - PdfTheme.SEPARATOR_THICKNESS,
                 PdfTheme.CONTENT_WIDTH,
                 PdfTheme.SEPARATOR_THICKNESS,
                 PdfTheme.COLOR_SEPARATOR,
             ),
         )
-        addAll(table.textOps(row, y, bold = false, color = PdfTheme.COLOR_TEXT))
+        addAll(table.textOps(cells, y, bold = false, color = PdfTheme.COLOR_TEXT))
     }
+}

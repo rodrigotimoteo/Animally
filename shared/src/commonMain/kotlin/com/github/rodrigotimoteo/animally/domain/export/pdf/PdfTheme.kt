@@ -54,22 +54,37 @@ object PdfTheme {
     const val DEMOGRAPHICS_LINE_HEIGHT = 17.0
     const val SECTION_TITLE_HEIGHT = 20.0
     const val TITLE_TO_TABLE_GAP = 7.0
-    const val HEADER_ROW_HEIGHT = 19.0
-    const val ROW_HEIGHT = 17.0
     const val SECTION_GAP = 24.0
     const val FOOTER_PAGE_LINE_Y = PAGE_HEIGHT - 26.0
     const val FOOTER_STAMP_LINE_Y = PAGE_HEIGHT - 15.0
+
+    // ---------------------------------------------------------------------
+    // Wrapped-cell metrics
+    // ---------------------------------------------------------------------
+
+    /** Height of one wrapped text line inside a cell (10pt font + leading). */
+    const val CELL_LINE_HEIGHT = 12.0
+
+    /** Total vertical padding of a body row; 1-line rows are therefore 17pt tall. */
+    const val CELL_ROW_PAD_V = 5.0
+
+    /** Total vertical padding of a header row; 1-line headers are therefore 19pt tall. */
+    const val HEADER_ROW_PAD_V = 7.0
+
+    /**
+     * Generous guard against pathological pages: cells wrap to at most this
+     * many lines (64 ≈ two full pages of text). Effectively unlimited for
+     * real veterinary records — no meaningful content is ever dropped.
+     */
+    const val MAX_CELL_LINES = 64
 
     // ---------------------------------------------------------------------
     // Table metrics
     // ---------------------------------------------------------------------
     const val CELL_PAD_H = 5.0
     const val SEPARATOR_THICKNESS = 0.5
-    const val CELL_TEXT_OFFSET_Y = 3.0
 
     // Column sizing
-    const val MIN_COLUMN_CHARS = 4
-    const val MAX_COLUMN_CHARS = 28
     const val WIDTH_WEIGHT_PADDING = 2.0
 
     // Demographics grid geometry
