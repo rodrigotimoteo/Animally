@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.export.pdf
 
+import com.github.rodrigotimoteo.animally.domain.export.CsvFormatter
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -8,18 +9,65 @@ import kotlin.time.Clock
 // Table preparation
 // -------------------------------------------------------------------------
 
+/**
+ * Builds the layout block for [section]: narrow sections stay horizontal
+ * tables; wide sections (>4 columns) become vertical record cards.
+ */
+internal fun buildSectionBlock(section: PdfSection): SectionBlock {
+    val headers = section.rows.first()
+    return if (headers.size > PdfTheme.HORIZONTAL_TABLE_MAX_COLUMNS) {
+        buildRecordCardBlock(section)
+    } else {
+        buildTableBlock(section)
+    }
+}
+
 internal fun buildTableBlock(section: PdfSection): TableBlock {
     val headers = section.rows.first()
     val bodyRows = section.rows.drop(1)
-    val widths = computeColumnWidths(headers, bodyRows)
+    // Headers render with the same human-readable names as the CSV export.
+    val displayHeaders = CsvFormatter.displayHeaders(headers)
+    val widths = computeColumnWidths(displayHeaders, bodyRows)
     val columnChars = widths.map(::charsPerLine)
     return TableBlock(
         title = section.title,
         widths = widths,
         alignRight = computeNumericAlignment(bodyRows, headers.size),
-        headerLines = headers.mapIndexed { index, header -> wrapCell(header, columnChars[index]) },
+        headerLines = displayHeaders.mapIndexed { index, header -> wrapCell(header, columnChars[index]) },
         bodyRowLines = bodyRows.map { row -> row.mapIndexed { index, cell -> wrapCell(cell, columnChars[index]) } },
     )
+}
+
+/**
+ * Builds a wide section as stacked record cards. Labels use the CSV display
+ * names; date detection runs on the raw internal header names.
+ */
+internal fun buildRecordCardBlock(section: PdfSection): RecordCardBlock {
+    val headers = section.rows.first()
+    val bodyRows = section.rows.drop(1)
+    val displayHeaders = CsvFormatter.displayHeaders(headers)
+    val dateIndex = headers.indexOfFirst { it.contains("Date", ignoreCase = true) }.takeIf { it >= 0 }
+    val labelWidth = PdfTheme.CONTENT_WIDTH * PdfTheme.CARD_LABEL_WIDTH_FRACTION
+    val valueWidth = PdfTheme.CONTENT_WIDTH - labelWidth
+    val labelChars = charsPerLine(labelWidth - PdfTheme.CARD_PAD_H)
+    val valueChars = charsPerLine(valueWidth - PdfTheme.CARD_PAD_H)
+    val dateChars =
+        charsPerLine(PdfTheme.CONTENT_WIDTH * PdfTheme.DATE_FIELD_MAX_WIDTH_FRACTION)
+
+    val records =
+        bodyRows.map { row ->
+            val date =
+                dateIndex
+                    ?.let { index -> row.getOrNull(index)?.trim() }
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { ellipsizeToChars(it, dateChars) }
+            val pairs =
+                displayHeaders.mapIndexed { index, label ->
+                    CardPair(wrapCell(label, labelChars), wrapCell(row.getOrNull(index).orEmpty(), valueChars))
+                }
+            CardRecord(date, pairs)
+        }
+    return RecordCardBlock(section.title, records)
 }
 
 /**

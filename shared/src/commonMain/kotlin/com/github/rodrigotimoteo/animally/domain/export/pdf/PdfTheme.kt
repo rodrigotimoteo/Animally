@@ -79,6 +79,43 @@ object PdfTheme {
     const val MAX_CELL_LINES = 64
 
     // ---------------------------------------------------------------------
+    // Wide-section record cards
+    //
+    // Sections with more than [HORIZONTAL_TABLE_MAX_COLUMNS] columns render
+    // as stacked vertical record cards instead of a squeezed table.
+    // ---------------------------------------------------------------------
+
+    /** Sections with at most this many columns stay horizontal tables. */
+    const val HORIZONTAL_TABLE_MAX_COLUMNS = 4
+
+    /** Height of the tinted bar at the top of each record card. */
+    const val CARD_HEADER_HEIGHT = 20.0
+
+    /** Vertical offset of the header-bar text within the bar. */
+    const val CARD_HEADER_TEXT_OFFSET_Y = 4.0
+
+    /** Horizontal padding inside a card (bar text, label column, right edge). */
+    const val CARD_PAD_H = 8.0
+
+    /** Vertical padding of one label/value pair inside a card. */
+    const val CARD_PAIR_PAD_V = 3.0
+
+    /** Vertical gap between consecutive record cards. */
+    const val CARD_GAP = 14.0
+
+    /** Label column width as a fraction of the content width. */
+    const val CARD_LABEL_WIDTH_FRACTION = 0.32
+
+    /** Max width fraction available for the right-aligned date in the card bar. */
+    const val DATE_FIELD_MAX_WIDTH_FRACTION = 0.35
+
+    /** Font size of the "Record N" / date line in the card bar. */
+    const val CARD_TEXT_SIZE = 11.0
+
+    /** Brand green pre-blended at 12% over white (solid fill; painters have no alpha compositing). */
+    const val COLOR_CARD_TINT = 0xFFE6ECEAL
+
+    // ---------------------------------------------------------------------
     // Table metrics
     // ---------------------------------------------------------------------
     const val CELL_PAD_H = 5.0

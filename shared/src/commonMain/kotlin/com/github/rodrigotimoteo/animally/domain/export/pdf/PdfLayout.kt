@@ -147,25 +147,30 @@ internal data class KeyValueLine(
     val value: String,
 )
 
+/** A section laid out either as a horizontal table or as vertical record cards. */
+internal sealed interface SectionBlock {
+    val title: String
+}
+
 /**
  * A section table prepared for drawing: column widths, alignment and every
  * cell already wrapped into its final lines. Row heights are dynamic — the
  * tallest cell's line count drives them — so no content is ever truncated.
  */
 internal class TableBlock(
-    val title: String,
+    override val title: String,
     val widths: List<Double>,
     val alignRight: List<Boolean>,
     val headerLines: List<List<String>>,
     val bodyRowLines: List<List<List<String>>>,
-) {
+) : SectionBlock {
     /** Height of a row whose cells wrap to [cells] lines. */
     fun rowHeight(cells: List<List<String>>): Double =
         cells
             .maxOf { it.size } * PdfTheme.CELL_LINE_HEIGHT + PdfTheme.CELL_ROW_PAD_V
 
-    /** Height of the wrapped header row. */
-    fun headerHeight(): Double = rowHeight(headerLines)
+    /** Height of the wrapped header row (uses the header-specific padding). */
+    fun headerHeight(): Double = headerLines.maxOf { it.size } * PdfTheme.CELL_LINE_HEIGHT + PdfTheme.HEADER_ROW_PAD_V
 
     /**
      * Draws one row of wrapped cells at [y]. Each cell's lines are stacked
@@ -214,14 +219,18 @@ private fun paginate(report: PdfReportData): List<List<PdfOp>> {
         y += PdfTheme.DEMOGRAPHICS_LINE_HEIGHT
     }
 
-    val tables = report.sections.filter { it.rows.size > 1 }.map(::buildTableBlock)
+    val tables = report.sections.filter { it.rows.size > 1 }.map(::buildSectionBlock)
     if (tables.isEmpty()) {
         ops += emptyNoticeOp(y)
         return pages
     }
 
-    for (table in tables) {
-        y = drawTable(table, pages, y)
+    for (block in tables) {
+        y =
+            when (block) {
+                is TableBlock -> drawTable(block, pages, y)
+                is RecordCardBlock -> drawCards(block, pages, y)
+            }
     }
     return pages
 }
@@ -352,4 +361,181 @@ private fun bodyRowOps(
         )
         addAll(table.textOps(cells, y, bold = false, color = PdfTheme.COLOR_TEXT))
     }
+}
+
+// -------------------------------------------------------------------------
+// Wide sections: vertical record cards
+// -------------------------------------------------------------------------
+
+/** One record of a [RecordCardBlock]: optional date for the bar plus label/value pairs. */
+internal class CardRecord(
+    val date: String?,
+    val pairs: List<CardPair>,
+)
+
+/** One label/value pair of a record card, both sides already wrapped into lines. */
+internal class CardPair(
+    val labelLines: List<String>,
+    val valueLines: List<String>,
+) {
+    /** Pair height driven by the taller side. */
+    fun height(): Double {
+        val lineCount = maxOf(labelLines.size, valueLines.size)
+        return lineCount * PdfTheme.CELL_LINE_HEIGHT + PdfTheme.CARD_PAIR_PAD_V
+    }
+
+    /** Draws the pair at [y], each side vertically centered within [pairHeight]. */
+    fun textOps(
+        labelX: Double,
+        valueX: Double,
+        y: Double,
+        pairHeight: Double,
+    ): List<PdfOp> {
+        val blockHeight = maxOf(labelLines.size, valueLines.size) * PdfTheme.CELL_LINE_HEIGHT
+        val topOffset = (pairHeight - blockHeight) / 2
+        val labelOps =
+            labelLines.mapIndexed { index, line ->
+                PdfOp.Text(
+                    line,
+                    labelX,
+                    y + topOffset + index * PdfTheme.CELL_LINE_HEIGHT,
+                    PdfTheme.CELL_SIZE,
+                    true,
+                    PdfTheme.COLOR_LABEL,
+                )
+            }
+        val valueOps =
+            valueLines.mapIndexed { index, line ->
+                PdfOp.Text(
+                    line,
+                    valueX,
+                    y + topOffset + index * PdfTheme.CELL_LINE_HEIGHT,
+                    PdfTheme.CELL_SIZE,
+                    false,
+                    PdfTheme.COLOR_TEXT,
+                )
+            }
+        return labelOps + valueOps
+    }
+}
+
+/**
+ * A wide section (>4 columns) rendered as stacked vertical record cards:
+ * tinted bar with "Record N" + date, then label/value pairs. Cards split
+ * only between records — never mid-card.
+ */
+internal class RecordCardBlock(
+    override val title: String,
+    val records: List<CardRecord>,
+) : SectionBlock {
+    private val labelWidth = PdfTheme.CONTENT_WIDTH * PdfTheme.CARD_LABEL_WIDTH_FRACTION
+    private val labelX = PdfTheme.MARGIN + PdfTheme.CARD_PAD_H
+    private val valueX = PdfTheme.MARGIN + labelWidth
+
+    /** Height of one card: header bar plus every pair's height. */
+    fun recordHeight(record: CardRecord): Double = PdfTheme.CARD_HEADER_HEIGHT + record.pairs.sumOf { it.height() }
+
+    /** Draws one card at [y]. */
+    fun cardOps(
+        record: CardRecord,
+        index: Int,
+        y: Double,
+    ): List<PdfOp> =
+        buildList {
+            add(
+                PdfOp.Rect(
+                    PdfTheme.MARGIN,
+                    y,
+                    PdfTheme.CONTENT_WIDTH,
+                    PdfTheme.CARD_HEADER_HEIGHT,
+                    PdfTheme.COLOR_CARD_TINT,
+                ),
+            )
+            val headerTextY = y + PdfTheme.CARD_HEADER_TEXT_OFFSET_Y
+            add(
+                PdfOp.Text(
+                    "Record ${index + 1}",
+                    labelX,
+                    headerTextY,
+                    PdfTheme.CARD_TEXT_SIZE,
+                    true,
+                    PdfTheme.COLOR_TEXT,
+                ),
+            )
+            record.date?.let { date ->
+                add(
+                    PdfOp.Text(
+                        date,
+                        PdfTheme.MARGIN + PdfTheme.CONTENT_WIDTH - PdfTheme.CARD_PAD_H,
+                        headerTextY,
+                        PdfTheme.CARD_TEXT_SIZE,
+                        true,
+                        PdfTheme.COLOR_TEXT,
+                        rightAligned = true,
+                    ),
+                )
+            }
+            var pairY = y + PdfTheme.CARD_HEADER_HEIGHT
+            record.pairs.forEachIndexed { pairIndex, pair ->
+                val pairHeight = pair.height()
+                addAll(pair.textOps(labelX, valueX, pairY, pairHeight))
+                if (pairIndex < record.pairs.lastIndex) {
+                    add(
+                        PdfOp.Rect(
+                            PdfTheme.MARGIN,
+                            pairY + pairHeight - PdfTheme.SEPARATOR_THICKNESS,
+                            PdfTheme.CONTENT_WIDTH,
+                            PdfTheme.SEPARATOR_THICKNESS,
+                            PdfTheme.COLOR_SEPARATOR,
+                        ),
+                    )
+                }
+                pairY += pairHeight
+            }
+        }
+}
+
+/**
+ * Draws [block]'s cards starting at [y], splitting between cards only.
+ * Continuation pages repeat the section title (not any table header).
+ */
+private fun drawCards(
+    block: RecordCardBlock,
+    pages: MutableList<MutableList<PdfOp>>,
+    startY: Double,
+): Double {
+    var ops = pages.last()
+    var y = startY
+    val titleHeight = PdfTheme.SECTION_TITLE_HEIGHT + PdfTheme.TITLE_TO_TABLE_GAP
+
+    fun drawTitle() {
+        ops += PdfOp.Text(block.title, PdfTheme.MARGIN, y, PdfTheme.SECTION_TITLE_SIZE, true, PdfTheme.COLOR_TEXT)
+        y += titleHeight
+    }
+
+    fun startNewPage() {
+        ops = newContentPage(pages)
+        y = PdfTheme.CONTENT_TOP
+        drawTitle()
+    }
+
+    val firstCardHeight = block.records.firstOrNull()?.let(block::recordHeight) ?: 0.0
+    if (y + titleHeight + firstCardHeight > PdfTheme.CONTENT_BOTTOM) {
+        startNewPage()
+    } else {
+        drawTitle()
+    }
+
+    block.records.forEachIndexed { index, record ->
+        val cardHeight = block.recordHeight(record)
+        if (y + cardHeight > PdfTheme.CONTENT_BOTTOM) {
+            startNewPage()
+        }
+        ops += block.cardOps(record, index, y)
+        y += cardHeight
+        if (index < block.records.lastIndex) {
+            y += PdfTheme.CARD_GAP
+        }
+    }
+    return y + PdfTheme.SECTION_GAP
 }
