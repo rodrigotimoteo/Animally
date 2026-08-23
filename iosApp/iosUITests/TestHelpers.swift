@@ -40,11 +40,15 @@ extension TestHelpers {
         field: XCUIElement,
         text: String,
     ) {
+        let clearButton = app.buttons["Clear text"].firstMatch
         field.tap()
         typeInChunks(field, text)
 
-        if (field.value as? String) != text {
-            let clearButton = app.buttons["Clear text"].firstMatch
+        // The searchable field's live binding re-renders mid-typing and can
+        // swallow keystrokes; verify what landed and retry up to 3 times.
+        var attempts = 0
+        while (field.value as? String) != text, attempts < 3 {
+            attempts += 1
             if clearButton.exists {
                 clearButton.tap()
             }

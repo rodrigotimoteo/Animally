@@ -24,6 +24,48 @@ enum RecordStores {
 
     // MARK: Medical / Preventive group (IosEditStores)
 
+    static func consultationEditStore(patientId: Int64, consultationId: Int64?) -> ConsultationEditStore {
+        IosEditStores.shared.consultationEditStore(
+            patientId: patientId,
+            consultationId: consultationId.map { KotlinLong(longLong: $0) }
+        )
+    }
+
+    static func weightEditStore(patientId: Int64, weightId: Int64?) -> WeightEditStore {
+        IosEditStores.shared.weightEditStore(
+            patientId: patientId,
+            weightId: weightId.map { KotlinLong(longLong: $0) }
+        )
+    }
+
+    static func vaccinationEditStore(patientId: Int64, vaccinationId: Int64?) -> VaccinationEditStore {
+        IosEditStores.shared.vaccinationEditStore(
+            patientId: patientId,
+            vaccinationId: vaccinationId.map { KotlinLong(longLong: $0) }
+        )
+    }
+
+    static func dewormingEditStore(patientId: Int64, dewormingId: Int64?) -> DewormingEditStore {
+        IosEditStores.shared.dewormingEditStore(
+            patientId: patientId,
+            dewormingId: dewormingId.map { KotlinLong(longLong: $0) }
+        )
+    }
+
+    static func dentistryEditStore(patientId: Int64, dentistryId: Int64?) -> DentistryEditStore {
+        IosEditStores.shared.dentistryEditStore(
+            patientId: patientId,
+            dentistryId: dentistryId.map { KotlinLong(longLong: $0) }
+        )
+    }
+
+    static func farrierVisitEditStore(patientId: Int64, farrierVisitId: Int64?) -> FarrierVisitEditStore {
+        IosEditStores.shared.farrierVisitEditStore(
+            patientId: patientId,
+            farrierVisitId: farrierVisitId.map { KotlinLong(longLong: $0) }
+        )
+    }
+
     static func anamneseEditStore(patientId: Int64, anamneseId: Int64?) -> AnamneseEditStore {
         IosEditStoresMedical.shared.anamneseEditStore(
             patientId: patientId,

@@ -46,6 +46,22 @@ struct SearchView: View {
             .navigationDestination(for: RecordEditRoute.self) { route in
                 recordEditDestination(route)
             }
+            .navigationDestination(for: RecordDetailKey.self) { key in
+                RecordDetailView(
+                    displayType: key.displayType,
+                    patientId: key.patientId,
+                    recordId: key.recordId,
+                    onEdit: {
+                        if let editRoute = RecordEditRoute(
+                            displayType: key.displayType,
+                            patientId: key.patientId,
+                            recordId: key.recordId
+                        ) {
+                            path.append(editRoute)
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -93,17 +109,15 @@ struct SearchView: View {
                         }
                         .buttonStyle(.plain)
                     } else {
-                        // Record hits deep-link straight into the record editor
-                        // with the patient page underneath so Back returns to it.
+                        // Record hits open the read-only record detail with the
+                        // patient page underneath so Back returns to it.
                         Button {
                             path.append(Route.patientDetail(result.patientId))
-                            if let editRoute = RecordEditRoute(
+                            path.append(RecordDetailKey(
                                 displayType: result.recordType,
                                 patientId: result.patientId,
                                 recordId: result.recordId
-                            ) {
-                                path.append(editRoute)
-                            }
+                            ))
                         } label: {
                             SearchResultRow(result: result)
                         }

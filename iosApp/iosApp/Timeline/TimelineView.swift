@@ -91,6 +91,22 @@ private struct TimelineContent: View {
         .navigationDestination(for: RecordEditRoute.self) { route in
             recordEditDestination(route)
         }
+        .navigationDestination(for: RecordDetailKey.self) { key in
+            RecordDetailView(
+                displayType: key.displayType,
+                patientId: key.patientId,
+                recordId: key.recordId,
+                onEdit: {
+                    if let editRoute = RecordEditRoute(
+                        displayType: key.displayType,
+                        patientId: key.patientId,
+                        recordId: key.recordId
+                    ) {
+                        path.append(editRoute)
+                    }
+                }
+            )
+        }
         }
 
     private var timelineList: some View {
@@ -99,16 +115,14 @@ private struct TimelineContent: View {
                 Section {
                     ForEach(group.entries, id: \.recordId) { entry in
                         Button {
-                            // Deep-link straight into the record editor with the
-                            // patient page underneath so Back returns to it.
+                            // Open the read-only record detail with the patient
+                            // page underneath so Back returns to it.
                             path.append(Route.patientDetail(entry.patientId))
-                            if let editRoute = RecordEditRoute(
+                            path.append(RecordDetailKey(
                                 displayType: entry.recordType,
                                 patientId: entry.patientId,
                                 recordId: entry.recordId
-                            ) {
-                                path.append(editRoute)
-                            }
+                            ))
                         } label: {
                             TimelineEntryRow(entry: entry, showPatientName: viewModel.state.patientId == nil)
                         }
