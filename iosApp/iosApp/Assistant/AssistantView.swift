@@ -4,6 +4,7 @@ import Shared
 struct AssistantView: View {
     @StateObject private var viewModel = AssistantViewModel()
     @State private var draft: String = ""
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -78,7 +79,12 @@ struct AssistantView: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.immediately)
+        .onTapGesture {
+            inputFocused = false
+        }
         .background(Theme.surfaceElevated.opacity(0.35))
+        .accessibilityIdentifier("assistant_transcript")
     }
 
     private var typingIndicator: some View {
@@ -122,11 +128,16 @@ struct AssistantView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            inputFocused = false
+        }
     }
 
     private var inputBar: some View {
         HStack(spacing: 12) {
             TextField("Ask a question…", text: $draft, axis: .vertical)
+                .focused($inputFocused)
                 .textFieldStyle(.plain)
                 .lineLimit(1...4)
                 .padding(.horizontal, 14)
@@ -134,6 +145,7 @@ struct AssistantView: View {
                 .background(Theme.surfaceElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
                 .disabled(viewModel.state.isGenerating)
+                .accessibilityIdentifier("assistant_input")
 
             Button {
                 sendDraft()
@@ -141,9 +153,17 @@ struct AssistantView: View {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
                     .foregroundStyle(canSend ? Theme.forestGreen : Theme.textTertiary)
+                    .scaleEffect(viewModel.state.isGenerating ? 0.92 : 1.0)
+                    .animation(
+                        viewModel.state.isGenerating
+                            ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                            : .easeOut(duration: 0.2),
+                        value: viewModel.state.isGenerating
+                    )
             }
             .disabled(!canSend)
             .accessibilityLabel("Send message")
+            .accessibilityIdentifier("assistant_send")
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
@@ -158,6 +178,7 @@ struct AssistantView: View {
         let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty else { return }
         draft = ""
+        inputFocused = false
         viewModel.ask(question: question)
     }
 
