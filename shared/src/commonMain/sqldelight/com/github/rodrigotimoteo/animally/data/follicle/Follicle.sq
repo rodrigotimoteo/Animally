@@ -3,6 +3,7 @@ insert:
 INSERT INTO Follicle (id, ultrasoundId, side, sizeMm, description, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Follicle SET
     ultrasoundId = ?,

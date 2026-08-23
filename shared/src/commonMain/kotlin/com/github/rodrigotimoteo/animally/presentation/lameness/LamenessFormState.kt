@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.lameness
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -21,7 +23,7 @@ import kotlin.time.Instant
  */
 data class LamenessFormState(
     val id: Long? = null,
-    val date: String = "",
+    val date: String = todayIso(),
     val gradeAAEP: String = "",
     val limbLocation: String? = null,
     val flexionTest: String? = null,

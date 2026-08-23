@@ -3,6 +3,7 @@ insert:
 INSERT INTO ReproMedication (id, patientId, medication, dateAdministered, dosage, purpose, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE ReproMedication SET
     patientId = ?,

@@ -57,6 +57,9 @@ interface ISearchRepository {
      */
     fun reindexOwners()
 
+    /** Re-indexes every active patient; heals rows whose index entry was lost or clobbered. */
+    fun reindexPatients()
+
     companion object {
         const val TYPE_PATIENT = "PATIENT"
         const val TYPE_CONSULTATION = "CONSULTATION"

@@ -1,6 +1,9 @@
 package com.github.rodrigotimoteo.animally.presentation.ultrasound
 
 import com.github.rodrigotimoteo.animally.data.storage.PickedFile
+import com.github.rodrigotimoteo.animally.domain.follicle.IFollicleRepository
+import com.github.rodrigotimoteo.animally.domain.follicle.usecase.GetFolliclesByUltrasoundUseCase
+import com.github.rodrigotimoteo.animally.domain.follicle.usecase.SaveFolliclesUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundDetailUseCase
@@ -38,9 +41,15 @@ import kotlin.time.Instant
 class UltrasoundEditViewModelTest {
     private val ultrasoundRepositoryMock: IUltrasoundRepository = mock()
 
+    private val follicleRepositoryMock: IFollicleRepository = mock()
+
     private val getUltrasoundDetailUseCase = GetUltrasoundDetailUseCase(ultrasoundRepositoryMock)
 
     private val saveUltrasoundUseCase = SaveUltrasoundUseCase(ultrasoundRepositoryMock)
+
+    private val getFolliclesByUltrasoundUseCase = GetFolliclesByUltrasoundUseCase(follicleRepositoryMock)
+
+    private val saveFolliclesUseCase = SaveFolliclesUseCase(follicleRepositoryMock)
 
     private val navigator = AnimallyNavigator()
 
@@ -57,6 +66,8 @@ class UltrasoundEditViewModelTest {
         ultrasoundId = null,
         getUltrasoundDetailUseCase = getUltrasoundDetailUseCase,
         saveUltrasoundUseCase = saveUltrasoundUseCase,
+        getFolliclesByUltrasoundUseCase = getFolliclesByUltrasoundUseCase,
+        saveFolliclesUseCase = saveFolliclesUseCase,
         animallyNavigator = navigator,
         ioDispatcher = dispatcher,
         saveFile = saveFile,
@@ -67,6 +78,7 @@ class UltrasoundEditViewModelTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            vm.onDateChange("")
 
             vm.save()
 
@@ -159,6 +171,8 @@ class UltrasoundEditViewModelTest {
                     ultrasoundId = 1L,
                     getUltrasoundDetailUseCase = getUltrasoundDetailUseCase,
                     saveUltrasoundUseCase = saveUltrasoundUseCase,
+                    getFolliclesByUltrasoundUseCase = getFolliclesByUltrasoundUseCase,
+                    saveFolliclesUseCase = saveFolliclesUseCase,
                     animallyNavigator = navigator,
                     ioDispatcher = StandardTestDispatcher(testScheduler),
                 )

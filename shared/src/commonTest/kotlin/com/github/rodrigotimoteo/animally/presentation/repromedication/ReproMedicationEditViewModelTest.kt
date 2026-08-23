@@ -76,6 +76,7 @@ class ReproMedicationEditViewModelTest {
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
             vm.onMedicationChange("Regumate")
+            vm.onDateAdministeredChange("")
             vm.save()
 
             assertEquals("Date is required", vm.formState.value?.dateError)

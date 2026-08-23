@@ -27,8 +27,8 @@ class MedicationRepositoryImpl(
     override fun getById(id: Long): Medication? = medicationQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(medication: Medication): Long =
-        medicationQueries
-            .insert(
+        database.transactionWithResult {
+            medicationQueries.insert(
                 patientId = medication.patientId,
                 name = medication.name,
                 dosage = medication.dosage,
@@ -41,7 +41,9 @@ class MedicationRepositoryImpl(
                 isActive = medication.isActive,
                 createdAt = medication.createdAt,
                 updatedAt = medication.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(medication: Medication): Long =
         medicationQueries

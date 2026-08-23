@@ -26,8 +26,8 @@ class DentistryRepositoryImpl(
     override fun getById(id: Long): Dentistry? = dentistryQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(dentistry: Dentistry): Long =
-        dentistryQueries
-            .insert(
+        database.transactionWithResult {
+            dentistryQueries.insert(
                 patientId = dentistry.patientId,
                 date = dentistry.date,
                 findings = dentistry.findings,
@@ -38,7 +38,9 @@ class DentistryRepositoryImpl(
                 isActive = dentistry.isActive,
                 createdAt = dentistry.createdAt,
                 updatedAt = dentistry.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(dentistry: Dentistry): Long =
         dentistryQueries

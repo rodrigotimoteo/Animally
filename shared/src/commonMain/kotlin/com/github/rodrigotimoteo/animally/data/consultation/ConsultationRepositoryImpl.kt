@@ -27,8 +27,8 @@ class ConsultationRepositoryImpl(
     override fun getById(id: Long): Consultation? = consultationQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(consultation: Consultation): Long =
-        consultationQueries
-            .insert(
+        database.transactionWithResult {
+            consultationQueries.insert(
                 patientId = consultation.patientId,
                 date = consultation.date,
                 subjective = consultation.subjective,
@@ -40,7 +40,9 @@ class ConsultationRepositoryImpl(
                 isActive = consultation.isActive,
                 createdAt = consultation.createdAt,
                 updatedAt = consultation.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(consultation: Consultation): Long =
         consultationQueries

@@ -27,8 +27,8 @@ class LamenessRepositoryImpl(
     override fun getById(id: Long): Lameness? = lamenessQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(lameness: Lameness): Long =
-        lamenessQueries
-            .insert(
+        database.transactionWithResult {
+            lamenessQueries.insert(
                 patientId = lameness.patientId,
                 date = lameness.date,
                 gradeAAEP = lameness.gradeAAEP.toLong(),
@@ -41,7 +41,9 @@ class LamenessRepositoryImpl(
                 isActive = lameness.isActive,
                 createdAt = lameness.createdAt,
                 updatedAt = lameness.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(lameness: Lameness): Long =
         lamenessQueries

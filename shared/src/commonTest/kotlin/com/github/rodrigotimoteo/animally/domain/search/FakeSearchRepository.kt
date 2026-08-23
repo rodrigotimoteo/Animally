@@ -31,4 +31,6 @@ open class FakeSearchRepository : ISearchRepository {
     override fun rebuild() = Unit
 
     override fun reindexOwners() = Unit
+
+    override fun reindexPatients() = Unit
 }

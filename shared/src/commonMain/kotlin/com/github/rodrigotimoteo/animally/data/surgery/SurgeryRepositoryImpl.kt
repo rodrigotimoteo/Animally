@@ -27,8 +27,8 @@ class SurgeryRepositoryImpl(
     override fun getById(id: Long): Surgery? = surgeryQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(surgery: Surgery): Long =
-        surgeryQueries
-            .insert(
+        database.transactionWithResult {
+            surgeryQueries.insert(
                 patientId = surgery.patientId,
                 date = surgery.date,
                 type = surgery.type,
@@ -42,7 +42,9 @@ class SurgeryRepositoryImpl(
                 isActive = surgery.isActive,
                 createdAt = surgery.createdAt,
                 updatedAt = surgery.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(surgery: Surgery): Long =
         surgeryQueries

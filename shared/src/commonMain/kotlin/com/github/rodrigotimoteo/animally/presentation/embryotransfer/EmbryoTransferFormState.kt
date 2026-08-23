@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.embryotransfer
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -18,7 +20,7 @@ import kotlin.time.Instant
  */
 data class EmbryoTransferFormState(
     val id: Long? = null,
-    val date: String = "",
+    val date: String = todayIso(),
     val embryoCount: String = "0",
     val recipientMares: String? = null,
     val vetName: String? = null,

@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.di.database
 import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.anamnese.AnamneseQueries
+import com.github.rodrigotimoteo.animally.data.common.CommonQueries
 import com.github.rodrigotimoteo.animally.data.consultation.ConsultationQueries
 import com.github.rodrigotimoteo.animally.data.customreminder.CustomReminderQueries
 import com.github.rodrigotimoteo.animally.data.dentistry.DentistryQueries
@@ -50,6 +51,7 @@ internal class QueriesModule {
             single<MedicationQueries> { get<AnimallyDatabase>().medicationQueries }
             single<OwnerQueries> { get<AnimallyDatabase>().ownerQueries }
             single<PatientQueries> { get<AnimallyDatabase>().patientQueries }
+            single<CommonQueries> { get<AnimallyDatabase>().commonQueries }
             single<ReproductionQueries> { get<AnimallyDatabase>().reproductionQueries }
             single<ReproMedicationQueries> { get<AnimallyDatabase>().reproMedicationQueries }
             single<SubstanceQueries> { get<AnimallyDatabase>().substanceQueries }

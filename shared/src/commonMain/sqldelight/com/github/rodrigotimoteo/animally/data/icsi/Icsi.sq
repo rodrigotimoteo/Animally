@@ -3,6 +3,7 @@ insert:
 INSERT INTO Icsi (id, patientId, date, folliclesRecovered, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Icsi SET
     patientId = ?,

@@ -27,8 +27,8 @@ class FollicleRepositoryImpl(
     override fun getById(id: Long): Follicle? = queries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(follicle: Follicle): Long =
-        queries
-            .insert(
+        database.transactionWithResult {
+            queries.insert(
                 ultrasoundId = follicle.ultrasoundId,
                 side = follicle.side,
                 sizeMm = follicle.sizeMm,
@@ -36,7 +36,9 @@ class FollicleRepositoryImpl(
                 isActive = follicle.isActive,
                 createdAt = follicle.createdAt,
                 updatedAt = follicle.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(follicle: Follicle): Long =
         queries

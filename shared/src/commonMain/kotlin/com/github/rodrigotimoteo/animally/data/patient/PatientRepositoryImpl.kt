@@ -71,27 +71,30 @@ class PatientRepositoryImpl(
     override fun getPatientById(id: Long): Patient? = patientQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insertPatient(patient: Patient): Long =
-        patientQueries
-            .insert(
-                name = patient.name,
-                species = patient.species,
-                breed = patient.breed,
-                dateOfBirth = patient.dateOfBirth,
-                gender = patient.gender,
-                microchipId = patient.microchipId,
-                ueln = patient.ueln,
-                registrationNumber = patient.registrationNumber,
-                stableLocation = patient.stableLocation,
-                photoUri = patient.photoUri,
-                notes = patient.notes,
-                ownerId = patient.ownerId,
-                isActive = patient.isActive,
-                createdAt = patient.createdAt,
-                updatedAt = patient.updatedAt,
-                cogginsTestDate = patient.cogginsTestDate,
-                cogginsResult = patient.cogginsResult,
-                cogginsExpiryDate = patient.cogginsExpiryDate,
-            ).value
+        database.transactionWithResult {
+            patientQueries
+                .insert(
+                    name = patient.name,
+                    species = patient.species,
+                    breed = patient.breed,
+                    dateOfBirth = patient.dateOfBirth,
+                    gender = patient.gender,
+                    microchipId = patient.microchipId,
+                    ueln = patient.ueln,
+                    registrationNumber = patient.registrationNumber,
+                    stableLocation = patient.stableLocation,
+                    photoUri = patient.photoUri,
+                    notes = patient.notes,
+                    ownerId = patient.ownerId,
+                    isActive = patient.isActive,
+                    createdAt = patient.createdAt,
+                    updatedAt = patient.updatedAt,
+                    cogginsTestDate = patient.cogginsTestDate,
+                    cogginsResult = patient.cogginsResult,
+                    cogginsExpiryDate = patient.cogginsExpiryDate,
+                )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun updatePatient(patient: Patient): Long =
         patientQueries

@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.consultation
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -20,7 +22,7 @@ import kotlin.time.Instant
  */
 data class ConsultationFormState(
     val id: Long? = null,
-    val date: String = "",
+    val date: String = todayIso(),
     val subjective: String = "",
     val objective: String = "",
     val assessment: String = "",

@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.dentistry
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -20,7 +22,7 @@ import kotlin.time.Instant
  */
 data class DentistryFormState(
     val id: Long? = null,
-    val date: String = "",
+    val date: String = todayIso(),
     val findings: String? = null,
     val treatment: String? = null,
     val nextDueDate: String? = null,

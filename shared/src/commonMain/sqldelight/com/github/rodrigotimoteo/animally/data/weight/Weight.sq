@@ -3,6 +3,7 @@ insert:
 INSERT INTO Weight (id, patientId, weightKg, date, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Weight SET
     patientId = ?,

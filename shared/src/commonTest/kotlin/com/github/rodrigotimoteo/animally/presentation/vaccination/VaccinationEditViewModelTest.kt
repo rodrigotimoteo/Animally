@@ -78,6 +78,7 @@ class VaccinationEditViewModelTest {
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
             vm.onVaccineNameChange("Tetanus")
+            vm.onDateAdministeredChange("")
             vm.save()
 
             assertEquals("Date is required", vm.formState.value?.dateError)

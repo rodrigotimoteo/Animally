@@ -52,15 +52,21 @@ class SearchRepositoryImpl(
         to: LocalDate?,
         recordTypes: List<String>?,
     ): List<SearchResult> {
+        // FTS5 MATCH is token-exact; trailing each plain token with '*' turns
+        // the query into a prefix match so partial input ("thun") finds
+        // "Thunder". Tokens that are already FTS-syntax (starred terms, boolean
+        // operators) pass through untouched.
+        val matchQuery = toPrefixMatchQuery(query)
+        if (matchQuery.isBlank()) return emptyList()
         val recordHits =
             searchQueries
-                .search(query, from, to)
+                .search(matchQuery, from, to)
                 .executeAsList()
                 .filter { recordTypes == null || it.recordType in recordTypes }
                 .map { it.toDomain() }
         val ownerHits =
             if (recordTypes == null || ISearchRepository.TYPE_OWNER in recordTypes) {
-                searchQueries.searchOwners(query).executeAsList().map { it.toDomain() }
+                searchQueries.searchOwners(matchQuery).executeAsList().map { it.toDomain() }
             } else {
                 emptyList()
             }
@@ -91,6 +97,51 @@ class SearchRepositoryImpl(
                 )
             }
     }
+
+    override fun reindexPatients() {
+        database.patientQueries
+            .selectAll()
+            .executeAsList()
+            .forEach { patient ->
+                val searchableText =
+                    listOfNotNull(
+                        patient.name,
+                        patient.species,
+                        patient.breed,
+                        patient.microchipId,
+                        patient.ueln,
+                        patient.registrationNumber,
+                        patient.stableLocation,
+                    ).joinToString(" ")
+                indexRecord(
+                    recordType = ISearchRepository.TYPE_PATIENT,
+                    patientId = patient.id,
+                    recordId = patient.id,
+                    date = null,
+                    searchableText = searchableText,
+                )
+            }
+    }
+
+    /** Appends prefix stars to plain tokens, preserving explicit FTS syntax.
+     * Non-alphanumeric characters (hyphens, punctuation) split tokens — FTS5
+     * tokenizes content the same way, so "UITest-DF4D25" becomes
+     * "uitest* df4d25*", matching how the text was indexed. */
+    private fun toPrefixMatchQuery(query: String): String =
+        query
+            .split(Regex("\\s+"))
+            .flatMap { token ->
+                val isSyntax = token.endsWith("*") || token.uppercase() in setOf("AND", "OR", "NOT")
+                if (isSyntax) {
+                    listOf(token)
+                } else {
+                    token
+                        .split(Regex("[^\\p{L}\\p{N}]+"))
+                        .filter { it.isNotBlank() }
+                        .map { "$it*" }
+                }
+            }.filter { it.isNotBlank() }
+            .joinToString(" ")
 
     private fun removeIndexRow(
         recordType: String,

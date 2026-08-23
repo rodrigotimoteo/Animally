@@ -27,8 +27,8 @@ class GestationRepositoryImpl(
     override fun getById(id: Long): Gestation? = gestationQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(gestation: Gestation): Long =
-        gestationQueries
-            .insert(
+        database.transactionWithResult {
+            gestationQueries.insert(
                 patientId = gestation.patientId,
                 breedingDate = gestation.breedingDate,
                 expectedDueDate = gestation.expectedDueDate,
@@ -40,7 +40,9 @@ class GestationRepositoryImpl(
                 isActive = gestation.isActive,
                 createdAt = gestation.createdAt,
                 updatedAt = gestation.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(gestation: Gestation): Long =
         gestationQueries

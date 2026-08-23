@@ -27,8 +27,8 @@ class WeightRepositoryImpl(
     override fun getById(id: Long): Weight? = weightQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(weight: Weight): Long =
-        weightQueries
-            .insert(
+        database.transactionWithResult {
+            weightQueries.insert(
                 patientId = weight.patientId,
                 weightKg = weight.weightKg,
                 date = weight.date,
@@ -36,7 +36,9 @@ class WeightRepositoryImpl(
                 isActive = weight.isActive,
                 createdAt = weight.createdAt,
                 updatedAt = weight.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(weight: Weight): Long =
         weightQueries

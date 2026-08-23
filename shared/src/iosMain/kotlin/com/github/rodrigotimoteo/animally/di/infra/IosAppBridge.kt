@@ -36,8 +36,13 @@ object IosAppBridge {
     /** Boots Koin with the production modules and stores the instance. */
     fun start() {
         koin = initKoin().koin
-        // Owners created before owner indexing existed must still be searchable.
-        koin.get<ISearchRepository>().reindexOwners()
+        // Heal search index rows lost or clobbered before id-correct indexing,
+        // then realign FTS content rowids with the metadata table (rebuild).
+        koin.get<ISearchRepository>().apply {
+            reindexOwners()
+            reindexPatients()
+            rebuild()
+        }
     }
 
     /**

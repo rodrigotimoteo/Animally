@@ -3,6 +3,7 @@ insert:
 INSERT INTO Medication (id, patientId, name, dosage, route, frequency, startDate, endDate, prescribedBy, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Medication SET
     patientId = ?,

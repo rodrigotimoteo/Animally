@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.substance
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -29,7 +31,7 @@ data class ControlledSubstanceFormState(
     val route: String? = null,
     val administeredBy: String? = null,
     val witness: String? = null,
-    val date: String = "",
+    val date: String = todayIso(),
     val reason: String? = null,
     val notes: String? = null,
     val drugNameError: String? = null,

@@ -76,6 +76,7 @@ class ReproductionEventEditViewModelTest {
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
             vm.onEventTypeChange("Heat")
+            vm.onDateChange("")
             vm.save()
 
             assertEquals("Date is required", vm.formState.value?.dateError)

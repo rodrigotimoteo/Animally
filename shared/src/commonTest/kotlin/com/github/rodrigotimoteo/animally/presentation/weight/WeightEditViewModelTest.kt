@@ -185,6 +185,7 @@ class WeightEditViewModelTest {
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
             vm.onWeightKgChange("520.0")
+            vm.onDateChange("")
             vm.save()
 
             assertEquals("Date is required", vm.formState.value?.dateError)

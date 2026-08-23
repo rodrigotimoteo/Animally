@@ -278,7 +278,11 @@ class UltrasoundEditViewModel(
     }
 
     private fun Follicle.toRow(): FollicleRow =
-        FollicleRow(id = id, sizeMm = sizeMm.toString(), description = description)
+        FollicleRow(
+            id = id,
+            sizeMm = sizeMm.toString(),
+            description = description,
+        )
 
     private fun FollicleRow.toDomain(
         ultrasoundId: Long,

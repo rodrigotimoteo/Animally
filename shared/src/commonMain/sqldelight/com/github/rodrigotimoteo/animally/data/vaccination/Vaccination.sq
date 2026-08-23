@@ -3,6 +3,7 @@ insert:
 INSERT INTO Vaccination (id, patientId, vaccineName, dateAdministered, nextDueDate, vetName, batchNumber, site, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Vaccination SET
     patientId = ?,

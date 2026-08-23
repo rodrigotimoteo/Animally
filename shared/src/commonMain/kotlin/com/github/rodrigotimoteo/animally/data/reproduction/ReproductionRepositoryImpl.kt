@@ -27,8 +27,8 @@ class ReproductionRepositoryImpl(
     override fun getById(id: Long): ReproductionEvent? = reproQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(reproductionEvent: ReproductionEvent): Long =
-        reproQueries
-            .insert(
+        database.transactionWithResult {
+            reproQueries.insert(
                 patientId = reproductionEvent.patientId,
                 eventType = reproductionEvent.eventType,
                 date = reproductionEvent.date,
@@ -41,7 +41,9 @@ class ReproductionRepositoryImpl(
                 isActive = reproductionEvent.isActive,
                 createdAt = reproductionEvent.createdAt,
                 updatedAt = reproductionEvent.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(reproductionEvent: ReproductionEvent): Long =
         reproQueries

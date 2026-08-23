@@ -3,6 +3,7 @@ insert:
 INSERT INTO Gestation (id, patientId, breedingDate, expectedDueDate, gestationDays, status, fetalCount, lastCheckDate, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Gestation SET
     patientId = ?,

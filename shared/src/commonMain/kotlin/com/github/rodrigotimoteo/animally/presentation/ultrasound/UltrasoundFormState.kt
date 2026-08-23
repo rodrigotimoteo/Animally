@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.ultrasound
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -37,7 +39,7 @@ data class FollicleRow(
  */
 data class UltrasoundFormState(
     val id: Long? = null,
-    val date: String = "",
+    val date: String = todayIso(),
     val ovaryStatus: String? = null,
     val uterineStatus: String? = null,
     val follicleSizeMm: String? = null,

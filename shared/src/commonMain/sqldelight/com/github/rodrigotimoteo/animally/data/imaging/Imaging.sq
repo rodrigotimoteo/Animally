@@ -3,6 +3,7 @@ insert:
 INSERT INTO Imaging (id, patientId, type, date, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Imaging SET
     patientId = ?,

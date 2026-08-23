@@ -27,8 +27,8 @@ class ControlledSubstanceRepositoryImpl(
     override fun getById(id: Long): ControlledSubstance? = subQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(controlledSubstance: ControlledSubstance): Long =
-        subQueries
-            .insert(
+        database.transactionWithResult {
+            subQueries.insert(
                 patientId = controlledSubstance.patientId,
                 drugName = controlledSubstance.drugName,
                 dose = controlledSubstance.dose,
@@ -42,7 +42,9 @@ class ControlledSubstanceRepositoryImpl(
                 isActive = controlledSubstance.isActive,
                 createdAt = controlledSubstance.createdAt,
                 updatedAt = controlledSubstance.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(controlledSubstance: ControlledSubstance): Long =
         subQueries

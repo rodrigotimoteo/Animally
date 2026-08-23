@@ -27,8 +27,8 @@ class LabResultRepositoryImpl(
     override fun getById(id: Long): LabResult? = labResultQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(labResult: LabResult): Long =
-        labResultQueries
-            .insert(
+        database.transactionWithResult {
+            labResultQueries.insert(
                 patientId = labResult.patientId,
                 testType = labResult.testType,
                 date = labResult.date,
@@ -39,7 +39,9 @@ class LabResultRepositoryImpl(
                 isActive = labResult.isActive,
                 createdAt = labResult.createdAt,
                 updatedAt = labResult.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(labResult: LabResult): Long =
         labResultQueries

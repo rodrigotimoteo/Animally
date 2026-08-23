@@ -4,6 +4,7 @@ insert:
 INSERT INTO CustomReminder (id, patientId, title, dueDate, linkedRecordType, linkedRecordId, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE CustomReminder SET
     patientId = ?,

@@ -27,8 +27,8 @@ class ReproMedicationRepositoryImpl(
     override fun getById(id: Long): ReproMedication? = reproMedQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(reproMedication: ReproMedication): Long =
-        reproMedQueries
-            .insert(
+        database.transactionWithResult {
+            reproMedQueries.insert(
                 patientId = reproMedication.patientId,
                 medication = reproMedication.medication,
                 dateAdministered = reproMedication.dateAdministered,
@@ -39,7 +39,9 @@ class ReproMedicationRepositoryImpl(
                 isActive = reproMedication.isActive,
                 createdAt = reproMedication.createdAt,
                 updatedAt = reproMedication.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(reproMedication: ReproMedication): Long =
         reproMedQueries

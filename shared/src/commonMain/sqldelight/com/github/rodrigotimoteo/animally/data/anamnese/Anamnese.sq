@@ -3,6 +3,7 @@ insert:
 INSERT INTO Anamnese (id, patientId, generalHistory, chronicConditions, allergies, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Anamnese SET
     generalHistory = ?,

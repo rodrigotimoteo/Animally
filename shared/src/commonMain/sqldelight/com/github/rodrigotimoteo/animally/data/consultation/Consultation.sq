@@ -3,6 +3,7 @@ insert:
 INSERT INTO Consultation (id, patientId, date, subjective, objective, assessment, plan, vetName, nextVisitDate, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Consultation SET
     patientId = ?,

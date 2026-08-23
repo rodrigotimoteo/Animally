@@ -27,8 +27,8 @@ class IcsiRepositoryImpl(
     override fun getById(id: Long): Icsi? = queries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(record: Icsi): Long =
-        queries
-            .insert(
+        database.transactionWithResult {
+            queries.insert(
                 patientId = record.patientId,
                 date = record.date,
                 folliclesRecovered = record.folliclesRecovered.toLong(),
@@ -37,7 +37,9 @@ class IcsiRepositoryImpl(
                 isActive = record.isActive,
                 createdAt = record.createdAt,
                 updatedAt = record.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(record: Icsi): Long =
         queries

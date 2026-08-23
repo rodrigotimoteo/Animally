@@ -3,6 +3,7 @@ insert:
 INSERT INTO Patient (id, name, species, breed, dateOfBirth, gender, microchipId, ueln, registrationNumber, stableLocation, photoUri, notes, ownerId, isActive, createdAt, updatedAt, cogginsTestDate, cogginsResult, cogginsExpiryDate)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Patient SET
     name = ?,

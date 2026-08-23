@@ -3,6 +3,7 @@ insert:
 INSERT INTO Surgery (id, patientId, date, type, description, outcome, surgeon, anesthesia, analgesia, complications, recoveryNotes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Surgery SET
     patientId = ?,

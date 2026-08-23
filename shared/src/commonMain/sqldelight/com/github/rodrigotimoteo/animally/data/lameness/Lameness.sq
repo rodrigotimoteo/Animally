@@ -3,6 +3,7 @@ insert:
 INSERT INTO Lameness (id, patientId, date, gradeAAEP, limbLocation, flexionTest, diagnosis, treatment, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Lameness SET
     patientId = ?,

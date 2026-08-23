@@ -3,6 +3,7 @@ insert:
 INSERT INTO Ultrasound (id, patientId, date, ovaryStatus, uterineStatus, follicleSizeMm, leftOvaryStatus, rightOvaryStatus, leftFollicleSizeMm, rightFollicleSizeMm, uterineEdema, uterineLiquid, uterineLiquidDescription, uterusDescription, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Ultrasound SET
     patientId = ?,

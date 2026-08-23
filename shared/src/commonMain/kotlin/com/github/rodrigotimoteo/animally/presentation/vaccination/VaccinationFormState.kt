@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.vaccination
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -21,7 +23,7 @@ import kotlin.time.Instant
 data class VaccinationFormState(
     val id: Long? = null,
     val vaccineName: String = "",
-    val dateAdministered: String = "",
+    val dateAdministered: String = todayIso(),
     val vetName: String? = null,
     val batchNumber: String? = null,
     val site: String? = null,

@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.icsi
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -17,7 +19,7 @@ import kotlin.time.Instant
  */
 data class IcsiFormState(
     val id: Long? = null,
-    val date: String = "",
+    val date: String = todayIso(),
     val folliclesRecovered: String = "0",
     val vetName: String? = null,
     val notes: String? = null,

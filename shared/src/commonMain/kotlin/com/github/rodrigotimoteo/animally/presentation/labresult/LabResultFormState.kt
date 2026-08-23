@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.labresult
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -21,7 +23,7 @@ import kotlin.time.Instant
 data class LabResultFormState(
     val id: Long? = null,
     val testType: String = "",
-    val date: String = "",
+    val date: String = todayIso(),
     val results: String? = null,
     val normalRange: String? = null,
     val vetName: String? = null,

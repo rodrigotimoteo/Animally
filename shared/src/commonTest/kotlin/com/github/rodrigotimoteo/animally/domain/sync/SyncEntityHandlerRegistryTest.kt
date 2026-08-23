@@ -8,8 +8,10 @@ import com.github.rodrigotimoteo.animally.data.consultation.ConsultationReposito
 import com.github.rodrigotimoteo.animally.data.customreminder.CustomReminderRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.dentistry.DentistryRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.gestation.GestationRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.icsi.IcsiRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.labresult.LabResultRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.lameness.LamenessRepositoryImpl
@@ -29,8 +31,10 @@ import com.github.rodrigotimoteo.animally.domain.sync.handlers.ConsultationSyncH
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.CustomReminderSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.DentistrySyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.DewormingSyncHandler
+import com.github.rodrigotimoteo.animally.domain.sync.handlers.EmbryoTransferSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.FarrierVisitSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.GestationSyncHandler
+import com.github.rodrigotimoteo.animally.domain.sync.handlers.IcsiSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.ImagingSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.LabResultSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.LamenessSyncHandler
@@ -56,7 +60,7 @@ class SyncEntityHandlerRegistryTest {
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
-        val ownerRepo = OwnerRepositoryImpl(database.ownerQueries)
+        val ownerRepo = OwnerRepositoryImpl(database.ownerQueries, database)
         val patientRepo = PatientRepositoryImpl(database)
         val anamneseRepo = AnamneseRepositoryImpl(database)
         val consultationRepo = ConsultationRepositoryImpl(database)
@@ -99,6 +103,8 @@ class SyncEntityHandlerRegistryTest {
                 vaccinationHandler = VaccinationSyncHandler(vaccinationRepo, patientRepo, database),
                 weightHandler = WeightSyncHandler(weightRepo, patientRepo, database),
                 customReminderHandler = CustomReminderSyncHandler(customReminderRepo, patientRepo, database),
+                embryoTransferHandler = EmbryoTransferSyncHandler(EmbryoTransferRepositoryImpl(database), patientRepo, database),
+                icsiHandler = IcsiSyncHandler(IcsiRepositoryImpl(database), patientRepo, database),
             )
     }
 
@@ -118,7 +124,7 @@ class SyncEntityHandlerRegistryTest {
     fun `when listing all handlers then ordered parents before patient-linked children`() {
         val types = sut.all().map { it.entityType }
 
-        assertEquals(20, types.size)
+        assertEquals(22, types.size)
         assertEquals(SyncEntityType.OWNER, types[0])
         assertEquals(SyncEntityType.PATIENT, types[1])
         assertEquals(SyncEntityType.ANAMNESE, types[2])

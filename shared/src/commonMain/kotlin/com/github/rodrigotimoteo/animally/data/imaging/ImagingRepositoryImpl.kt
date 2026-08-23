@@ -27,8 +27,8 @@ class ImagingRepositoryImpl(
     override fun getById(id: Long): Imaging? = imagingQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(imaging: Imaging): Long =
-        imagingQueries
-            .insert(
+        database.transactionWithResult {
+            imagingQueries.insert(
                 patientId = imaging.patientId,
                 type = imaging.type,
                 date = imaging.date,
@@ -39,7 +39,9 @@ class ImagingRepositoryImpl(
                 isActive = imaging.isActive,
                 createdAt = imaging.createdAt,
                 updatedAt = imaging.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(imaging: Imaging): Long =
         imagingQueries

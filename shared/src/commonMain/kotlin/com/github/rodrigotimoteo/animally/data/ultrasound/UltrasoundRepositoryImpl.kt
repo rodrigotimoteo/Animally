@@ -27,8 +27,8 @@ class UltrasoundRepositoryImpl(
     override fun getById(id: Long): Ultrasound? = ultrasoundQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(ultrasound: Ultrasound): Long =
-        ultrasoundQueries
-            .insert(
+        database.transactionWithResult {
+            ultrasoundQueries.insert(
                 patientId = ultrasound.patientId,
                 date = ultrasound.date,
                 ovaryStatus = ultrasound.ovaryStatus,
@@ -49,7 +49,9 @@ class UltrasoundRepositoryImpl(
                 isActive = ultrasound.isActive,
                 createdAt = ultrasound.createdAt,
                 updatedAt = ultrasound.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(ultrasound: Ultrasound): Long =
         ultrasoundQueries

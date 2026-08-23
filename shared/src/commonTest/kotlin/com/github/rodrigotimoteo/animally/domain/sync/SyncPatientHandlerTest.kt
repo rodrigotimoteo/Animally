@@ -31,7 +31,7 @@ class SyncPatientHandlerTest {
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
-        ownerRepo = OwnerRepositoryImpl(database.ownerQueries)
+        ownerRepo = OwnerRepositoryImpl(database.ownerQueries, database)
         patientRepo = PatientRepositoryImpl(database)
         sut = PatientSyncHandler(patientRepo, database)
     }

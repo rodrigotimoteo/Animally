@@ -34,7 +34,7 @@ class SyncChangeTrackerImplTest {
     fun setup() {
         database = createTestDatabase()
         sut = SyncChangeTrackerImpl(database)
-        ownerRepo = OwnerRepositoryImpl(database.ownerQueries)
+        ownerRepo = OwnerRepositoryImpl(database.ownerQueries, database)
         patientRepo = PatientRepositoryImpl(database)
         vaccinationRepo = VaccinationRepositoryImpl(database)
         anamneseRepo = AnamneseRepositoryImpl(database)

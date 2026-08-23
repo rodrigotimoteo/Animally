@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.imaging
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -21,7 +23,7 @@ import kotlin.time.Instant
 data class ImagingFormState(
     val id: Long? = null,
     val type: String = "",
-    val date: String = "",
+    val date: String = todayIso(),
     val findings: String? = null,
     val imageUris: String? = null,
     val vetName: String? = null,

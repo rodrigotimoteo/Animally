@@ -26,8 +26,8 @@ class VaccinationRepositoryImpl(
     override fun getById(id: Long): Vaccination? = vaccinationQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(vaccination: Vaccination): Long =
-        vaccinationQueries
-            .insert(
+        database.transactionWithResult {
+            vaccinationQueries.insert(
                 patientId = vaccination.patientId,
                 vaccineName = vaccination.vaccineName,
                 dateAdministered = vaccination.dateAdministered,
@@ -39,7 +39,9 @@ class VaccinationRepositoryImpl(
                 isActive = vaccination.isActive,
                 createdAt = vaccination.createdAt,
                 updatedAt = vaccination.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(vaccination: Vaccination): Long =
         vaccinationQueries

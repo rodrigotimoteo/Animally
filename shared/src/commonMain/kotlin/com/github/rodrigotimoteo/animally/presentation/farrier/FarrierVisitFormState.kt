@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.farrier
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -21,7 +23,7 @@ import kotlin.time.Instant
  */
 data class FarrierVisitFormState(
     val id: Long? = null,
-    val date: String = "",
+    val date: String = todayIso(),
     val trimOrShoe: String? = null,
     val shoeType: String? = null,
     val findings: String? = null,

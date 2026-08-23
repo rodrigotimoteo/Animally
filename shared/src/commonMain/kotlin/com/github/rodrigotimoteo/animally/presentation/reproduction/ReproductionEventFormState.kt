@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.reproduction
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -20,7 +22,7 @@ import kotlin.time.Instant
 data class ReproductionEventFormState(
     val id: Long? = null,
     val eventType: String = "",
-    val date: String = "",
+    val date: String = todayIso(),
     val details: String? = null,
     val initialExamFindings: String? = null,
     val stallionName: String? = null,

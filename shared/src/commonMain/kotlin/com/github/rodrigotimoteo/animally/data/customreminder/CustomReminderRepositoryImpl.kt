@@ -43,8 +43,8 @@ class CustomReminderRepositoryImpl(
             .map { it.toDomain() }
 
     override fun insert(customReminder: CustomReminder): Long =
-        customReminderQueries
-            .insert(
+        database.transactionWithResult {
+            customReminderQueries.insert(
                 patientId = customReminder.patientId,
                 title = customReminder.title,
                 dueDate = customReminder.dueDate,
@@ -54,7 +54,9 @@ class CustomReminderRepositoryImpl(
                 isActive = customReminder.isActive,
                 createdAt = customReminder.createdAt,
                 updatedAt = customReminder.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(customReminder: CustomReminder): Long =
         customReminderQueries

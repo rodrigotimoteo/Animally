@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.weight
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -18,7 +20,7 @@ import kotlin.time.Instant
 data class WeightFormState(
     val id: Long? = null,
     val weightKg: String = "",
-    val date: String = "",
+    val date: String = todayIso(),
     val notes: String? = null,
     val weightError: String? = null,
     val dateError: String? = null,

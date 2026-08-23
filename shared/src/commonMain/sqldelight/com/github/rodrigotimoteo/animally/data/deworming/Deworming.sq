@@ -3,6 +3,7 @@ insert:
 INSERT INTO Deworming (id, patientId, product, dateAdministered, nextDueDate, dose, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Deworming SET
     patientId = ?,

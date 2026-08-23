@@ -79,6 +79,7 @@ class ControlledSubstanceEditViewModelTest {
 
             vm.onDrugNameChange("Xylazine")
             vm.onDoseChange("50")
+            vm.onDateChange("")
             vm.save()
 
             assertEquals("Date is required", vm.formState.value?.dateError)

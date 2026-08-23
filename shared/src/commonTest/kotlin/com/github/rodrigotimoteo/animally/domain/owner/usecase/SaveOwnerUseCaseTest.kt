@@ -52,12 +52,12 @@ class SaveOwnerUseCaseTest {
     }
 
     @Test
-    fun `when id is non-zero then sut updates and returns rows affected`() {
+    fun `when id is non-zero then sut updates and returns the persisted owner id`() {
         every { ownerRepositoryMock.updateOwner(any()) } returns 1L
 
         val result = sut(newOwner(id = 5L))
 
-        assertEquals(1L, result)
+        assertEquals(5L, result)
         verify(VerifyMode.exactly(0)) { ownerRepositoryMock.insertOwner(any()) }
         verify(VerifyMode.exactly(1)) { ownerRepositoryMock.updateOwner(any()) }
     }

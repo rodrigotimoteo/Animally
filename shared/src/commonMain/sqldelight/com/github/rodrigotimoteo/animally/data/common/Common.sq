@@ -1,0 +1,3 @@
+-- Cross-cutting connection-level helpers.
+selectLastRowId:
+SELECT last_insert_rowid();

@@ -18,7 +18,7 @@ class OwnerRepositoryImplTest {
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
-        sut = OwnerRepositoryImpl(database.ownerQueries)
+        sut = OwnerRepositoryImpl(database.ownerQueries, database)
     }
 
     @Test

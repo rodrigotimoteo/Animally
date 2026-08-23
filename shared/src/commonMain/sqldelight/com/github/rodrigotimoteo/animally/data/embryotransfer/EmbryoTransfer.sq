@@ -3,6 +3,7 @@ insert:
 INSERT INTO EmbryoTransfer (id, patientId, date, embryoCount, recipientMares, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE EmbryoTransfer SET
     patientId = ?,

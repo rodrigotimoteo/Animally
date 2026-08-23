@@ -28,7 +28,7 @@ class SyncOwnerHandlerTest {
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
-        ownerRepo = OwnerRepositoryImpl(database.ownerQueries)
+        ownerRepo = OwnerRepositoryImpl(database.ownerQueries, database)
         sut = OwnerSyncHandler(ownerRepo, database)
     }
 

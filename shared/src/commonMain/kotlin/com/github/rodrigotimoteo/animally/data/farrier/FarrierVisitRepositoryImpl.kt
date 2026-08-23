@@ -26,8 +26,8 @@ class FarrierVisitRepositoryImpl(
     override fun getById(id: Long): FarrierVisit? = farrierVisitQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(farrierVisit: FarrierVisit): Long =
-        farrierVisitQueries
-            .insert(
+        database.transactionWithResult {
+            farrierVisitQueries.insert(
                 patientId = farrierVisit.patientId,
                 date = farrierVisit.date,
                 trimOrShoe = farrierVisit.trimOrShoe,
@@ -39,7 +39,9 @@ class FarrierVisitRepositoryImpl(
                 isActive = farrierVisit.isActive,
                 createdAt = farrierVisit.createdAt,
                 updatedAt = farrierVisit.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(farrierVisit: FarrierVisit): Long =
         farrierVisitQueries

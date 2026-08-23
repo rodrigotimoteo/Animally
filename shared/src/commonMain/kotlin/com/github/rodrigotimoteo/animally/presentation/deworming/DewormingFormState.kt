@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.deworming
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -22,7 +24,7 @@ import kotlin.time.Instant
 data class DewormingFormState(
     val id: Long? = null,
     val product: String = "",
-    val dateAdministered: String = "",
+    val dateAdministered: String = todayIso(),
     val nextDueDate: String? = null,
     val dose: String? = null,
     val vetName: String? = null,

@@ -49,20 +49,63 @@ struct UltrasoundEditView: View {
     }
 
     /// One editable follicle row: size, optional description, remove action.
-    private func follicleRow(
+    /// Guided entry for one ovary: status field, numbered follicle cards with
+    /// labeled inputs, an empty-state prompt, and a full-width add affordance.
+    private func ovarySection(
         side: String,
+        title: String,
+        status: String?,
+        onStatusChange: @escaping (String) -> Void,
+        follicles: [FollicleRow],
+    ) -> some View {
+        Section {
+            RecordFormStyle.textField("\(title) status", value: status) { onStatusChange($0) }
+
+            if follicles.isEmpty {
+                Text("No follicles recorded. Tap Add follicle to record the first one.")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                ForEach(Array(follicles.enumerated()), id: \.offset) { index, follicle in
+                    follicleCard(side: side, number: index + 1, index: index, follicle: follicle)
+                }
+            }
+
+            Button {
+                viewModel.onAddFollicle(side)
+            } label: {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Add follicle")
+                        .font(.subheadline.weight(.medium))
+                }
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(Theme.forestGreen)
+            }
+            .buttonStyle(.plain)
+        } header: {
+            RecordFormStyle.sectionHeader(title)
+        } footer: {
+            Text("Record each visible follicle separately with its size in millimeters.")
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    /// One follicle entry card: numbered header with remove action, labeled
+    /// size and description inputs.
+    private func follicleCard(
+        side: String,
+        number: Int,
         index: Int,
         follicle: FollicleRow,
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                TextField("Size (mm)", text: Binding(
-                    get: { follicle.sizeMm },
-                    set: { viewModel.onFollicleSizeChange(side, index: index, $0) }
-                ))
-                .keyboardType(.decimalPad)
-                .textCase(nil)
-
+                Label("Follicle \(number)", systemImage: "circle.dotted")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.forestGreen)
+                Spacer()
                 Button {
                     viewModel.onRemoveFollicle(side, index: index)
                 } label: {
@@ -70,16 +113,34 @@ struct UltrasoundEditView: View {
                         .foregroundStyle(.red)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Remove follicle")
+                .accessibilityLabel("Remove follicle \(number)")
             }
 
-            TextField("Description (optional)", text: Binding(
-                get: { follicle.description ?? "" },
-                set: { viewModel.onFollicleDescriptionChange(side, index: index, $0) }
-            ))
-            .font(.subheadline)
-            .textCase(nil)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Size (mm)")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                TextField("0", text: Binding(
+                    get: { follicle.sizeMm },
+                    set: { viewModel.onFollicleSizeChange(side, index: index, $0) }
+                ))
+                .keyboardType(.decimalPad)
+                .textCase(nil)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Description")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                TextField("e.g. mature, soft edema", text: Binding(
+                    get: { follicle.description ?? "" },
+                    set: { viewModel.onFollicleDescriptionChange(side, index: index, $0) }
+                ))
+                .font(.subheadline)
+                .textCase(nil)
+            }
         }
+        .padding(.vertical, 2)
     }
 
     private func formView(_ form: UltrasoundFormState) -> some View {
@@ -100,47 +161,21 @@ struct UltrasoundEditView: View {
                 RecordFormStyle.sectionHeader("Exam")
             }
 
-            Section {
-                RecordFormStyle.textField("Left ovary status", value: form.leftOvaryStatus) {
-                    viewModel.onLeftOvaryStatusChange($0)
-                }
+            ovarySection(
+                side: "LEFT",
+                title: "Left Ovary",
+                status: form.leftOvaryStatus,
+                onStatusChange: { viewModel.onLeftOvaryStatusChange($0) },
+                follicles: form.leftFollicles,
+            )
 
-                ForEach(Array(form.leftFollicles.enumerated()), id: \.offset) { index, follicle in
-                    follicleRow(side: "LEFT", index: index, follicle: follicle)
-                }
-
-                Button {
-                    viewModel.onAddFollicle("LEFT")
-                } label: {
-                    Label("Add follicle", systemImage: "plus.circle.fill")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Theme.forestGreen)
-                }
-                .buttonStyle(.plain)
-            } header: {
-                RecordFormStyle.sectionHeader("Left Ovary")
-            }
-
-            Section {
-                RecordFormStyle.textField("Right ovary status", value: form.rightOvaryStatus) {
-                    viewModel.onRightOvaryStatusChange($0)
-                }
-
-                ForEach(Array(form.rightFollicles.enumerated()), id: \.offset) { index, follicle in
-                    follicleRow(side: "RIGHT", index: index, follicle: follicle)
-                }
-
-                Button {
-                    viewModel.onAddFollicle("RIGHT")
-                } label: {
-                    Label("Add follicle", systemImage: "plus.circle.fill")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Theme.forestGreen)
-                }
-                .buttonStyle(.plain)
-            } header: {
-                RecordFormStyle.sectionHeader("Right Ovary")
-            }
+            ovarySection(
+                side: "RIGHT",
+                title: "Right Ovary",
+                status: form.rightOvaryStatus,
+                onStatusChange: { viewModel.onRightOvaryStatusChange($0) },
+                follicles: form.rightFollicles,
+            )
 
             Section {
                 RecordFormStyle.textField("Uterine status", value: form.uterineStatus) {

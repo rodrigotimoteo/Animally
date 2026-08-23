@@ -27,8 +27,8 @@ class EmbryoTransferRepositoryImpl(
     override fun getById(id: Long): EmbryoTransfer? = queries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(record: EmbryoTransfer): Long =
-        queries
-            .insert(
+        database.transactionWithResult {
+            queries.insert(
                 patientId = record.patientId,
                 date = record.date,
                 embryoCount = record.embryoCount.toLong(),
@@ -38,7 +38,9 @@ class EmbryoTransferRepositoryImpl(
                 isActive = record.isActive,
                 createdAt = record.createdAt,
                 updatedAt = record.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(record: EmbryoTransfer): Long =
         queries

@@ -6,8 +6,10 @@ import com.github.rodrigotimoteo.animally.data.consultation.ConsultationReposito
 import com.github.rodrigotimoteo.animally.data.customreminder.CustomReminderRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.dentistry.DentistryRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.gestation.GestationRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.icsi.IcsiRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.labresult.LabResultRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.lameness.LamenessRepositoryImpl
@@ -34,8 +36,10 @@ import com.github.rodrigotimoteo.animally.domain.sync.handlers.ConsultationSyncH
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.CustomReminderSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.DentistrySyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.DewormingSyncHandler
+import com.github.rodrigotimoteo.animally.domain.sync.handlers.EmbryoTransferSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.FarrierVisitSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.GestationSyncHandler
+import com.github.rodrigotimoteo.animally.domain.sync.handlers.IcsiSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.ImagingSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.LabResultSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.LamenessSyncHandler
@@ -83,7 +87,7 @@ class SyncEngineTest {
         api = InMemorySyncApi()
         metadataRepository = SyncMetadataRepositoryImpl(database)
         changeTracker = SyncChangeTrackerImpl(database)
-        ownerRepo = OwnerRepositoryImpl(database.ownerQueries)
+        ownerRepo = OwnerRepositoryImpl(database.ownerQueries, database)
         patientRepo = PatientRepositoryImpl(database)
         consultationRepo = ConsultationRepositoryImpl(database)
         val anamneseRepo = AnamneseRepositoryImpl(database)
@@ -126,6 +130,8 @@ class SyncEngineTest {
                 vaccinationHandler = VaccinationSyncHandler(vaccinationRepo, patientRepo, database),
                 weightHandler = WeightSyncHandler(weightRepo, patientRepo, database),
                 customReminderHandler = CustomReminderSyncHandler(customReminderRepo, patientRepo, database),
+                embryoTransferHandler = EmbryoTransferSyncHandler(EmbryoTransferRepositoryImpl(database), patientRepo, database),
+                icsiHandler = IcsiSyncHandler(IcsiRepositoryImpl(database), patientRepo, database),
             )
         sut = SyncEngineImpl(api, metadataRepository, changeTracker, registry, database)
     }

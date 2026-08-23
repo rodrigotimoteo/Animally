@@ -1,5 +1,7 @@
+
 package com.github.rodrigotimoteo.animally.presentation.repromedication
 
+import com.github.rodrigotimoteo.animally.presentation.common.todayIso
 import kotlin.time.Instant
 
 /**
@@ -21,7 +23,7 @@ import kotlin.time.Instant
 data class ReproMedicationFormState(
     val id: Long? = null,
     val medication: String = "",
-    val dateAdministered: String = "",
+    val dateAdministered: String = todayIso(),
     val dosage: String? = null,
     val purpose: String? = null,
     val vetName: String? = null,

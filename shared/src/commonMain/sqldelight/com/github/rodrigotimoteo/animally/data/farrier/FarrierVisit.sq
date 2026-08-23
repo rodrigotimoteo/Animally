@@ -3,6 +3,7 @@ insert:
 INSERT INTO FarrierVisit (id, patientId, date, trimOrShoe, shoeType, findings, nextDueDate, farrier, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE FarrierVisit SET
     patientId = ?,

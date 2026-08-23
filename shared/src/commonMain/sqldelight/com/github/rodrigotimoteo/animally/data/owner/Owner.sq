@@ -3,6 +3,7 @@ insert:
 INSERT INTO Owner (id, name, email, phone, address, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Owner SET
     name = ?,

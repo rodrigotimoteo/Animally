@@ -62,6 +62,7 @@ class SurgeryEditViewModelTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            vm.onDateChange("")
 
             vm.save()
 

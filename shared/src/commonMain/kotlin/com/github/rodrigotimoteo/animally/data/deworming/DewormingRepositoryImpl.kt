@@ -26,8 +26,8 @@ class DewormingRepositoryImpl(
     override fun getById(id: Long): Deworming? = dewormingQueries.selectById(id).executeAsOneOrNull()?.toDomain()
 
     override fun insert(deworming: Deworming): Long =
-        dewormingQueries
-            .insert(
+        database.transactionWithResult {
+            dewormingQueries.insert(
                 patientId = deworming.patientId,
                 product = deworming.product,
                 dateAdministered = deworming.dateAdministered,
@@ -38,7 +38,9 @@ class DewormingRepositoryImpl(
                 isActive = deworming.isActive,
                 createdAt = deworming.createdAt,
                 updatedAt = deworming.updatedAt,
-            ).value
+            )
+            database.commonQueries.selectLastRowId().executeAsOne()
+        }
 
     override fun update(deworming: Deworming): Long =
         dewormingQueries

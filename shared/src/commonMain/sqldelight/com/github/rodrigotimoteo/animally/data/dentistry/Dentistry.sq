@@ -3,6 +3,7 @@ insert:
 INSERT INTO Dentistry (id, patientId, date, findings, treatment, nextDueDate, vetName, notes, isActive, createdAt, updatedAt)
 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+
 update:
 UPDATE Dentistry SET
     patientId = ?,
