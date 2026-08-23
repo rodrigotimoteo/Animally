@@ -19,7 +19,10 @@ import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 import org.koin.core.annotation.KoinViewModel
+import kotlin.time.Clock
 
 @KoinViewModel
 class SettingsViewModel(
@@ -52,11 +55,12 @@ class SettingsViewModel(
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     /**
-     * Exports every patient's records to a CSV file and shares it.
+     * Exports every patient's records to a dated CSV file and shares it.
      */
     fun onExportClick() {
         val csv = exportCsvUseCase(patientId = null, from = null, to = null)
-        shareFile(fileName = "animally-patients.csv", content = csv, contentType = "text/csv")
+        val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+        shareFile(fileName = "animally-patients-$today.csv", content = csv, contentType = "text/csv")
     }
 
     /**

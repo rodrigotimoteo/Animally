@@ -160,9 +160,18 @@ class ExportCsvUseCaseTest {
         val csv = sut(patientId = 1L, from = null, to = null)
 
         assertTrue(csv.contains("# Patient"))
-        assertTrue(csv.contains("1,Thunder"))
+        assertTrue(csv.contains("Patient,1,Thunder"))
         assertTrue(csv.contains("# Consultation"))
-        assertTrue(csv.contains("5,1,2024-06-15,Subjective 5,Objective 5,Assessment 5,Plan 5,Dr. 5,"))
+        assertTrue(csv.contains("Consultation,5,1,2024-06-15,Subjective 5,Objective 5,Assessment 5,Plan 5,Dr. 5,"))
+    }
+
+    @Test
+    fun `prepends a utf8 bom so excel detects the encoding`() {
+        every { patientRepository.getPatientById(1L) } returns patient
+
+        val csv = sut(patientId = 1L, from = null, to = null)
+
+        assertTrue(csv.startsWith(CsvFormatter.UTF8_BOM))
     }
 
     @Test
@@ -195,8 +204,8 @@ class ExportCsvUseCaseTest {
 
         val csv = sut(patientId = null, from = null, to = null)
 
-        assertTrue(csv.contains("1,Thunder"))
-        assertTrue(csv.contains("2,Storm"))
+        assertTrue(csv.contains("Patient,1,Thunder"))
+        assertTrue(csv.contains("Patient,2,Storm"))
         assertTrue(csv.contains("520.0"))
         assertTrue(csv.contains("480.5"))
     }
@@ -212,8 +221,8 @@ class ExportCsvUseCaseTest {
 
         val csv = sut(patientId = 1L, from = LocalDate(2024, 3, 1), to = LocalDate(2024, 12, 31))
 
-        assertTrue(csv.contains("2,1,2024-06-10"))
-        assertFalse(csv.contains("1,1,2024-01-10"))
+        assertTrue(csv.contains("Consultation,2,1,2024-06-10"))
+        assertFalse(csv.contains("Consultation,1,1,2024-01-10"))
     }
 
     @Test

@@ -41,10 +41,12 @@ class ExportCsvUseCase(
                 patientRepository.getPatientList()
             }
         if (patients.isEmpty()) return ""
-        return patients.joinToString(separator = "\n") { patient ->
-            val records = gather(patient.id).filterByDate(from, to)
-            csvExporter.exportPatientRecords(patient, records)
-        }
+        val document =
+            patients.joinToString(separator = "\n") { patient ->
+                val records = gather(patient.id).filterByDate(from, to)
+                csvExporter.exportPatientRecords(patient, records)
+            }
+        return CsvFormatter.UTF8_BOM + document
     }
 
     private fun gather(patientId: Long): ExportRecords {

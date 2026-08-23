@@ -1,121 +1,76 @@
 package com.github.rodrigotimoteo.animally.domain.export.pdf
 
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
 import java.io.ByteArrayOutputStream
 
-private const val PAGE_WIDTH = 595
-private const val PAGE_HEIGHT = 842
-private const val MARGIN = 40f
-private const val LINE_SPACING = 18f
-
 /**
- * Android implementation: renders the report with the framework
- * [PdfDocument] (zero dependencies) as plain text lines on an A4 page.
+ * Android implementation: paints the platform-neutral page models from
+ * [layoutReport] with the framework `PdfDocument`, so the output matches the
+ * iOS renderer op-for-op.
  */
 actual fun generatePdf(report: PdfReportData): ByteArray {
+    val pages = layoutReport(report)
     val document = PdfDocument()
-    val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 1).create()
-    var page = document.startPage(pageInfo)
-    val titlePaint = paint(textSize = 18f, bold = true)
-    val headerPaint = paint(textSize = 11f, bold = true)
-    val bodyPaint = paint(textSize = 11f, bold = false)
-    var y = MARGIN
-
-    fun drawLine(
-        text: String,
-        style: Paint,
-    ) {
-        if (y + LINE_SPACING > PAGE_HEIGHT - MARGIN) {
-            document.finishPage(page)
-            page = document.startPage(pageInfo)
-            y = MARGIN
-        }
-        y = drawWrapped(page.canvas, text, style, y, maxWidth = PAGE_WIDTH - 2 * MARGIN)
+    pages.forEachIndexed { index, page ->
+        val pageInfo =
+            PdfDocument.PageInfo
+                .Builder(PdfTheme.PAGE_WIDTH.toInt(), PdfTheme.PAGE_HEIGHT.toInt(), index + 1)
+                .create()
+        val pdfPage = document.startPage(pageInfo)
+        page.ops.forEach { op -> drawOp(pdfPage.canvas, op) }
+        document.finishPage(pdfPage)
     }
-
-    drawLine("Patient History Report", titlePaint)
-    drawLine("Patient: ${report.patient.name}", headerPaint)
-    patientInfoLines(report).forEach { drawLine(it, bodyPaint) }
-    reportDateRange(report)?.let { drawLine(it, bodyPaint) }
-    drawLine("", bodyPaint)
-
-    report.sections.forEach { section ->
-        drawLine(section.title, titlePaint)
-        section.rows.forEachIndexed { index, row ->
-            drawLine(row.joinToString(separator = "  |  "), if (index == 0) headerPaint else bodyPaint)
-        }
-        drawLine("", bodyPaint)
-    }
-
-    document.finishPage(page)
     val output = ByteArrayOutputStream()
     document.writeTo(output)
     document.close()
     return output.toByteArray()
 }
 
-private fun patientInfoLines(report: PdfReportData): List<String> {
-    val patient = report.patient
-    return listOfNotNull(
-        patient.species.takeIf { it.isNotBlank() }?.let { "Species: $it" },
-        patient.breed?.let { "Breed: $it" },
-        patient.dateOfBirth?.let { "Date of Birth: $it" },
-        patient.gender?.let { "Gender: $it" },
-        patient.microchipId?.let { "Microchip: $it" },
-        patient.ueln?.let { "UELN: $it" },
-        patient.registrationNumber?.let { "Registration: $it" },
-        patient.stableLocation?.let { "Stable: $it" },
-        patient.notes?.let { "Notes: $it" },
-    )
-}
-
-private fun reportDateRange(report: PdfReportData): String? {
-    val from = report.fromDate
-    val to = report.toDate
-    return when {
-        from != null && to != null -> "Period: $from to $to"
-        from != null -> "Period: from $from"
-        to != null -> "Period: until $to"
-        else -> null
+private fun drawOp(
+    canvas: Canvas,
+    op: PdfOp,
+) {
+    when (op) {
+        is PdfOp.Rect -> canvas.drawRect(op.toRectF(), fillPaint(op.color))
+        is PdfOp.Text -> drawText(canvas, op)
     }
 }
 
-private fun paint(
-    textSize: Float,
+private fun drawText(
+    canvas: Canvas,
+    op: PdfOp.Text,
+) {
+    val paint = textPaint(op.size, op.bold, op.color)
+    val textWidth = paint.measureText(op.text)
+    val x =
+        when {
+            op.centered -> op.x - textWidth / 2
+            op.rightAligned -> op.x - textWidth
+            else -> op.x
+        }
+    // Ops carry the top of the text box; Canvas.drawText wants the baseline.
+    val baseline = op.y - paint.fontMetrics.ascent
+    canvas.drawText(op.text, x.toFloat(), baseline.toFloat(), paint)
+}
+
+private fun PdfOp.Rect.toRectF() = RectF(x.toFloat(), y.toFloat(), (x + width).toFloat(), (y + height).toFloat())
+
+private fun fillPaint(color: Long): Paint =
+    Paint().apply {
+        style = Paint.Style.FILL
+        this.color = color.toInt()
+    }
+
+private fun textPaint(
+    textSize: Double,
     bold: Boolean,
+    color: Long,
 ): Paint =
     Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK
-        this.textSize = textSize
+        this.color = color.toInt()
+        this.textSize = textSize.toFloat()
         isFakeBoldText = bold
     }
-
-private fun drawWrapped(
-    canvas: Canvas?,
-    text: String,
-    style: Paint,
-    y: Float,
-    maxWidth: Float,
-): Float {
-    if (canvas == null) return y + LINE_SPACING
-    var line = ""
-    var cursor = y
-    text.split(' ').forEach { word ->
-        val candidate = if (line.isEmpty()) word else "$line $word"
-        if (line.isNotEmpty() && style.measureText(candidate) > maxWidth) {
-            canvas.drawText(line, MARGIN, cursor, style)
-            cursor += LINE_SPACING
-            line = word
-        } else {
-            line = candidate
-        }
-    }
-    if (line.isNotEmpty()) {
-        canvas.drawText(line, MARGIN, cursor, style)
-        cursor += LINE_SPACING
-    }
-    return cursor
-}

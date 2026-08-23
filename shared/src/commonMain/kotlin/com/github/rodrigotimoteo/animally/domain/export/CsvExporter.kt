@@ -27,7 +27,7 @@ class CsvExporter {
         records: ExportRecords,
     ): String {
         val lines = mutableListOf<String>()
-        appendSection(lines, "# Patient", PATIENT_HEADERS, listOf(patientRow(patient)))
+        appendSection(lines, "Patient", PATIENT_HEADERS, listOf(patientRow(patient)))
         appendBasicSections(lines, records)
         appendClinicalSections(lines, records)
         appendReproductiveSections(lines, records)
@@ -38,24 +38,24 @@ class CsvExporter {
         lines: MutableList<String>,
         records: ExportRecords,
     ) {
-        appendSection(lines, "# Anamnese", ANAMNESE_HEADERS, records.anamnese.map(::anamneseRow))
-        appendSection(lines, "# Weight", WEIGHT_HEADERS, records.weights.map(::weightRow))
-        appendSection(lines, "# Consultation", CONSULTATION_HEADERS, records.consultations.map(::consultationRow))
-        appendSection(lines, "# Vaccination", VACCINATION_HEADERS, records.vaccinations.map(::vaccinationRow))
-        appendSection(lines, "# Deworming", DEWORMING_HEADERS, records.dewormings.map(::dewormingRow))
-        appendSection(lines, "# Dentistry", DENTISTRY_HEADERS, records.dentistries.map(::dentistryRow))
+        appendSection(lines, "Anamnese", ANAMNESE_HEADERS, records.anamnese.map(::anamneseRow))
+        appendSection(lines, "Weight", WEIGHT_HEADERS, records.weights.map(::weightRow))
+        appendSection(lines, "Consultation", CONSULTATION_HEADERS, records.consultations.map(::consultationRow))
+        appendSection(lines, "Vaccination", VACCINATION_HEADERS, records.vaccinations.map(::vaccinationRow))
+        appendSection(lines, "Deworming", DEWORMING_HEADERS, records.dewormings.map(::dewormingRow))
+        appendSection(lines, "Dentistry", DENTISTRY_HEADERS, records.dentistries.map(::dentistryRow))
     }
 
     private fun appendClinicalSections(
         lines: MutableList<String>,
         records: ExportRecords,
     ) {
-        appendSection(lines, "# Lameness", LAMENESS_HEADERS, records.lamenesses.map(::lamenessRow))
-        appendSection(lines, "# Surgery", SURGERY_HEADERS, records.surgeries.map(::surgeryRow))
-        appendSection(lines, "# Medication", MEDICATION_HEADERS, records.medications.map(::medicationRow))
-        appendSection(lines, "# LabResult", LABRESULT_HEADERS, records.labResults.map(::labResultRow))
-        appendSection(lines, "# Imaging", IMAGING_HEADERS, records.imagings.map(::imagingRow))
-        appendSection(lines, "# FarrierVisit", FARRIER_HEADERS, records.farrierVisits.map(::farrierRow))
+        appendSection(lines, "Lameness", LAMENESS_HEADERS, records.lamenesses.map(::lamenessRow))
+        appendSection(lines, "Surgery", SURGERY_HEADERS, records.surgeries.map(::surgeryRow))
+        appendSection(lines, "Medication", MEDICATION_HEADERS, records.medications.map(::medicationRow))
+        appendSection(lines, "LabResult", LABRESULT_HEADERS, records.labResults.map(::labResultRow))
+        appendSection(lines, "Imaging", IMAGING_HEADERS, records.imagings.map(::imagingRow))
+        appendSection(lines, "FarrierVisit", FARRIER_HEADERS, records.farrierVisits.map(::farrierRow))
     }
 
     private fun appendReproductiveSections(
@@ -64,34 +64,39 @@ class CsvExporter {
     ) {
         appendSection(
             lines,
-            "# ReproductionEvent",
+            "ReproductionEvent",
             REPRODUCTION_HEADERS,
             records.reproductionEvents.map(::reproductionEventRow),
         )
-        appendSection(lines, "# Ultrasound", ULTRASOUND_HEADERS, records.ultrasounds.map(::ultrasoundRow))
-        appendSection(lines, "# Gestation", GESTATION_HEADERS, records.gestations.map(::gestationRow))
+        appendSection(lines, "Ultrasound", ULTRASOUND_HEADERS, records.ultrasounds.map(::ultrasoundRow))
+        appendSection(lines, "Gestation", GESTATION_HEADERS, records.gestations.map(::gestationRow))
         appendSection(
             lines,
-            "# ReproMedication",
+            "ReproMedication",
             REPROMEDICATION_HEADERS,
             records.reproMedications.map(::reproMedicationRow),
         )
         appendSection(
             lines,
-            "# ControlledSubstance",
+            "ControlledSubstance",
             CONTROLLED_SUBSTANCE_HEADERS,
             records.controlledSubstances.map(::controlledSubstanceRow),
         )
     }
 
+    /**
+     * Appends one section: a `# [title]` comment line, a display header row
+     * led by [CsvFormatter.RECORD_TYPE_HEADER], then one row per record with
+     * the record type as its first cell.
+     */
     private fun appendSection(
         lines: MutableList<String>,
         title: String,
         headers: List<String>,
         rows: List<List<Any?>>,
     ) {
-        lines += "$title\r\n"
-        lines += CsvFormatter.line(headers)
-        rows.forEach { lines += CsvFormatter.line(it) }
+        lines += "# $title\r\n"
+        lines += CsvFormatter.line(listOf(CsvFormatter.RECORD_TYPE_HEADER) + CsvFormatter.displayHeaders(headers))
+        rows.forEach { lines += CsvFormatter.line(listOf(title) + it) }
     }
 }

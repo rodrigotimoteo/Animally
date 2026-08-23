@@ -26,33 +26,6 @@ class CsvExporterTest {
         )
 
     @Test
-    fun `formats patient demographics and consultation rows after headers`() {
-        val consultation =
-            Consultation(
-                id = 42L,
-                patientId = 1L,
-                date = LocalDate(2024, 6, 1),
-                subjective = "Colic, mild",
-                objective = "Tension in flank",
-                assessment = "Suspected tendonitis",
-                plan = "Monitor",
-                vetName = "Dr. House",
-                nextVisitDate = LocalDate(2024, 7, 1),
-                isActive = true,
-                createdAt = Instant.fromEpochMilliseconds(0L),
-                updatedAt = Instant.fromEpochMilliseconds(0L),
-            )
-
-        val csv = exporter.exportPatientRecords(patient, ExportRecords(consultations = listOf(consultation)))
-        val lines = csv.lines().filter { it.isNotBlank() }
-
-        assertEquals("# Patient", lines.first())
-        assertTrue(lines.contains("Id,PatientId,Date,Subjective,Objective,Assessment,Plan,VetName,NextVisitDate"))
-        assertTrue(lines.contains("42,1,2024-06-01,\"Colic, mild\",Tension in flank,Suspected tendonitis,Monitor,Dr. House,2024-07-01"))
-        assertTrue(lines.any { it.startsWith("1,Thunder") && it.contains("Equine") && it.contains("Arabian") })
-    }
-
-    @Test
     fun `escapes fields containing commas quotes and newlines`() {
         val consultation =
             Consultation(
@@ -76,11 +49,11 @@ class CsvExporterTest {
     }
 
     @Test
-    fun `writes a header row for every section`() {
+    fun `writes human-readable header rows with record type first`() {
         val csv = exporter.exportPatientRecords(patient, ExportRecords())
 
-        assertTrue(csv.contains("Id,Name,Species,Breed,DateOfBirth,Gender,MicrochipId,UELN,RegistrationNumber,StableLocation,Notes,OwnerId,Active"))
-        assertTrue(csv.contains("Id,PatientId,Date,Subjective,Objective,Assessment,Plan,VetName,NextVisitDate"))
+        assertTrue(csv.contains("Record Type,ID,Name,Species,Breed,Date of Birth,Gender,Microchip,UELN,Registration Number,Stable Location,Notes,Owner,Active"))
+        assertTrue(csv.contains("Record Type,ID,Patient,Date,Subjective,Objective,Assessment,Plan,Veterinarian,Next Visit Date"))
     }
 
     @Test
@@ -88,11 +61,11 @@ class CsvExporterTest {
         val csv = exporter.exportPatientRecords(patient, ExportRecords())
 
         val dataRows =
-            csv.lines().filter { it.isNotBlank() && !it.startsWith("#") && !it.startsWith("Id,") }
+            csv.lines().filter { it.isNotBlank() && !it.startsWith("#") && !it.startsWith("Record Type,") }
 
         assertEquals(1, dataRows.size)
-        assertTrue(dataRows.single().startsWith("1,Thunder"))
-        assertEquals(18, csv.lines().count { it.startsWith("Id,") })
+        assertTrue(dataRows.single().startsWith("Patient,1,Thunder"))
+        assertEquals(18, csv.lines().count { it.startsWith("Record Type,") })
     }
 
     @Test
@@ -123,6 +96,47 @@ class CsvExporterTest {
 
         sectionTitles.forEach { sectionTitle ->
             assertTrue(csv.contains("# $sectionTitle"), "Missing section: $sectionTitle")
+        }
+    }
+
+    @Test
+    fun `formats patient demographics and consultation rows after headers`() {
+        val consultation =
+            Consultation(
+                id = 42L,
+                patientId = 1L,
+                date = LocalDate(2024, 6, 1),
+                subjective = "Colic, mild",
+                objective = "Tension in flank",
+                assessment = "Suspected tendonitis",
+                plan = "Monitor",
+                vetName = "Dr. House",
+                nextVisitDate = LocalDate(2024, 7, 1),
+                isActive = true,
+                createdAt = Instant.fromEpochMilliseconds(0L),
+                updatedAt = Instant.fromEpochMilliseconds(0L),
+            )
+
+        val csv = exporter.exportPatientRecords(patient, ExportRecords(consultations = listOf(consultation)))
+        val lines = csv.lines().filter { it.isNotBlank() }
+
+        assertEquals("# Patient", lines.first())
+        assertTrue(lines.contains("Consultation,42,1,2024-06-01,\"Colic, mild\",Tension in flank,Suspected tendonitis,Monitor,Dr. House,2024-07-01"))
+        assertTrue(lines.any { it.startsWith("Patient,1,Thunder") && it.contains("Equine") && it.contains("Arabian") })
+        assertTrue(lines.any { it.startsWith("Consultation,42,1,2024-06-01") })
+    }
+
+    @Test
+    fun `maps internal field names to display headers`() {
+        listOf(
+            "VetName" to "Veterinarian",
+            "PatientId" to "Patient",
+            "NextDueDate" to "Next Due Date",
+            "UELN" to "UELN",
+            "WeightKg" to "Weight (kg)",
+            "GradeAAEP" to "AAEP Grade",
+        ).forEach { (internal, display) ->
+            assertEquals(display, CsvFormatter.displayHeader(internal), "mapping for $internal")
         }
     }
 }

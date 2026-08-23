@@ -14,6 +14,31 @@ object CsvFormatter {
     private const val LINE_FEED = '\n'
     private const val LINE_ENDING = "\r\n"
 
+    /** UTF-8 byte-order mark; prepended so Excel detects the encoding. */
+    const val UTF8_BOM = "\uFEFF"
+
+    /** First column of every section, making mixed rows self-describing. */
+    const val RECORD_TYPE_HEADER = "Record Type"
+
+    /** Splits PascalCase names at lowercase→uppercase boundaries. */
+    private val CAMEL_BOUNDARY = Regex("(?<=[a-z])(?=[A-Z])")
+
+    /** Human-readable overrides for internal field names. */
+    private val DISPLAY_OVERRIDES =
+        mapOf(
+            "Id" to "ID",
+            "OwnerId" to "Owner",
+            "PatientId" to "Patient",
+            "VetName" to "Veterinarian",
+            "MicrochipId" to "Microchip",
+            "DateOfBirth" to "Date of Birth",
+            "WeightKg" to "Weight (kg)",
+            "FollicleSizeMm" to "Follicle Size (mm)",
+            "GradeAAEP" to "AAEP Grade",
+            "TrimOrShoe" to "Trim/Shoe",
+            "ImageUris" to "Image URIs",
+        )
+
     /**
      * Escapes a single field for CSV output. `null` becomes the empty string.
      */
@@ -32,4 +57,14 @@ object CsvFormatter {
      * appending the CRLF line ending.
      */
     fun line(fields: List<Any?>): String = fields.joinToString(separator = ",") { escape(it?.toString()) } + LINE_ENDING
+
+    /**
+     * Maps internal field names to human-readable display headers, e.g.
+     * `VetName` → `Veterinarian`, `NextDueDate` → `Next Due Date`.
+     * Acronyms (`UELN`) pass through unchanged.
+     */
+    fun displayHeaders(fields: List<String>): List<String> = fields.map(::displayHeader)
+
+    /** Maps one internal field name to its display form. */
+    fun displayHeader(field: String): String = DISPLAY_OVERRIDES[field] ?: field.replace(CAMEL_BOUNDARY, " ")
 }
