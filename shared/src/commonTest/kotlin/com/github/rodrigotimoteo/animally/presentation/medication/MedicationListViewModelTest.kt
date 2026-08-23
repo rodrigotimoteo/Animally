@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.medication
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.DeleteMedicationUseCase
@@ -27,10 +28,11 @@ import kotlin.time.Instant
 @OptIn(ExperimentalCoroutinesApi::class)
 class MedicationListViewModelTest {
     private val medicationRepositoryMock: IMedicationRepository = mock()
+    private val searchRepositoryFake: FakeSearchRepository = FakeSearchRepository()
 
     private val getMedicationsByPatientUseCase = GetMedicationsByPatientUseCase(medicationRepositoryMock)
 
-    private val deleteMedicationUseCase = DeleteMedicationUseCase(medicationRepositoryMock)
+    private val deleteMedicationUseCase = DeleteMedicationUseCase(medicationRepositoryMock, searchRepositoryFake)
 
     private val navigator = AnimallyNavigator()
 

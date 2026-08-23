@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.consultation
 
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.consultation.usecase.DeleteConsultationUseCase
@@ -29,10 +30,11 @@ import kotlin.time.Instant
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConsultationListViewModelTest {
     private val consultationRepositoryMock: IConsultationRepository = mock()
+    private val searchRepositoryFake: FakeSearchRepository = FakeSearchRepository()
 
     private val getConsultationsByPatientUseCase = GetConsultationsByPatientUseCase(consultationRepositoryMock)
 
-    private val deleteConsultationUseCase = DeleteConsultationUseCase(consultationRepositoryMock)
+    private val deleteConsultationUseCase = DeleteConsultationUseCase(consultationRepositoryMock, searchRepositoryFake)
 
     private val navigator = AnimallyNavigator()
 
