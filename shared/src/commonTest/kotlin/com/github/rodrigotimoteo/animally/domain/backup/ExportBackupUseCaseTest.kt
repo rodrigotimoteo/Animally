@@ -92,6 +92,71 @@ class ExportBackupUseCaseTest {
     }
 
     @Test
+    fun `export then restore round-trips seeded patient`() {
+        database.ownerQueries.insert(
+            name = "Jane Doe",
+            email = null,
+            phone = null,
+            address = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(0L),
+            updatedAt = Instant.fromEpochMilliseconds(0L),
+        )
+        database.patientQueries.insert(
+            name = "Charlie",
+            species = "Equine",
+            breed = "Hanoverian",
+            dateOfBirth = LocalDate(2018, 3, 1),
+            gender = "Mare",
+            microchipId = null,
+            ueln = null,
+            registrationNumber = null,
+            stableLocation = null,
+            photoUri = null,
+            notes = null,
+            ownerId = 1L,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(0L),
+            updatedAt = Instant.fromEpochMilliseconds(0L),
+            cogginsTestDate = null,
+            cogginsResult = null,
+            cogginsExpiryDate = null,
+        )
+
+        var json: String? = null
+        val useCase =
+            ExportBackupUseCase(
+                database = database,
+                writeFile = { fileName, content ->
+                    json = content
+                    "backups/$fileName"
+                },
+                copyDatabase = { "backups/animally.db" },
+            )
+        useCase()
+
+        assertTrue(requireNotNull(json).contains("Charlie"))
+        database.deleteAllBackupRows()
+        assertTrue(
+            database.patientQueries
+                .selectAllRows()
+                .executeAsList()
+                .isEmpty(),
+        )
+
+        RestoreBackupUseCase(database).invoke(requireNotNull(json))
+
+        val restored =
+            database.patientQueries
+                .selectAllRows()
+                .executeAsList()
+                .single()
+        assertEquals("Charlie", restored.name)
+        assertEquals("Hanoverian", restored.breed)
+        assertEquals(1L, restored.ownerId)
+    }
+
+    @Test
     fun `export includes soft-deleted rows`() {
         database.patientQueries.insert(
             name = "Ghost",

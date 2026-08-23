@@ -5,6 +5,7 @@ import Shared
 struct iOSApp: App {
     init() {
         IosAppBridge.shared.start()
+        ExportShareInstaller.install()
     }
 
     var body: some Scene {

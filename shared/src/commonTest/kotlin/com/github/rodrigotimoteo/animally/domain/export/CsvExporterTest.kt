@@ -26,6 +26,33 @@ class CsvExporterTest {
         )
 
     @Test
+    fun `formats patient demographics and consultation rows after headers`() {
+        val consultation =
+            Consultation(
+                id = 42L,
+                patientId = 1L,
+                date = LocalDate(2024, 6, 1),
+                subjective = "Colic, mild",
+                objective = "Tension in flank",
+                assessment = "Suspected tendonitis",
+                plan = "Monitor",
+                vetName = "Dr. House",
+                nextVisitDate = LocalDate(2024, 7, 1),
+                isActive = true,
+                createdAt = Instant.fromEpochMilliseconds(0L),
+                updatedAt = Instant.fromEpochMilliseconds(0L),
+            )
+
+        val csv = exporter.exportPatientRecords(patient, ExportRecords(consultations = listOf(consultation)))
+        val lines = csv.lines().filter { it.isNotBlank() }
+
+        assertEquals("# Patient", lines.first())
+        assertTrue(lines.contains("Id,PatientId,Date,Subjective,Objective,Assessment,Plan,VetName,NextVisitDate"))
+        assertTrue(lines.contains("42,1,2024-06-01,\"Colic, mild\",Tension in flank,Suspected tendonitis,Monitor,Dr. House,2024-07-01"))
+        assertTrue(lines.any { it.startsWith("1,Thunder") && it.contains("Equine") && it.contains("Arabian") })
+    }
+
+    @Test
     fun `escapes fields containing commas quotes and newlines`() {
         val consultation =
             Consultation(
