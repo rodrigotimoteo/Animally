@@ -89,6 +89,6 @@ interface ISearchRepository {
          * indexed record types, or searchableText field selection changes so
          * every launch after the change performs one healing pass.
          */
-        const val SEARCH_INDEX_VERSION = "5"
+        const val SEARCH_INDEX_VERSION = "6"
     }
 }

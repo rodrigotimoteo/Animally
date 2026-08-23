@@ -24,6 +24,13 @@ class SearchRepositoryImpl(
 ) : ISearchRepository {
     private val searchQueries: SearchFtsQueries = database.searchFtsQueries
 
+    /**
+     * While a full reindex is running, only the metadata table is written;
+     * [rebuild] performs the single FTS build afterwards. Save-time
+     * single-record indexing keeps writing both tables.
+     */
+    private var suppressFtsWrites = false
+
     override fun indexRecord(
         recordType: String,
         patientId: Long,
@@ -34,7 +41,9 @@ class SearchRepositoryImpl(
         database.transaction {
             removeIndexRow(recordType, recordId)
             searchQueries.insertIndex(recordType, patientId, recordId, date, searchableText).value
-            searchQueries.insertFts(searchableText).value
+            if (!suppressFtsWrites) {
+                searchQueries.insertFts(searchableText).value
+            }
         }
     }
 
@@ -140,6 +149,8 @@ class SearchRepositoryImpl(
         reindexReproMedicationRows()
         reindexLabResultRows()
         reindexImagingRows()
+        reindexEmbryoTransferRows()
+        reindexIcsiRows()
     }
 
     private val reindexConsultationRows: () -> Unit = {
@@ -420,25 +431,97 @@ class SearchRepositoryImpl(
         }
     }
 
-    /** Appends prefix stars to plain tokens, preserving explicit FTS syntax.
-     * Non-alphanumeric characters (hyphens, punctuation) split tokens — FTS5
-     * tokenizes content the same way, so "UITest-DF4D25" becomes
-     * "uitest* df4d25*", matching how the text was indexed. */
+    private val reindexEmbryoTransferRows: () -> Unit = {
+        database.embryoTransferQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.embryoCount?.toString(),
+                    it.recipientMares,
+                    it.vetName,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.EmbryoTransfer.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexIcsiRows: () -> Unit = {
+        database.icsiQueries.selectAll().executeAsList().forEach {
+            val searchableText =
+                listOfNotNull(
+                    it.folliclesRecovered?.toString(),
+                    it.vetName,
+                    it.notes,
+                ).joinToString(" ")
+            indexRecord(
+                recordType = RecordType.Icsi.wireName,
+                patientId = it.patientId,
+                recordId = it.id,
+                date = it.date,
+                searchableText = searchableText,
+            )
+        }
+    }
+
+    /** Builds a safe FTS5 MATCH query from raw user input.
+     * Plain tokens are split on non-alphanumeric characters (hyphens,
+     * punctuation — FTS5 tokenizes content the same way) and each surviving
+     * word gets a trailing prefix star, so "thun" finds "Thunder".
+     * Quoted segments become quoted FTS phrases with a trailing star
+     * (FTS5 applies the prefix to the phrase's final token), preserving the
+     * exact word sequence. Internal asterisks are stripped everywhere — only
+     * the trailing wildcard this function appends is ever emitted. Bare
+     * uppercase AND/OR/NOT pass through as boolean operators. Returns an
+     * empty string when nothing survives sanitization; callers treat that as
+     * "no results". */
     private fun toPrefixMatchQuery(query: String): String =
-        query
-            .split(Regex("\\s+"))
-            .flatMap { token ->
-                val isSyntax = token.endsWith("*") || token.uppercase() in setOf("AND", "OR", "NOT")
-                if (isSyntax) {
-                    listOf(token)
+        queryPartRegex
+            .findAll(query)
+            .flatMap { match ->
+                val quoted = match.groupValues[1]
+                if (match.groupValues[2].isEmpty()) {
+                    listOfNotNull(toQuotedPhrase(quoted))
                 } else {
-                    token
-                        .split(Regex("[^\\p{L}\\p{N}]+"))
-                        .filter { it.isNotBlank() }
-                        .map { "$it*" }
+                    val token = match.groupValues[2]
+                    if (token.uppercase() in BOOLEAN_OPERATORS) {
+                        listOf(token)
+                    } else {
+                        token
+                            .replace("*", "")
+                            .split(Regex("[^\\p{L}\\p{N}]+"))
+                            .filter { it.isNotBlank() }
+                            .map { "$it*" }
+                    }
                 }
-            }.filter { it.isNotBlank() }
-            .joinToString(" ")
+            }.joinToString(" ")
+
+    /** Renders a quoted segment as a quoted FTS phrase with a trailing
+     * prefix star, or null when no words survive sanitization. */
+    private fun toQuotedPhrase(content: String): String? {
+        val words =
+            content
+                .replace("*", "")
+                .split(Regex("[^\\p{L}\\p{N}]+"))
+                .filter { it.isNotBlank() }
+        if (words.isEmpty()) return null
+        return "\"${words.joinToString(" ")}\"*"
+    }
+
+    private companion object {
+        const val VERSION_KEY = "search_index_version"
+
+        // Group 1: a fully quoted segment (may contain spaces). Group 2: any
+        // other whitespace-delimited run (including unmatched lone quotes,
+        // which then sanitize as plain tokens).
+        val queryPartRegex = Regex("\"([^\"]*)\"|(\\S+)")
+
+        val BOOLEAN_OPERATORS = setOf("AND", "OR", "NOT")
+    }
 
     private fun removeIndexRow(
         recordType: String,
@@ -460,14 +543,17 @@ class SearchRepositoryImpl(
         if (storedVersion == indexVersion && hasIndexRows) {
             return
         }
-        reindexOwners()
-        reindexPatients()
-        reindexRecords()
+        // Single-pass bulk reindex: the reindex*Rows calls write only the
+        // metadata table; rebuild() then does the one FTS build from it.
+        suppressFtsWrites = true
+        try {
+            reindexOwners()
+            reindexPatients()
+            reindexRecords()
+        } finally {
+            suppressFtsWrites = false
+        }
         rebuild()
         database.searchIndexStateQueries.upsertState(VERSION_KEY, indexVersion)
-    }
-
-    private companion object {
-        const val VERSION_KEY = "search_index_version"
     }
 }

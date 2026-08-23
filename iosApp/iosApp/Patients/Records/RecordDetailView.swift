@@ -95,13 +95,15 @@ struct RecordDetailView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(nav.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { editToolbar }
-    }
-
-    private var editToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button("Edit", action: onEdit)
-                .font(.subheadline.weight(.semibold))
+        .toolbar {
+            // Consistent with the id-loaded mode: no Edit until field rows
+            // exist (eager payloads are built up front, so an empty list
+            // means the source data was not ready).
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Edit", action: onEdit)
+                    .font(.subheadline.weight(.semibold))
+                    .disabled(nav.fields.isEmpty)
+            }
         }
     }
 }

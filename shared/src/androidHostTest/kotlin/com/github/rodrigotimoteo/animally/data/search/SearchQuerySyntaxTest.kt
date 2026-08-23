@@ -83,4 +83,50 @@ class SearchQuerySyntaxTest {
         // A lone hyphen splits into no alphanumeric tokens -> blank match query.
         assertTrue(repo.search("-", null, null, null).isEmpty())
     }
+
+    @Test
+    fun givenQuotedPhraseWhenSearchedThenAdjacentWordsMatchInOrder() {
+        val inOrderId = seedPatient("Mare A", "Thunder Flash Runner")
+        seedPatient("Mare B", "Flash Thunder Runner")
+
+        val results = repo.search("\"thunder flash\"", null, null, null)
+
+        assertEquals(
+            listOf(inOrderId),
+            results.map { it.patientId },
+            "Quotes must survive sanitization as an FTS phrase: adjacency and order enforced",
+        )
+    }
+
+    @Test
+    fun givenTokenWithInternalStarWhenSearchedThenStarStrippedAndNoMatchSyntaxError() {
+        seedPatient("Thunder", "Thunder Equine")
+
+        // Internal star must be stripped, not passed through as FTS syntax;
+        // the remaining literal "thuner" simply does not match "thunder".
+        assertTrue(repo.search("thun*er", null, null, null).isEmpty())
+        // Trailing star is re-appended by the sanitizer, so this still matches.
+        assertEquals(1, repo.search("thun*", null, null, null).size)
+    }
+
+    @Test
+    fun givenMixedQuotedAndPlainTokensWhenSearchedThenBothSidesOfOrMatch() {
+        val phraseId = seedPatient("Mare A", "Thunder Flash Runner")
+        val plainId = seedPatient("Lightning", "Lightning Equine")
+
+        val results = repo.search("\"thunder flash\" OR lightning", null, null, null)
+
+        assertEquals(2, results.size)
+        assertEquals(setOf(phraseId, plainId), results.map { it.patientId }.toSet())
+    }
+
+    @Test
+    fun givenQueryWithNothingSurvivingSanitizationWhenSearchedThenEmptyListWithoutSqlError() {
+        seedPatient("Thunder", "Thunder Equine")
+
+        // Stars-only and quotes-around-blanks must degrade to a blank match
+        // query, never reach SQL as malformed MATCH syntax.
+        assertTrue(repo.search("***", null, null, null).isEmpty())
+        assertTrue(repo.search("\"   \"", null, null, null).isEmpty())
+    }
 }
