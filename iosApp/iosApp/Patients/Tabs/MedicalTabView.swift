@@ -3,15 +3,16 @@ import Shared
 
 struct MedicalTabView: View {
     @StateObject private var viewModel: MedicalTabViewModel
-    /// Fires when a record row is tapped; args are the display type name and record id.
-    var onEditRecord: ((String, Int64) -> Void)? = nil
+    /// Fires when a record row is tapped; carries the display type, record id,
+    /// and the field rows shown on the read-only detail screen.
+    var onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil
 
     init(
         patientId: Int64,
-        onEditRecord: ((String, Int64) -> Void)? = nil,
+        onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil,
     ) {
         _viewModel = StateObject(wrappedValue: MedicalTabViewModel(patientId: patientId))
-        self.onEditRecord = onEditRecord
+        self.onOpenRecord = onOpenRecord
     }
 
     var body: some View {
@@ -55,7 +56,15 @@ struct MedicalTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Consultation", record.id)
+                        onOpenRecord?("Consultation", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Subjective", value: record.subjective),
+                            .init(label: "Objective", value: record.objective),
+                            .init(label: "Assessment", value: record.assessment),
+                            .init(label: "Plan", value: record.plan),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Next Visit", value: record.nextVisitDate?.displayString ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
@@ -82,7 +91,16 @@ struct MedicalTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Lameness", record.id)
+                        onOpenRecord?("Lameness", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "AAEP Grade", value: "\(record.gradeAAEP)"),
+                            .init(label: "Limb Location", value: record.limbLocation ?? ""),
+                            .init(label: "Flexion Test", value: record.flexionTest ?? ""),
+                            .init(label: "Diagnosis", value: record.diagnosis ?? ""),
+                            .init(label: "Treatment", value: record.treatment ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
@@ -106,7 +124,17 @@ struct MedicalTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Surgery", record.id)
+                        onOpenRecord?("Surgery", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Type", value: record.type ?? ""),
+                            .init(label: "Description", value: record.description ?? ""),
+                            .init(label: "Outcome", value: record.outcome ?? ""),
+                            .init(label: "Surgeon", value: record.surgeon ?? ""),
+                            .init(label: "Anesthesia", value: record.anesthesia ?? ""),
+                            .init(label: "Analgesia", value: record.analgesia ?? ""),
+                            .init(label: "Complications", value: record.complications ?? ""),
+                            .init(label: "Recovery Notes", value: record.recoveryNotes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
@@ -130,7 +158,16 @@ struct MedicalTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Medication", record.id)
+                        onOpenRecord?("Medication", record.id, [
+                            .init(label: "Name", value: record.name),
+                            .init(label: "Dosage", value: record.dosage),
+                            .init(label: "Route", value: record.route ?? ""),
+                            .init(label: "Frequency", value: record.frequency ?? ""),
+                            .init(label: "Start Date", value: record.startDate?.displayString ?? ""),
+                            .init(label: "End Date", value: record.endDate?.displayString ?? ""),
+                            .init(label: "Prescribed By", value: record.prescribedBy ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
@@ -154,7 +191,17 @@ struct MedicalTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Controlled Substance", record.id)
+                        onOpenRecord?("Controlled Substance", record.id, [
+                            .init(label: "Drug Name", value: record.drugName),
+                            .init(label: "Dose", value: record.dose),
+                            .init(label: "Unit", value: record.unit ?? ""),
+                            .init(label: "Route", value: record.route ?? ""),
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Administered By", value: record.administeredBy ?? ""),
+                            .init(label: "Witness", value: record.witness ?? ""),
+                            .init(label: "Reason", value: record.reason ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
@@ -178,7 +225,11 @@ struct MedicalTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Weight", record.id)
+                        onOpenRecord?("Weight", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Weight (kg)", value: String(format: "%.1f kg", record.weightKg)),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 

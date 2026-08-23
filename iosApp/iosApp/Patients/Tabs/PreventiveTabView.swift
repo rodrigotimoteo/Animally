@@ -3,15 +3,16 @@ import Shared
 
 struct PreventiveTabView: View {
     @StateObject private var viewModel: PreventiveTabViewModel
-    /// Fires when a record row is tapped; args are the display type name and record id.
-    var onEditRecord: ((String, Int64) -> Void)? = nil
+    /// Fires when a record row is tapped; carries the display type, record id,
+    /// and the field rows shown on the read-only detail screen.
+    var onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil
 
     init(
         patientId: Int64,
-        onEditRecord: ((String, Int64) -> Void)? = nil,
+        onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil,
     ) {
         _viewModel = StateObject(wrappedValue: PreventiveTabViewModel(patientId: patientId))
-        self.onEditRecord = onEditRecord
+        self.onOpenRecord = onOpenRecord
     }
 
     var body: some View {
@@ -63,7 +64,15 @@ struct PreventiveTabView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        onEditRecord?("Vaccination", record.id)
+                        onOpenRecord?("Vaccination", record.id, [
+                            .init(label: "Date Administered", value: record.dateAdministered.displayString),
+                            .init(label: "Vaccine", value: record.vaccineName),
+                            .init(label: "Batch Number", value: record.batchNumber ?? ""),
+                            .init(label: "Site", value: record.site ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
                     }
                     .recordSwipeDelete(title: "Vaccination") {
                         viewModel.deleteVaccination(record.id)
@@ -95,7 +104,14 @@ struct PreventiveTabView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        onEditRecord?("Deworming", record.id)
+                        onOpenRecord?("Deworming", record.id, [
+                            .init(label: "Product", value: record.product),
+                            .init(label: "Dose", value: record.dose ?? ""),
+                            .init(label: "Date Administered", value: record.dateAdministered.displayString),
+                            .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
                     }
                     .recordSwipeDelete(title: "Deworming") {
                         viewModel.deleteDeworming(record.id)
@@ -127,7 +143,14 @@ struct PreventiveTabView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        onEditRecord?("Dentistry", record.id)
+                        onOpenRecord?("Dentistry", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Treatment", value: record.treatment ?? ""),
+                            .init(label: "Findings", value: record.findings ?? ""),
+                            .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
                     }
                     .recordSwipeDelete(title: "Dentistry Record") {
                         viewModel.deleteDentistry(record.id)
@@ -159,7 +182,15 @@ struct PreventiveTabView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        onEditRecord?("Farrier", record.id)
+                        onOpenRecord?("Farrier", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Trim or Shoe", value: record.trimOrShoe ?? ""),
+                            .init(label: "Shoe Type", value: record.shoeType ?? ""),
+                            .init(label: "Findings", value: record.findings ?? ""),
+                            .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
+                            .init(label: "Farrier", value: record.farrier ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
                     }
                     .recordSwipeDelete(title: "Farrier Visit") {
                         viewModel.deleteFarrierVisit(record.id)

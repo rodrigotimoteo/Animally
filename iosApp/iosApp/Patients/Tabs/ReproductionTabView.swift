@@ -3,15 +3,16 @@ import Shared
 
 struct ReproductionTabView: View {
     @StateObject private var viewModel: ReproductionTabViewModel
-    /// Fires when a record row is tapped; args are the display type name and record id.
-    var onEditRecord: ((String, Int64) -> Void)? = nil
+    /// Fires when a record row is tapped; carries the display type, record id,
+    /// and the field rows shown on the read-only detail screen.
+    var onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil
 
     init(
         patientId: Int64,
-        onEditRecord: ((String, Int64) -> Void)? = nil,
+        onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil,
     ) {
         _viewModel = StateObject(wrappedValue: ReproductionTabViewModel(patientId: patientId))
-        self.onEditRecord = onEditRecord
+        self.onOpenRecord = onOpenRecord
     }
 
     var body: some View {
@@ -55,7 +56,16 @@ struct ReproductionTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Reproduction", record.id)
+                        onOpenRecord?("Reproduction", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Event Type", value: record.eventType),
+                            .init(label: "Details", value: record.details ?? ""),
+                            .init(label: "Initial Exam Findings", value: record.initialExamFindings ?? ""),
+                            .init(label: "Stallion", value: record.stallionName ?? ""),
+                            .init(label: "Breeding Type", value: record.breedingType ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
@@ -90,9 +100,32 @@ struct ReproductionTabView: View {
                     .contentShape(Rectangle())
 
                     .onTapGesture {
-
-                        onEditRecord?("Ultrasound", record.id)
-
+                        let fs = record.follicleSizeMm?.doubleValue
+                        let lfs = record.leftFollicleSizeMm?.doubleValue
+                        let rfs = record.rightFollicleSizeMm?.doubleValue
+                        var fields: [RecordDetailNav.FieldRow] = [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Ovary Status", value: record.ovaryStatus ?? ""),
+                            .init(label: "Uterine Status", value: record.uterineStatus ?? ""),
+                        ]
+                        if let fs {
+                            fields.append(.init(label: "Follicle Size (mm)", value: String(format: "%.1f", fs)))
+                        }
+                        fields.append(.init(label: "Left Ovary Status", value: record.leftOvaryStatus ?? ""))
+                        fields.append(.init(label: "Right Ovary Status", value: record.rightOvaryStatus ?? ""))
+                        if let lfs {
+                            fields.append(.init(label: "Left Follicle Size (mm)", value: String(format: "%.1f", lfs)))
+                        }
+                        if let rfs {
+                            fields.append(.init(label: "Right Follicle Size (mm)", value: String(format: "%.1f", rfs)))
+                        }
+                        fields.append(.init(label: "Uterine Edema", value: record.uterineEdema ?? ""))
+                        fields.append(.init(label: "Fluid Description", value: record.uterineLiquidDescription ?? ""))
+                        fields.append(.init(label: "Uterus Description", value: record.uterusDescription ?? ""))
+                        fields.append(.init(label: "Findings", value: record.findings ?? ""))
+                        fields.append(.init(label: "Veterinarian", value: record.vetName ?? ""))
+                        fields.append(.init(label: "Notes", value: record.notes ?? ""))
+                        onOpenRecord?("Ultrasound", record.id, fields.filter { !$0.value.isEmpty })
                     }
 
                     .recordSwipeDelete(title: "Ultrasound") {
@@ -136,9 +169,18 @@ struct ReproductionTabView: View {
                     .contentShape(Rectangle())
 
                     .onTapGesture {
-
-                        onEditRecord?("Gestation", record.id)
-
+                        var fields: [RecordDetailNav.FieldRow] = [
+                            .init(label: "Breeding Date", value: record.breedingDate.displayString),
+                            .init(label: "Expected Due Date", value: record.expectedDueDate.displayString),
+                            .init(label: "Gestation Day", value: "\(record.gestationDays)"),
+                            .init(label: "Status", value: record.status ?? ""),
+                        ]
+                        if let fetalCount = record.fetalCount {
+                            fields.append(.init(label: "Fetal Count", value: "\(fetalCount.intValue)"))
+                        }
+                        fields.append(.init(label: "Last Check Date", value: record.lastCheckDate?.displayString ?? ""))
+                        fields.append(.init(label: "Notes", value: record.notes ?? ""))
+                        onOpenRecord?("Gestation", record.id, fields.filter { !$0.value.isEmpty })
                     }
 
                     .recordSwipeDelete(title: "Gestation") {
@@ -161,7 +203,14 @@ struct ReproductionTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Repro Medication", record.id)
+                        onOpenRecord?("Repro Medication", record.id, [
+                            .init(label: "Medication", value: record.medication),
+                            .init(label: "Date Administered", value: record.dateAdministered.displayString),
+                            .init(label: "Dosage", value: record.dosage ?? ""),
+                            .init(label: "Purpose", value: record.purpose ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
@@ -183,7 +232,13 @@ struct ReproductionTabView: View {
                     )
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        onEditRecord?("Embryo Transfer", record.id)
+                        onOpenRecord?("Embryo Transfer", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Embryo Count", value: "\(record.embryoCount)"),
+                            .init(label: "Recipient Mares", value: record.recipientMares ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
                     }
                     .recordSwipeDelete(title: "Embryo Transfer") {
                         viewModel.deleteEmbryoTransfer(record.id)
@@ -203,7 +258,12 @@ struct ReproductionTabView: View {
                     )
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        onEditRecord?("ICSI", record.id)
+                        onOpenRecord?("ICSI", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Follicles Recovered", value: "\(record.folliclesRecovered)"),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
                     }
                     .recordSwipeDelete(title: "ICSI") {
                         viewModel.deleteIcsi(record.id)

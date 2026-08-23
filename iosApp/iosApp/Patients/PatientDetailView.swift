@@ -6,6 +6,7 @@ struct PatientDetailView: View {
     @State private var selectedTab: DetailTab = .overview
     @State private var addRecordRoute: RecordEditRoute?
     @State private var editRoute: RecordEditRoute?
+    @State private var recordDetail: RecordDetailNav?
     /// Bumped when returning from a record editor so the visible tab's
     /// view model is recreated and reloads fresh data.
     @State private var recordsRefreshToken = 0
@@ -37,7 +38,7 @@ struct PatientDetailView: View {
     }
 
     var body: some View {
-        Group {
+        let base = Group {
             if viewModel.state.isLoading && viewModel.state.patient == nil {
                 loadingView
             } else if let patient = viewModel.state.patient {
@@ -46,7 +47,9 @@ struct PatientDetailView: View {
                 notFoundView
             }
         }
-        .navigationTitle(viewModel.state.patient?.name ?? "Patient")
+
+        base
+            .navigationTitle(viewModel.state.patient?.name ?? "Patient")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -93,6 +96,26 @@ struct PatientDetailView: View {
         .navigationDestination(item: $editRoute) { route in
             recordEditDestination(route)
         }
+        .navigationDestination(item: $recordDetail) { nav in
+            RecordDetailView(nav: nav) {
+                editRoute = RecordEditRoute(
+                    displayType: nav.displayType,
+                    patientId: nav.patientId,
+                    recordId: nav.recordId
+                )
+            }
+        }
+    }
+
+    /// Friendly nav-bar titles per record display type.
+    private static func recordTitle(for type: String) -> String {
+        switch type {
+        case "Lameness": return "Lameness Evaluation"
+        case "Farrier": return "Farrier Visit"
+        case "Weight": return "Weight Entry"
+        case "Reproduction": return "Reproduction Event"
+        default: return type
+        }
     }
 
     private func contentTabs(patient: Patient_) -> some View {
@@ -114,11 +137,13 @@ struct PatientDetailView: View {
             case .medical:
                 MedicalTabView(
                     patientId: patient.id,
-                    onEditRecord: { type, recordId in
-                        editRoute = RecordEditRoute(
+                    onOpenRecord: { type, recordId, fields in
+                        recordDetail = RecordDetailNav(
+                            title: Self.recordTitle(for: type),
                             displayType: type,
                             patientId: patient.id,
-                            recordId: recordId
+                            recordId: recordId,
+                            fields: fields
                         )
                     }
                 )
@@ -126,11 +151,13 @@ struct PatientDetailView: View {
             case .preventive:
                 PreventiveTabView(
                     patientId: patient.id,
-                    onEditRecord: { type, recordId in
-                        editRoute = RecordEditRoute(
+                    onOpenRecord: { type, recordId, fields in
+                        recordDetail = RecordDetailNav(
+                            title: Self.recordTitle(for: type),
                             displayType: type,
                             patientId: patient.id,
-                            recordId: recordId
+                            recordId: recordId,
+                            fields: fields
                         )
                     }
                 )
@@ -138,11 +165,13 @@ struct PatientDetailView: View {
             case .reproduction:
                 ReproductionTabView(
                     patientId: patient.id,
-                    onEditRecord: { type, recordId in
-                        editRoute = RecordEditRoute(
+                    onOpenRecord: { type, recordId, fields in
+                        recordDetail = RecordDetailNav(
+                            title: Self.recordTitle(for: type),
                             displayType: type,
                             patientId: patient.id,
-                            recordId: recordId
+                            recordId: recordId,
+                            fields: fields
                         )
                     }
                 )
@@ -150,11 +179,13 @@ struct PatientDetailView: View {
             case .diagnostics:
                 DiagnosticsTabView(
                     patientId: patient.id,
-                    onEditRecord: { type, recordId in
-                        editRoute = RecordEditRoute(
+                    onOpenRecord: { type, recordId, fields in
+                        recordDetail = RecordDetailNav(
+                            title: Self.recordTitle(for: type),
                             displayType: type,
                             patientId: patient.id,
-                            recordId: recordId
+                            recordId: recordId,
+                            fields: fields
                         )
                     }
                 )

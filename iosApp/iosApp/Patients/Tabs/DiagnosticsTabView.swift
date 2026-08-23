@@ -3,15 +3,16 @@ import Shared
 
 struct DiagnosticsTabView: View {
     @StateObject private var viewModel: DiagnosticsTabViewModel
-    /// Fires when a record row is tapped; args are the display type name and record id.
-    var onEditRecord: ((String, Int64) -> Void)? = nil
+    /// Fires when a record row is tapped; carries the display type, record id,
+    /// and the field rows shown on the read-only detail screen.
+    var onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil
 
     init(
         patientId: Int64,
-        onEditRecord: ((String, Int64) -> Void)? = nil,
+        onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil,
     ) {
         _viewModel = StateObject(wrappedValue: DiagnosticsTabViewModel(patientId: patientId))
-        self.onEditRecord = onEditRecord
+        self.onOpenRecord = onOpenRecord
     }
 
     var body: some View {
@@ -73,7 +74,14 @@ struct DiagnosticsTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Lab Result", record.id)
+                        onOpenRecord?("Lab Result", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Test Type", value: record.testType),
+                            .init(label: "Results", value: record.results ?? ""),
+                            .init(label: "Normal Range", value: record.normalRange ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
@@ -110,7 +118,13 @@ struct DiagnosticsTabView: View {
 
                     .onTapGesture {
 
-                        onEditRecord?("Imaging", record.id)
+                        onOpenRecord?("Imaging", record.id, [
+                            .init(label: "Date", value: record.date.displayString),
+                            .init(label: "Type", value: record.type),
+                            .init(label: "Findings", value: record.findings ?? ""),
+                            .init(label: "Veterinarian", value: record.vetName ?? ""),
+                            .init(label: "Notes", value: record.notes ?? ""),
+                        ].filter { !$0.value.isEmpty })
 
                     }
 
