@@ -48,163 +48,105 @@ struct PreventiveTabView: View {
 
     private var recordList: some View {
         List {
-            // Vaccinations
-            RecordSection(title: "Vaccinations", icon: "syringe", count: viewModel.vaccinations.count) {
-                ForEach(viewModel.vaccinations, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "syringe",
-                            iconTint: Theme.forestGreen,
-                            title: record.vaccineName,
-                            subtitle: record.vetName,
-                            date: record.dateAdministered.displayString
-                        )
-                        if let nextDue = record.nextDueDate {
-                            HStack(spacing: 4) {
-                                Image(systemName: "calendar")
-                                    .font(.caption2)
-                                Text("Next due: \(nextDue.displayString)")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(Theme.amber)
-                            .padding(.leading, 48)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onOpenRecord?("Vaccination", record.id, [
-                            .init(label: "Date Administered", value: record.dateAdministered.displayString),
-                            .init(label: "Vaccine", value: record.vaccineName),
-                            .init(label: "Batch Number", value: record.batchNumber ?? ""),
-                            .init(label: "Site", value: record.site ?? ""),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-                    }
-                    .recordSwipeDelete(title: "Vaccination") {
-                        viewModel.deleteVaccination(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Vaccinations",
+                    icon: "syringe.fill",
+                    items: viewModel.vaccinations,
+                    recordId: { $0.id },
+                    rowTitle: { $0.vaccineName },
+                    rowSubtitle: { _ in nil },
+                    rowDate: { $0.dateAdministered.displayString },
+                    displayType: "Vaccination",
+                    fields: { record in [
+                        .init(label: "Date Administered", value: record.dateAdministered.displayString),
+                        .init(label: "Vaccine", value: record.vaccineName),
+                        .init(label: "Batch Number", value: record.batchNumber ?? ""),
+                        .init(label: "Site", value: record.site ?? ""),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteVaccination($0.id) },
+                    extraLine: { $0.nextDueDate?.displayString }
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
-            // Dewormings
-            RecordSection(title: "Dewormings", icon: "pills.fill", count: viewModel.dewormings.count) {
-                ForEach(viewModel.dewormings, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "pills.fill",
-                            iconTint: Theme.forestGreen,
-                            title: record.product,
-                            subtitle: record.dose,
-                            date: record.dateAdministered.displayString
-                        )
-                        if let nextDue = record.nextDueDate {
-                            HStack(spacing: 4) {
-                                Image(systemName: "calendar")
-                                    .font(.caption2)
-                                Text("Next due: \(nextDue.displayString)")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(Theme.amber)
-                            .padding(.leading, 48)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onOpenRecord?("Deworming", record.id, [
-                            .init(label: "Product", value: record.product),
-                            .init(label: "Dose", value: record.dose ?? ""),
-                            .init(label: "Date Administered", value: record.dateAdministered.displayString),
-                            .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-                    }
-                    .recordSwipeDelete(title: "Deworming") {
-                        viewModel.deleteDeworming(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Dewormings",
+                    icon: "pills.fill",
+                    items: viewModel.dewormings,
+                    recordId: { $0.id },
+                    rowTitle: { $0.product },
+                    rowSubtitle: { $0.dose },
+                    rowDate: { $0.dateAdministered.displayString },
+                    displayType: "Deworming",
+                    fields: { record in [
+                        .init(label: "Product", value: record.product),
+                        .init(label: "Dose", value: record.dose ?? ""),
+                        .init(label: "Date Administered", value: record.dateAdministered.displayString),
+                        .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteDeworming($0.id) },
+                    extraLine: { $0.nextDueDate?.displayString }
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
-            // Dentistry
-            RecordSection(title: "Dentistry", icon: "mouth.fill", count: viewModel.dentistryRecords.count) {
-                ForEach(viewModel.dentistryRecords, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "mouth.fill",
-                            iconTint: Theme.forestGreen,
-                            title: record.treatment ?? "Dental check",
-                            subtitle: record.findings,
-                            date: record.date.displayString
-                        )
-                        if let nextDue = record.nextDueDate {
-                            HStack(spacing: 4) {
-                                Image(systemName: "calendar")
-                                    .font(.caption2)
-                                Text("Next due: \(nextDue.displayString)")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(Theme.amber)
-                            .padding(.leading, 48)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onOpenRecord?("Dentistry", record.id, [
-                            .init(label: "Date", value: record.date.displayString),
-                            .init(label: "Treatment", value: record.treatment ?? ""),
-                            .init(label: "Findings", value: record.findings ?? ""),
-                            .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-                    }
-                    .recordSwipeDelete(title: "Dentistry Record") {
-                        viewModel.deleteDentistry(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Dentistry",
+                    icon: "mouth.fill",
+                    items: viewModel.dentistryRecords,
+                    recordId: { $0.id },
+                    rowTitle: { $0.treatment ?? "Dental check" },
+                    rowSubtitle: { $0.findings },
+                    rowDate: { $0.date.displayString },
+                    displayType: "Dentistry",
+                    fields: { record in [
+                        .init(label: "Date", value: record.date.displayString),
+                        .init(label: "Treatment", value: record.treatment ?? ""),
+                        .init(label: "Findings", value: record.findings ?? ""),
+                        .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteDentistry($0.id) },
+                    deleteTitle: "Dentistry Record",
+                    extraLine: { $0.nextDueDate?.displayString }
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
-            // Farrier
-            RecordSection(title: "Farrier Visits", icon: "figure.walk", count: viewModel.farrierVisits.count) {
-                ForEach(viewModel.farrierVisits, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "figure.walk",
-                            iconTint: Theme.forestGreen,
-                            title: record.trimOrShoe ?? "Farrier visit",
-                            subtitle: record.farrier,
-                            date: record.date.displayString
-                        )
-                        if let nextDue = record.nextDueDate {
-                            HStack(spacing: 4) {
-                                Image(systemName: "calendar")
-                                    .font(.caption2)
-                                Text("Next due: \(nextDue.displayString)")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(Theme.amber)
-                            .padding(.leading, 48)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onOpenRecord?("Farrier", record.id, [
-                            .init(label: "Date", value: record.date.displayString),
-                            .init(label: "Trim or Shoe", value: record.trimOrShoe ?? ""),
-                            .init(label: "Shoe Type", value: record.shoeType ?? ""),
-                            .init(label: "Findings", value: record.findings ?? ""),
-                            .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
-                            .init(label: "Farrier", value: record.farrier ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-                    }
-                    .recordSwipeDelete(title: "Farrier Visit") {
-                        viewModel.deleteFarrierVisit(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Farrier Visits",
+                    icon: "figure.walk",
+                    items: viewModel.farrierVisits,
+                    recordId: { $0.id },
+                    rowTitle: { $0.trimOrShoe ?? "Farrier visit" },
+                    rowSubtitle: { $0.farrier },
+                    rowDate: { $0.date.displayString },
+                    displayType: "Farrier",
+                    fields: { record in [
+                        .init(label: "Date", value: record.date.displayString),
+                        .init(label: "Trim or Shoe", value: record.trimOrShoe ?? ""),
+                        .init(label: "Shoe Type", value: record.shoeType ?? ""),
+                        .init(label: "Findings", value: record.findings ?? ""),
+                        .init(label: "Next Due", value: record.nextDueDate?.displayString ?? ""),
+                        .init(label: "Farrier", value: record.farrier ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteFarrierVisit($0.id) },
+                    deleteTitle: "Farrier Visit",
+                    extraLine: { $0.nextDueDate?.displayString }
+                ),
+                onOpenRecord: onOpenRecord
+            )
         }
         .listStyle(.insetGrouped)
     }

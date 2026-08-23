@@ -18,11 +18,14 @@ final class PatientUITests: AnimallyTestCase {
         let nameField = app.textFields["Name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
         nameField.tap()
+        usleep(300_000) // let focus settle - first keystroke otherwise drops
         nameField.typeText(patientName)
         // Software-keyboard keystrokes can drop characters; verify and retype.
-        if (nameField.value as? String) != patientName {
-            nameField.tap()
+        var attempts = 0
+        while (nameField.value as? String) != patientName, attempts < 3 {
+            attempts += 1
             nameField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: patientName.count + 5))
+            usleep(300_000)
             nameField.typeText(patientName)
         }
 

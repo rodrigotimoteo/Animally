@@ -49,7 +49,12 @@ class GetTimelineUseCase(
                 .selectById(patientId)
                 .executeAsOneOrNull()
                 ?.name
-        val entries = collectPatient(patientId, patientName.orEmpty())
+        val entries =
+            collectEntries(
+                patientId = patientId,
+                patientName = patientName,
+                patientNames = emptyMap(),
+            )
         return buildFeed(patientId, patientName, entries)
     }
 
@@ -65,167 +70,157 @@ class GetTimelineUseCase(
                 .selectAll()
                 .executeAsList()
                 .associate { it.id to it.name }
-        return buildFeed(patientId = null, patientName = null, entries = collectGlobal(patientNames))
+        val entries =
+            collectEntries(
+                patientId = null,
+                patientName = null,
+                patientNames = patientNames,
+            )
+        return buildFeed(patientId = null, patientName = null, entries = entries)
     }
 
-    private fun collectPatient(
-        patientId: Long,
-        patientName: String,
-    ): List<TimelineEntry> =
-        buildList {
-            addAll(clinicalPatientEntries(patientId, patientName))
-            addAll(farrierPatientEntries(patientId, patientName))
-            addAll(reproductivePatientEntries(patientId, patientName))
-            addAll(preventivePatientEntries(patientId, patientName))
+    /**
+     * Collects every entry for the patient feed ([patientId] set) or the global
+     * feed ([patientId] null). Both variants share one collector: each record
+     * type supplies its rows via fetch lambdas that pick `selectByPatient` or
+     * `selectAll`, and a name resolver that is constant for the patient feed
+     * and map-based for the global feed.
+     */
+    private fun collectEntries(
+        patientId: Long?,
+        patientName: String?,
+        patientNames: Map<Long, String>,
+    ): List<TimelineEntry> {
+        val nameFor: (Long) -> String =
+            if (patientId == null) {
+                { id -> patientNames[id].orEmpty() }
+            } else {
+                { _ -> patientName.orEmpty() }
+            }
+        val collector = EntryCollector(patientId, nameFor, database)
+        with(collector) {
+            clinical()
+            farrier()
+            reproductive()
+            preventive()
         }
+        return collector.entries
+    }
 
-    private fun collectGlobal(patientNames: Map<Long, String>): List<TimelineEntry> =
-        buildList {
-            addAll(clinicalGlobalEntries(patientNames))
-            addAll(farrierGlobalEntries(patientNames))
-            addAll(reproductiveGlobalEntries(patientNames))
-            addAll(preventiveGlobalEntries(patientNames))
-        }
+    /** Shared per-feed collector: fetches rows and maps them to entries. */
+    private class EntryCollector(
+        private val patientId: Long?,
+        private val nameFor: (Long) -> String,
+        private val database: AnimallyDatabase,
+    ) {
+        val entries = mutableListOf<TimelineEntry>()
 
-    private fun clinicalPatientEntries(
-        patientId: Long,
-        patientName: String,
-    ): List<TimelineEntry> =
-        buildList {
-            database.weightQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.dewormingQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.dentistryQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.lamenessQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.surgeryQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.medicationQueries.selectByPatient(patientId).executeAsList().forEach {
-                it.toDomain().toTimelineEntryOrNull(patientName)?.let { entry -> add(entry) }
-            }
-            database.labResultQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.imagingQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
+        fun <T> add(
+            byPatient: (Long) -> List<T>,
+            all: () -> List<T>,
+            patientIdOf: (T) -> Long,
+            toEntry: (T, String) -> TimelineEntry?,
+        ) {
+            val rows = if (patientId == null) all() else byPatient(patientId)
+            rows.forEach { row -> toEntry(row, nameFor(patientIdOf(row)))?.let(entries::add) }
         }
+    }
 
-    private fun farrierPatientEntries(
-        patientId: Long,
-        patientName: String,
-    ): List<TimelineEntry> =
-        buildList {
-            database.farrierVisitQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-        }
+    /** Weight, deworming, dentistry, lameness, surgery, medication, lab result, imaging. */
+    private fun EntryCollector.clinical() {
+        add(
+            { pid -> database.weightQueries.selectByPatient(pid).executeAsList() },
+            { database.weightQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.dewormingQueries.selectByPatient(pid).executeAsList() },
+            { database.dewormingQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.dentistryQueries.selectByPatient(pid).executeAsList() },
+            { database.dentistryQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.lamenessQueries.selectByPatient(pid).executeAsList() },
+            { database.lamenessQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.surgeryQueries.selectByPatient(pid).executeAsList() },
+            { database.surgeryQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.medicationQueries.selectByPatient(pid).executeAsList() },
+            { database.medicationQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntryOrNull(name) }
+        add(
+            { pid -> database.labResultQueries.selectByPatient(pid).executeAsList() },
+            { database.labResultQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.imagingQueries.selectByPatient(pid).executeAsList() },
+            { database.imagingQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+    }
 
-    private fun reproductivePatientEntries(
-        patientId: Long,
-        patientName: String,
-    ): List<TimelineEntry> =
-        buildList {
-            database.reproductionQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.ultrasoundQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.gestationQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.reproMedicationQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-        }
+    /** Farrier visit next-due entries. */
+    private fun EntryCollector.farrier() {
+        add(
+            { pid -> database.farrierVisitQueries.selectByPatient(pid).executeAsList() },
+            { database.farrierVisitQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+    }
 
-    private fun preventivePatientEntries(
-        patientId: Long,
-        patientName: String,
-    ): List<TimelineEntry> =
-        buildList {
-            database.substanceQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.consultationQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-            database.vaccinationQueries.selectByPatient(patientId).executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientName))
-            }
-        }
+    /** Reproduction events, ultrasounds, gestations, repro medications. */
+    private fun EntryCollector.reproductive() {
+        add(
+            { pid -> database.reproductionQueries.selectByPatient(pid).executeAsList() },
+            { database.reproductionQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.ultrasoundQueries.selectByPatient(pid).executeAsList() },
+            { database.ultrasoundQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.gestationQueries.selectByPatient(pid).executeAsList() },
+            { database.gestationQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.reproMedicationQueries.selectByPatient(pid).executeAsList() },
+            { database.reproMedicationQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+    }
 
-    private fun clinicalGlobalEntries(patientNames: Map<Long, String>): List<TimelineEntry> =
-        buildList {
-            database.weightQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.dewormingQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.dentistryQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.lamenessQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.surgeryQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.medicationQueries.selectAll().executeAsList().forEach {
-                it.toDomain().toTimelineEntryOrNull(patientNames[it.patientId].orEmpty())?.let { entry -> add(entry) }
-            }
-            database.labResultQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.imagingQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-        }
-
-    private fun farrierGlobalEntries(patientNames: Map<Long, String>): List<TimelineEntry> =
-        buildList {
-            database.farrierVisitQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-        }
-
-    private fun reproductiveGlobalEntries(patientNames: Map<Long, String>): List<TimelineEntry> =
-        buildList {
-            database.reproductionQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.ultrasoundQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.gestationQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.reproMedicationQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-        }
-
-    private fun preventiveGlobalEntries(patientNames: Map<Long, String>): List<TimelineEntry> =
-        buildList {
-            database.substanceQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.consultationQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-            database.vaccinationQueries.selectAll().executeAsList().forEach {
-                add(it.toDomain().toTimelineEntry(patientNames[it.patientId].orEmpty()))
-            }
-        }
+    /** Controlled substances, consultations, vaccinations. */
+    private fun EntryCollector.preventive() {
+        add(
+            { pid -> database.substanceQueries.selectByPatient(pid).executeAsList() },
+            { database.substanceQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.consultationQueries.selectByPatient(pid).executeAsList() },
+            { database.consultationQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.vaccinationQueries.selectByPatient(pid).executeAsList() },
+            { database.vaccinationQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+    }
 
     private fun buildFeed(
         patientId: Long?,

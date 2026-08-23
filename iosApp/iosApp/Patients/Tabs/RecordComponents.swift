@@ -83,6 +83,99 @@ struct RecordSection<Content: View>: View {
     }
 }
 
+// MARK: - Generic Record Section
+
+/// Declarative description of one record section: row presentation, tap
+/// fields, delete action, and an optional amber calendar line under each row.
+struct RecordSectionSpec<Item> {
+    let title: String
+    let icon: String
+    let items: [Item]
+    /// Extracts the Kotlin record id for tap/swipe wiring.
+    let recordId: (Item) -> Int64
+    let rowTitle: (Item) -> String
+    let rowSubtitle: (Item) -> String?
+    let rowDate: (Item) -> String?
+    let displayType: String
+    let fields: (Item) -> [RecordDetailNav.FieldRow]
+    let onDelete: (Item) -> Void
+
+    /// Title shown on the swipe-delete button; defaults to `title`.
+    var deleteTitle: String? = nil
+
+    /// Optional single-line extra under the row (rendered in the amber
+    /// calendar style used by next-due lines). Nil line = no extra.
+    var extraLine: ((Item) -> String?)? = nil
+
+    init(
+        title: String,
+        icon: String,
+        items: [Item],
+        recordId: @escaping (Item) -> Int64,
+        rowTitle: @escaping (Item) -> String,
+        rowSubtitle: @escaping (Item) -> String?,
+        rowDate: @escaping (Item) -> String?,
+        displayType: String,
+        fields: @escaping (Item) -> [RecordDetailNav.FieldRow],
+        onDelete: @escaping (Item) -> Void,
+        deleteTitle: String? = nil,
+        extraLine: ((Item) -> String?)? = nil
+    ) {
+        self.title = title
+        self.icon = icon
+        self.items = items
+        self.recordId = recordId
+        self.rowTitle = rowTitle
+        self.rowSubtitle = rowSubtitle
+        self.rowDate = rowDate
+        self.displayType = displayType
+        self.fields = fields
+        self.onDelete = onDelete
+        self.deleteTitle = deleteTitle
+        self.extraLine = extraLine
+    }
+}
+
+/// Renders a `RecordSectionSpec`: section container, rows, optional extra
+/// lines, tap-to-open-record wiring, and swipe-to-delete.
+@ViewBuilder
+func recordSection<Item>(
+    _ spec: RecordSectionSpec<Item>,
+    onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)?
+) -> some View {
+    RecordSection(title: spec.title, icon: spec.icon, count: spec.items.count) {
+        ForEach(spec.items.indices, id: \.self) { index in
+            let item = spec.items[index]
+            VStack(alignment: .leading, spacing: 6) {
+                RecordRowView(
+                    icon: spec.icon,
+                    iconTint: Theme.forestGreen,
+                    title: spec.rowTitle(item),
+                    subtitle: spec.rowSubtitle(item),
+                    date: spec.rowDate(item)
+                )
+                if let extra = spec.extraLine?(item), !extra.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.caption2)
+                        Text("Next due: \(extra)")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(Theme.amber)
+                    .padding(.leading, 48)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onOpenRecord?(spec.displayType, spec.recordId(item), spec.fields(item).filter { !$0.value.isEmpty })
+            }
+            .recordSwipeDelete(title: spec.deleteTitle ?? spec.title) {
+                spec.onDelete(item)
+            }
+        }
+    }
+}
+
 // MARK: - Empty State for Tab
 
 struct TabEmptyStateView: View {

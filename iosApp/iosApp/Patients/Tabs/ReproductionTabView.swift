@@ -51,37 +51,31 @@ struct ReproductionTabView: View {
     private var recordList: some View {
         List {
             // Reproduction Events
-            RecordSection(title: "Events", icon: "heart.fill", count: viewModel.reproductionEvents.count) {
-                ForEach(viewModel.reproductionEvents, id: \.id) { record in
-                    RecordRowView(
-                        icon: "heart.fill",
-                        iconTint: Theme.forestGreen,
-                        title: record.eventType,
-                        subtitle: record.details,
-                        date: record.date.displayString
-                    )
-                    .contentShape(Rectangle())
-
-                    .onTapGesture {
-
-                        onOpenRecord?("Reproduction", record.id, [
-                            .init(label: "Date", value: record.date.displayString),
-                            .init(label: "Event Type", value: record.eventType),
-                            .init(label: "Details", value: record.details ?? ""),
-                            .init(label: "Initial Exam Findings", value: record.initialExamFindings ?? ""),
-                            .init(label: "Stallion", value: record.stallionName ?? ""),
-                            .init(label: "Breeding Type", value: record.breedingType ?? ""),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-
-                    }
-
-                    .recordSwipeDelete(title: "Reproduction Event") {
-                        viewModel.deleteReproductionEvent(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Events",
+                    icon: "heart.fill",
+                    items: viewModel.reproductionEvents,
+                    recordId: { $0.id },
+                    rowTitle: { $0.eventType },
+                    rowSubtitle: { $0.details },
+                    rowDate: { $0.date.displayString },
+                    displayType: "Reproduction",
+                    fields: { record in [
+                        .init(label: "Date", value: record.date.displayString),
+                        .init(label: "Event Type", value: record.eventType),
+                        .init(label: "Details", value: record.details ?? ""),
+                        .init(label: "Initial Exam Findings", value: record.initialExamFindings ?? ""),
+                        .init(label: "Stallion", value: record.stallionName ?? ""),
+                        .init(label: "Breeding Type", value: record.breedingType ?? ""),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteReproductionEvent($0.id) },
+                    deleteTitle: "Reproduction Event"
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
             // Ultrasounds
             RecordSection(title: "Ultrasounds", icon: "waveform.path.ecg", count: viewModel.ultrasounds.count) {
@@ -198,86 +192,73 @@ struct ReproductionTabView: View {
             }
 
             // Repro Medications
-            RecordSection(title: "Medications", icon: "pills", count: viewModel.reproMedications.count) {
-                ForEach(viewModel.reproMedications, id: \.id) { record in
-                    RecordRowView(
-                        icon: "pills",
-                        iconTint: Theme.forestGreen,
-                        title: record.medication,
-                        subtitle: record.purpose ?? record.dosage,
-                        date: record.dateAdministered.displayString
-                    )
-                    .contentShape(Rectangle())
-
-                    .onTapGesture {
-
-                        onOpenRecord?("Repro Medication", record.id, [
-                            .init(label: "Medication", value: record.medication),
-                            .init(label: "Date Administered", value: record.dateAdministered.displayString),
-                            .init(label: "Dosage", value: record.dosage ?? ""),
-                            .init(label: "Purpose", value: record.purpose ?? ""),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-
-                    }
-
-                    .recordSwipeDelete(title: "Repro Medication") {
-                        viewModel.deleteReproMedication(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Medications",
+                    icon: "pills",
+                    items: viewModel.reproMedications,
+                    recordId: { $0.id },
+                    rowTitle: { $0.medication },
+                    rowSubtitle: { $0.purpose ?? $0.dosage },
+                    rowDate: { $0.dateAdministered.displayString },
+                    displayType: "Repro Medication",
+                    fields: { record in [
+                        .init(label: "Medication", value: record.medication),
+                        .init(label: "Date Administered", value: record.dateAdministered.displayString),
+                        .init(label: "Dosage", value: record.dosage ?? ""),
+                        .init(label: "Purpose", value: record.purpose ?? ""),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteReproMedication($0.id) }
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
             // Embryo Transfers
-            RecordSection(title: "Embryo Transfers", icon: "arrow.triangle.branch", count: viewModel.embryoTransfers.count) {
-                ForEach(viewModel.embryoTransfers, id: \.id) { record in
-                    RecordRowView(
-                        icon: "arrow.triangle.branch",
-                        iconTint: Theme.forestGreen,
-                        title: "\(record.embryoCount) embryo\(record.embryoCount == 1 ? "" : "s")",
-                        subtitle: record.recipientMares,
-                        date: record.date.displayString
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onOpenRecord?("Embryo Transfer", record.id, [
-                            .init(label: "Date", value: record.date.displayString),
-                            .init(label: "Embryo Count", value: "\(record.embryoCount)"),
-                            .init(label: "Recipient Mares", value: record.recipientMares ?? ""),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-                    }
-                    .recordSwipeDelete(title: "Embryo Transfer") {
-                        viewModel.deleteEmbryoTransfer(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Embryo Transfers",
+                    icon: "arrow.triangle.branch",
+                    items: viewModel.embryoTransfers,
+                    recordId: { $0.id },
+                    rowTitle: { "\($0.embryoCount) embryo\($0.embryoCount == 1 ? "" : "s")" },
+                    rowSubtitle: { $0.recipientMares },
+                    rowDate: { $0.date.displayString },
+                    displayType: "Embryo Transfer",
+                    fields: { record in [
+                        .init(label: "Date", value: record.date.displayString),
+                        .init(label: "Embryo Count", value: "\(record.embryoCount)"),
+                        .init(label: "Recipient Mares", value: record.recipientMares ?? ""),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteEmbryoTransfer($0.id) }
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
             // ICSI
-            RecordSection(title: "ICSI", icon: "scope", count: viewModel.icsiRecords.count) {
-                ForEach(viewModel.icsiRecords, id: \.id) { record in
-                    RecordRowView(
-                        icon: "scope",
-                        iconTint: Theme.forestGreen,
-                        title: "\(record.folliclesRecovered) follicle\(record.folliclesRecovered == 1 ? "" : "s") recovered",
-                        subtitle: record.vetName,
-                        date: record.date.displayString
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onOpenRecord?("ICSI", record.id, [
-                            .init(label: "Date", value: record.date.displayString),
-                            .init(label: "Follicles Recovered", value: "\(record.folliclesRecovered)"),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-                    }
-                    .recordSwipeDelete(title: "ICSI") {
-                        viewModel.deleteIcsi(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "ICSI",
+                    icon: "scope",
+                    items: viewModel.icsiRecords,
+                    recordId: { $0.id },
+                    rowTitle: { "\($0.folliclesRecovered) follicle\($0.folliclesRecovered == 1 ? "" : "s") recovered" },
+                    rowSubtitle: { $0.vetName },
+                    rowDate: { $0.date.displayString },
+                    displayType: "ICSI",
+                    fields: { record in [
+                        .init(label: "Date", value: record.date.displayString),
+                        .init(label: "Follicles Recovered", value: "\(record.folliclesRecovered)"),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteIcsi($0.id) }
+                ),
+                onOpenRecord: onOpenRecord
+            )
         }
         .listStyle(.insetGrouped)
     }
