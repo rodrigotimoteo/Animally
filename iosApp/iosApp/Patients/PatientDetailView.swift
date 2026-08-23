@@ -137,6 +137,7 @@ struct PatientDetailView: View {
             case .medical:
                 MedicalTabView(
                     patientId: patient.id,
+                    refreshToken: recordsRefreshToken,
                     onOpenRecord: { type, recordId, fields in
                         recordDetail = RecordDetailNav(
                             title: Self.recordTitle(for: type),
@@ -147,10 +148,10 @@ struct PatientDetailView: View {
                         )
                     }
                 )
-                .id(recordsRefreshToken)
             case .preventive:
                 PreventiveTabView(
                     patientId: patient.id,
+                    refreshToken: recordsRefreshToken,
                     onOpenRecord: { type, recordId, fields in
                         recordDetail = RecordDetailNav(
                             title: Self.recordTitle(for: type),
@@ -161,10 +162,10 @@ struct PatientDetailView: View {
                         )
                     }
                 )
-                    .id(recordsRefreshToken)
             case .reproduction:
                 ReproductionTabView(
                     patientId: patient.id,
+                    refreshToken: recordsRefreshToken,
                     onOpenRecord: { type, recordId, fields in
                         recordDetail = RecordDetailNav(
                             title: Self.recordTitle(for: type),
@@ -175,10 +176,10 @@ struct PatientDetailView: View {
                         )
                     }
                 )
-                    .id(recordsRefreshToken)
             case .diagnostics:
                 DiagnosticsTabView(
                     patientId: patient.id,
+                    refreshToken: recordsRefreshToken,
                     onOpenRecord: { type, recordId, fields in
                         recordDetail = RecordDetailNav(
                             title: Self.recordTitle(for: type),
@@ -189,7 +190,6 @@ struct PatientDetailView: View {
                         )
                     }
                 )
-                    .id(recordsRefreshToken)
             }
         }
     }

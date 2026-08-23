@@ -11,6 +11,9 @@ final class PreventiveTabViewModel: ObservableObject {
 
     @Published var isLoading: Bool = true
 
+    /// Flips once the first store emission arrives; replaces the old fixed-delay hack.
+    private var receivedFirstEmission = false
+
     private var cancellables: [NativeCancellable] = []
 
     private let vaccinationStore: VaccinationListStore
@@ -26,15 +29,19 @@ final class PreventiveTabViewModel: ObservableObject {
 
         cancellables.append(vaccinationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.vaccinations = state.vaccinations }
+            self?.markFirstEmission()
         }))
         cancellables.append(dewormingStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.dewormings = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(dentistryStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.dentistryRecords = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(farrierStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.farrierVisits = state.records }
+            self?.markFirstEmission()
         }))
 
         vaccinationStore.load()
@@ -42,10 +49,6 @@ final class PreventiveTabViewModel: ObservableObject {
         dentistryStore.load()
         farrierStore.load()
 
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
-            self.isLoading = false
-        }
     }
 
     /// Soft-deletes the record and reloads the list via the store.
@@ -66,6 +69,20 @@ final class PreventiveTabViewModel: ObservableObject {
     /// Soft-deletes the record and reloads the list via the store.
     func deleteFarrierVisit(_ recordId: Int64) {
         farrierStore.delete(recordId: recordId)
+    }
+
+    private func markFirstEmission() {
+        guard !receivedFirstEmission else { return }
+        receivedFirstEmission = true
+        isLoading = false
+    }
+
+    /// Reloads every store this tab owns; stores re-query Kotlin and republish.
+    func reload() {
+        vaccinationStore.load()
+        dewormingStore.load()
+        dentistryStore.load()
+        farrierStore.load()
     }
 
     deinit {

@@ -13,6 +13,9 @@ final class ReproductionTabViewModel: ObservableObject {
 
     @Published var isLoading: Bool = true
 
+    /// Flips once the first store emission arrives; replaces the old fixed-delay hack.
+    private var receivedFirstEmission = false
+
     private var cancellables: [NativeCancellable] = []
 
     private let reproStore: ReproductionListStore
@@ -32,21 +35,27 @@ final class ReproductionTabViewModel: ObservableObject {
 
         cancellables.append(reproStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.reproductionEvents = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(ultrasoundStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.ultrasounds = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(gestationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.gestations = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(reproMedStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.reproMedications = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(embryoTransferStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.embryoTransfers = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(icsiStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.icsiRecords = state.records }
+            self?.markFirstEmission()
         }))
 
         reproStore.load()
@@ -56,10 +65,6 @@ final class ReproductionTabViewModel: ObservableObject {
         embryoTransferStore.load()
         icsiStore.load()
 
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
-            self.isLoading = false
-        }
     }
 
     /// Soft-deletes the record and reloads the list via the store.
@@ -90,6 +95,22 @@ final class ReproductionTabViewModel: ObservableObject {
     /// Soft-deletes the record and reloads the list via the store.
     func deleteIcsi(_ recordId: Int64) {
         icsiStore.delete(recordId: recordId)
+    }
+
+    private func markFirstEmission() {
+        guard !receivedFirstEmission else { return }
+        receivedFirstEmission = true
+        isLoading = false
+    }
+
+    /// Reloads every store this tab owns; stores re-query Kotlin and republish.
+    func reload() {
+        reproStore.load()
+        ultrasoundStore.load()
+        gestationStore.load()
+        reproMedStore.load()
+        embryoTransferStore.load()
+        icsiStore.load()
     }
 
     deinit {

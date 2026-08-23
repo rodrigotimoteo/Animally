@@ -15,6 +15,9 @@ final class MedicalTabViewModel: ObservableObject {
 
     @Published var isLoading: Bool = true
 
+    /// Flips once the first store emission arrives; replaces the old fixed-delay hack.
+    private var receivedFirstEmission = false
+
     private var cancellables: [NativeCancellable] = []
 
     private let consultationStore: ConsultationListStore
@@ -34,21 +37,27 @@ final class MedicalTabViewModel: ObservableObject {
 
         cancellables.append(consultationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.consultations = state.consultations }
+            self?.markFirstEmission()
         }))
         cancellables.append(lamenessStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.lamenessRecords = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(surgeryStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.surgeries = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(medicationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.medications = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(substanceStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.substances = state.records }
+            self?.markFirstEmission()
         }))
         cancellables.append(weightStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.weights = state.records }
+            self?.markFirstEmission()
         }))
 
         // Load all stores
@@ -59,11 +68,6 @@ final class MedicalTabViewModel: ObservableObject {
         substanceStore.load()
         weightStore.load()
 
-        // Mark loading as done after a short delay to allow initial state to propagate
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
-            self.isLoading = false
-        }
     }
 
     /// Soft-deletes the record and reloads the list via the store.
@@ -94,6 +98,22 @@ final class MedicalTabViewModel: ObservableObject {
     /// Soft-deletes the record and reloads the list via the store.
     func deleteWeight(_ recordId: Int64) {
         weightStore.delete(recordId: recordId)
+    }
+
+    private func markFirstEmission() {
+        guard !receivedFirstEmission else { return }
+        receivedFirstEmission = true
+        isLoading = false
+    }
+
+    /// Reloads every store this tab owns; stores re-query Kotlin and republish.
+    func reload() {
+        consultationStore.load()
+        lamenessStore.load()
+        surgeryStore.load()
+        medicationStore.load()
+        substanceStore.load()
+        weightStore.load()
     }
 
     deinit {

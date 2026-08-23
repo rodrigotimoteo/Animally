@@ -19,6 +19,12 @@ final class PatientUITests: AnimallyTestCase {
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
         nameField.tap()
         nameField.typeText(patientName)
+        // Software-keyboard keystrokes can drop characters; verify and retype.
+        if (nameField.value as? String) != patientName {
+            nameField.tap()
+            nameField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: patientName.count + 5))
+            nameField.typeText(patientName)
+        }
 
         app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts["Patients"].waitForExistence(timeout: 8))
@@ -32,10 +38,11 @@ final class PatientUITests: AnimallyTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 6), "Search field not found")
         TestHelpers.typeSearchText(app, field: field, text: patientName)
 
-        XCTAssertTrue(
-            app.staticTexts[patientName].waitForExistence(timeout: 20),
-            "Created patient not found via search"
-        )
+        let ownerFound = app.staticTexts[patientName].waitForExistence(timeout: 12)
+        if !ownerFound {
+            let texts = app.staticTexts.allElementsBoundByIndex.prefix(10).map { $0.label }
+            XCTFail("Created patient not found via search; field=\(field.value ?? "nil"); texts=\(texts)")
+        }
     }
 
     func testOpenPatientDetailShowsOverview() throws {

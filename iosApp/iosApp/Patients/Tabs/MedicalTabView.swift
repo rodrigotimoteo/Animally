@@ -2,6 +2,8 @@ import SwiftUI
 import Shared
 
 struct MedicalTabView: View {
+    let patientId: Int64
+    let refreshToken: Int
     @StateObject private var viewModel: MedicalTabViewModel
     /// Fires when a record row is tapped; carries the display type, record id,
     /// and the field rows shown on the read-only detail screen.
@@ -9,9 +11,12 @@ struct MedicalTabView: View {
 
     init(
         patientId: Int64,
+        refreshToken: Int = 0,
         onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil,
     ) {
+        self.patientId = patientId
         _viewModel = StateObject(wrappedValue: MedicalTabViewModel(patientId: patientId))
+        self.refreshToken = refreshToken
         self.onOpenRecord = onOpenRecord
     }
 
@@ -28,6 +33,9 @@ struct MedicalTabView: View {
             } else {
                 recordList
             }
+        }
+        .onChange(of: refreshToken) { _, _ in
+            viewModel.reload()
         }
     }
 
