@@ -74,6 +74,9 @@ class ExportBackupUseCase(
             gestations = database.gestationRows(),
             reproMedications = database.reproMedicationRows(),
             substances = database.substanceRows(),
+            follicles = database.follicleRows(),
+            embryoTransfers = database.embryoTransferRows(),
+            icsi = database.icsiRows(),
         )
 
     private fun dateStamp(): String = Clock.System.todayIn(TimeZone.currentSystemDefault()).toString()

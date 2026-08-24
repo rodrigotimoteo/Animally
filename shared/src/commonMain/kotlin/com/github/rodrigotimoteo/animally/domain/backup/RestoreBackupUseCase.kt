@@ -44,9 +44,12 @@ class RestoreBackupUseCase(
             database.insertFarrierVisits(payload)
             database.insertReproductionEvents(payload)
             database.insertUltrasounds(payload)
+            database.insertFollicles(payload)
             database.insertGestations(payload)
             database.insertReproMedications(payload)
             database.insertSubstances(payload)
+            database.insertEmbryoTransfers(payload)
+            database.insertIcsi(payload)
         }
     }
 }

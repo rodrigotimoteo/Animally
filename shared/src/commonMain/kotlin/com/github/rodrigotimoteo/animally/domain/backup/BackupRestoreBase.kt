@@ -25,6 +25,9 @@ internal fun AnimallyDatabase.deleteAllBackupRows() {
     ultrasoundQueries.deleteAll()
     vaccinationQueries.deleteAll()
     weightQueries.deleteAll()
+    follicleQueries.deleteAll()
+    embryoTransferQueries.deleteAll()
+    icsiQueries.deleteAll()
 }
 
 internal fun AnimallyDatabase.insertOwners(payload: BackupPayload) {

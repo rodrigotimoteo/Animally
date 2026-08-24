@@ -1,6 +1,9 @@
 package com.github.rodrigotimoteo.animally.domain.backup
 
+import com.github.rodrigotimoteo.animally.data.migrations.EmbryoTransfer
+import com.github.rodrigotimoteo.animally.data.migrations.Follicle
 import com.github.rodrigotimoteo.animally.data.migrations.Gestation
+import com.github.rodrigotimoteo.animally.data.migrations.Icsi
 import com.github.rodrigotimoteo.animally.data.migrations.ReproMedication
 import com.github.rodrigotimoteo.animally.data.migrations.Reproduction
 import com.github.rodrigotimoteo.animally.data.migrations.Substance
@@ -24,6 +27,10 @@ data class ReproductionEventDto(
     val isActive: Boolean,
     @Serializable(with = InstantSerializer::class) val createdAt: Instant,
     @Serializable(with = InstantSerializer::class) val updatedAt: Instant,
+    // Migration-7 columns; default null so legacy payloads still deserialize.
+    val initialExamFindings: String? = null,
+    val stallionName: String? = null,
+    val breedingType: String? = null,
 )
 
 /**
@@ -39,6 +46,63 @@ data class UltrasoundDto(
     val follicleSizeMm: Double?,
     val findings: String?,
     val imageUris: String?,
+    val vetName: String?,
+    val notes: String?,
+    val isActive: Boolean,
+    @Serializable(with = InstantSerializer::class) val createdAt: Instant,
+    @Serializable(with = InstantSerializer::class) val updatedAt: Instant,
+    // Migration-7 columns; default null so legacy payloads still deserialize.
+    val leftOvaryStatus: String? = null,
+    val rightOvaryStatus: String? = null,
+    val leftFollicleSizeMm: Double? = null,
+    val rightFollicleSizeMm: Double? = null,
+    val uterineEdema: String? = null,
+    val uterineLiquid: Boolean? = null,
+    val uterineLiquidDescription: String? = null,
+    val uterusDescription: String? = null,
+)
+
+/**
+ * Serializable mirror of the Follicle table (child of [UltrasoundDto]).
+ */
+@Serializable
+data class FollicleDto(
+    val id: Long,
+    val ultrasoundId: Long,
+    val side: String,
+    val sizeMm: Double,
+    val description: String?,
+    val isActive: Boolean,
+    @Serializable(with = InstantSerializer::class) val createdAt: Instant,
+    @Serializable(with = InstantSerializer::class) val updatedAt: Instant,
+)
+
+/**
+ * Serializable mirror of the EmbryoTransfer table.
+ */
+@Serializable
+data class EmbryoTransferDto(
+    val id: Long,
+    val patientId: Long,
+    @Serializable(with = LocalDateSerializer::class) val date: LocalDate,
+    val embryoCount: Long,
+    val recipientMares: String?,
+    val vetName: String?,
+    val notes: String?,
+    val isActive: Boolean,
+    @Serializable(with = InstantSerializer::class) val createdAt: Instant,
+    @Serializable(with = InstantSerializer::class) val updatedAt: Instant,
+)
+
+/**
+ * Serializable mirror of the Icsi table.
+ */
+@Serializable
+data class IcsiDto(
+    val id: Long,
+    val patientId: Long,
+    @Serializable(with = LocalDateSerializer::class) val date: LocalDate,
+    val folliclesRecovered: Long,
     val vetName: String?,
     val notes: String?,
     val isActive: Boolean,
@@ -116,6 +180,9 @@ internal fun Reproduction.toDto(): ReproductionEventDto =
         isActive = isActive,
         createdAt = createdAt,
         updatedAt = updatedAt,
+        initialExamFindings = initialExamFindings,
+        stallionName = stallionName,
+        breedingType = breedingType,
     )
 
 internal fun Ultrasound.toDto(): UltrasoundDto =
@@ -128,6 +195,53 @@ internal fun Ultrasound.toDto(): UltrasoundDto =
         follicleSizeMm = follicleSizeMm,
         findings = findings,
         imageUris = imageUris,
+        vetName = vetName,
+        notes = notes,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        leftOvaryStatus = leftOvaryStatus,
+        rightOvaryStatus = rightOvaryStatus,
+        leftFollicleSizeMm = leftFollicleSizeMm,
+        rightFollicleSizeMm = rightFollicleSizeMm,
+        uterineEdema = uterineEdema,
+        uterineLiquid = uterineLiquid,
+        uterineLiquidDescription = uterineLiquidDescription,
+        uterusDescription = uterusDescription,
+    )
+
+internal fun Follicle.toDto(): FollicleDto =
+    FollicleDto(
+        id = id,
+        ultrasoundId = ultrasoundId,
+        side = side,
+        sizeMm = sizeMm,
+        description = description,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )
+
+internal fun EmbryoTransfer.toDto(): EmbryoTransferDto =
+    EmbryoTransferDto(
+        id = id,
+        patientId = patientId,
+        date = date,
+        embryoCount = embryoCount,
+        recipientMares = recipientMares,
+        vetName = vetName,
+        notes = notes,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )
+
+internal fun Icsi.toDto(): IcsiDto =
+    IcsiDto(
+        id = id,
+        patientId = patientId,
+        date = date,
+        folliclesRecovered = folliclesRecovered,
         vetName = vetName,
         notes = notes,
         isActive = isActive,

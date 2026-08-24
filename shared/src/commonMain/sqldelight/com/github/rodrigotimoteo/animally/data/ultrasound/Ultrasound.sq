@@ -52,8 +52,8 @@ selectAllRows:
 SELECT * FROM Ultrasound;
 
 insertWithId:
-INSERT INTO Ultrasound (id, patientId, date, ovaryStatus, uterineStatus, follicleSizeMm, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Ultrasound (id, patientId, date, ovaryStatus, uterineStatus, follicleSizeMm, leftOvaryStatus, rightOvaryStatus, leftFollicleSizeMm, rightFollicleSizeMm, uterineEdema, uterineLiquid, uterineLiquidDescription, uterusDescription, findings, imageUris, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:

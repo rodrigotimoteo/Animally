@@ -35,3 +35,7 @@ DELETE FROM Follicle;
 
 selectAllRows:
 SELECT * FROM Follicle;
+
+insertWithId:
+INSERT INTO Follicle (id, ultrasoundId, side, sizeMm, description, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);

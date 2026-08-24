@@ -78,4 +78,8 @@ data class BackupPayload(
     val gestations: List<GestationDto>,
     val reproMedications: List<ReproMedicationDto>,
     val substances: List<ControlledSubstanceDto>,
+    // Added after schema v1 shipped; default empty so legacy payloads still deserialize.
+    val follicles: List<FollicleDto> = emptyList(),
+    val embryoTransfers: List<EmbryoTransferDto> = emptyList(),
+    val icsi: List<IcsiDto> = emptyList(),
 )

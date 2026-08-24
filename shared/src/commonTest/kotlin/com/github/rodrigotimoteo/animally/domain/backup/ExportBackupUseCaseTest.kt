@@ -196,4 +196,132 @@ class ExportBackupUseCaseTest {
         assertEquals(1, payload.patients.size)
         assertEquals(false, payload.patients.single().isActive)
     }
+
+    @Test
+    fun `export includes migration-7 fields follicles embryo transfers and icsi`() {
+        seedPatient()
+        seedUltrasoundWithChildren()
+
+        var writtenContent: String? = null
+        val useCase =
+            ExportBackupUseCase(
+                database = database,
+                writeFile = { fileName, content ->
+                    writtenContent = content
+                    "backups/$fileName"
+                },
+                copyDatabase = { "backups/animally.db" },
+            )
+        useCase()
+
+        val payload = BackupSerializer.decode(requireNotNull(writtenContent))
+        val ultrasound = payload.ultrasounds.single()
+        assertEquals("Large follicle", ultrasound.leftOvaryStatus)
+        assertEquals("Inactive", ultrasound.rightOvaryStatus)
+        assertEquals(38.0, ultrasound.leftFollicleSizeMm)
+        assertEquals(22.5, ultrasound.rightFollicleSizeMm)
+        assertEquals("Grade 2", ultrasound.uterineEdema)
+        assertEquals(true, ultrasound.uterineLiquid)
+        assertEquals("Small amount of free fluid", ultrasound.uterineLiquidDescription)
+        assertEquals("Normal tone", ultrasound.uterusDescription)
+
+        assertEquals(2, payload.follicles.size)
+        assertEquals(11L, payload.follicles.first().ultrasoundId)
+        assertEquals(1, payload.embryoTransfers.size)
+        assertEquals(2L, payload.embryoTransfers.single().embryoCount)
+        assertEquals(1, payload.icsi.size)
+        assertEquals(5L, payload.icsi.single().folliclesRecovered)
+    }
+
+    private fun seedPatient() {
+        database.patientQueries.insert(
+            name = "Charlie",
+            species = "Equine",
+            breed = "Hanoverian",
+            dateOfBirth = LocalDate(2018, 3, 1),
+            gender = "Mare",
+            microchipId = null,
+            ueln = null,
+            registrationNumber = null,
+            stableLocation = null,
+            photoUri = null,
+            notes = null,
+            ownerId = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(0L),
+            updatedAt = Instant.fromEpochMilliseconds(0L),
+            cogginsTestDate = null,
+            cogginsResult = null,
+            cogginsExpiryDate = null,
+        )
+    }
+
+    private fun seedUltrasoundWithChildren() {
+        database.ultrasoundQueries.insertWithId(
+            id = 11L,
+            patientId = 1L,
+            date = LocalDate(2026, 7, 1),
+            ovaryStatus = "Active",
+            uterineStatus = "Edematous",
+            follicleSizeMm = 35.5,
+            leftOvaryStatus = "Large follicle",
+            rightOvaryStatus = "Inactive",
+            leftFollicleSizeMm = 38.0,
+            rightFollicleSizeMm = 22.5,
+            uterineEdema = "Grade 2",
+            uterineLiquid = true,
+            uterineLiquidDescription = "Small amount of free fluid",
+            uterusDescription = "Normal tone",
+            findings = "Pre-ovulatory follicle",
+            imageUris = null,
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(1000L),
+            updatedAt = Instant.fromEpochMilliseconds(2000L),
+        )
+        database.follicleQueries.insertWithId(
+            id = 21L,
+            ultrasoundId = 11L,
+            side = "LEFT",
+            sizeMm = 38.0,
+            description = "Dominant",
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(1100L),
+            updatedAt = Instant.fromEpochMilliseconds(2100L),
+        )
+        database.follicleQueries.insertWithId(
+            id = 22L,
+            ultrasoundId = 11L,
+            side = "RIGHT",
+            sizeMm = 22.5,
+            description = null,
+            isActive = false,
+            createdAt = Instant.fromEpochMilliseconds(1200L),
+            updatedAt = Instant.fromEpochMilliseconds(2200L),
+        )
+        database.embryoTransferQueries.insertWithId(
+            id = 41L,
+            patientId = 1L,
+            date = LocalDate(2026, 7, 10),
+            embryoCount = 2,
+            recipientMares = "Mare A, Mare B",
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(1400L),
+            updatedAt = Instant.fromEpochMilliseconds(2400L),
+        )
+        database.icsiQueries.insertWithId(
+            id = 51L,
+            patientId = 1L,
+            date = LocalDate(2026, 7, 12),
+            folliclesRecovered = 5,
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(1500L),
+            updatedAt = Instant.fromEpochMilliseconds(2500L),
+        )
+    }
 }

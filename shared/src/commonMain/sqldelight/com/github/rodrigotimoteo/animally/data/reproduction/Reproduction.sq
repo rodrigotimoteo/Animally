@@ -44,8 +44,8 @@ selectAllRows:
 SELECT * FROM Reproduction;
 
 insertWithId:
-INSERT INTO Reproduction (id, patientId, eventType, date, details, vetName, notes, isActive, createdAt, updatedAt)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Reproduction (id, patientId, eventType, date, details, initialExamFindings, stallionName, breedingType, vetName, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:

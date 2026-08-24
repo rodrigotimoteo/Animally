@@ -15,6 +15,9 @@ internal fun AnimallyDatabase.insertReproductionEvents(payload: BackupPayload) {
             isActive = row.isActive,
             createdAt = row.createdAt,
             updatedAt = row.updatedAt,
+            initialExamFindings = row.initialExamFindings,
+            stallionName = row.stallionName,
+            breedingType = row.breedingType,
         )
     }
 }
@@ -28,8 +31,64 @@ internal fun AnimallyDatabase.insertUltrasounds(payload: BackupPayload) {
             ovaryStatus = row.ovaryStatus,
             uterineStatus = row.uterineStatus,
             follicleSizeMm = row.follicleSizeMm,
+            leftOvaryStatus = row.leftOvaryStatus,
+            rightOvaryStatus = row.rightOvaryStatus,
+            leftFollicleSizeMm = row.leftFollicleSizeMm,
+            rightFollicleSizeMm = row.rightFollicleSizeMm,
+            uterineEdema = row.uterineEdema,
+            uterineLiquid = row.uterineLiquid,
+            uterineLiquidDescription = row.uterineLiquidDescription,
+            uterusDescription = row.uterusDescription,
             findings = row.findings,
             imageUris = row.imageUris,
+            vetName = row.vetName,
+            notes = row.notes,
+            isActive = row.isActive,
+            createdAt = row.createdAt,
+            updatedAt = row.updatedAt,
+        )
+    }
+}
+
+internal fun AnimallyDatabase.insertFollicles(payload: BackupPayload) {
+    payload.follicles.forEach { row ->
+        follicleQueries.insertWithId(
+            id = row.id,
+            ultrasoundId = row.ultrasoundId,
+            side = row.side,
+            sizeMm = row.sizeMm,
+            description = row.description,
+            isActive = row.isActive,
+            createdAt = row.createdAt,
+            updatedAt = row.updatedAt,
+        )
+    }
+}
+
+internal fun AnimallyDatabase.insertEmbryoTransfers(payload: BackupPayload) {
+    payload.embryoTransfers.forEach { row ->
+        embryoTransferQueries.insertWithId(
+            id = row.id,
+            patientId = row.patientId,
+            date = row.date,
+            embryoCount = row.embryoCount,
+            recipientMares = row.recipientMares,
+            vetName = row.vetName,
+            notes = row.notes,
+            isActive = row.isActive,
+            createdAt = row.createdAt,
+            updatedAt = row.updatedAt,
+        )
+    }
+}
+
+internal fun AnimallyDatabase.insertIcsi(payload: BackupPayload) {
+    payload.icsi.forEach { row ->
+        icsiQueries.insertWithId(
+            id = row.id,
+            patientId = row.patientId,
+            date = row.date,
+            folliclesRecovered = row.folliclesRecovered,
             vetName = row.vetName,
             notes = row.notes,
             isActive = row.isActive,

@@ -55,3 +55,21 @@ internal fun AnimallyDatabase.substanceRows(): List<ControlledSubstanceDto> =
         .selectAllRows()
         .executeAsList()
         .map { it.toDto() }
+
+internal fun AnimallyDatabase.follicleRows(): List<FollicleDto> =
+    follicleQueries
+        .selectAllRows()
+        .executeAsList()
+        .map { it.toDto() }
+
+internal fun AnimallyDatabase.embryoTransferRows(): List<EmbryoTransferDto> =
+    embryoTransferQueries
+        .selectAllRows()
+        .executeAsList()
+        .map { it.toDto() }
+
+internal fun AnimallyDatabase.icsiRows(): List<IcsiDto> =
+    icsiQueries
+        .selectAllRows()
+        .executeAsList()
+        .map { it.toDto() }
