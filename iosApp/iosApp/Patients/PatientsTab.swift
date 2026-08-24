@@ -1,3 +1,4 @@
+import Shared
 import SwiftUI
 
 struct PatientsTab: View {
@@ -121,8 +122,7 @@ enum RecordEditRoute: Hashable, Identifiable {
 /// Push destination for every record editor, shared by the Patients stack
 /// (add/edit from detail), and the Timeline/Search stacks (deep-links).
 @ViewBuilder
-func recordEditDestination(_ route: RecordEditRoute) -> some View {
-    switch route {
+func recordEditDestination(_ route: RecordEditRoute) -> some View {    switch route {
     case .weight(_, let recordId):
         WeightEditView(patientId: route.patientId, weightId: recordId)
     case .vaccination(_, let recordId):
@@ -163,5 +163,44 @@ func recordEditDestination(_ route: RecordEditRoute) -> some View {
         EmbryoTransferEditView(patientId: route.patientId, embryoTransferId: recordId)
     case .icsi(_, let recordId):
         IcsiEditView(patientId: route.patientId, icsiId: recordId)
+    }
+}
+
+extension RecordEditRoute {
+    /// Builds the editor destination from the Kotlin-provided detail route
+    /// descriptor (`RecordDetailHandle.editRoute`). The descriptor's
+    /// `typeName` is the stable `RecordType.name` discriminator, so this is
+    /// the only place mapping typed detail handles onto SwiftUI editors;
+    /// an unmapped type simply disables Edit instead of breaking the detail.
+    init?(descriptor: RecordEditRouteDescriptor) {
+        self.init(
+            typeName: descriptor.typeName,
+            patientId: descriptor.patientId,
+            recordId: descriptor.recordId
+        )
+    }
+
+    private init?(typeName: String, patientId: Int64, recordId: Int64) {
+        switch typeName {
+        case "Consultation": self = .consultation(patientId: patientId, recordId: recordId)
+        case "Weight": self = .weight(patientId: patientId, recordId: recordId)
+        case "Vaccination": self = .vaccination(patientId: patientId, recordId: recordId)
+        case "Deworming": self = .deworming(patientId: patientId, recordId: recordId)
+        case "Dentistry": self = .dentistry(patientId: patientId, recordId: recordId)
+        case "FarrierVisit": self = .farrierVisit(patientId: patientId, recordId: recordId)
+        case "Lameness": self = .lameness(patientId: patientId, recordId: recordId)
+        case "Surgery": self = .surgery(patientId: patientId, recordId: recordId)
+        case "Medication": self = .medication(patientId: patientId, recordId: recordId)
+        case "ControlledSubstance": self = .substance(patientId: patientId, recordId: recordId)
+        case "LabResult": self = .labResult(patientId: patientId, recordId: recordId)
+        case "Imaging": self = .imaging(patientId: patientId, recordId: recordId)
+        case "ReproductionEvent": self = .reproductionEvent(patientId: patientId, recordId: recordId)
+        case "Ultrasound": self = .ultrasound(patientId: patientId, recordId: recordId)
+        case "Gestation": self = .gestation(patientId: patientId, recordId: recordId)
+        case "ReproMedication": self = .reproMedication(patientId: patientId, recordId: recordId)
+        case "EmbryoTransfer": self = .embryoTransfer(patientId: patientId, recordId: recordId)
+        case "Icsi": self = .icsi(patientId: patientId, recordId: recordId)
+        default: return nil
+        }
     }
 }

@@ -36,10 +36,10 @@ struct RecordDetailKey: Hashable {
 /// and the store subscription re-renders freshly saved data. Back returns to
 /// the caller (tab, timeline, or search).
 ///
-/// Always id-loaded: the matching Kotlin edit store is instantiated for the
-/// record identity and its form state supplies the field rows. Building rows
-/// from the form (instead of a tab-side snapshot) keeps child-table data such
-/// as ultrasound follicles visible from every entry point.
+/// Always id-loaded: all per-type knowledge (store binding, field-row
+/// building, title normalization, edit-route availability) lives behind the
+/// Kotlin `RecordDetailOpener` facade, so this view only renders whatever
+/// typed rows the handle's flow emits.
 struct RecordDetailView: View {
     let key: RecordDetailKey
     let fallbackTitle: String
@@ -87,9 +87,9 @@ private struct FieldCell: View {
     }
 }
 
-/// Instantiates the Kotlin-backed edit store for the record, subscribes to
-/// its state, and renders the loaded form as field rows. Owns the Edit push
-/// so saving or cancelling pops back here with re-emitted (fresh) data.
+/// Renders the field-row flow emitted by the Kotlin-provided detail handle.
+/// Owns the Edit push so saving or cancelling pops back here with
+/// re-emitted (fresh) data.
 private struct IdLoadedRecordDetailView: View {
     let key: RecordDetailKey
     let fallbackTitle: String
@@ -99,11 +99,8 @@ private struct IdLoadedRecordDetailView: View {
 
     /// Nil when the display type has no editor route; disables Edit.
     private var editDestination: RecordEditRoute? {
-        RecordEditRoute(
-            displayType: key.displayType,
-            patientId: key.patientId,
-            recordId: key.recordId
-        )
+        guard let descriptor = observer.editRouteDescriptor else { return nil }
+        return RecordEditRoute(descriptor: descriptor)
     }
 
     init(
@@ -166,250 +163,48 @@ private struct IdLoadedRecordDetailView: View {
     }
 }
 
-/// Subscribes to the matching edit store and converts each emitted store
-/// state into ready-to-render field rows (or loading / not-found markers).
+/// Subscribes to the Kotlin `RecordDetailOpener`'s unified state flow and
+/// converts each emitted state into ready-to-render field rows (or
+/// loading / not-found markers). No per-type logic remains here: the handle
+/// carries the title, the typed rows, and the edit-route descriptor.
 @MainActor
 final class RecordDetailObserver: ObservableObject {
     @Published private(set) var fields: [RecordDetailNav.FieldRow]?
     @Published private(set) var isLoading = true
     @Published private(set) var title: String?
+    @Published private(set) var editRouteDescriptor: RecordEditRouteDescriptor?
 
     private var cancellable: NativeCancellable?
-
-    /// Type-erased view over one Kotlin edit store: the initial state snapshot
-    /// plus a subscription that re-emits states as untyped objects.
-    private struct StoreBox {
-        let initial: AnyObject
-        let subscribe: (@escaping (AnyObject) -> Void) -> NativeCancellable
-    }
+    private let handle: RecordDetailHandle
 
     init(key: RecordDetailKey) {
-        // Timeline entries carry display names ("Lab Result"); search results
-        // carry wire names ("LAB_RESULT"). Normalize once here.
-        let displayType = Self.normalizedDisplayType(key.displayType)
-        title = displayType
-        guard let box = Self.storeBox(for: displayType, patientId: key.patientId, recordId: key.recordId) else {
-            isLoading = false
-            return
-        }
-        apply(state: box.initial, displayType: displayType)
-        cancellable = box.subscribe { [weak self] state in
+        let handle = RecordDetailOpener.shared.openDetail(
+            recordTypeWireName: key.displayType,
+            recordId: key.recordId,
+            patientId: KotlinLong(longLong: key.patientId)
+        )
+        self.handle = handle
+        title = handle.title
+        editRouteDescriptor = handle.editRoute
+        apply(handle.state.current)
+        cancellable = handle.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
-                self?.apply(state: state, displayType: displayType)
+                self?.apply(state)
             }
-        }
+        })
     }
 
-    private func apply(state: AnyObject, displayType: String) {
-        fields = Self.fields(from: state, displayType: displayType)
-        isLoading = Self.formIsLoading(state, displayType: displayType)
-        if fields?.isEmpty == true, !isLoading {
-            fields = nil
+    private func apply(_ state: RecordDetailState) {
+        var rows = state.rows?.map { RecordDetailNav.FieldRow(label: $0.label, value: $0.value) }
+        if rows?.isEmpty == true, !state.isLoading {
+            rows = nil
         }
-    }
-
-    private static func normalizedDisplayType(_ raw: String) -> String {
-        switch raw.uppercased() {
-        case "LAB_RESULT": return "Lab Result"
-        case "FARRIER_VISIT": return "Farrier"
-        case "REPRODUCTION_EVENT": return "Reproduction"
-        case "REPRO_MEDICATION": return "Repro Medication"
-        case "CONTROLLED_SUBSTANCE": return "Controlled Substance"
-        case "EMBRYO_TRANSFER": return "Embryo Transfer"
-        default: return raw
-        }
+        fields = rows
+        isLoading = state.isLoading
     }
 
     deinit {
         cancellable?.cancel()
-    }
-
-    private static func formIsLoading(_ state: AnyObject, displayType: String) -> Bool {
-        switch displayType {
-        case "Consultation": return (state as? ConsultationEditStoreState)?.form?.isLoading == true
-        case "Weight": return (state as? WeightEditStoreState)?.form?.isLoading == true
-        case "Vaccination": return (state as? VaccinationEditStoreState)?.form?.isLoading == true
-        case "Deworming": return (state as? DewormingEditStoreState)?.form?.isLoading == true
-        case "Dentistry": return (state as? DentistryEditStoreState)?.form?.isLoading == true
-        case "Farrier": return (state as? FarrierVisitEditStoreState)?.form?.isLoading == true
-        case "Lameness": return (state as? LamenessEditStoreState)?.form?.isLoading == true
-        case "Surgery": return (state as? SurgeryEditStoreState)?.form?.isLoading == true
-        case "Medication": return (state as? MedicationEditStoreState)?.form?.isLoading == true
-        case "Controlled Substance": return (state as? SubstanceEditStoreState)?.form?.isLoading == true
-        case "Lab Result": return (state as? LabResultEditStoreState)?.form?.isLoading == true
-        case "Imaging": return (state as? ImagingEditStoreState)?.form?.isLoading == true
-        case "Reproduction": return (state as? ReproductionEventEditStoreState)?.form?.isLoading == true
-        case "Ultrasound": return (state as? UltrasoundEditStoreState)?.form?.isLoading == true
-        case "Gestation": return (state as? GestationEditStoreState)?.form?.isLoading == true
-        case "Repro Medication": return (state as? ReproMedicationEditStoreState)?.form?.isLoading == true
-        case "Embryo Transfer": return (state as? EmbryoTransferEditStoreState)?.form?.isLoading == true
-        case "ICSI": return (state as? IcsiEditStoreState)?.form?.isLoading == true
-        default: return false
-        }
-    }
-
-    private static func fields(
-        from state: AnyObject,
-        displayType: String
-    ) -> [RecordDetailNav.FieldRow]? {
-        switch displayType {
-        case "Consultation":
-            return (state as? ConsultationEditStoreState).flatMap { $0.form }.map(RecordDetailContent.consultationFields)
-        case "Weight":
-            return (state as? WeightEditStoreState).flatMap { $0.form }.map(RecordDetailContent.weightFields)
-        case "Vaccination":
-            return (state as? VaccinationEditStoreState).flatMap { $0.form }.map(RecordDetailContent.vaccinationFields)
-        case "Deworming":
-            return (state as? DewormingEditStoreState).flatMap { $0.form }.map(RecordDetailContent.dewormingFields)
-        case "Dentistry":
-            return (state as? DentistryEditStoreState).flatMap { $0.form }.map(RecordDetailContent.dentistryFields)
-        case "Farrier":
-            return (state as? FarrierVisitEditStoreState).flatMap { $0.form }.map(RecordDetailContent.farrierFields)
-        case "Lameness":
-            return (state as? LamenessEditStoreState).flatMap { $0.form }.map(RecordDetailContent.lamenessFields)
-        case "Surgery":
-            return (state as? SurgeryEditStoreState).flatMap { $0.form }.map(RecordDetailContent.surgeryFields)
-        case "Medication":
-            return (state as? MedicationEditStoreState).flatMap { $0.form }.map(RecordDetailContent.medicationFields)
-        case "Controlled Substance":
-            return (state as? SubstanceEditStoreState).flatMap { $0.form }.map(RecordDetailContent.substanceFields)
-        case "Lab Result":
-            return (state as? LabResultEditStoreState).flatMap { $0.form }.map(RecordDetailContent.labResultFields)
-        case "Imaging":
-            return (state as? ImagingEditStoreState).flatMap { $0.form }.map(RecordDetailContent.imagingFields)
-        case "Reproduction":
-            return (state as? ReproductionEventEditStoreState).flatMap { $0.form }.map(RecordDetailContent.reproductionFields)
-        case "Ultrasound":
-            return (state as? UltrasoundEditStoreState).flatMap { $0.form }.map(RecordDetailContent.ultrasoundFields)
-        case "Gestation":
-            return (state as? GestationEditStoreState).flatMap { $0.form }.map(RecordDetailContent.gestationFields)
-        case "Repro Medication":
-            return (state as? ReproMedicationEditStoreState).flatMap { $0.form }.map(RecordDetailContent.reproMedicationFields)
-        case "Embryo Transfer":
-            return (state as? EmbryoTransferEditStoreState).flatMap { $0.form }.map(RecordDetailContent.embryoTransferFields)
-        case "ICSI":
-            return (state as? IcsiEditStoreState).flatMap { $0.form }.map(RecordDetailContent.icsiFields)
-        default:
-            return nil
-        }
-    }
-
-    private static func storeBox(
-        for displayType: String,
-        patientId: Int64,
-        recordId: Int64
-    ) -> StoreBox? {
-        switch displayType {
-        case "Consultation":
-            let store = RecordStores.consultationEditStore(patientId: patientId, consultationId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Weight":
-            let store = RecordStores.weightEditStore(patientId: patientId, weightId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Vaccination":
-            let store = RecordStores.vaccinationEditStore(patientId: patientId, vaccinationId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Deworming":
-            let store = RecordStores.dewormingEditStore(patientId: patientId, dewormingId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Dentistry":
-            let store = RecordStores.dentistryEditStore(patientId: patientId, dentistryId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Farrier":
-            let store = RecordStores.farrierVisitEditStore(patientId: patientId, farrierVisitId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Lameness":
-            let store = RecordStores.lamenessEditStore(patientId: patientId, lamenessId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Surgery":
-            let store = RecordStores.surgeryEditStore(patientId: patientId, surgeryId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Medication":
-            let store = RecordStores.medicationEditStore(patientId: patientId, medicationId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Controlled Substance":
-            let store = RecordStores.substanceEditStore(patientId: patientId, substanceId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Lab Result":
-            let store = RecordStores.labResultEditStore(patientId: patientId, labResultId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Imaging":
-            let store = RecordStores.imagingEditStore(patientId: patientId, imagingId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Reproduction":
-            let store = RecordStores.reproductionEventEditStore(patientId: patientId, reproductionEventId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Ultrasound":
-            let store = RecordStores.ultrasoundEditStore(patientId: patientId, ultrasoundId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Gestation":
-            let store = RecordStores.gestationEditStore(patientId: patientId, gestationId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Repro Medication":
-            let store = RecordStores.reproMedicationEditStore(patientId: patientId, reproMedicationId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "Embryo Transfer":
-            let store = RecordStores.embryoTransferEditStore(patientId: patientId, embryoTransferId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        case "ICSI":
-            let store = RecordStores.icsiEditStore(patientId: patientId, icsiId: recordId)
-            return StoreBox(
-                initial: store.state.current,
-                subscribe: { callback in store.state.subscribe(onEach: { callback($0) }) }
-            )
-        default:
-            return nil
-        }
+        handle.dispose()
     }
 }
