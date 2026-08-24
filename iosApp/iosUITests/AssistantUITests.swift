@@ -224,4 +224,18 @@ final class AssistantRealFmUITests: AnimallyTestCase {
         XCTAssertFalse(label.lowercased().contains("http"), "Fabricated external source: \(label)")
         XCTAssertFalse(label.contains("[Giraffe"), "Fabricated record type: \(label)")
     }
+
+    func testCompletedAnswerShowsFollowUpChips() throws {
+        // Every completed answer carries at least the default suggestion set,
+        // so the chips must exist regardless of what the model cited.
+        let app = TestHelpers.launchApp()
+        openAssistant(app)
+        try requireAvailableModel(app)
+
+        ask(app, "Tell me about Thunder")
+        _ = completedReplyLabel(app)
+
+        let chip = app.buttons["assistant_followup_chip"].firstMatch
+        XCTAssertTrue(chip.waitForExistence(timeout: 10), "Follow-up chips missing after completed answer")
+    }
 }

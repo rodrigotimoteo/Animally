@@ -69,8 +69,13 @@ class ResolvePatientUseCase(
             }
 
         fun normalize(name: String): String {
-            val lowered = name.trim().lowercase()
+            // Collapse internal whitespace runs so "Black   Beauty" matches
+            // "Black Beauty" - transcription artifacts must not break the
+            // exact-match contract.
+            val lowered = name.trim().lowercase().replace(WHITESPACE_RUNS, " ")
             return lowered.map { DIACRITICS[it] ?: it }.joinToString("")
         }
+
+        val WHITESPACE_RUNS = Regex("\\s+")
     }
 }

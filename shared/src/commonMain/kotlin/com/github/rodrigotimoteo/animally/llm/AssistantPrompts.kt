@@ -152,7 +152,20 @@ object AssistantPrompts {
     /** Back-compat alias over [systemPrompt] with English strings. */
     val SYSTEM_PROMPT: String = systemPrompt()
 
-    private fun clean(token: String): String = token.trim('?', ',', '.', '!', ':', ';')
+    /**
+     * Normalizes one whitespace-delimited token for FTS matching: trailing
+     * punctuation trimmed, INTERNAL apostrophes stripped ("Thunder's" ->
+     * "Thunders"). The repository sanitizer splits tokens on non-alphanumeric
+     * characters, so an apostrophe would emit a junk empty prefix plus a
+     * stray "s*" term that pollutes the OR query and matches unrelated
+     * records. Contraction words ("can't" -> "cant") degrade to harmless
+     * misses.
+     */
+    private fun clean(token: String): String =
+        token
+            .trim('?', ',', '.', '!', ':', ';')
+            .replace("'", "")
+            .replace("’", "")
 
     /**
      * Strips filler words from a user question for the FTS query only (the raw

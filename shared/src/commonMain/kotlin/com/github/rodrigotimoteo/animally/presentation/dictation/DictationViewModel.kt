@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.dto.DictatedSessionDto
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecord
+import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.PatientResolution
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -83,7 +84,13 @@ class DictationViewModel(
             _uiState.update { it.copy(error = decoded.exceptionOrNull()?.message) }
             return
         }
-        val validated = validateSuggestionsUseCase(decoded.getOrThrow().records)
+        val validated =
+            validateSuggestionsUseCase(decoded.getOrThrow().records)
+                // Structurally invalid suggestions must not reach the review
+                // list: they have no save path and would only offer a dead
+                // accept/reject choice. Filtered here so the visible list and
+                // the accept/reject indices stay aligned.
+                .filter { it.validation !is SuggestedValidationState.Dropped }
         val suggestions =
             validated.map { record ->
                 DictationSuggestionUi(

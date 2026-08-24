@@ -130,6 +130,10 @@ class FmLlmShim: NSObject {
             defer {
                 self.streamLock.lock()
                 self.streamActive = false
+                // Release the finished task too: keeps the shim -> task cycle
+                // from outliving the stream and drops the completion handler
+                // context promptly.
+                self.streamTask = nil
                 self.streamLock.unlock()
             }
             do {

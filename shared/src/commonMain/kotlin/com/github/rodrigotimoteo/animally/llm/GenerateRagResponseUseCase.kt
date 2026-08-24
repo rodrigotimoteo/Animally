@@ -1,9 +1,12 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlin.math.ceil
 
@@ -83,17 +86,24 @@ class GenerateRagResponseUseCase(
         // Model sometimes regurgitates prompt scaffolding (--- separators,
         // "Question: ..." echoes). Stripped defensively from every chunk.
         val scaffoldLineRegex = Regex("(?m)^\\s*(?:-{3,}|Question:.*|Context:.*|You are .*)\\s*\\n?")
+
+        // Bracketed citation header in the final answer text: [TYPE #id].
+        val citationRegex = Regex("\\[([A-Z_]+) #(\\d+)]")
     }
 
     /**
      * Asks [query] against the record corpus, optionally grounded in
-     * [history] (prior Q/A pairs, most recent last). Streaming emits
-     * cumulative sanitized snapshots of the reply.
+     * [history] (prior Q/A pairs, most recent last). Emits [RagStreamEvent]s:
+     * cumulative sanitized [chunks][RagStreamEvent.Chunk], one
+     * [sources][RagStreamEvent.Sources] event after the final chunk (records
+     * actually cited), and an [interruption][RagStreamEvent.Interrupted]
+     * marker when the stream fails mid-emission. User cancellation still
+     * propagates as [CancellationException].
      */
     operator fun invoke(
         query: String,
         history: List<RagHistoryEntry> = emptyList(),
-    ): Flow<String> =
+    ): Flow<RagStreamEvent> =
         flow {
             // Language mirroring: the device locale picks the default strings,
             // but a Portuguese question gets a Portuguese turn even on an EN
@@ -105,53 +115,93 @@ class GenerateRagResponseUseCase(
             // veterinary records and answering with the no-results fallback
             // reads as broken to the user.
             AssistantPrompts.greetingReply(query, turnStrings)?.let {
-                emit(it)
+                emit(RagStreamEvent.Chunk(it))
                 return@flow
             }
             val enriched = AssistantPrompts.enrichQuery(query)
             if (enriched.length < MIN_QUERY_CHARS) {
                 // One-letter queries fuzzy-match nonsense ("A" hits any name
                 // containing A); asking for more beats answering garbage.
-                emit(turnStrings.tooShortReply)
+                emit(RagStreamEvent.Chunk(turnStrings.tooShortReply))
                 return@flow
             }
             val results = prioritizePatientScope(retrieve(query, enriched), query)
-            val recentConversation = formatHistory(history)
-            val selected =
-                selectWithinBudget(
-                    results.map { result -> formatChunk(result) },
-                    reservedTokens = estimateTokens(recentConversation),
-                )
-            if (selected.isEmpty() && recentConversation.isEmpty()) {
-                emit(turnStrings.noResultsFallback)
+            // Dosage guardrail: a how-much-drug question answered without any
+            // medication record in context must be refused deterministically -
+            // a small model with no grounding will hallucinate a dose. Checked
+            // BEFORE the history fallback so prior conversation alone can never
+            // unlock dosage advice.
+            if (DosageGuard.isDosageIntent(query) && results.none(::isMedicationRecord)) {
+                emit(RagStreamEvent.Chunk(turnStrings.dosageRefusal))
                 return@flow
             }
+            val recentConversation = formatHistory(history)
+            val chunks = results.map { result -> formatChunk(result) }
+            val selectedIndices =
+                selectWithinBudget(
+                    chunks,
+                    reservedTokens = estimateTokens(recentConversation),
+                )
+            if (selectedIndices.isEmpty() && recentConversation.isEmpty()) {
+                emit(RagStreamEvent.Chunk(turnStrings.noResultsFallback))
+                return@flow
+            }
+            val selected = selectedIndices.map(chunks::get)
             val context = buildContext(selected, query, recentConversation)
-            // Streaming emits cumulative snapshots; sanitize() is idempotent, so
-            // re-sanitizing the growing text each step is safe and downstream
-            // consumers replace their buffer with each emission.
-            var lastEmitted = ""
+            streamAnswer(context, turnStrings, selected, selectedIndices.map(results::get))
+        }
+
+    /**
+     * Streams the model answer for [context], then applies citation
+     * enforcement and emits the cited-sources event. A mid-stream failure
+     * (anything but user cancellation) becomes an
+     * [RagStreamEvent.Interrupted] marker carrying the partial text instead
+     * of tearing down the whole turn.
+     */
+    private suspend fun FlowCollector<RagStreamEvent>.streamAnswer(
+        context: String,
+        turnStrings: AssistantStrings,
+        selected: List<String>,
+        contextResults: List<SearchResult>,
+    ) {
+        // Streaming emits cumulative snapshots; sanitize() is idempotent, so
+        // re-sanitizing the growing text each step is safe and downstream
+        // consumers replace their buffer with each emission.
+        var lastEmitted = ""
+        try {
             llmEngine
                 .generateStreaming(context, AssistantPrompts.systemPrompt(turnStrings))
                 .collect { text ->
                     lastEmitted = sanitize(text)
-                    emit(lastEmitted)
+                    emit(RagStreamEvent.Chunk(lastEmitted))
                 }
-            // Citation enforcement: the system prompt mandates citing bracketed
-            // headers, but the model skips them often enough that the guarantee
-            // is enforced here - when records were used and the reply carries
-            // none, append the ACTUAL retrieved headers (never invented ones).
-            if (selected.isNotEmpty() && "[" !in lastEmitted) {
-                val sources = selected.mapNotNull(::sourceHeader)
-                if (sources.isNotEmpty()) {
-                    emit(
-                        listOf(lastEmitted.takeIf(String::isNotBlank), sources.joinToString("\n"))
-                            .filterNotNull()
-                            .joinToString("\n\n"),
-                    )
-                }
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (t: Throwable) {
+            // Mid-stream failure (engine error, not user cancellation):
+            // surface a typed marker carrying the partial text so the UI
+            // can offer a retry instead of showing a dead bubble.
+            emit(RagStreamEvent.Interrupted(partialText = lastEmitted, error = t.message))
+            return
+        }
+        // Citation enforcement: the system prompt mandates citing bracketed
+        // headers, but the model skips them often enough that the guarantee
+        // is enforced here - when records were used and the reply carries
+        // none, append the ACTUAL retrieved headers (never invented ones).
+        if (selected.isNotEmpty() && "[" !in lastEmitted) {
+            val sources = selected.mapNotNull(::sourceHeader)
+            if (sources.isNotEmpty()) {
+                lastEmitted =
+                    listOf(lastEmitted.takeIf(String::isNotBlank), sources.joinToString("\n"))
+                        .filterNotNull()
+                        .joinToString("\n\n")
+                emit(RagStreamEvent.Chunk(lastEmitted))
             }
         }
+        citedResults(lastEmitted, contextResults).takeIf { it.isNotEmpty() }?.let {
+            emit(RagStreamEvent.Sources(it))
+        }
+    }
 
     /**
      * Two-leg retrieval mirroring the production contract: a strict AND query
@@ -230,25 +280,27 @@ class GenerateRagResponseUseCase(
     }
 
     /**
-     * Keeps the chunks that fit the token budget after reserving room for the
-     * system prompt, the query, the response, and [reservedTokens] for any
-     * recent-conversation block. An empty result means every chunk was
+     * Keeps the INDICES of the chunks that fit the token budget after
+     * reserving room for the system prompt, the query, the response, and
+     * [reservedTokens] for any recent-conversation block. Indices (not
+     * strings) so callers can map back to the originating [SearchResult]s
+     * for source-card emission. An empty result means every chunk was
      * filtered out (or there were none).
      */
     private fun selectWithinBudget(
         chunks: List<String>,
         reservedTokens: Int = 0,
-    ): List<String> {
+    ): List<Int> {
         val reserve =
             config.systemReserveTokens + config.queryReserveTokens +
                 config.responseReserveTokens + reservedTokens
         val budget = config.maxContextTokens - reserve
-        val selected = mutableListOf<String>()
+        val selected = mutableListOf<Int>()
         var used = 0
-        for (chunk in chunks) {
+        for ((index, chunk) in chunks.withIndex()) {
             val est = ceil(chunk.length / CHARS_PER_TOKEN).toInt()
             if (used + est > budget) break
-            selected.add(chunk)
+            selected.add(index)
             used += est
         }
         return selected
@@ -285,6 +337,35 @@ class GenerateRagResponseUseCase(
             .firstOrNull()
             ?.substringBefore(" |")
             ?.takeIf { it.startsWith("[") }
+
+    /**
+     * Maps the `[TYPE #id]` citations actually present in [answerText] back
+     * to their retrieved records, in citation order, deduplicated. Only
+     * records that were selected into the context count - a citation naming
+     * an unselected (or invented) record yields no source card.
+     */
+    private fun citedResults(
+        answerText: String,
+        contextResults: List<SearchResult>,
+    ): List<SearchResult> {
+        if (contextResults.isEmpty()) return emptyList()
+        val byKey = contextResults.associateBy { "${it.recordType}#${it.recordId}" }
+        return citationRegex
+            .findAll(answerText)
+            .mapNotNull { match -> byKey["${match.groupValues[1]}#${match.groupValues[2]}"] }
+            .distinct()
+            .toList()
+    }
+
+    /**
+     * True when [result] is a medication-bearing record (prescription,
+     * controlled substance, or repro medication) - the only grounding that
+     * unlocks dosage questions past the guardrail.
+     */
+    private fun isMedicationRecord(result: SearchResult): Boolean =
+        result.recordType == RecordType.Medication.wireName ||
+            result.recordType == RecordType.ControlledSubstance.wireName ||
+            result.recordType == RecordType.ReproMedication.wireName
 
     /**
      * Assembles the user-turn prompt: optional recent conversation for

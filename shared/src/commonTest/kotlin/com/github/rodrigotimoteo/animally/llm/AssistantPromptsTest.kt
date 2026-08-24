@@ -47,13 +47,32 @@ class AssistantPromptsTest {
 
     @Test
     fun `given natural question when toFtsOrQuery then starred OR expression`() {
-        // Apostrophes and multi-word tokens are left as-is here; the
-        // repository's sanitizer splits them into prefix terms downstream.
+        // Possessive apostrophes are stripped in clean() ("Thunder's" ->
+        // "Thunders"): the repository sanitizer would otherwise split the
+        // token at the apostrophe into a junk prefix plus a stray "s*" term.
         // "farrier" matches the hoof-care synonym group, so its remaining
         // members are appended as extra OR-terms (deliberate recall gain).
         assertEquals(
-            "Thunder's* OR last* OR farrier* OR visit* OR shod* OR shoeing* OR shoes* OR trim*",
+            "Thunders* OR last* OR farrier* OR visit* OR shod* OR shoeing* OR shoes* OR trim*",
             AssistantPrompts.toFtsOrQuery("When was Thunder's last farrier visit?"),
+        )
+    }
+
+    @Test
+    fun `given possessive name when enriched then internal apostrophe stripped`() {
+        // Regression lock: "Thunder's" must become one clean token so the
+        // OR-retry leg matches instead of emitting junk "s*" terms.
+        assertEquals(
+            "Thunders last farrier visit",
+            AssistantPrompts.enrichQuery("What was Thunder's last farrier visit?"),
+        )
+    }
+
+    @Test
+    fun `given curly apostrophe when enriched then stripped too`() {
+        assertEquals(
+            "Bellas gestation",
+            AssistantPrompts.enrichQuery("Bella’s gestation"),
         )
     }
 

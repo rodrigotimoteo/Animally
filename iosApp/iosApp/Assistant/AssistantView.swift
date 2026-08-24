@@ -5,16 +5,36 @@ struct AssistantView: View {
     @StateObject private var viewModel = AssistantViewModel()
     @State private var draft: String = ""
     @State private var showDictation = false
+    @State private var path = NavigationPath()
     @FocusState private var inputFocused: Bool
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if isAvailable {
                     chatContent
                 } else {
                     unavailableView
                 }
+            }
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .patientDetail(let id):
+                    PatientDetailView(patientId: id)
+                case .patientEdit(let id):
+                    PatientEditView(patientId: id)
+                case .ownerDetail(let id):
+                    OwnerDetailView(ownerId: id)
+                case .ownerEdit(let id):
+                    OwnerEditView(ownerId: id)
+                }
+            }
+            .navigationDestination(for: RecordDetailKey.self) { key in
+                RecordDetailView(
+                    displayType: key.displayType,
+                    patientId: key.patientId,
+                    recordId: key.recordId
+                )
             }
             .navigationTitle("Assistant")
             .navigationBarTitleDisplayMode(.inline)
@@ -60,8 +80,20 @@ struct AssistantView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(Array(viewModel.state.messages.enumerated()), id: \.offset) { index, message in
-                        ChatBubble(message: message)
-                            .id(index)
+                        ChatBubble(
+                            message: message,
+                            onFollowUp: { suggestion in
+                                draft = suggestion
+                                inputFocused = true
+                            },
+                            onOpenSource: { source in
+                                openSource(source)
+                            },
+                            onRetry: retryQuestion(forIndex: index).map { question in
+                                { viewModel.ask(question: question) }
+                            }
+                        )
+                        .id(index)
                     }
 
                     if viewModel.state.isGenerating {
@@ -200,6 +232,35 @@ struct AssistantView: View {
         viewModel.ask(question: question)
     }
 
+    // MARK: - Source deep links
+
+    /// Routes a cited record to its detail: patient rows push the patient
+    /// page, every other record type pushes the patient page underneath and
+    /// the read-only record detail on top (same pattern as Search).
+    private func openSource(_ source: SearchResult) {
+        if source.recordType == "OWNER" {
+            path.append(Route.ownerDetail(source.patientId))
+            return
+        }
+        path.append(Route.patientDetail(source.patientId))
+        guard source.recordType != "PATIENT" else { return }
+        path.append(RecordDetailKey(
+            displayType: source.recordType,
+            patientId: source.patientId,
+            recordId: source.recordId
+        ))
+    }
+
+    /// The user question that produced the assistant turn at [index], when
+    /// retrying that turn makes sense (interrupted reply with a question
+    /// directly before it).
+    private func retryQuestion(forIndex index: Int) -> String? {
+        let messages = viewModel.state.messages
+        guard index < messages.count, messages[index].interrupted else { return nil }
+        guard index > 0, messages[index - 1].role == AssistantChatMessageRole.user else { return nil }
+        return messages[index - 1].text
+    }
+
     // MARK: - Unavailable
 
     private var unavailableView: some View {
@@ -303,24 +364,117 @@ struct AssistantView: View {
 
 private struct ChatBubble: View {
     let message: AssistantChatMessage
+    let onFollowUp: (String) -> Void
+    let onOpenSource: (SearchResult) -> Void
+    let onRetry: (() -> Void)?
 
     private var isUser: Bool {
         message.role == AssistantChatMessageRole.user
     }
 
+    private var sources: [SearchResult] {
+        (message.sources as? [SearchResult]) ?? []
+    }
+
+    private var followUps: [String] {
+        (message.followUps as? [String]) ?? []
+    }
+
     var body: some View {
         HStack(alignment: .bottom) {
             if isUser { Spacer(minLength: 48) }
-            Text(message.text)
-                .font(.subheadline)
-                .foregroundStyle(isUser ? .white : Theme.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(isUser ? Theme.forestGreen : Theme.surfaceElevated)
-                .clipShape(ChatBubbleShape(isUser: isUser))
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+                Text(message.text)
+                    .font(.subheadline)
+                    .foregroundStyle(isUser ? .white : Theme.textPrimary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(isUser ? Theme.forestGreen : Theme.surfaceElevated)
+                    .clipShape(ChatBubbleShape(isUser: isUser))
+                if message.interrupted {
+                    interruptedFooter
+                }
+                if !isUser && !sources.isEmpty {
+                    sourceChips
+                }
+                if !isUser && !followUps.isEmpty {
+                    followUpChips
+                }
+            }
             if !isUser { Spacer(minLength: 48) }
         }
         .accessibilityLabel("\(isUser ? "You" : "Assistant"): \(message.text)")
+    }
+
+    /// Interruption marker with a retry affordance; the partial text above
+    /// stays visible so nothing the model produced is lost.
+    private var interruptedFooter: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption2)
+                .foregroundStyle(Theme.amber)
+            Text("Response cut short.")
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+            if let onRetry {
+                Button(action: onRetry) {
+                    Text("Retry")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.forestGreen)
+                }
+                .accessibilityIdentifier("assistant_retry")
+            }
+        }
+    }
+
+    /// Tappable chips for the records cited in this answer.
+    private var sourceChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
+                    Button {
+                        onOpenSource(source)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: source.recordType == "PATIENT" ? "horse" : "doc.text")
+                                .font(.caption2)
+                            Text(source.patientName.isEmpty ? source.recordType : source.patientName)
+                                .font(.caption.weight(.medium))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Theme.forestGreen.opacity(0.12))
+                        .foregroundStyle(Theme.forestGreen)
+                        .clipShape(Capsule())
+                    }
+                    .accessibilityIdentifier("assistant_source_chip")
+                    .accessibilityLabel("Open \(source.recordType) for \(source.patientName)")
+                }
+            }
+        }
+    }
+
+    /// Deterministic follow-up suggestions; tapping fills the input without
+    /// sending so the vet can edit first.
+    private var followUpChips: some View {
+        HStack(spacing: 6) {
+            ForEach(followUps, id: \.self) { suggestion in
+                Button {
+                    onFollowUp(suggestion)
+                } label: {
+                    Text(suggestion)
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Theme.surfaceElevated)
+                        .foregroundStyle(Theme.textSecondary)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(Theme.textTertiary.opacity(0.35)))
+                }
+                .accessibilityIdentifier("assistant_followup_chip")
+                .accessibilityLabel("Suggest: \(suggestion)")
+            }
+        }
     }
 }
 

@@ -726,6 +726,37 @@ class RagGoldenSetTest {
             // --- Weight series ---
             Golden("512", expected = setOf(WEIGHT_512), exact = true),
             Golden("480", expected = setOf(WEIGHT_COMET), exact = true),
+            // --- Portuguese questions (language-mirroring recall baseline) ---
+            // "égua" has no indexed counterpart (the fixture's vocabulary is
+            // English), but the proper noun recovers the mare via the OR
+            // retry - expected behavior for mixed-language questions.
+            Golden("Égua Lusitano", expected = setOf(PATIENT_BELLA), exact = true),
+            // PT clinical term "cólica" folds to "colica", which does NOT
+            // prefix-match the indexed "colic"; only the patient name hits.
+            // Documents the known PT-vocabulary gap: the assistant still finds
+            // the horse, but not the colic consultation, from PT wording.
+            Golden("Thunder teve cólica aguda?", expected = setOf(PATIENT_THUNDER), exact = true),
+            // Fully-PT clinical question with no proper noun: every token
+            // misses the English-only index ("vacinas*" ≠ "vaccine*"), so the
+            // retrieval is empty and the assistant answers with its honest
+            // no-results fallback. Pinned gap - flips when PT synonyms land.
+            Golden("Quantas vacinas foram administradas?", expected = emptySet(), exact = true),
+            // --- Punctuation / hyphen robustness ---
+            // Hyphenated input tokenizes exactly like the spaced content in
+            // the record ("Steel full set"), so the AND leg matches directly.
+            Golden("Steel full-set shoeing", expected = setOf(FARRIER_SHOEING), exact = true),
+            // Possessive apostrophe is stripped by AssistantPrompts.clean()
+            // ("Thunder's" -> "Thunders"); the name token misses (record text
+            // never carries patient names), so the broad OR retry runs and
+            // "booster*" - part of the generic vaccination vocabulary indexed
+            // on EVERY vaccination row - pulls all three. Documents both the
+            // apostrophe fix and the shared-vocabulary recall breadth.
+            Golden(
+                "Thunder's tetanus booster",
+                expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE),
+                forbidden = setOf(PATIENT_THUNDER),
+                exact = true,
+            ),
             // --- Nonsense queries expect empty ---
             Golden("zzqxjv", expected = emptySet(), exact = true),
             Golden("qqq www", expected = emptySet(), exact = true),

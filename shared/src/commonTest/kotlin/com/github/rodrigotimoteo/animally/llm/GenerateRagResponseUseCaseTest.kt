@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /** Hand-rolled fake: LlmEngine is an expect class and cannot be faked from common code. */
@@ -26,6 +27,9 @@ private class FakeRagLlmEngine : RagLlmEngine {
 
     /** When set, emitted instead of the default markdown-laden chunk (used by sanitizer cases). */
     var nextChunkOverride: String? = null
+
+    /** When set, the streaming flow emits its normal chunk then fails with this error. */
+    var streamingError: Throwable? = null
 
     override fun generate(
         prompt: String,
@@ -39,6 +43,7 @@ private class FakeRagLlmEngine : RagLlmEngine {
                 nextChunkOverride
                     ?: "She is **pregnant** with a `due date` of __May 2025__. See [Vaccination #1](https://example.com/fake).",
             )
+            streamingError?.let { throw it }
         }
 }
 
@@ -71,12 +76,24 @@ class GenerateRagResponseUseCaseTest {
             snippet = snippet,
         )
 
+    private fun medicationResult() =
+        SearchResult(
+            patientId = 7L,
+            patientName = "Thunder",
+            breed = "Thoroughbred",
+            microchipId = null,
+            recordType = "MEDICATION",
+            recordId = 555L,
+            date = LocalDate(2024, 6, 1),
+            snippet = "Metronidazole 500 mg twice daily",
+        )
+
     @Test
     fun `given empty search results when invoked then fallback emitted and engine never called`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
-            val output = sut()(QUERY).toList()
+            val output = sut()(QUERY).chunks()
 
             assertEquals(listOf(FALLBACK_TEXT), output)
             assertEquals(0, engine.calls)
@@ -88,7 +105,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result(snippet = "x".repeat(10_000)))
             val tinyBudget = RagConfig(maxContextTokens = 100)
 
-            val output = sut(tinyBudget)(QUERY).toList()
+            val output = sut(tinyBudget)(QUERY).chunks()
 
             assertEquals(listOf(FALLBACK_TEXT), output)
             assertEquals(0, engine.calls)
@@ -99,7 +116,7 @@ class GenerateRagResponseUseCaseTest {
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
 
-            val output = sut()(QUERY).toList()
+            val events = sut()(QUERY).toList()
 
             assertEquals(1, engine.calls)
             assertTrue(engine.lastPrompt.orEmpty().contains("[VACCINATION #123] Thunder"), "context must carry the citable header")
@@ -107,14 +124,14 @@ class GenerateRagResponseUseCaseTest {
             assertEquals(AssistantPrompts.SYSTEM_PROMPT, engine.lastInstructions)
             // Model output passes through sanitize(): no markdown survives.
             // Citation enforcement may append a final sources snapshot, so the
-            // model text itself is the FIRST emission.
-            val text = output.first()
+            // model text itself is the FIRST chunk.
+            val text = events.filterIsInstance<RagStreamEvent.Chunk>().first().text
             assertTrue(text.contains("She is pregnant with a due date of May 2025. See Vaccination #1."))
             assertTrue("**" !in text && "`" !in text && "__" !in text && "http" !in text)
         }
 
     // --- sanitize() cases, exercised through the public flow ---
-    // The sanitized model text is the first emission; citation enforcement
+    // The sanitized model text is the first chunk; citation enforcement
     // may append a final snapshot with the retrieved source headers.
 
     @Test
@@ -123,7 +140,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "**Answer** here"
 
-            val output = sut()(QUERY).toList()
+            val output = sut()(QUERY).chunks()
 
             assertEquals("Answer here", output.first())
         }
@@ -134,7 +151,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "See [Vaccination #123](https://vet.example.com/x) for details"
 
-            val output = sut()(QUERY).toList()
+            val output = sut()(QUERY).chunks()
 
             assertEquals("See Vaccination #123 for details", output.first())
         }
@@ -145,7 +162,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "- Plain line, 2 doses, due 2025-05-01."
 
-            val output = sut()(QUERY).toList()
+            val output = sut()(QUERY).chunks()
 
             assertEquals("- Plain line, 2 doses, due 2025-05-01.", output.first())
         }
@@ -156,7 +173,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "**Pregnant** — see [Ultrasound #9](https://x.co/y) and `notes` __here__"
 
-            val output = sut()(QUERY).toList()
+            val output = sut()(QUERY).chunks()
 
             assertEquals("Pregnant — see Ultrasound #9 and notes here", output.first())
         }
@@ -166,7 +183,7 @@ class GenerateRagResponseUseCaseTest {
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
-            val output = sut()("Hi").toList()
+            val output = sut()("Hi").chunks()
 
             assertEquals(AssistantPrompts.greetingReply("Hi"), output.single())
             assertEquals(0, engine.calls)
@@ -184,7 +201,7 @@ class GenerateRagResponseUseCaseTest {
                     listOf(result()),
                 )
 
-            val output = sut()("Which patients belong to Daniela").toList()
+            val output = sut()("Which patients belong to Daniela").chunks()
 
             assertEquals(1, engine.calls)
             assertTrue(engine.lastPrompt.orEmpty().contains("[VACCINATION #123] Thunder"))
@@ -218,7 +235,7 @@ class GenerateRagResponseUseCaseTest {
             val longAnswer = "y".repeat(500)
             val history =
                 (1..5).map { turn -> RagHistoryEntry("question $turn " + "x".repeat(300), longAnswer) }
-            sut()(QUERY, history).toList()
+            sut()(QUERY, history).chunks()
 
             val prompt = engine.lastPrompt.orEmpty()
             assertTrue(!prompt.contains("question 1 "), "oldest entries beyond cap must be dropped")
@@ -232,7 +249,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
             val history = listOf(RagHistoryEntry("Tell me about Thunder", "Thunder is a 7 year old mare."))
-            val output = sut()("How old is she?", history).toList()
+            val output = sut()("How old is she?", history).chunks()
 
             assertEquals(1, engine.calls, "follow-up must reach the model with conversation context")
             assertTrue(engine.lastPrompt.orEmpty().contains("Recent conversation:"))
@@ -244,7 +261,7 @@ class GenerateRagResponseUseCaseTest {
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
-            val output = sut(strings = PtAssistantStrings)(QUERY).toList()
+            val output = sut(strings = PtAssistantStrings)(QUERY).chunks()
 
             assertEquals(PtAssistantStrings.noResultsFallback, output.single())
             assertTrue(output.single().startsWith("Não encontrei"))
@@ -255,7 +272,7 @@ class GenerateRagResponseUseCaseTest {
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
-            val output = sut()("Quantos pacientes tenho?").toList()
+            val output = sut()("Quantos pacientes tenho?").chunks()
 
             assertTrue(output.single().startsWith("Não encontrei"), "PT question must get a PT turn: ${output.single()}")
         }
@@ -277,7 +294,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "Thunder is a horse."
 
-            val output = sut()(QUERY).toList()
+            val output = sut()(QUERY).chunks()
 
             val final = output.last()
             assertTrue(final.contains("[VACCINATION #123]"), "citation must be enforced: $final")
@@ -290,9 +307,126 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "Tetanus booster recorded in [VACCINATION #123] Thunder."
 
-            val output = sut()(QUERY).toList()
+            val output = sut()(QUERY).chunks()
 
-            assertEquals(1, output.count { it.contains("[") }, "cited reply must not gain a duplicate source block")
+            val citedChunks = output.count { it.contains("[") }
+            assertEquals(1, citedChunks, "cited reply must not gain a duplicate source block")
+        }
+
+    // --- Sources event: cited records exposed for source-card chips ---
+
+    @Test
+    fun `given cited reply when completed then sources event carries the cited record`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride = "Tetanus booster recorded in [VACCINATION #123] Thunder."
+
+            val events = sut()(QUERY).toList()
+
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(listOf("VACCINATION#123"), sources.sources.map { "${it.recordType}#${it.recordId}" })
+        }
+
+    @Test
+    fun `given uncited reply when enforcement appends headers then sources event still emitted`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride = "Thunder is a horse."
+
+            val events = sut()(QUERY).toList()
+
+            // Enforcement appends "[VACCINATION #123] ..." so the citation IS
+            // present in the final text and maps back to the retrieved record.
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals("VACCINATION", sources.sources.single().recordType)
+        }
+
+    @Test
+    fun `given fabricated citation when not in context then no source emitted for it`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride = "See [GESTATION #999] Ghost for details."
+
+            val events = sut()(QUERY).toList()
+
+            assertTrue(
+                events.filterIsInstance<RagStreamEvent.Sources>().isEmpty(),
+                "citations outside the selected context must not become source cards",
+            )
+        }
+
+    // --- Dosage guardrail: deterministic refusal, no model call ---
+
+    @Test
+    fun `given dosage question and no medication records when invoked then refusal emitted and engine never called`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+
+            val output = sut()("How much vaccine should I administer?").chunks()
+
+            assertEquals(listOf(EnAssistantStrings.dosageRefusal), output)
+            assertEquals(0, engine.calls, "dosage refusal must be deterministic - no model call")
+        }
+
+    @Test
+    fun `given dosage question with medication record retrieved when invoked then normal grounded answer`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(medicationResult())
+
+            val output = sut()("How much metronidazole was given?").chunks()
+
+            assertEquals(1, engine.calls, "grounded dosage question must reach the model")
+            assertTrue(output.first().contains("pregnant")) // default fake chunk passes through sanitize
+        }
+
+    @Test
+    fun `given weight phrasing when invoked then guardrail does not fire`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+
+            val output = sut()("How much does she weigh?").chunks()
+
+            assertEquals(1, engine.calls, "weight questions are not dosage intents")
+            assertTrue(!output.first().contains("dosages"))
+        }
+
+    @Test
+    fun `given PT dosage question without medication records when invoked then PT refusal emitted`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val output = sut()("Quantos ml de detomidine administrar?").chunks()
+
+            assertEquals(PtAssistantStrings.dosageRefusal, output.single())
+            assertEquals(0, engine.calls)
+        }
+
+    // --- Stream interruption: typed marker preserving partial text ---
+
+    @Test
+    fun `given engine failure mid-stream when invoked then interrupted event carries partial text`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride = "Partial answer so far"
+            engine.streamingError = RuntimeException("engine exploded")
+
+            val events = sut()(QUERY).toList()
+
+            val interrupted = events.filterIsInstance<RagStreamEvent.Interrupted>().single()
+            assertEquals("Partial answer so far", interrupted.partialText)
+            assertEquals("engine exploded", interrupted.error)
+            assertTrue(events.none { it is RagStreamEvent.Sources }, "interrupted turn has no completed citations")
+        }
+
+    @Test
+    fun `given cancellation mid-stream when invoked then exception propagates`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.streamingError = kotlinx.coroutines.CancellationException("user cancelled")
+
+            assertFailsWith<kotlinx.coroutines.CancellationException> {
+                sut()(QUERY).toList()
+            }
         }
 
     private companion object {
@@ -302,3 +436,6 @@ class GenerateRagResponseUseCaseTest {
                 "about a horse by name, a treatment, vaccination, or a date."
     }
 }
+
+/** Chunk texts in emission order - the user-visible answer snapshots. */
+private suspend fun Flow<RagStreamEvent>.chunks(): List<String> = toList().filterIsInstance<RagStreamEvent.Chunk>().map { it.text }

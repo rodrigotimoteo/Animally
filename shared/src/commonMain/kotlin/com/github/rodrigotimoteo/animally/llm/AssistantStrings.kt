@@ -26,6 +26,33 @@ interface AssistantStrings {
 
     /** Shown when the model produced no text at all (interrupted/empty stream). */
     val blankReplyFallback: String
+
+    /**
+     * Deterministic refusal for dosage questions asked without medication
+     * records in context (no model call). Never advise doses from memory.
+     */
+    val dosageRefusal: String
+
+    /** Follow-up chip: cited Vaccination record. */
+    val followUpNextBooster: String
+
+    /** Follow-up chip: cited Gestation record. */
+    val followUpGestationDay: String
+
+    /** Follow-up chip: cited Weight record. */
+    val followUpWeightTrend: String
+
+    /** Follow-up chip: cited FarrierVisit record. */
+    val followUpNextFarrier: String
+
+    /** Default follow-up chip when nothing was cited: patients. */
+    val followUpDefaultPatients: String
+
+    /** Default follow-up chip when nothing was cited: treatments. */
+    val followUpDefaultTreatments: String
+
+    /** Default follow-up chip when nothing was cited: dates. */
+    val followUpDefaultDates: String
 }
 
 /** English (source of truth) assistant strings. */
@@ -46,6 +73,23 @@ object EnAssistantStrings : AssistantStrings {
 
     override val blankReplyFallback: String =
         "I could not find anything relevant in the records."
+
+    override val dosageRefusal: String =
+        "I can't advise on dosages. Check the medication record or consult the treating vet."
+
+    override val followUpNextBooster: String = "When is the next booster due?"
+
+    override val followUpGestationDay: String = "What day of gestation is she?"
+
+    override val followUpWeightTrend: String = "How has her weight changed?"
+
+    override val followUpNextFarrier: String = "When is the next farrier visit?"
+
+    override val followUpDefaultPatients: String = "Which patients do I have?"
+
+    override val followUpDefaultTreatments: String = "Any recent treatments?"
+
+    override val followUpDefaultDates: String = "What happened this month?"
 }
 
 /** PT-PT assistant strings, phrased naturally for veterinary use. */
@@ -67,6 +111,23 @@ object PtAssistantStrings : AssistantStrings {
 
     override val blankReplyFallback: String =
         "Não consegui encontrar nada relevante nos registos."
+
+    override val dosageRefusal: String =
+        "Não posso aconselhar sobre doses. Consulte o registo do medicamento ou o veterinário responsável."
+
+    override val followUpNextBooster: String = "Quando é a próxima vacina?"
+
+    override val followUpGestationDay: String = "Que dia de gestação tem ela?"
+
+    override val followUpWeightTrend: String = "Como evoluiu o peso dela?"
+
+    override val followUpNextFarrier: String = "Quando é a próxima ferradura?"
+
+    override val followUpDefaultPatients: String = "Quais pacientes tenho?"
+
+    override val followUpDefaultTreatments: String = "Há tratamentos recentes?"
+
+    override val followUpDefaultDates: String = "O que aconteceu este mês?"
 }
 
 /**

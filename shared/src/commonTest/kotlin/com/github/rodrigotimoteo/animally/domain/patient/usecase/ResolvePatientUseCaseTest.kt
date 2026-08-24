@@ -72,6 +72,17 @@ class ResolvePatientUseCaseTest {
     }
 
     @Test
+    fun `when internal whitespace differs then resolved`() {
+        // Transcription artifacts ("Black  Beauty" with a double space) must
+        // not break the exact-match contract.
+        every { patientRepositoryMock.getPatientList() } returns listOf(patient(1L, "Black Beauty"))
+
+        val result = sut("Black   Beauty")
+
+        assertEquals(1L, (result as PatientResolution.Resolved).patient.id)
+    }
+
+    @Test
     fun `when no match then not found`() {
         every { patientRepositoryMock.getPatientList() } returns listOf(patient(1L, "Relâmpago"))
 
