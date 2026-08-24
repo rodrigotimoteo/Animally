@@ -73,10 +73,44 @@ class RagGoldenSetTest {
         const val IMAGING_KNEE = "IMAGING#1601"
         const val ET_BELLA = "EMBRYO_TRANSFER#1701"
         const val ICSI_COMET = "ICSI#1801"
+
+        // Expanded fixture (second seeding wave): near-duplicate names for
+        // disambiguation coverage plus fresh vets so the locked Wilson/Costa/
+        // House/Mendes/Smith expectations stay untouched.
+        const val PATIENT_THUNDERSTORM = "PATIENT#4"
+        const val PATIENT_BELINHA = "PATIENT#5"
+        const val PATIENT_TROVOADA = "PATIENT#6"
+        const val PATIENT_ISABELLA = "PATIENT#7"
+        const val OWNER_ANA = "OWNER#3"
+        const val OWNER_SOFIA = "OWNER#4"
+        const val VACC_RABIES = "VACCINATION#104"
+        const val VACC_EHV = "VACCINATION#105"
+        const val VACC_EVA = "VACCINATION#106"
+        const val DEWORM_MOXIDECTIN = "DEWORMING#203"
+        const val DEWORM_PYRANTEL = "DEWORMING#204"
+        const val FARRIER_TRIM_STORM = "FARRIER_VISIT#302"
+        const val FARRIER_TRIM_TROV = "FARRIER_VISIT#303"
+        const val GESTATION_FAILED = "GESTATION#403"
+        const val US_STORM_TENDON = "ULTRASOUND#503"
+        const val WEIGHT_495 = "WEIGHT#605"
+        const val WEIGHT_410 = "WEIGHT#606"
+        const val WEIGHT_380 = "WEIGHT#607"
+        const val WEIGHT_290 = "WEIGHT#608"
+        const val CONSULT_WIRE_CUT = "CONSULTATION#703"
+        const val CONSULT_DERMATITIS = "CONSULTATION#704"
+        const val CONSULT_CHOKE = "CONSULTATION#705"
+        const val CONSULT_QUIDDING = "CONSULTATION#706"
+        const val LAMENESS_SUSPENSORY = "LAMENESS#902"
+        const val LAB_FECAL = "LAB_RESULT#1003"
+        const val LAB_ACTH = "LAB_RESULT#1004"
+        const val SUBSTANCE_XYLAZINE = "CONTROLLED_SUBSTANCE#1102"
+        const val REPRO_PREG_CHECK = "REPRODUCTION_EVENT#1203"
+        const val DENTISTRY_WAVE_MOUTH = "DENTISTRY#1402"
     }
 
-    /** Medication id is assigned by the save path; resolved during seeding. */
+    /** Medication ids are assigned by the save path; resolved during seeding. */
     private var medicationId: Long = 0L
+    private var medication2Id: Long = 0L
 
     init {
         seedFixture()
@@ -87,6 +121,10 @@ class RagGoldenSetTest {
         seedThunderRecords()
         seedBellaRecords()
         seedCometRecords()
+        seedThunderstormRecords()
+        seedBelinhaRecords()
+        seedTrovoadaRecords()
+        seedIsabellaRecords()
         seedMedicationViaSavePath()
         // Build the whole index through the real production healing pass.
         searchRepo.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
@@ -109,6 +147,26 @@ class RagGoldenSetTest {
             email = "miguel@example.com",
             phone = null,
             address = "Herdade Boa Esperanca",
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.ownerQueries.insertWithId(
+            id = 3L,
+            name = "Ana Ferreira",
+            email = "ana@example.com",
+            phone = null,
+            address = "Rua Azul 8",
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.ownerQueries.insertWithId(
+            id = 4L,
+            name = "Sofia Marques",
+            email = "sofia@example.com",
+            phone = "+351916000111",
+            address = "Monte Verde",
             isActive = true,
             createdAt = now,
             updatedAt = now,
@@ -169,6 +227,94 @@ class RagGoldenSetTest {
             photoUri = null,
             notes = null,
             ownerId = 2L,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+            cogginsTestDate = null,
+            cogginsResult = null,
+            cogginsExpiryDate = null,
+        )
+        // Near-duplicate of "Thunder" for prefix-disambiguation coverage.
+        database.patientQueries.insertWithId(
+            id = 4L,
+            name = "Thunderstorm",
+            species = "Equine",
+            breed = "Standardbred",
+            dateOfBirth = LocalDate(2018, 8, 1),
+            gender = "Mare",
+            microchipId = "MC777111",
+            ueln = null,
+            registrationNumber = null,
+            stableLocation = "Barn A",
+            photoUri = null,
+            notes = null,
+            ownerId = 2L,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+            cogginsTestDate = null,
+            cogginsResult = null,
+            cogginsExpiryDate = null,
+        )
+        database.patientQueries.insertWithId(
+            id = 5L,
+            name = "Belinha",
+            species = "Equine",
+            breed = "Arabian",
+            dateOfBirth = LocalDate(2021, 5, 20),
+            gender = "Mare",
+            microchipId = "MC222333",
+            ueln = null,
+            registrationNumber = null,
+            stableLocation = "Quinta do Sol",
+            photoUri = null,
+            notes = null,
+            ownerId = 1L,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+            cogginsTestDate = null,
+            cogginsResult = null,
+            cogginsExpiryDate = null,
+        )
+        database.patientQueries.insertWithId(
+            id = 6L,
+            name = "Trovoada",
+            species = "Equine",
+            breed = "Sorraia",
+            dateOfBirth = LocalDate(2016, 9, 30),
+            gender = "Gelding",
+            microchipId = "MC444555",
+            ueln = null,
+            registrationNumber = null,
+            stableLocation = "Herdade Nova",
+            photoUri = null,
+            notes = null,
+            ownerId = 3L,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+            cogginsTestDate = null,
+            cogginsResult = null,
+            cogginsExpiryDate = null,
+        )
+        // Contains "Bella" as a substring but NOT as a token prefix - FTS
+        // prefix matching is anchored at the token start, so "bella*" must
+        // not reach this row.
+        database.patientQueries.insertWithId(
+            id = 7L,
+            name = "Isabella",
+            species = "Equine",
+            breed = "Welsh Pony",
+            dateOfBirth = LocalDate(2019, 11, 10),
+            gender = "Mare",
+            microchipId = "MC888999",
+            ueln = null,
+            registrationNumber = null,
+            stableLocation = "Barn C",
+            photoUri = null,
+            notes = null,
+            ownerId = 4L,
             isActive = true,
             createdAt = now,
             updatedAt = now,
@@ -540,6 +686,298 @@ class RagGoldenSetTest {
         )
     }
 
+    private fun seedThunderstormRecords() {
+        database.vaccinationQueries.insertWithId(
+            id = 104L,
+            patientId = 4L,
+            vaccineName = "Rabies",
+            dateAdministered = LocalDate(2026, 3, 3),
+            nextDueDate = LocalDate(2027, 3, 3),
+            vetName = "Dr. Nunes",
+            batchNumber = "RAB-2026-010",
+            site = "Left hip",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.dewormingQueries.insertWithId(
+            id = 203L,
+            patientId = 4L,
+            product = "Moxidectin",
+            dateAdministered = LocalDate(2026, 4, 10),
+            nextDueDate = LocalDate(2026, 10, 10),
+            dose = "400 ug/kg",
+            vetName = "Dr. Nunes",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        seedWeight(605L, patientId = 4L, weightKg = 495.0, date = LocalDate(2026, 4, 10))
+        database.farrierVisitQueries.insertWithId(
+            id = 302L,
+            patientId = 4L,
+            date = LocalDate(2026, 4, 12),
+            trimOrShoe = "Trim",
+            shoeType = "Aluminum fronts",
+            findings = "Hoof wall crack",
+            nextDueDate = LocalDate(2026, 7, 12),
+            farrier = "Rui Alves",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.lamenessQueries.insertWithId(
+            id = 902L,
+            patientId = 4L,
+            date = LocalDate(2026, 5, 15),
+            gradeAAEP = 2,
+            limbLocation = "Left hindlimb",
+            flexionTest = "Negative",
+            diagnosis = "Suspensory desmitis",
+            treatment = "Shockwave therapy",
+            vetName = "Dr. Pinto",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.consultationQueries.insertWithId(
+            id = 703L,
+            patientId = 4L,
+            date = LocalDate(2026, 5, 2),
+            subjective = "Wire cut on flank",
+            objective = "Superficial laceration",
+            assessment = "Skin wound",
+            plan = "Clean and suture",
+            vetName = "Dr. Nunes",
+            nextVisitDate = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.dentistryQueries.insertWithId(
+            id = 1402L,
+            patientId = 4L,
+            date = LocalDate(2026, 3, 15),
+            findings = "Wave mouth",
+            treatment = "Floating",
+            nextDueDate = LocalDate(2026, 9, 15),
+            vetName = "Dr. Almeida",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.ultrasoundQueries.insertWithId(
+            id = 503L,
+            patientId = 4L,
+            date = LocalDate(2026, 6, 20),
+            ovaryStatus = null,
+            uterineStatus = null,
+            follicleSizeMm = null,
+            leftOvaryStatus = null,
+            rightOvaryStatus = null,
+            leftFollicleSizeMm = null,
+            rightFollicleSizeMm = null,
+            uterineEdema = null,
+            uterineLiquid = null,
+            uterineLiquidDescription = null,
+            uterusDescription = null,
+            findings = "SDFT tendinitis left forelimb",
+            imageUris = null,
+            vetName = "Dr. Pinto",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        // Resolved (Failed) gestation: deliberately gets NO pregnancy
+        // vocabulary, mirroring the production resolved-status rule.
+        database.gestationQueries.insertWithId(
+            id = 403L,
+            patientId = 4L,
+            breedingDate = LocalDate(2026, 5, 1),
+            expectedDueDate = LocalDate(2026, 4, 5),
+            gestationDays = 30,
+            status = "Failed",
+            fetalCount = 0,
+            lastCheckDate = LocalDate(2026, 5, 31),
+            notes = "Early loss day 30",
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.substanceQueries.insertWithId(
+            id = 1102L,
+            patientId = 4L,
+            drugName = "Xylazine",
+            dose = "20",
+            unit = "mg",
+            route = "IV",
+            administeredBy = "Dr. Pinto",
+            witness = "Nurse Alves",
+            date = LocalDate(2026, 5, 2),
+            reason = "Standing sedation",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+    }
+
+    private fun seedBelinhaRecords() {
+        database.vaccinationQueries.insertWithId(
+            id = 105L,
+            patientId = 5L,
+            vaccineName = "Equine Herpes Virus",
+            dateAdministered = LocalDate(2026, 2, 14),
+            nextDueDate = LocalDate(2027, 2, 14),
+            vetName = "Dr. Almeida",
+            batchNumber = "EHV-2026-003",
+            site = "Neck",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.dewormingQueries.insertWithId(
+            id = 204L,
+            patientId = 5L,
+            product = "Pyrantel",
+            dateAdministered = LocalDate(2026, 6, 25),
+            nextDueDate = LocalDate(2026, 12, 25),
+            dose = "10 mg/kg",
+            vetName = "Dr. Nunes",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        seedWeight(606L, patientId = 5L, weightKg = 410.0, date = LocalDate(2026, 6, 25))
+        database.consultationQueries.insertWithId(
+            id = 704L,
+            patientId = 5L,
+            date = LocalDate(2026, 7, 5),
+            subjective = "Itchy skin and hives",
+            objective = "Urticarial bumps neck",
+            assessment = "Allergic dermatitis",
+            plan = "Antihistamine course",
+            vetName = "Dr. Almeida",
+            nextVisitDate = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.labResultQueries.insertWithId(
+            id = 1003L,
+            patientId = 5L,
+            testType = "Fecal Egg Count",
+            date = LocalDate(2026, 6, 25),
+            results = "Strongyle eggs 250 epg",
+            normalRange = "0-200 epg",
+            vetName = "Dr. Nunes",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.reproductionQueries.insertWithId(
+            id = 1203L,
+            patientId = 5L,
+            eventType = "Pregnancy Check",
+            date = LocalDate(2026, 7, 15),
+            details = "Single viable fetus 60 days",
+            initialExamFindings = null,
+            stallionName = null,
+            breedingType = null,
+            vetName = "Dr. Pinto",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+    }
+
+    private fun seedTrovoadaRecords() {
+        database.vaccinationQueries.insertWithId(
+            id = 106L,
+            patientId = 6L,
+            vaccineName = "Equine Viral Arteritis",
+            dateAdministered = LocalDate(2026, 5, 20),
+            nextDueDate = LocalDate(2027, 5, 20),
+            vetName = "Dr. Pinto",
+            batchNumber = "EVA-2026-001",
+            site = "Neck",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.consultationQueries.insertWithId(
+            id = 705L,
+            patientId = 6L,
+            date = LocalDate(2026, 4, 18),
+            subjective = "Choke on grain overnight",
+            objective = "Salivation, neck extended",
+            assessment = "Esophageal obstruction",
+            plan = "Smooth muscle relaxant",
+            vetName = "Dr. Nunes",
+            nextVisitDate = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.farrierVisitQueries.insertWithId(
+            id = 303L,
+            patientId = 6L,
+            date = LocalDate(2026, 6, 30),
+            trimOrShoe = "Trim",
+            shoeType = "Barefoot",
+            findings = "Hoof rings",
+            nextDueDate = LocalDate(2026, 9, 30),
+            farrier = "Rui Alves",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        seedWeight(607L, patientId = 6L, weightKg = 380.0, date = LocalDate(2026, 4, 18))
+    }
+
+    private fun seedIsabellaRecords() {
+        database.consultationQueries.insertWithId(
+            id = 706L,
+            patientId = 7L,
+            date = LocalDate(2026, 6, 12),
+            subjective = "Dropping food while eating (quidding)",
+            objective = "Sharp points molars, low body condition score",
+            assessment = "Dental discomfort",
+            plan = "Schedule dental exam",
+            vetName = "Dr. Almeida",
+            nextVisitDate = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        database.labResultQueries.insertWithId(
+            id = 1004L,
+            patientId = 7L,
+            testType = "ACTH",
+            date = LocalDate(2026, 6, 12),
+            results = "Elevated",
+            normalRange = "Seasonal range",
+            vetName = "Dr. Pinto",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        seedWeight(608L, patientId = 7L, weightKg = 290.0, date = LocalDate(2026, 6, 12))
+    }
+
     private fun seedWeight(
         id: Long,
         patientId: Long,
@@ -582,6 +1020,23 @@ class RagGoldenSetTest {
                     updatedAt = now,
                 ),
             )
+        medication2Id =
+            saveMedication(
+                Medication(
+                    id = 0L,
+                    patientId = 3L,
+                    name = "Prednisolone",
+                    dosage = "100 mg once daily",
+                    route = "Oral",
+                    frequency = "Once daily",
+                    startDate = LocalDate(2026, 7, 10),
+                    endDate = null,
+                    prescribedBy = "Dr. Pinto",
+                    notes = null,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
     }
 
     // ------------------------------------------------------------------
@@ -606,15 +1061,18 @@ class RagGoldenSetTest {
         // through the OR retry (locked as-is below).
         return listOf(
             // --- Exact name hits ---
-            Golden("Thunder", expected = setOf(PATIENT_THUNDER), exact = true),
+            // "thunder*" prefix-matches BOTH Thunder and Thunderstorm patient
+            // rows (near-duplicate added deliberately); FTS has no exact-term
+            // mode through this path, so bare short names are inherently broad.
+            Golden("Thunder", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM), exact = true),
             // "tell"/"me"/"about" are filler words, so the OR retry reduces to
-            // "thunder*" and hits only the patient row - the conversational
-            // lead-in no longer leaks every "me..." record (Mendes,
-            // Metronidazole). Previously locked WITH that leak; tightened when
-            // the filler list gained the pronouns.
+            // "thunder*" and hits only the two thunder* patient rows - the
+            // conversational lead-in no longer leaks every "me..." record
+            // (Mendes, Metronidazole). Previously locked WITH that leak;
+            // tightened when the filler list gained the pronouns.
             Golden(
                 "Tell me about Thunder",
-                expected = setOf(PATIENT_THUNDER),
+                expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM),
                 exact = true,
             ),
             // --- Breed queries ---
@@ -654,7 +1112,14 @@ class RagGoldenSetTest {
             ),
             // --- Date-window questions (locked in dedicated tests below) ---
             // --- Synonym-prone phrasings ---
-            Golden("Is Thunder in foal?", expected = setOf(PATIENT_THUNDER, GESTATION_ACTIVE), exact = true),
+            Golden(
+                "Is Thunder in foal?",
+                // AND leg zeroes out (patient names never appear in record
+                // text); the OR retry unions thunder* patient rows with the
+                // foal/gestation vocabulary carried by the ACTIVE gestation.
+                expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM, GESTATION_ACTIVE),
+                exact = true,
+            ),
             Golden("pregnant", expected = setOf(GESTATION_ACTIVE), exact = true),
             Golden("gestation", expected = setOf(GESTATION_ACTIVE), exact = true),
             Golden("Completed", expected = setOf(GESTATION_COMPLETED), exact = true),
@@ -667,14 +1132,27 @@ class RagGoldenSetTest {
             //   zeroing out on raw field values (vaccine name/batch/site).
             Golden(
                 "vaccination",
-                expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE),
+                // Every vaccination row carries the injected vocabulary, so
+                // this grows with the fixture by design (6 rows seeded).
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                    ),
                 exact = true,
             ),
-            // FLIPPED: "shod" shares no token with the indexed farrier text
-            // ("Shoeing", "Steel full set"); the hoof-care synonym group
-            // (shod/shoeing/shoes/trim/farrier) bridges it through the OR
-            // retry to the shoeing visit.
-            Golden("shod", expected = setOf(FARRIER_SHOEING), exact = true),
+            // FLIPPED: "shod" shares no token with the indexed farrier text;
+            // the hoof-care synonym group (shod/shoeing/shoes/trim/farrier)
+            // bridges it through the OR retry to every farrier visit.
+            Golden(
+                "shod",
+                expected = setOf(FARRIER_SHOEING, FARRIER_TRIM_STORM, FARRIER_TRIM_TROV),
+                exact = true,
+            ),
             // FLIPPED: embryo-transfer rows now index "embryo transfer flush
             // donor recipient" vocabulary, so the natural phrase retrieves the
             // ET record whose raw fields (a bare count and recipient mare
@@ -706,7 +1184,8 @@ class RagGoldenSetTest {
             ),
             Golden(
                 "Thunder navicular",
-                expected = setOf(PATIENT_THUNDER, LAMENESS_NAVICULAR),
+                // OR retry: thunder* now hits both thunder* patient rows.
+                expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM, LAMENESS_NAVICULAR),
                 forbidden = setOf(PATIENT_BELLA, PATIENT_COMET),
                 exact = true,
             ),
@@ -732,10 +1211,15 @@ class RagGoldenSetTest {
             // retry - expected behavior for mixed-language questions.
             Golden("Égua Lusitano", expected = setOf(PATIENT_BELLA), exact = true),
             // PT clinical term "cólica" folds to "colica", which does NOT
-            // prefix-match the indexed "colic"; only the patient name hits.
-            // Documents the known PT-vocabulary gap: the assistant still finds
-            // the horse, but not the colic consultation, from PT wording.
-            Golden("Thunder teve cólica aguda?", expected = setOf(PATIENT_THUNDER), exact = true),
+            // prefix-match the indexed "colic"; only the thunder* patient
+            // rows hit (via the OR retry). Documents the known PT-vocabulary
+            // gap: the assistant still finds the horses, but not the colic
+            // consultation, from PT wording.
+            Golden(
+                "Thunder teve cólica aguda?",
+                expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM),
+                exact = true,
+            ),
             // Fully-PT clinical question with no proper noun: every token
             // misses the English-only index ("vacinas*" ≠ "vaccine*"), so the
             // retrieval is empty and the assistant answers with its honest
@@ -748,15 +1232,426 @@ class RagGoldenSetTest {
             // Possessive apostrophe is stripped by AssistantPrompts.clean()
             // ("Thunder's" -> "Thunders"); the name token misses (record text
             // never carries patient names), so the broad OR retry runs and
-            // "booster*" - part of the generic vaccination vocabulary indexed
-            // on EVERY vaccination row - pulls all three. Documents both the
-            // apostrophe fix and the shared-vocabulary recall breadth.
+            // "booster*"/"vaccine*"/"shot*" - part of the generic vaccination
+            // vocabulary indexed on EVERY vaccination row - pulls all six.
+            // Documents both the apostrophe fix and the shared-vocabulary
+            // recall breadth (grows with the fixture by design).
             Golden(
                 "Thunder's tetanus booster",
-                expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE),
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                        // "Thunders*" prefix-matches the "thunderstorm" token.
+                        PATIENT_THUNDERSTORM,
+                    ),
                 forbidden = setOf(PATIENT_THUNDER),
                 exact = true,
             ),
+            // =============================================================
+            // Expanded baseline (wave 2): type-name vocabulary, record-type
+            // breadth, clinical phrasings, dates, gaps, disambiguation,
+            // PT, typos, analysis intent, punctuation, near-duplicates.
+            // =============================================================
+            // --- Type-name vocabulary: record-type words are NOT indexed ---
+            // Except where vocabulary is injected (vaccination/embryo
+            // transfer/pregnancy), the type label itself never appears in
+            // searchableText - rows carry raw field values only.
+            Golden("lameness", expected = emptySet(), exact = true),
+            Golden("ultrasound", expected = emptySet(), exact = true),
+            Golden("dentistry", expected = emptySet(), exact = true),
+            Golden("deworming", expected = emptySet(), exact = true),
+            Golden("imaging", expected = emptySet(), exact = true),
+            // Medication save path indexes name+dosage only.
+            Golden("medication", expected = emptySet(), exact = true),
+            // Contrast: "surgery" DOES hit - the word occurs in the colic
+            // consultation's plan text ("Referral for colic surgery").
+            Golden("surgery", expected = setOf(CONSULT_COLIC), exact = true),
+            Golden("controlled substance", expected = emptySet(), exact = true),
+            // No reminder rows exist in the search index at all.
+            Golden("custom reminders", expected = emptySet(), exact = true),
+            // Gender is stored on Patient but never indexed.
+            Golden("gelding", expected = emptySet(), exact = true),
+            // Only microchip VALUES (MC...) are indexed, not the field label.
+            Golden("microchip", expected = emptySet(), exact = true),
+            Golden("ueln", expected = emptySet(), exact = true),
+            // --- Record-type breadth: lameness ---
+            Golden("flexion test positive", expected = setOf(LAMENESS_NAVICULAR), exact = true),
+            // "flexion" is a field label (values are "Positive"/"Negative"), so the
+            // AND leg zeroes; negative* unions the lameness row with the
+            // Coggins lab whose result is also "Negative".
+            Golden("flexion negative", expected = setOf(LAMENESS_SUSPENSORY, LAB_COGGINS), exact = true),
+            Golden("suspensory desmitis", expected = setOf(LAMENESS_SUSPENSORY), exact = true),
+            Golden("shockwave therapy", expected = setOf(LAMENESS_SUSPENSORY), exact = true),
+            // "grade" is a field label, never indexed; only the bare AAEP
+            // digit is. The OR retry unions every row holding a 3* token -
+            // including weight "380" and the phone numbers starting +351.
+            Golden(
+                "grade 3",
+                expected =
+                    setOf(
+                        LAMENESS_NAVICULAR,
+                        US_THUNDER_FOLLICLE,
+                        GESTATION_FAILED,
+                        WEIGHT_380,
+                        OWNER_DANIELA,
+                        // Sofia's +351... phone token starts with "3"; Ana has no digit.
+                        OWNER_SOFIA,
+                    ),
+                exact = true,
+            ),
+            Golden("right forelimb", expected = setOf(LAMENESS_NAVICULAR), exact = true),
+            Golden("left hindlimb", expected = setOf(LAMENESS_SUSPENSORY), exact = true),
+            // Cross-type token: "forelimb" appears in the lameness row AND in
+            // the tendon ultrasound findings.
+            Golden("forelimb", expected = setOf(LAMENESS_NAVICULAR, US_STORM_TENDON), exact = true),
+            Golden("bute", expected = setOf(LAMENESS_NAVICULAR), exact = true),
+            // --- Record-type breadth: surgery / imaging ---
+            Golden("chip fragment", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
+            Golden("successful", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
+            Golden("general anesthesia", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
+            Golden("stall rest", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
+            Golden("6 weeks", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
+            Golden("phenylbutazone", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
+            // "recovery" exists only as a FIELD NAME (recoveryNotes); its
+            // indexed VALUE is "Stall rest 6 weeks". Field labels are never
+            // indexed, so the word cannot match.
+            Golden("arthroscopy recovery", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
+            // Same field-label gap for "surgeon" (value "Dr. Mendes").
+            Golden("surgeon", expected = emptySet(), exact = true),
+            // Null column -> its label and value are both absent.
+            Golden("complications", expected = emptySet(), exact = true),
+            // OR retry unions rows across types sharing one token each.
+            Golden("stifle surgery", expected = setOf(SURGERY_ARTHROSCOPY, CONSULT_COLIC), exact = true),
+            Golden("radiograph knee", expected = setOf(IMAGING_KNEE), exact = true),
+            // --- Record-type breadth: controlled substances ---
+            Golden("xylazine", expected = setOf(SUBSTANCE_XYLAZINE), exact = true),
+            Golden("detomidine", expected = setOf(SUBSTANCE_DETOMIDINE), exact = true),
+            Golden("sedation", expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE), exact = true),
+            // Leg 1 hits directly (both tokens in the Xylazine reason) and a
+            // non-empty first leg SUPPRESSES the OR retry - Detomidine's
+            // "Colic sedation" lacks "standing" and never joins.
+            Golden("standing sedation", expected = setOf(SUBSTANCE_XYLAZINE), exact = true),
+            // "witness" is the FIELD label; its indexed VALUES are "Nurse
+            // Silva"/"Nurse Alves" - the word itself appears nowhere.
+            Golden("witness", expected = emptySet(), exact = true),
+            Golden("nurse", expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE), exact = true),
+            Golden("Nurse Silva", expected = setOf(SUBSTANCE_DETOMIDINE), exact = true),
+            // Short-prefix blowup: "iv*" matches route "IV" AND "Ivermectin".
+            Golden(
+                "IV",
+                expected = setOf(DEWORM_IVERMECTIN, SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE),
+                exact = true,
+            ),
+            // --- Record-type breadth: labs ---
+            Golden("ELISA", expected = setOf(LAB_COGGINS), exact = true),
+            Golden("fecal egg count", expected = setOf(LAB_FECAL), exact = true),
+            Golden("strongyle", expected = setOf(LAB_FECAL), exact = true),
+            Golden("ACTH", expected = setOf(LAB_ACTH), exact = true),
+            // --- Record-type breadth: dentistry ---
+            Golden("enamel points", expected = setOf(DENTISTRY_FLOATING), exact = true),
+            Golden("wave mouth", expected = setOf(DENTISTRY_WAVE_MOUTH), exact = true),
+            // "teeth" never appears (indexed value is "Floating"); the OR
+            // retry still recovers both floating rows via float*.
+            Golden(
+                "floating teeth",
+                expected = setOf(DENTISTRY_FLOATING, DENTISTRY_WAVE_MOUTH),
+                exact = true,
+            ),
+            Golden("quidding", expected = setOf(CONSULT_QUIDDING), exact = true),
+            Golden("molars", expected = setOf(CONSULT_QUIDDING), exact = true),
+            // --- Record-type breadth: farrier ---
+            // Single-token AND hit SUPPRESSES the synonym retry: trim* alone
+            // matches the two Trim rows directly, so no expansion runs.
+            Golden("trim", expected = setOf(FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
+            Golden("farrier", expected = setOf(FARRIER_SHOEING, FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
+            Golden("Rui Alves", expected = setOf(FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
+            Golden("aluminum", expected = setOf(FARRIER_TRIM_STORM), exact = true),
+            Golden("barefoot", expected = setOf(FARRIER_TRIM_TROV), exact = true),
+            Golden("hoof rings", expected = setOf(FARRIER_TRIM_TROV), exact = true),
+            Golden("hoof", expected = setOf(FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
+            // "abscess" is absent from every seeded row (true vocabulary
+            // gap in the fixture, not an indexing bug); hoof* carries the
+            // farrier rows through the OR retry.
+            Golden(
+                "hoof abscess",
+                expected = setOf(FARRIER_TRIM_STORM, FARRIER_TRIM_TROV),
+                exact = true,
+            ),
+            // "shoes" misses leg 1; the synonym group fires in the OR leg.
+            Golden(
+                "shoes",
+                expected = setOf(FARRIER_SHOEING, FARRIER_TRIM_STORM, FARRIER_TRIM_TROV),
+                exact = true,
+            ),
+            // --- Record-type breadth: deworming / medication ---
+            Golden("moxidectin", expected = setOf(DEWORM_MOXIDECTIN), exact = true),
+            Golden("pyrantel", expected = setOf(DEWORM_PYRANTEL), exact = true),
+            Golden("prednisolone", expected = setOf("MEDICATION#$medication2Id"), exact = true),
+            Golden("ug/kg", expected = setOf(DEWORM_IVERMECTIN, DEWORM_MOXIDECTIN), exact = true),
+            Golden("mg/kg", expected = setOf(DEWORM_FENBENDAZOLE, DEWORM_PYRANTEL), exact = true),
+            // "dose" is a field label - only dose VALUES are indexed.
+            Golden("Ivermectin dose", expected = setOf(DEWORM_IVERMECTIN), exact = true),
+            // --- Record-type breadth: vaccinations by name/batch/site ---
+            Golden("Influenza", expected = setOf(VACC_INFLUENZA), exact = true),
+            Golden("rabies", expected = setOf(VACC_RABIES), exact = true),
+            Golden("herpes", expected = setOf(VACC_EHV), exact = true),
+            Golden("EHV", expected = setOf(VACC_EHV), exact = true),
+            Golden("arteritis", expected = setOf(VACC_EVA), exact = true),
+            Golden("EVA", expected = setOf(VACC_EVA), exact = true),
+            Golden("WNV", expected = setOf(VACC_WEST_NILE), exact = true),
+            // "flu*" also prefix-matches "flush" from the embryo-transfer vocabulary.
+            Golden("FLU", expected = setOf(VACC_INFLUENZA, ET_BELLA), exact = true),
+            Golden("batch RAB-2026-010", expected = setOf(VACC_RABIES), exact = true),
+            Golden("neck", expected = setOf(VACC_INFLUENZA, VACC_WEST_NILE, VACC_EHV, VACC_EVA, CONSULT_DERMATITIS, CONSULT_CHOKE), exact = true),
+            // Plural "vaccinations" neither prefix-matches the singular
+            // vocabulary NOR triggers the synonym group (token equality);
+            // neck* does the work through the OR retry (incl. the choke
+            // consult's "neck extended").
+            Golden(
+                "Neck site vaccinations",
+                expected = setOf(VACC_INFLUENZA, VACC_WEST_NILE, VACC_EHV, VACC_EVA, CONSULT_DERMATITIS, CONSULT_CHOKE),
+                exact = true,
+            ),
+            Golden("booster", expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA), exact = true),
+            Golden("shot", expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA), exact = true),
+            Golden("vaccine", expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA), exact = true),
+            // --- Multi-word clinical phrasings ---
+            Golden("West Nile booster", expected = setOf(VACC_WEST_NILE), exact = true),
+            Golden("tetanus shot", expected = setOf(VACC_TETANUS), exact = true),
+            Golden("flu vaccine", expected = setOf(VACC_INFLUENZA), exact = true),
+            Golden("dry cough", expected = setOf(CONSULT_COUGH), exact = true),
+            Golden("RAO cough", expected = setOf(CONSULT_COUGH), exact = true),
+            Golden("navicular", expected = setOf(LAMENESS_NAVICULAR), exact = true),
+            Golden("colic", expected = setOf(CONSULT_COLIC, SUBSTANCE_DETOMIDINE), exact = true),
+            // Reverse synonym direction: "abdominal pain" triggers the colic
+            // group in the OR leg and reaches the English-indexed records.
+            Golden("abdominal pain", expected = setOf(CONSULT_COLIC, SUBSTANCE_DETOMIDINE), exact = true),
+            // Half of a multi-word synonym member does NOT trigger the group.
+            Golden("pain", expected = emptySet(), exact = true),
+            Golden("colic surgery recovery", expected = setOf(CONSULT_COLIC, SUBSTANCE_DETOMIDINE), exact = true),
+            Golden("pregnancy check result", expected = setOf(REPRO_PREG_CHECK), exact = true),
+            Golden("skin wound", expected = setOf(CONSULT_WIRE_CUT), exact = true),
+            Golden("wire cut", expected = setOf(CONSULT_WIRE_CUT), exact = true),
+            Golden("laceration", expected = setOf(CONSULT_WIRE_CUT), exact = true),
+            Golden("suture", expected = setOf(CONSULT_WIRE_CUT), exact = true),
+            Golden("choke", expected = setOf(CONSULT_CHOKE), exact = true),
+            Golden("esophageal obstruction", expected = setOf(CONSULT_CHOKE), exact = true),
+            Golden("dermatitis", expected = setOf(CONSULT_DERMATITIS), exact = true),
+            Golden("hives", expected = setOf(CONSULT_DERMATITIS), exact = true),
+            Golden("antihistamine", expected = setOf(CONSULT_DERMATITIS), exact = true),
+            Golden("poor appetite", expected = emptySet(), exact = true),
+            Golden("body condition", expected = setOf(CONSULT_QUIDDING), exact = true),
+            // Morphology gap: "tendon*" cannot reach "tendinitis" (different
+            // stem characters); the exact term is required.
+            Golden("tendon injury", expected = emptySet(), exact = true),
+            Golden("tendinitis", expected = setOf(US_STORM_TENDON), exact = true),
+            Golden("SDFT", expected = setOf(US_STORM_TENDON), exact = true),
+            Golden("fetus", expected = setOf(REPRO_PREG_CHECK), exact = true),
+            Golden("viable", expected = setOf(REPRO_PREG_CHECK), exact = true),
+            // --- Reproduction phrasings ---
+            Golden("Pregnancy Check", expected = setOf(REPRO_PREG_CHECK), exact = true),
+            // "mare*" prefix-matches "Recipient mares" on the ET row.
+            Golden("pregnant mare", expected = setOf(GESTATION_ACTIVE, ET_BELLA), exact = true),
+            // "in" is filler, so this reduces to foal* which hits the active
+            // gestation's injected vocabulary directly on leg 1.
+            Golden("in foal", expected = setOf(GESTATION_ACTIVE), exact = true),
+            Golden("foaling", expected = setOf(GESTATION_ACTIVE), exact = true),
+            // "bred" zeroes leg 1; the pregnancy synonym group fires in the
+            // OR leg and recovers the active gestation.
+            Golden("bred", expected = setOf(GESTATION_ACTIVE), exact = true),
+            Golden("failed", expected = setOf(GESTATION_FAILED), exact = true),
+            Golden("active", expected = setOf(GESTATION_ACTIVE), exact = true),
+            Golden("Live filly born", expected = setOf(GESTATION_COMPLETED), exact = true),
+            Golden("Eclipse stallion", expected = setOf(GESTATION_ACTIVE), exact = true),
+            Golden("fresh cooled semen", expected = setOf(REPRO_BREEDING), exact = true),
+            Golden("AI breeding", expected = setOf(REPRO_BREEDING), exact = true),
+            Golden("expected foaling date", expected = setOf(GESTATION_ACTIVE), exact = true),
+            Golden("Recipient mares", expected = setOf(ET_BELLA), exact = true),
+            Golden("flush", expected = setOf(ET_BELLA), exact = true),
+            Golden("ovulation induction", expected = setOf(REPRO_MEDICATION_DESLORELIN), exact = true),
+            // Numeric tokenization: "1.8 mg" splits into tokens 1 and 8, so
+            // "8*" also reaches the Deslorelin dosage alongside the ICSI row.
+            // ...and Ana's street address "Rua Azul 8".
+            Golden("8 follicles", expected = setOf(ICSI_COMET, REPRO_MEDICATION_DESLORELIN, OWNER_ANA), exact = true),
+            Golden("oocytes", expected = setOf(ICSI_COMET), exact = true),
+            // --- Date-window questions (no temporal NLP in retrieval) ---
+            // The harness passes from/to = null; time words are just tokens.
+            // "colic*" carries the February records through the OR retry;
+            // "this"/"year" match nothing.
+            Golden("colic this year", expected = setOf(CONSULT_COLIC, SUBSTANCE_DETOMIDINE), exact = true),
+            Golden("rabies last spring", expected = setOf(VACC_RABIES), exact = true),
+            // Month names are NEVER indexed (dates are stored as epoch days,
+            // not text) and the plural blocks the vaccination vocabulary -
+            // fully empty retrieval.
+            Golden("vaccines in January", expected = emptySet(), exact = true),
+            Golden("January", expected = emptySet(), exact = true),
+            // Years surface only through batch-number text.
+            Golden(
+                "2026",
+                expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA),
+                exact = true,
+            ),
+            // --- Negation / true-absence gaps ---
+            // Comet has no ultrasound row AND "ultrasound" is unindexed;
+            // comet* anchors the patient row so the assistant can say so.
+            Golden("ultrasound for Comet", expected = setOf(PATIENT_COMET), exact = true),
+            // True absence: both colic records belong to Thunder; the OR
+            // retry leaks them next to Comet's patient row (patient scoping
+            // is NOT applied inside the fallback leg).
+            Golden(
+                "Colic for Comet",
+                expected = setOf(PATIENT_COMET, CONSULT_COLIC, SUBSTANCE_DETOMIDINE),
+                exact = true,
+            ),
+            // Cross-patient leak via OR retry: coggins* (Bella's lab) unions
+            // with thunder* patient rows.
+            Golden(
+                "Coggins for Thunder",
+                expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM, LAB_COGGINS),
+                exact = true,
+            ),
+            // Comet is a gelding, but gender is unindexed and the word
+            // "castration" appears nowhere - honest empty retrieval.
+            Golden("castration", expected = emptySet(), exact = true),
+            Golden("insurance", expected = emptySet(), exact = true),
+            Golden("passport", expected = emptySet(), exact = true),
+            // --- Cross-patient / cross-record disambiguation ---
+            Golden("Fenbendazole Bella", expected = setOf(PATIENT_BELLA, DEWORM_FENBENDAZOLE), exact = true),
+            Golden("Moxidectin Pyrantel", expected = setOf(DEWORM_MOXIDECTIN, DEWORM_PYRANTEL), exact = true),
+            // Stable location anchors patient rows directly.
+            Golden("Barn A horses", expected = setOf(PATIENT_THUNDER, PATIENT_COMET, PATIENT_THUNDERSTORM, PATIENT_ISABELLA), exact = true),
+            // The stable letter suffix does NOT discriminate: leg 1 zeroes
+            // (single-letter "b*"/"c*" prefixes match nothing here) and the
+            // OR retry unions every barn* patient row.
+            Golden(
+                "Barn B",
+                expected = setOf(PATIENT_THUNDER, PATIENT_COMET, PATIENT_THUNDERSTORM, PATIENT_ISABELLA),
+                exact = true,
+            ),
+            Golden("Barn C", expected = setOf(PATIENT_COMET, PATIENT_ISABELLA), exact = true),
+            Golden("Quinta do Vale", expected = setOf(PATIENT_BELLA), exact = true),
+            Golden("Quinta do Sol", expected = setOf(PATIENT_BELINHA), exact = true),
+            Golden("Herdade Nova", expected = setOf(PATIENT_TROVOADA), exact = true),
+            Golden("Herdade Boa Esperanca", expected = setOf(OWNER_MIGUEL), exact = true),
+            // --- Owner coverage beyond Daniela ---
+            Golden("Ana Ferreira", expected = setOf(OWNER_ANA), exact = true),
+            Golden("Sofia Marques", expected = setOf(OWNER_SOFIA), exact = true),
+            Golden("ana@example.com", expected = setOf(OWNER_ANA), exact = true),
+            Golden("Monte Verde", expected = setOf(OWNER_SOFIA), exact = true),
+            Golden("Daniela", expected = setOf(OWNER_DANIELA), exact = true),
+            // Surname ambiguity: Costa is BOTH the owner's name and Dr.
+            // Costa's vet attribution on four repro records.
+            Golden(
+                "Costa",
+                expected = setOf(OWNER_DANIELA, REPRO_BREEDING, REPRO_HEAT, REPRO_MEDICATION_DESLORELIN, ET_BELLA),
+                exact = true,
+            ),
+            // Ownership is not indexed on either side of the relation; only
+            // the patient-name anchor recovers anything.
+            Golden("owner of Belinha", expected = setOf(PATIENT_BELINHA), exact = true),
+            // --- Vet attribution breadth (new vets, locked old ones) ---
+            Golden("Dr. Nunes", expected = setOf(VACC_RABIES, DEWORM_MOXIDECTIN, DEWORM_PYRANTEL, CONSULT_WIRE_CUT, CONSULT_CHOKE, LAB_FECAL), exact = true),
+            Golden("Dr. Pinto", expected = setOf(LAMENESS_SUSPENSORY, US_STORM_TENDON, SUBSTANCE_XYLAZINE, REPRO_PREG_CHECK, LAB_ACTH, VACC_EVA), exact = true),
+            Golden("Dr. Almeida", expected = setOf(VACC_EHV, CONSULT_DERMATITIS, DENTISTRY_WAVE_MOUTH, CONSULT_QUIDDING), exact = true),
+            Golden("Mendes", expected = setOf(SURGERY_ARTHROSCOPY, ICSI_COMET), exact = true),
+            // --- Portuguese (proper-noun anchored via OR retry) ---
+            // "tem*" leaks onto "temperature" in Comet's SOAP text.
+            Golden("Quantas vacinas tem a Thunder?", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM, CONSULT_COUGH), exact = true),
+            // Two-letter "da*" blows up onto every da- token: Daniela,
+            // "day 30", "daily" (both medication dosages), "days" - the
+            // widest short-prefix leak pinned in this file.
+            Golden(
+                "Cólica da Trovoada",
+                expected = setOf(PATIENT_TROVOADA, OWNER_DANIELA, GESTATION_FAILED, "MEDICATION#$medicationId", "MEDICATION#$medication2Id", REPRO_PREG_CHECK),
+                exact = true,
+            ),
+            // Diacritic folding gives "gestacao*", which misses "gestation";
+            // only the proper noun survives.
+            Golden("Trovoada gestação", expected = setOf(PATIENT_TROVOADA), exact = true),
+            Golden("égua sorraia", expected = setOf(PATIENT_TROVOADA), exact = true),
+            Golden("Belinha peso", expected = setOf(PATIENT_BELINHA), exact = true),
+            Golden("Isabella vacina", expected = setOf(PATIENT_ISABELLA), exact = true),
+            // Bare PT clinical term with no anchor: fully empty.
+            Golden("cólica", expected = emptySet(), exact = true),
+            // --- Typos / truncation robustness ---
+            // Truncation IS covered by the prefix star...
+            Golden("Thun", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM), exact = true),
+            Golden("Thundersto", expected = setOf(PATIENT_THUNDERSTORM), exact = true),
+            Golden("Navicula", expected = setOf(LAMENESS_NAVICULAR), exact = true),
+            Golden("MC123", expected = setOf(PATIENT_THUNDER), exact = true),
+            // ...but internal typos are NOT: "thundr" is not a prefix of
+            // "thunder", so the star cannot help. Honest empty retrieval.
+            Golden("Thundr", expected = emptySet(), exact = true),
+            Golden("Bellna", expected = emptySet(), exact = true),
+            Golden("coggis", expected = emptySet(), exact = true),
+            Golden("Detomidne", expected = emptySet(), exact = true),
+            // PT drug spelling breaks the EN prefix.
+            Golden("Ivermectina", expected = emptySet(), exact = true),
+            // --- Analysis-intent phrasings (retrieval returns record sets;
+            // summaries are computed separately by the RAG pipeline) ---
+            Golden(
+                "How many vaccinations did Thunder have?",
+                // "many" is not filler, "vaccinations" plural misses the
+                // singular vocabulary; thunder* patient rows carry the leg.
+                expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM),
+                exact = true,
+            ),
+            // Weight rows index bare kg values, so "weight" itself never
+            // matches - only the name anchor survives.
+            Golden("average weight of Thunder", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM), exact = true),
+            Golden("how much does Comet weigh", expected = setOf(PATIENT_COMET), exact = true),
+            // Plural + temporal + analysis words ALL miss: fully empty.
+            Golden("How many vaccines this year?", expected = emptySet(), exact = true),
+            // "count*" leaks onto the Fecal Egg Count test type.
+            Golden("count weight entries Thunderstorm", expected = setOf(PATIENT_THUNDERSTORM, LAB_FECAL), exact = true),
+            Golden("How many foals does Daniela have?", expected = setOf(OWNER_DANIELA), exact = true),
+            // --- Punctuation / case variants of passing questions ---
+            Golden("IVERMECTIN", expected = setOf(DEWORM_IVERMECTIN), exact = true),
+            Golden("coggins!", expected = setOf(LAB_COGGINS), exact = true),
+            Golden("West-Nile-Virus", expected = setOf(VACC_WEST_NILE), exact = true),
+            Golden("detomidine, sedation", expected = setOf(SUBSTANCE_DETOMIDINE), exact = true),
+            // Repository sanitizer splits "(rao)" on non-alphanumerics.
+            Golden("(RAO)", expected = setOf(CONSULT_COUGH), exact = true),
+            Golden(
+                "THUNDER'S TETANUS BOOSTER",
+                expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA, PATIENT_THUNDERSTORM),
+                exact = true,
+            ),
+            Golden("steel full set", expected = setOf(FARRIER_SHOEING), exact = true),
+            Golden("   Comet   ", expected = setOf(PATIENT_COMET), exact = true),
+            Golden("Quarter-horse", expected = setOf(PATIENT_COMET), exact = true),
+            Golden("Lusitano!", expected = setOf(PATIENT_BELLA), exact = true),
+            // --- Near-duplicate name disambiguation ---
+            Golden("Thunderstorm", expected = setOf(PATIENT_THUNDERSTORM), exact = true),
+            Golden("Thunder vs Thunderstorm", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM), exact = true),
+            // Substring is NOT enough: "bella*" is token-start anchored and
+            // must not reach "Isabella".
+            Golden("Bella", expected = setOf(PATIENT_BELLA), exact = true),
+            Golden("Isabella", expected = setOf(PATIENT_ISABELLA), exact = true),
+            Golden("Belinha", expected = setOf(PATIENT_BELINHA), exact = true),
+            Golden("Trovoada", expected = setOf(PATIENT_TROVOADA), exact = true),
+            Golden("Comet", expected = setOf(PATIENT_COMET), exact = true),
+            // --- Weight values (series completeness) ---
+            Golden("525", expected = setOf(WEIGHT_525), exact = true),
+            Golden("538", expected = setOf(WEIGHT_538), exact = true),
+            Golden("495", expected = setOf(WEIGHT_495), exact = true),
+            Golden("410", expected = setOf(WEIGHT_410), exact = true),
+            Golden("380", expected = setOf(WEIGHT_380), exact = true),
+            Golden("290", expected = setOf(WEIGHT_290), exact = true),
+            // gestationDays is never indexed (only status+notes+vocab).
+            Golden("341", expected = emptySet(), exact = true),
+            // Shared numbers span types through numeric prefixes.
+            Golden("250", expected = setOf(LAB_FECAL), exact = true),
+            Golden("400", expected = setOf(LAB_CBC, DEWORM_MOXIDECTIN), exact = true),
+            Golden("200", expected = setOf(DEWORM_IVERMECTIN, LAB_FECAL), exact = true),
+            Golden("10", expected = setOf(SUBSTANCE_DETOMIDINE, LAB_CBC, DEWORM_FENBENDAZOLE, DEWORM_PYRANTEL, "MEDICATION#$medication2Id"), exact = true),
+            // --- Broad single tokens (recall-breadth documentation) ---
+            Golden("rest", expected = setOf(CONSULT_COUGH, LAMENESS_NAVICULAR, SURGERY_ARTHROSCOPY), exact = true),
             // --- Nonsense queries expect empty ---
             Golden("zzqxjv", expected = emptySet(), exact = true),
             Golden("qqq www", expected = emptySet(), exact = true),
@@ -841,11 +1736,63 @@ class RagGoldenSetTest {
         assertTrue(juneOnward.isEmpty(), "no colic records exist after June 2026")
     }
 
+    /** May window over the follicle token scopes to the May-dated rows. */
+    @Test
+    fun dateWindowFollicleMay() {
+        val may =
+            searchUseCase("follicle", from = LocalDate(2026, 5, 1), to = LocalDate(2026, 5, 31), recordTypes = null)
+                .map { it.key() }
+                .toSet()
+        assertEquals(setOf(US_BELLA_FOLLICLE, REPRO_HEAT), may)
+    }
+
+    /** Gestation rows are dated by BREEDING date, not lastCheck/status. */
+    @Test
+    fun dateWindowGestationUsesBreedingDate() {
+        val all = searchUseCase("filly", from = null, to = null, recordTypes = null).map { it.key() }
+        assertEquals(listOf(GESTATION_COMPLETED), all)
+
+        // Bred 2025-04-01, so a 2026+ window excludes it even though the
+        // foaling happened in 2026.
+        val from2026 =
+            searchUseCase("filly", from = LocalDate(2026, 1, 1), to = null, recordTypes = null)
+        assertTrue(from2026.isEmpty(), "gestation row must be dated by breedingDate (2025)")
+    }
+
+    /** Vaccination window uses dateAdministered; vocabulary hits filter too. */
+    @Test
+    fun dateWindowVaccinationsJanFeb() {
+        val janFeb =
+            searchUseCase("booster", from = LocalDate(2026, 1, 1), to = LocalDate(2026, 2, 28), recordTypes = null)
+                .map { it.key() }
+                .toSet()
+        assertEquals(setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_EHV), janFeb)
+    }
+
+    /** July window isolates the ICSI row; medication rows (date=null) drop out. */
+    @Test
+    fun dateWindowJulyOocytes() {
+        val july =
+            searchUseCase("oocytes", from = LocalDate(2026, 7, 1), to = null, recordTypes = null)
+                .map { it.key() }
+        assertEquals(listOf(ICSI_COMET), july)
+    }
+
+    /** March window isolates the Rabies vaccination by its indexed date. */
+    @Test
+    fun dateWindowMarchRabies() {
+        val march =
+            searchUseCase("rabies", from = LocalDate(2026, 3, 1), to = LocalDate(2026, 3, 31), recordTypes = null)
+                .map { it.key() }
+        assertEquals(listOf(VACC_RABIES), march)
+    }
+
     /** The seeded fixture covers every indexed row kind exactly once. */
     @Test
     fun fixtureCoversAllIndexedRows() {
-        // 3 patients + 2 owners + 29 clinical/repro records.
-        val expectedRows = 34
+        // 7 patients + 4 owners + 53 clinical/repro/medication records
+        // (29 from the first wave, 24 from the disambiguation wave).
+        val expectedRows = 64
         assertEquals(expectedRows.toLong(), database.searchFtsQueries.countIndexRows().executeAsOne())
     }
 
