@@ -266,9 +266,12 @@ struct ReproductionTabView: View {
         .listStyle(.insetGrouped)
     }
 
-    /// A gestation counts as an ongoing pregnancy while its status is "Active".
+    /// A gestation counts as an ongoing pregnancy unless it has explicitly
+    /// ended (foaled/completed or failed). Blocklist semantics mirror the
+    /// Kotlin reminder filter so legacy status strings still surface.
     private static func isActive(_ gestation: Gestation_) -> Bool {
-        gestation.status == "Active"
+        let resolved = ["Completed", "Failed", "Foaled"]
+        return !resolved.contains { gestation.status.caseInsensitiveCompare($0) == .orderedSame }
     }
 
     /// Shared field rows for the read-only gestation detail screen.

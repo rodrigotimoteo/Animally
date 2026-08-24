@@ -516,7 +516,12 @@ final class GestationPanelModel: ObservableObject {
         let store = IosReproAndDiagnosticsStores.shared.gestationListStore(patientId: patientId)
         cancellable = store.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
-                self?.activeGestation = state.records.first { $0.status == "Active" && $0.isActive }
+                // Blocklist semantics mirror the Kotlin reminder filter:
+                // anything not explicitly ended counts as an ongoing pregnancy.
+                let resolved = ["Completed", "Failed", "Foaled"]
+                self?.activeGestation = state.records.first { record in
+                    record.isActive && !resolved.contains { record.status.caseInsensitiveCompare($0) == .orderedSame }
+                }
             }
         })
         store.load()
