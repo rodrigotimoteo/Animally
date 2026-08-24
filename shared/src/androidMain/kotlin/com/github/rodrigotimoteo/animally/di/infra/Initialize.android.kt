@@ -27,5 +27,6 @@ actual fun initKoin(context: Any?): KoinApplication =
             QueriesModule().provide(),
             PresentationModule().provide(),
             com.github.rodrigotimoteo.animally.llm.llmModule,
+            com.github.rodrigotimoteo.animally.di.dictationModule,
         )
     }

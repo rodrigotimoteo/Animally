@@ -51,6 +51,24 @@ final class AssistantUITests: AnimallyTestCase {
         XCTAssertTrue(reply.waitForExistence(timeout: 180), "Assistant reply never appeared")
     }
 
+    /// Polls until the reply label stops growing across consecutive reads so
+    /// streaming has settled before the label is asserted on. Returns the
+    /// settled label (or the last read when the deadline expires).
+    private func settledReplyLabel(_ app: XCUIApplication, maxWait: TimeInterval = 30) -> String {
+        let reply = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Assistant:")
+        ).firstMatch
+        var last = reply.label
+        let deadline = Date().addingTimeInterval(maxWait)
+        while Date() < deadline {
+            Thread.sleep(forTimeInterval: 1.5)
+            let current = reply.label
+            if current == last { break }
+            last = current
+        }
+        return last
+    }
+
     func testSendQuestionReceivesAnswer() throws {
         let app = TestHelpers.launchApp()
         openAssistant(app)
@@ -58,11 +76,9 @@ final class AssistantUITests: AnimallyTestCase {
 
         ask(app, "How many patients do I have?")
         waitForReply(app)
+        let replyLabel = settledReplyLabel(app)
 
         // The reply must be substantive, not an empty or error bubble.
-        let replyLabel = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Assistant:")
-        ).firstMatch.label
         XCTAssertGreaterThan(replyLabel.count, 20, "Assistant reply suspiciously short: \(replyLabel)")
     }
 
@@ -103,5 +119,109 @@ final class AssistantUITests: AnimallyTestCase {
         let keyboardGone = NSPredicate(format: "count == 0")
         let keyboardExpectation = expectation(for: keyboardGone, evaluatedWith: app.keyboards)
         wait(for: [keyboardExpectation], timeout: 10)
+    }
+}
+
+/// Real-FM behavioral coverage.
+///
+/// On macOS 26 hosts the simulator proxies the host Foundation Model, so
+/// these run against the LIVE model. Assertions are deliberately loose -
+/// generation is nondeterministic - asserting routing correctness (greeting
+/// vs retrieval vs too-short), citation presence, scaffold-free output, and
+/// no fabricated sources rather than exact wording.
+final class AssistantRealFmUITests: AnimallyTestCase {
+    @discardableResult
+    private func openAssistant(_ app: XCUIApplication) -> XCUIElement {
+        let assistantTab = app.tabBars.buttons["Assistant"]
+        if assistantTab.exists {
+            assistantTab.tap()
+        } else {
+            app.tabBars.buttons["More"].tap()
+            let row = app.buttons["Assistant"].firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            row.tap()
+        }
+        return app
+    }
+
+    private func requireAvailableModel(_ app: XCUIApplication) throws {
+        let unavailable = app.staticTexts["On-device AI not available here"]
+        if unavailable.waitForExistence(timeout: 5) {
+            throw XCTSkip("Foundation Models unavailable on this device")
+        }
+        XCTAssertTrue(app.textFields["assistant_input"].waitForExistence(timeout: 10))
+    }
+
+    private func ask(
+        _ app: XCUIApplication,
+        _ question: String,
+    ) {
+        let input = app.textFields["assistant_input"]
+        TestHelpers.typeSearchText(app, field: input, text: question)
+        let send = app.buttons["assistant_send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        send.tap()
+    }
+
+    /// Waits for the first reply chunk, then settles so streaming finishes
+    /// before the label is read.
+    private func completedReplyLabel(_ app: XCUIApplication) -> String {
+        let reply = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Assistant:")
+        ).firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 180), "Assistant reply never appeared")
+        Thread.sleep(forTimeInterval: 6)
+        return reply.label
+    }
+
+    func testGreetingGetsFriendlyReplyNotFallback() throws {
+        let app = TestHelpers.launchApp()
+        openAssistant(app)
+        try requireAvailableModel(app)
+
+        ask(app, "Hi")
+        let label = completedReplyLabel(app)
+
+        XCTAssertFalse(label.contains("couldn't find"), "Greeting routed to retrieval fallback: \(label)")
+        XCTAssertTrue(label.lowercased().contains("hello") || label.lowercased().contains("ask"), "Greeting reply unfriendly: \(label)")
+    }
+
+    func testSingleLetterQueryAsksForMoreInsteadOfMatching() throws {
+        let app = TestHelpers.launchApp()
+        openAssistant(app)
+        try requireAvailableModel(app)
+
+        ask(app, "A")
+        let label = completedReplyLabel(app)
+
+        XCTAssertFalse(label.contains("[PATIENT #"), "One-letter query fuzzy-matched a record: \(label)")
+        XCTAssertTrue(label.contains("more to go on"), "Too-short guard did not fire: \(label)")
+    }
+
+    func testPatientQuestionAnswersWithCitationAndNoScaffold() throws {
+        let app = TestHelpers.launchApp()
+        openAssistant(app)
+        try requireAvailableModel(app)
+
+        ask(app, "Tell me about Thunder")
+        let label = completedReplyLabel(app)
+
+        XCTAssertTrue(label.contains("Thunder"), "Answer lost the subject: \(label)")
+        XCTAssertTrue(label.contains("[PATIENT #") || label.contains("["), "No citation in answer: \(label)")
+        XCTAssertFalse(label.contains("---"), "Scaffold separator leaked: \(label)")
+        XCTAssertFalse(label.contains("Question:"), "Prompt echo leaked: \(label)")
+        XCTAssertFalse(label.lowercased().contains("http"), "External URL fabricated: \(label)")
+    }
+
+    func testUnknownThingDoesNotFabricateSources() throws {
+        let app = TestHelpers.launchApp()
+        openAssistant(app)
+        try requireAvailableModel(app)
+
+        ask(app, "How many giraffes are in my records?")
+        let label = completedReplyLabel(app)
+
+        XCTAssertFalse(label.lowercased().contains("http"), "Fabricated external source: \(label)")
+        XCTAssertFalse(label.contains("[Giraffe"), "Fabricated record type: \(label)")
     }
 }

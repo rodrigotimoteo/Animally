@@ -32,9 +32,15 @@ class AnimallyTestCase: XCTestCase {
 
 extension TestHelpers {
     /// Types text into a search field, verifying what actually landed.
-    /// XCUITest's typeText drops characters in `.searchable` fields while the
-    /// binding re-renders, so typing happens in small chunks with settle
-    /// pauses, followed by a clear-and-retype pass if anything was mangled.
+    ///
+    /// The `.searchable` field's text travels through an async KMP round trip
+    /// on every keystroke (`set` -> store -> StateFlow -> `Task { @MainActor }`
+    /// -> re-render). When the query change flips the body subtree
+    /// (empty/no-results/results), the field churns and exactly one synthesized
+    /// keystroke gets swallowed. Whole-pass typing loses the same character on
+    /// every retry, so clear-and-retype loops never converge; instead each
+    /// keystroke is verified immediately and healed (delete + retype) before
+    /// the next one is sent.
     static func typeSearchText(
         _ app: XCUIApplication,
         field: XCUIElement,
@@ -42,28 +48,57 @@ extension TestHelpers {
     ) {
         let clearButton = app.buttons["Clear text"].firstMatch
         field.tap()
-        typeInChunks(field, text)
+        usleep(300_000) // let focus settle - first keystroke otherwise drops
+        typeAndHeal(field, text)
 
-        // The searchable field's live binding re-renders mid-typing and can
-        // swallow keystrokes; verify what landed and retry up to 3 times.
         var attempts = 0
-        while (field.value as? String) != text, attempts < 3 {
+        while (field.value as? String) != text, attempts < 2 {
             attempts += 1
             if clearButton.exists {
                 clearButton.tap()
             }
             field.tap()
-            typeInChunks(field, text)
+            usleep(300_000)
+            typeAndHeal(field, text)
+        }
+        // Never give up silently: a mangled search string makes the test fail
+        // later with a confusing "not found" instead of pointing here.
+        if (field.value as? String) != text {
+            XCTFail("Search field never received '\(text)'; landed '\(field.value ?? "nil")' after \(attempts) retries")
         }
     }
 
-    private static func typeInChunks(_ field: XCUIElement, _ text: String) {
-        var start = text.startIndex
-        while start < text.endIndex {
-            let end = text.index(start, offsetBy: 3, limitedBy: text.endIndex) ?? text.endIndex
-            field.typeText(String(text[start..<end]))
-            usleep(150_000)
-            start = end
+    /// Types one character at a time; after each keystroke, compares the
+    /// field value with the expected prefix and repairs any divergence
+    /// (swallowed or altered characters) before continuing.
+    private static func typeAndHeal(_ field: XCUIElement, _ text: String) {
+        var typed = ""
+        for ch in text {
+            field.typeText(String(ch))
+            typed.append(ch)
+            usleep(200_000) // let query -> store -> MainActor -> re-render settle
+
+            var value = (field.value as? String) ?? ""
+            if value == typed { continue }
+
+            // Keep the longest common prefix, delete anything after it,
+            // then retype what should follow.
+            let common = zip(value, typed).prefix(while: ==).count
+            let extra = value.count - common
+            if extra > 0 {
+                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: extra))
+            }
+            let missing = String(typed.dropFirst(common))
+            if !missing.isEmpty {
+                field.typeText(missing)
+            }
+            usleep(200_000)
+            value = (field.value as? String) ?? ""
+            if value != typed {
+                // Diverged beyond simple repair; restart from clean state.
+                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count + 5))
+                typed = ""
+            }
         }
     }
 }
