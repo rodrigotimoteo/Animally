@@ -2,9 +2,12 @@ package com.github.rodrigotimoteo.animally.presentation.assistant
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.rodrigotimoteo.animally.llm.AssistantStrings
 import com.github.rodrigotimoteo.animally.llm.GenerateRagResponseUseCase
 import com.github.rodrigotimoteo.animally.llm.LlmAvailability
 import com.github.rodrigotimoteo.animally.llm.LlmEngine
+import com.github.rodrigotimoteo.animally.llm.RagHistoryEntry
+import com.github.rodrigotimoteo.animally.llm.assistantStrings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +49,7 @@ data class AssistantUiState(
 class AssistantViewModel(
     private val generateRagResponse: GenerateRagResponseUseCase,
     private val llmEngine: LlmEngine,
+    private val strings: AssistantStrings = assistantStrings(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AssistantUiState())
 
@@ -65,12 +69,14 @@ class AssistantViewModel(
 
     /**
      * Asks [question] against the record corpus. Appends the user turn immediately and
-     * streams the assistant reply into state as it arrives.
+     * streams the assistant reply into state as it arrives. Completed prior turns are
+     * passed as conversation history so follow-ups ("How old is she?") keep context.
      */
     fun ask(question: String) {
         val trimmed = question.trim()
         if (trimmed.isEmpty() || _uiState.value.isGenerating) return
 
+        val history = _uiState.value.messages.toRagHistory()
         _uiState.update {
             it.copy(
                 messages = it.messages + AssistantChatMessage(AssistantChatMessageRole.USER, trimmed),
@@ -80,17 +86,20 @@ class AssistantViewModel(
         }
 
         viewModelScope.launch {
-            val reply = StringBuilder()
+            // Each emission is the CUMULATIVE response text (streaming engines emit
+            // full-so-far snapshots; non-streaming engines emit one final chunk), so
+            // the last assistant turn is replaced in place — no append.
+            var reply = ""
             try {
-                generateRagResponse(trimmed).collect { chunk ->
-                    reply.append(chunk)
+                generateRagResponse(trimmed, history).collect { text ->
+                    reply = text
                     _uiState.update { state ->
-                        state.copy(messages = state.messages.withAssistantTurn(reply.toString()))
+                        state.copy(messages = state.messages.withAssistantTurn(text))
                     }
                 }
                 if (reply.isBlank()) {
                     _uiState.update { state ->
-                        state.copy(messages = state.messages.withAssistantTurn(FALLBACK_REPLY))
+                        state.copy(messages = state.messages.withAssistantTurn(strings.blankReplyFallback))
                     }
                 }
             } catch (ce: kotlinx.coroutines.CancellationException) {
@@ -98,8 +107,8 @@ class AssistantViewModel(
             } catch (t: Exception) {
                 _uiState.update {
                     it.copy(
-                        messages = it.messages.withAssistantTurn(reply.toString()),
-                        error = t.message ?: "The assistant could not answer right now.",
+                        messages = it.messages.withAssistantTurn(reply),
+                        error = t.message ?: strings.blankReplyFallback,
                     )
                 }
             } finally {
@@ -120,7 +129,28 @@ class AssistantViewModel(
             else -> this + AssistantChatMessage(AssistantChatMessageRole.ASSISTANT, text)
         }
 
-    private companion object {
-        const val FALLBACK_REPLY = "I could not find anything relevant in the records."
+    /**
+     * Collapses the transcript into prior Q/A pairs for the RAG history:
+     * each USER message pairs with the ASSISTANT reply that follows it. Pairs
+     * whose reply never materialized (blank) are skipped - they carry no
+     * context and would only dilute the prompt.
+     */
+    private fun List<AssistantChatMessage>.toRagHistory(): List<RagHistoryEntry> {
+        val entries = mutableListOf<RagHistoryEntry>()
+        var index = 0
+        while (index < lastIndex) {
+            val current = this[index]
+            val next = this[index + 1]
+            if (current.role == AssistantChatMessageRole.USER &&
+                next.role == AssistantChatMessageRole.ASSISTANT &&
+                next.text.isNotBlank()
+            ) {
+                entries.add(RagHistoryEntry(current.text, next.text))
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+        return entries
     }
 }

@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.llm.fm.FmLlmShim
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -45,6 +46,44 @@ actual class LlmEngine actual constructor(
                     }
                 }
             result?.let { emit(it) }
+        }
+
+    /**
+     * Streams cumulative snapshots from the shim: every onChunk carries the
+     * full text so far, and the CONFLATED channel guarantees a slow collector
+     * always sees the latest snapshot instead of queuing stale ones.
+     * Collector cancellation unwinds the iteration and the finally block
+     * calls shim.cancelStream(), which cancels the Swift task. The shim
+     * allows one active stream per instance; this engine holds exactly one.
+     */
+    actual fun generateStreaming(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> =
+        flow {
+            val channel = Channel<String>(Channel.CONFLATED)
+            try {
+                shim.streamResponseWithInstructions(
+                    prompt,
+                    instructions,
+                    onChunk = { chunk -> chunk?.let { channel.trySend(it) } },
+                    onComplete = { finalText, error ->
+                        when {
+                            error != null -> channel.close(Throwable(error))
+                            else -> {
+                                // Re-emit final for zero-chunk short answers;
+                                // duplicate of the last snapshot is harmless.
+                                finalText?.let { channel.trySend(it) }
+                                channel.close()
+                            }
+                        }
+                    },
+                )
+                for (chunk in channel) emit(chunk)
+            } finally {
+                shim.cancelStream()
+                channel.close()
+            }
         }
 
     actual suspend fun availability(): LlmAvailability = parseAvailability(shim.availability())

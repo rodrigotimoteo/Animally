@@ -23,5 +23,16 @@ expect class LlmEngine(
         schema: String,
     ): Flow<String>
 
+    /**
+     * Streams a response for [prompt] grounded in [instructions] (system prompt).
+     * Emits CUMULATIVE text: each value is the full response generated so far, not a
+     * per-token delta. Collectors must replace (not append) their buffer with each
+     * emission.
+     */
+    fun generateStreaming(
+        prompt: String,
+        instructions: String,
+    ): Flow<String>
+
     suspend fun availability(): LlmAvailability
 }

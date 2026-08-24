@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.llm
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class AssistantPromptsTest {
     @Test
@@ -35,5 +36,39 @@ class AssistantPromptsTest {
         // Regression lock: "She is pregnant" must reduce to "pregnant" so the
         // gestation vocabulary in the FTS index can match it.
         assertEquals("pregnant", AssistantPrompts.enrichQuery("She is pregnant"))
+    }
+
+    @Test
+    fun `given conversational lead-in when enriched then only subject kept`() {
+        // Regression lock for the patient-question failure: "tell"/"about"/"me"
+        // are conversational filler and must not enter the FTS query.
+        assertEquals("Thunder", AssistantPrompts.enrichQuery("Tell me about Thunder"))
+    }
+
+    @Test
+    fun `given natural question when toFtsOrQuery then starred OR expression`() {
+        // Apostrophes and multi-word tokens are left as-is here; the
+        // repository's sanitizer splits them into prefix terms downstream.
+        assertEquals(
+            "Thunder's* OR last* OR farrier* OR visit*",
+            AssistantPrompts.toFtsOrQuery("When was Thunder's last farrier visit?"),
+        )
+    }
+
+    @Test
+    fun `given all-filler query when toFtsOrQuery then empty string`() {
+        assertEquals("", AssistantPrompts.toFtsOrQuery("How is she?"))
+    }
+
+    @Test
+    fun `given portuguese question when detected then true`() {
+        assertTrue(AssistantPrompts.isPortugueseQuery("Quantos pacientes tenho?"))
+        assertTrue(AssistantPrompts.isPortugueseQuery("Qual é a gestação da Bella?"))
+    }
+
+    @Test
+    fun `given english question when detected then false`() {
+        assertTrue(!AssistantPrompts.isPortugueseQuery("Tell me about Thunder"))
+        assertTrue(!AssistantPrompts.isPortugueseQuery("When was the last farrier visit?"))
     }
 }

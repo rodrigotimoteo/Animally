@@ -34,6 +34,20 @@ NS_ASSUME_NONNULL_BEGIN
               schema:(NSString *)schema
           completion:(void (^)(NSString *_Nullable text, NSString *_Nullable error))completion;
 
+/// Streams a response for `prompt` grounded in `instructions` (system prompt).
+/// `onChunk` is invoked once per snapshot with the CUMULATIVE text generated so far
+/// (not per-token deltas). `onComplete` is invoked exactly once at the end: on success
+/// with (finalText, nil), on failure with (nil, error). Only one stream may be active
+/// per shim instance; starting a new one while another is active fails with an error.
+- (void)streamResponseWithInstructions:(NSString *)prompt
+                          instructions:(NSString *)instructions
+                               onChunk:(void (^)(NSString *cumulativeText))onChunk
+                            onComplete:(void (^)(NSString *_Nullable finalText, NSString *_Nullable error))onComplete;
+
+/// Cancels the active streaming task started by
+/// `-streamResponseWithInstructions:instructions:onChunk:onComplete:`. No-op when idle.
+- (void)cancelStream;
+
 @end
 
 NS_ASSUME_NONNULL_END
