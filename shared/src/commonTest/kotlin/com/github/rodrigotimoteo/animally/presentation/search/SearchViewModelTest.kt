@@ -231,6 +231,13 @@ class SearchViewModelTest {
                         recordTypes: List<String>?,
                     ): List<SearchResult> = if (query == "flu*") listOf(slowResult) else listOf(fastResult)
 
+                    override fun searchSnippets(
+                        query: String,
+                        from: LocalDate?,
+                        to: LocalDate?,
+                        recordTypes: List<String>?,
+                    ): List<SearchResult> = search(query, from, to, recordTypes)
+
                     override fun indexRecord(
                         recordType: String,
                         patientId: Long,

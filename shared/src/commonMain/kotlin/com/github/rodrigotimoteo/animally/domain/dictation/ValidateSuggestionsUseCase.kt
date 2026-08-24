@@ -40,12 +40,14 @@ private const val DRUG_NAME_MAX_LENGTH = 100
  *
  * Principle: drop only structural failures (unknown record type, no payload
  * beyond a date); everything implausible is kept and flagged so the user can
- * decide. Unparseable dates silently default to today.
+ * decide. Unparseable dates default to today and are flagged; an absent date
+ * defaults to today silently.
  *
  * Validation rules:
  * - Unknown [recordType][SuggestedRecordDto.recordType] -> dropped.
  * - No payload field beyond the date -> dropped.
- * - Date unparseable or absent -> today, silently.
+ * - Date present but unparseable -> today, flagged ("date_unparseable").
+ * - Date absent -> today, silently (not dictated is different from garbled).
  * - Date outside `[today - 365, today]` -> kept, flagged.
  * - Weight <= 0 or > 3000 kg -> nulled, flagged; 1500-3000 kg -> kept, flagged.
  * - Follicle size <= 0 or > 100 mm -> kept, flagged.
@@ -111,7 +113,12 @@ class ValidateSuggestionsUseCase {
         today: LocalDate,
         reasons: MutableList<String>,
     ): LocalDate {
-        val parsed = raw?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return today
+        if (raw == null) return today
+        val parsed = runCatching { LocalDate.parse(raw) }.getOrNull()
+        if (parsed == null) {
+            reasons += REASON_DATE_UNPARSEABLE
+            return today
+        }
         val ageDays = parsed.daysUntil(today)
         if (ageDays < 0 || ageDays > DATE_MAX_AGE_DAYS) {
             reasons += REASON_DATE_OUT_OF_RANGE
@@ -158,6 +165,7 @@ class ValidateSuggestionsUseCase {
     }
 
     private companion object {
+        const val REASON_DATE_UNPARSEABLE = "date_unparseable"
         const val REASON_DATE_OUT_OF_RANGE = "date_out_of_range"
         const val REASON_WEIGHT_IMPLAUSIBLE = "weight_implausible"
         const val REASON_WEIGHT_HIGH = "weight_high"

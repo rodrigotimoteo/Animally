@@ -5,8 +5,8 @@ struct UltrasoundEditView: View {
     @StateObject private var viewModel: UltrasoundEditViewModel
     @Environment(\.dismiss) private var dismiss
 
-    init(patientId: Int64, ultrasoundId: Int64?) {
-        _viewModel = StateObject(wrappedValue: UltrasoundEditViewModel(patientId: patientId, ultrasoundId: ultrasoundId))
+    init(patientId: Int64, ultrasoundId: Int64?, prefill: RecordPrefill? = nil) {
+        _viewModel = StateObject(wrappedValue: UltrasoundEditViewModel(patientId: patientId, ultrasoundId: ultrasoundId, prefill: prefill))
     }
 
     var body: some View {
@@ -45,6 +45,10 @@ struct UltrasoundEditView: View {
         }
         .onAppear {
             viewModel.onSaved = { dismiss() }
+            viewModel.applyPrefillIfNeeded()
+        }
+        .onChange(of: viewModel.hasForm) { _ in
+            viewModel.applyPrefillIfNeeded()
         }
     }
 
@@ -237,10 +241,13 @@ struct UltrasoundEditView: View {
 @MainActor
 final class UltrasoundEditViewModel: RecordFormViewModel<UltrasoundEditStoreState> {
     private let store: UltrasoundEditStore
+    private let prefill: RecordPrefill?
+    private var prefillApplied = false
 
-    init(patientId: Int64, ultrasoundId: Int64?) {
+    init(patientId: Int64, ultrasoundId: Int64?, prefill: RecordPrefill? = nil) {
         let store = RecordStores.ultrasoundEditStore(patientId: patientId, ultrasoundId: ultrasoundId)
         self.store = store
+        self.prefill = prefill
         super.init(
             initial: store.state.current,
             subscribe: { store.state.subscribe(onEach: $0) },
@@ -250,6 +257,25 @@ final class UltrasoundEditViewModel: RecordFormViewModel<UltrasoundEditStoreStat
     }
 
     var form: UltrasoundFormState? { state.form }
+
+    var hasForm: Bool { state.form != nil }
+
+    /// Applies dictated values once the Kotlin form has loaded. Runs at most
+    /// once; user edits afterwards always win. The dictated ovary status lands
+    /// on the left ovary and the follicle size becomes its first follicle.
+    func applyPrefillIfNeeded() {
+        guard let prefill, !prefillApplied, state.form != nil else { return }
+        prefillApplied = true
+        if let date = prefill.date { onDateChange(date) }
+        if let ovaryStatus = prefill.ovaryStatus { onLeftOvaryStatusChange(ovaryStatus) }
+        if let uterineStatus = prefill.uterineStatus { onUterineStatusChange(uterineStatus) }
+        if let follicleSizeMm = prefill.follicleSizeMm,
+           (state.form?.leftFollicles.isEmpty ?? true) {
+            onAddFollicle("LEFT")
+            onFollicleSizeChange("LEFT", index: 0, follicleSizeMm)
+        }
+        if let notes = prefill.notes { onNotesChange(notes) }
+    }
 
     func onDateChange(_ value: String) { store.onDateChange(date: value) }
     func onOvaryStatusChange(_ value: String) { store.onOvaryStatusChange(value: value) }

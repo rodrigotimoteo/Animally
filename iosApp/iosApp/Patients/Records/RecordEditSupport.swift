@@ -49,6 +49,20 @@ class RecordFormViewModel<State: AnyObject>: ObservableObject {
     }
 }
 
+// MARK: - Dictation prefill
+
+/// Values dictated by voice and pushed into a record edit form when it
+/// finishes loading. Only fields the transcript expressed are non-nil.
+struct RecordPrefill {
+    var date: String?
+    var weightKg: String?
+    var ovaryStatus: String?
+    var uterineStatus: String?
+    var follicleSizeMm: String?
+    var drugName: String?
+    var notes: String?
+}
+
 // MARK: - Shared field styling helpers
 
 /// Reusable pieces matching PatientEditView's design language exactly.

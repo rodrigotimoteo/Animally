@@ -5,8 +5,8 @@ struct WeightEditView: View {
     @StateObject private var viewModel: WeightEditViewModel
     @Environment(\.dismiss) private var dismiss
 
-    init(patientId: Int64, weightId: Int64?) {
-        _viewModel = StateObject(wrappedValue: WeightEditViewModel(patientId: patientId, weightId: weightId))
+    init(patientId: Int64, weightId: Int64?, prefill: RecordPrefill? = nil) {
+        _viewModel = StateObject(wrappedValue: WeightEditViewModel(patientId: patientId, weightId: weightId, prefill: prefill))
     }
 
     var body: some View {
@@ -45,6 +45,10 @@ struct WeightEditView: View {
         }
         .onAppear {
             viewModel.onSaved = { dismiss() }
+            viewModel.applyPrefillIfNeeded()
+        }
+        .onChange(of: viewModel.hasForm) { _ in
+            viewModel.applyPrefillIfNeeded()
         }
     }
 
@@ -87,13 +91,16 @@ struct WeightEditView: View {
 @MainActor
 final class WeightEditViewModel: RecordFormViewModel<WeightEditStoreState> {
     private let store: WeightEditStore
+    private let prefill: RecordPrefill?
+    private var prefillApplied = false
 
-    init(patientId: Int64, weightId: Int64?) {
+    init(patientId: Int64, weightId: Int64?, prefill: RecordPrefill? = nil) {
         let store = IosEditStores.shared.weightEditStore(
             patientId: patientId,
             weightId: weightId.map { KotlinLong(longLong: $0) }
         )
         self.store = store
+        self.prefill = prefill
         super.init(
             initial: store.state.current,
             subscribe: { store.state.subscribe(onEach: $0) },
@@ -103,6 +110,18 @@ final class WeightEditViewModel: RecordFormViewModel<WeightEditStoreState> {
     }
 
     var form: WeightFormState? { state.form }
+
+    var hasForm: Bool { state.form != nil }
+
+    /// Applies dictated values once the Kotlin form has loaded. Runs at most
+    /// once; user edits afterwards always win.
+    func applyPrefillIfNeeded() {
+        guard let prefill, !prefillApplied, state.form != nil else { return }
+        prefillApplied = true
+        if let date = prefill.date { onDateChange(date) }
+        if let weightKg = prefill.weightKg { onWeightKgChange(weightKg) }
+        if let notes = prefill.notes { onNotesChange(notes) }
+    }
 
     func onWeightKgChange(_ value: String) { store.onWeightKgChange(weightKg: value) }
     func onDateChange(_ value: String) { store.onDateChange(date: value) }

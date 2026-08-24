@@ -158,9 +158,10 @@ private class DetailBinding(
  * Resolves the record-type string carried by deep links (search wire names
  * like "LAB_RESULT" or timeline/tab display names like "Lab Result") against
  * the [RecordType] enum and dispatches ONCE over the typed enum to bind the
- * matching edit store and field-row builder. Adding a record type therefore
- * requires exactly one exhaustive `when` here — the compiler enforces it —
- * instead of parallel string switches on the Swift side.
+ * matching edit store and field-row builder. The dispatch is a total `when`
+ * over [RecordType] that routes into per-group exhaustive `when`s (no `else`
+ * anywhere), so adding a record type fails compilation until it is routed and
+ * rendered — instead of parallel string switches on the Swift side.
  */
 @ObjCName("RecordDetailOpener")
 object RecordDetailOpener {
@@ -193,6 +194,10 @@ object RecordDetailOpener {
         )
     }
 
+    // Total dispatch table over RecordType: one arm per routable member keeps
+    // the mapping flat and readable, which trips detekt's default complexity
+    // threshold. Exhaustiveness is compiler-enforced; suppress the metric only.
+    @Suppress("CyclomaticComplexMethod")
     private fun stateFor(
         type: RecordType,
         patientId: Long,
@@ -200,29 +205,26 @@ object RecordDetailOpener {
         scope: CoroutineScope,
     ): DetailBinding? =
         when (type) {
-            RecordType.Consultation,
-            RecordType.Weight,
-            RecordType.Vaccination,
-            RecordType.Deworming,
-            RecordType.Dentistry,
-            RecordType.FarrierVisit,
-            -> basicGroup(type, patientId, recordId, scope)
+            RecordType.Consultation -> basicGroup(BasicKind.Consultation, patientId, recordId, scope)
+            RecordType.Weight -> basicGroup(BasicKind.Weight, patientId, recordId, scope)
+            RecordType.Vaccination -> basicGroup(BasicKind.Vaccination, patientId, recordId, scope)
+            RecordType.Deworming -> basicGroup(BasicKind.Deworming, patientId, recordId, scope)
+            RecordType.Dentistry -> basicGroup(BasicKind.Dentistry, patientId, recordId, scope)
+            RecordType.FarrierVisit -> basicGroup(BasicKind.FarrierVisit, patientId, recordId, scope)
 
-            RecordType.Lameness,
-            RecordType.Surgery,
-            RecordType.Medication,
-            RecordType.ControlledSubstance,
-            RecordType.LabResult,
-            RecordType.Imaging,
-            -> medicalGroup(type, patientId, recordId, scope)
+            RecordType.Lameness -> medicalGroup(MedicalKind.Lameness, patientId, recordId, scope)
+            RecordType.Surgery -> medicalGroup(MedicalKind.Surgery, patientId, recordId, scope)
+            RecordType.Medication -> medicalGroup(MedicalKind.Medication, patientId, recordId, scope)
+            RecordType.ControlledSubstance -> medicalGroup(MedicalKind.ControlledSubstance, patientId, recordId, scope)
+            RecordType.LabResult -> medicalGroup(MedicalKind.LabResult, patientId, recordId, scope)
+            RecordType.Imaging -> medicalGroup(MedicalKind.Imaging, patientId, recordId, scope)
 
-            RecordType.ReproductionEvent,
-            RecordType.Ultrasound,
-            RecordType.Gestation,
-            RecordType.ReproMedication,
-            RecordType.EmbryoTransfer,
-            RecordType.Icsi,
-            -> reproGroup(type, patientId, recordId, scope)
+            RecordType.ReproductionEvent -> reproGroup(ReproKind.ReproductionEvent, patientId, recordId, scope)
+            RecordType.Ultrasound -> reproGroup(ReproKind.Ultrasound, patientId, recordId, scope)
+            RecordType.Gestation -> reproGroup(ReproKind.Gestation, patientId, recordId, scope)
+            RecordType.ReproMedication -> reproGroup(ReproKind.ReproMedication, patientId, recordId, scope)
+            RecordType.EmbryoTransfer -> reproGroup(ReproKind.EmbryoTransfer, patientId, recordId, scope)
+            RecordType.Icsi -> reproGroup(ReproKind.Icsi, patientId, recordId, scope)
 
             RecordType.Anamnese,
             RecordType.CustomReminder,
@@ -231,159 +233,172 @@ object RecordDetailOpener {
             -> null
         }
 
+    /** Subset of [RecordType] bound by the basic edit stores. */
+    private enum class BasicKind { Consultation, Weight, Vaccination, Deworming, Dentistry, FarrierVisit }
+
+    /** Subset of [RecordType] bound by the medical edit stores. */
+    private enum class MedicalKind { Lameness, Surgery, Medication, ControlledSubstance, LabResult, Imaging }
+
+    /** Subset of [RecordType] bound by the reproduction edit stores. */
+    private enum class ReproKind {
+        ReproductionEvent,
+        Ultrasound,
+        Gestation,
+        ReproMedication,
+        EmbryoTransfer,
+        Icsi,
+    }
+
     private fun basicGroup(
-        type: RecordType,
+        kind: BasicKind,
         patientId: Long,
         recordId: Long,
         scope: CoroutineScope,
-    ): DetailBinding? =
-        when (type) {
-            RecordType.Consultation ->
+    ): DetailBinding =
+        when (kind) {
+            BasicKind.Consultation ->
                 bind(
                     IosEditStores.consultationEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::consultationRows) },
                 )
-            RecordType.Weight ->
+            BasicKind.Weight ->
                 bind(
                     IosEditStores.weightEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::weightRows) },
                 )
-            RecordType.Vaccination ->
+            BasicKind.Vaccination ->
                 bind(
                     IosEditStores.vaccinationEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::vaccinationRows) },
                 )
-            RecordType.Deworming ->
+            BasicKind.Deworming ->
                 bind(
                     IosEditStores.dewormingEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::dewormingRows) },
                 )
-            RecordType.Dentistry ->
+            BasicKind.Dentistry ->
                 bind(
                     IosEditStores.dentistryEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::dentistryRows) },
                 )
-            RecordType.FarrierVisit ->
+            BasicKind.FarrierVisit ->
                 bind(
                     IosEditStores.farrierVisitEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::farrierRows) },
                 )
-            else -> null
         }
 
     private fun medicalGroup(
-        type: RecordType,
+        kind: MedicalKind,
         patientId: Long,
         recordId: Long,
         scope: CoroutineScope,
-    ): DetailBinding? =
-        when (type) {
-            RecordType.Lameness ->
+    ): DetailBinding =
+        when (kind) {
+            MedicalKind.Lameness ->
                 bind(
                     IosEditStoresMedical.lamenessEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::lamenessRows) },
                 )
-            RecordType.Surgery ->
+            MedicalKind.Surgery ->
                 bind(
                     IosEditStoresMedical.surgeryEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::surgeryRows) },
                 )
-            RecordType.Medication ->
+            MedicalKind.Medication ->
                 bind(
                     IosEditStoresMedical.medicationEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::medicationRows) },
                 )
-            RecordType.ControlledSubstance ->
+            MedicalKind.ControlledSubstance ->
                 bind(
                     IosEditStoresMedical.substanceEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::substanceRows) },
                 )
-            RecordType.LabResult ->
+            MedicalKind.LabResult ->
                 bind(
                     IosEditStoresMedical.labResultEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::labResultRows) },
                 )
-            RecordType.Imaging ->
+            MedicalKind.Imaging ->
                 bind(
                     IosEditStoresFiles.imagingEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::imagingRows) },
                 )
-            else -> null
         }
 
     private fun reproGroup(
-        type: RecordType,
+        kind: ReproKind,
         patientId: Long,
         recordId: Long,
         scope: CoroutineScope,
-    ): DetailBinding? =
-        when (type) {
-            RecordType.ReproductionEvent ->
+    ): DetailBinding =
+        when (kind) {
+            ReproKind.ReproductionEvent ->
                 bind(
                     IosEditStoresRepro.reproductionEventEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::reproductionRows) },
                 )
-            RecordType.Ultrasound ->
+            ReproKind.Ultrasound ->
                 bind(
                     IosEditStoresRepro.ultrasoundEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::ultrasoundRows) },
                 )
-            RecordType.Gestation ->
+            ReproKind.Gestation ->
                 bind(
                     IosEditStoresRepro.gestationEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::gestationRows) },
                 )
-            RecordType.ReproMedication ->
+            ReproKind.ReproMedication ->
                 bind(
                     IosEditStoresRepro.reproMedicationEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::reproMedicationRows) },
                 )
-            RecordType.EmbryoTransfer ->
+            ReproKind.EmbryoTransfer ->
                 bind(
                     IosEditStoresRepro.embryoTransferEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::embryoTransferRows) },
                 )
-            RecordType.Icsi ->
+            ReproKind.Icsi ->
                 bind(
                     IosEditStoresRepro.icsiEditStore(patientId, recordId).state,
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::icsiRows) },
                 )
-            else -> null
         }
 }

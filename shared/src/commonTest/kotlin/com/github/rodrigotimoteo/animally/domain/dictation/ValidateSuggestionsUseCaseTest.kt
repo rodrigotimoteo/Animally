@@ -63,11 +63,21 @@ class ValidateSuggestionsUseCaseTest {
     }
 
     @Test
-    fun `when date unparseable then defaults to today silently`() {
-        val result = sut(listOf(dto(date = "ontem", weightKg = 500.0)), today)
+    fun `when date unparseable then defaults to today and flagged`() {
+        val result = sut(listOf(dto(date = "15/03/2024", weightKg = 500.0)), today)
 
         val record = result.single()
         assertEquals(today, record.date)
+        assertIs<SuggestedValidationState.Flagged>(record.validation)
+        assertEquals(listOf("date_unparseable"), record.validation.reasons)
+    }
+
+    @Test
+    fun `when valid date then unchanged and ok`() {
+        val result = sut(listOf(dto(date = "2026-08-20", weightKg = 500.0)), today)
+
+        val record = result.single()
+        assertEquals(LocalDate(2026, 8, 20), record.date)
         assertEquals(SuggestedValidationState.Ok, record.validation)
     }
 

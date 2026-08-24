@@ -15,6 +15,13 @@ open class FakeSearchRepository : ISearchRepository {
         recordTypes: List<String>?,
     ): List<SearchResult> = emptyList()
 
+    override fun searchSnippets(
+        query: String,
+        from: LocalDate?,
+        to: LocalDate?,
+        recordTypes: List<String>?,
+    ): List<SearchResult> = emptyList()
+
     override fun indexRecord(
         recordType: String,
         patientId: Long,

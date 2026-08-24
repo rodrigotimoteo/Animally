@@ -4,6 +4,7 @@ import Shared
 struct AssistantView: View {
     @StateObject private var viewModel = AssistantViewModel()
     @State private var draft: String = ""
+    @State private var showDictation = false
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -24,6 +25,9 @@ struct AssistantView: View {
             }
             .onAppear {
                 viewModel.refreshAvailability()
+            }
+            .sheet(isPresented: $showDictation) {
+                DictationCaptureView(onFinished: { showDictation = false })
             }
         }
     }
@@ -136,6 +140,20 @@ struct AssistantView: View {
 
     private var inputBar: some View {
         HStack(spacing: 12) {
+            Button {
+                showDictation = true
+            } label: {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.forestGreen)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.forestGreen.opacity(0.12))
+                    .clipShape(Circle())
+            }
+            .disabled(viewModel.state.isGenerating)
+            .accessibilityLabel("Dictate records")
+            .accessibilityIdentifier("assistant_dictate")
+
             TextField("Ask a question…", text: $draft, axis: .vertical)
                 .focused($inputFocused)
                 .textFieldStyle(.plain)

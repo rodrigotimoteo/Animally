@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.SaveDewormingUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecord
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecordType
+import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.SaveUltrasoundUseCase
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
@@ -15,10 +16,14 @@ import kotlin.time.Clock
  *
  * @property record The validated, user-accepted suggestion.
  * @property patientId Resolved target patient.
+ * @property acknowledgedFlags Whether the user explicitly accepted a
+ *   [flagged][com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState.Flagged]
+ *   suggestion. Ignored for un-flagged records; required (true) for flagged ones.
  */
 data class SuggestedInsertion(
     val record: SuggestedRecord,
     val patientId: Long,
+    val acknowledgedFlags: Boolean = false,
 )
 
 /**
@@ -56,18 +61,44 @@ class InsertSuggestionsUseCase(
     /**
      * Inserts every [insertions] entry for its resolved patient.
      *
+     * Guard rails: [dropped][SuggestedValidationState.Dropped] records are
+     * rejected outright, and flagged records are rejected unless the caller
+     * explicitly acknowledged their flags via
+     * [SuggestedInsertion.acknowledgedFlags].
+     *
      * @param insertions Accepted suggestions with their resolved patient ids.
      * @return one [InsertionResult] per input, in input order.
      */
     operator fun invoke(insertions: List<SuggestedInsertion>): List<InsertionResult> =
         insertions.map { insertion ->
-            runCatching { insertOne(insertion) }
-                .fold(
-                    onSuccess = { id -> InsertionResult.Inserted(insertion.record.recordType, id) },
-                    onFailure = { error ->
-                        InsertionResult.Failed(insertion.record.recordType, error.message ?: "unknown error")
-                    },
-                )
+            val guardFailure = guard(insertion)
+            if (guardFailure != null) {
+                guardFailure
+            } else {
+                runCatching { insertOne(insertion) }
+                    .fold(
+                        onSuccess = { id -> InsertionResult.Inserted(insertion.record.recordType, id) },
+                        onFailure = { error ->
+                            InsertionResult.Failed(insertion.record.recordType, error.message ?: "unknown error")
+                        },
+                    )
+            }
+        }
+
+    /** Returns a [InsertionResult.Failed] when the record must not be saved, null otherwise. */
+    private fun guard(insertion: SuggestedInsertion): InsertionResult.Failed? =
+        when (val validation = insertion.record.validation) {
+            is SuggestedValidationState.Dropped ->
+                InsertionResult.Failed(insertion.record.recordType, "dropped record cannot be inserted")
+
+            is SuggestedValidationState.Flagged ->
+                if (insertion.acknowledgedFlags) {
+                    null
+                } else {
+                    InsertionResult.Failed(insertion.record.recordType, "flagged record not accepted")
+                }
+
+            SuggestedValidationState.Ok -> null
         }
 
     private fun insertOne(insertion: SuggestedInsertion): Long =

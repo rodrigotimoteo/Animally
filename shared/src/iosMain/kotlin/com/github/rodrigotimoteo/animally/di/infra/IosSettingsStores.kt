@@ -4,8 +4,10 @@ package com.github.rodrigotimoteo.animally.di.infra
 
 import com.github.rodrigotimoteo.animally.presentation.assistant.AssistantViewModel
 import com.github.rodrigotimoteo.animally.presentation.coggins.CogginsViewModel
+import com.github.rodrigotimoteo.animally.presentation.dictation.DictationViewModel
 import com.github.rodrigotimoteo.animally.presentation.ios.AssistantStore
 import com.github.rodrigotimoteo.animally.presentation.ios.CogginsStore
+import com.github.rodrigotimoteo.animally.presentation.ios.DictationStore
 import com.github.rodrigotimoteo.animally.presentation.ios.ReminderSettingsStore
 import com.github.rodrigotimoteo.animally.presentation.ios.SearchStore
 import com.github.rodrigotimoteo.animally.presentation.ios.SettingsStore
@@ -85,5 +87,11 @@ object IosSettingsStores {
     fun cogginsStore(): CogginsStore {
         val viewModel: CogginsViewModel = IosAppBridge.koin.get()
         return CogginsStore(viewModel)
+    }
+
+    /** Returns a store exposing the voice-dictation review flow. */
+    fun dictationStore(): DictationStore {
+        val viewModel: DictationViewModel = IosAppBridge.koin.get()
+        return DictationStore(viewModel)
     }
 }

@@ -5,8 +5,8 @@ struct DewormingEditView: View {
     @StateObject private var viewModel: DewormingEditViewModel
     @Environment(\.dismiss) private var dismiss
 
-    init(patientId: Int64, dewormingId: Int64?) {
-        _viewModel = StateObject(wrappedValue: DewormingEditViewModel(patientId: patientId, dewormingId: dewormingId))
+    init(patientId: Int64, dewormingId: Int64?, prefill: RecordPrefill? = nil) {
+        _viewModel = StateObject(wrappedValue: DewormingEditViewModel(patientId: patientId, dewormingId: dewormingId, prefill: prefill))
     }
 
     var body: some View {
@@ -47,6 +47,10 @@ struct DewormingEditView: View {
         }
         .onAppear {
             viewModel.onSaved = { dismiss() }
+            viewModel.applyPrefillIfNeeded()
+        }
+        .onChange(of: viewModel.hasForm) { _ in
+            viewModel.applyPrefillIfNeeded()
         }
     }
 
@@ -108,13 +112,16 @@ struct DewormingEditView: View {
 @MainActor
 final class DewormingEditViewModel: RecordFormViewModel<DewormingEditStoreState> {
     private let store: DewormingEditStore
+    private let prefill: RecordPrefill?
+    private var prefillApplied = false
 
-    init(patientId: Int64, dewormingId: Int64?) {
+    init(patientId: Int64, dewormingId: Int64?, prefill: RecordPrefill? = nil) {
         let store = IosEditStores.shared.dewormingEditStore(
             patientId: patientId,
             dewormingId: dewormingId.map { KotlinLong(longLong: $0) }
         )
         self.store = store
+        self.prefill = prefill
         super.init(
             initial: store.state.current,
             subscribe: { store.state.subscribe(onEach: $0) },
@@ -124,6 +131,18 @@ final class DewormingEditViewModel: RecordFormViewModel<DewormingEditStoreState>
     }
 
     var form: DewormingFormState? { state.form }
+
+    var hasForm: Bool { state.form != nil }
+
+    /// Applies dictated values once the Kotlin form has loaded. Runs at most
+    /// once; user edits afterwards always win.
+    func applyPrefillIfNeeded() {
+        guard let prefill, !prefillApplied, state.form != nil else { return }
+        prefillApplied = true
+        if let drugName = prefill.drugName { onProductChange(drugName) }
+        if let date = prefill.date { onDateAdministeredChange(date) }
+        if let notes = prefill.notes { onNotesChange(notes) }
+    }
 
     func onProductChange(_ value: String) { store.onProductChange(product: value) }
     func onDateAdministeredChange(_ value: String) { store.onDateAdministeredChange(dateAdministered: value) }
