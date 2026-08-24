@@ -4,14 +4,16 @@ import SwiftUI
 
 /// Voice-dictation capture sheet.
 ///
-/// Flow: idle → recording (waveform + live transcript) → transcribing
-/// (extraction) → reviewing. Cancel at any point discards everything.
+/// Flow: idle → recording (waveform + live transcript) → reviewing-transcript
+/// (editable ASR text) → transcribing (extraction) → reviewing. Cancel at any
+/// point discards everything.
 struct DictationCaptureView: View {
     let onFinished: () -> Void
 
     private enum Phase {
         case idle
         case recording
+        case reviewingTranscript
         case transcribing
         case reviewing
     }
@@ -19,6 +21,7 @@ struct DictationCaptureView: View {
     @StateObject private var reviewViewModel: DictationReviewViewModel
     @State private var phase: Phase = .idle
     @State private var liveTranscript = ""
+    @State private var editableTranscript = ""
     @State private var errorMessage: String?
     @State private var assetHint: String?
     @State private var disambiguatedPatients: [Int: Patient] = [:]
@@ -39,6 +42,8 @@ struct DictationCaptureView: View {
                     idleView
                 case .recording:
                     recordingView
+                case .reviewingTranscript:
+                    transcriptReviewView
                 case .transcribing:
                     transcribingView
                 case .reviewing:
@@ -63,7 +68,7 @@ struct DictationCaptureView: View {
                 }
             }
         }
-        .interactiveDismissDisabled(phase == .recording || phase == .transcribing)
+        .interactiveDismissDisabled(phase == .recording || phase == .reviewingTranscript || phase == .transcribing)
     }
 
     // MARK: Idle
@@ -138,6 +143,46 @@ struct DictationCaptureView: View {
         .padding(.vertical, 24)
     }
 
+    // MARK: Transcript review
+
+    private var transcriptReviewView: some View {
+        VStack(spacing: 20) {
+            Text("Check the transcript — fix any misheard words before extracting.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+
+            TextEditor(text: $editableTranscript)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .background(Theme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Theme.textTertiary.opacity(0.35), lineWidth: 1)
+                )
+                .padding(.horizontal, 24)
+                .accessibilityIdentifier("dictation_transcript_editor")
+
+            Button {
+                phase = .transcribing
+                Task { await runExtraction(transcript: editableTranscript) }
+            } label: {
+                Label("Extract", systemImage: "sparkles")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 14)
+                    .background(Theme.forestGreen)
+                    .clipShape(Capsule())
+            }
+            .disabled(editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("dictation_extract")
+        }
+        .padding(.vertical, 24)
+    }
+
     // MARK: Transcribing
 
     private var transcribingView: some View {
@@ -195,7 +240,7 @@ struct DictationCaptureView: View {
     }
 
     private func stopRecording() {
-        phase = .transcribing
+        phase = .reviewingTranscript
         Task {
             defer { try? AVAudioSession.sharedInstance().setActive(false) }
             guard let transcriber else {
@@ -209,7 +254,7 @@ struct DictationCaptureView: View {
                     errorMessage = "Nothing was captured. Try again."
                     return
                 }
-                await runExtraction(transcript: transcript)
+                editableTranscript = transcript
             } catch {
                 errorMessage = error.localizedDescription
                 phase = .recording
