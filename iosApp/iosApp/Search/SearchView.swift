@@ -50,16 +50,7 @@ struct SearchView: View {
                 RecordDetailView(
                     displayType: key.displayType,
                     patientId: key.patientId,
-                    recordId: key.recordId,
-                    onEdit: {
-                        if let editRoute = RecordEditRoute(
-                            displayType: key.displayType,
-                            patientId: key.patientId,
-                            recordId: key.recordId
-                        ) {
-                            path.append(editRoute)
-                        }
-                    }
+                    recordId: key.recordId
                 )
             }
         }

@@ -31,80 +31,43 @@ struct RecordDetailKey: Hashable {
     let recordId: Int64
 }
 
-/// Read-only view of everything inside one record. "Edit" opens the
-/// prefilled form; back returns to the patient page.
+/// Read-only view of everything inside one record. "Edit" pushes the
+/// prefilled form on top of this detail; saving or cancelling returns here,
+/// and the store subscription re-renders freshly saved data. Back returns to
+/// the caller (tab, timeline, or search).
 ///
-/// Two modes:
-/// - Eager (`init(nav:onEdit:)`): tab views already hold the entity and pass
-///   prebuilt field rows.
-/// - Id-loaded (`init(displayType:patientId:recordId:onEdit:)`): timeline and
-///   search only know the record identity; the matching Kotlin edit store is
-///   instantiated here and its loaded form state supplies the field rows.
+/// Always id-loaded: the matching Kotlin edit store is instantiated for the
+/// record identity and its form state supplies the field rows. Building rows
+/// from the form (instead of a tab-side snapshot) keeps child-table data such
+/// as ultrasound follicles visible from every entry point.
 struct RecordDetailView: View {
-    private enum Source {
-        case eager(RecordDetailNav)
-        case byId(RecordDetailKey)
-    }
+    let key: RecordDetailKey
+    let fallbackTitle: String
 
-    private let source: Source
-    private let title: String
-    private let onEdit: () -> Void
-
-    init(
-        nav: RecordDetailNav,
-        onEdit: @escaping () -> Void
-    ) {
-        source = .eager(nav)
-        title = nav.title
-        self.onEdit = onEdit
+    init(nav: RecordDetailNav) {
+        key = RecordDetailKey(
+            displayType: nav.displayType,
+            patientId: nav.patientId,
+            recordId: nav.recordId
+        )
+        fallbackTitle = nav.title
     }
 
     init(
         displayType: String,
         patientId: Int64,
-        recordId: Int64,
-        onEdit: @escaping () -> Void
+        recordId: Int64
     ) {
-        source = .byId(RecordDetailKey(
+        key = RecordDetailKey(
             displayType: displayType,
             patientId: patientId,
             recordId: recordId
-        ))
-        title = displayType
-        self.onEdit = onEdit
+        )
+        fallbackTitle = displayType
     }
 
-    @ViewBuilder
     var body: some View {
-        switch source {
-        case .eager(let nav):
-            eagerBody(nav)
-        case .byId(let key):
-            IdLoadedRecordDetailView(key: key, fallbackTitle: title, onEdit: onEdit)
-        }
-    }
-
-    private func eagerBody(_ nav: RecordDetailNav) -> some View {
-        List {
-            Section {
-                ForEach(nav.fields) { field in
-                    FieldCell(field: field)
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-        .navigationTitle(nav.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // Consistent with the id-loaded mode: no Edit until field rows
-            // exist (eager payloads are built up front, so an empty list
-            // means the source data was not ready).
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit", action: onEdit)
-                    .font(.subheadline.weight(.semibold))
-                    .disabled(nav.fields.isEmpty)
-            }
-        }
+        IdLoadedRecordDetailView(key: key, fallbackTitle: fallbackTitle)
     }
 }
 
@@ -124,23 +87,31 @@ private struct FieldCell: View {
     }
 }
 
-/// Id-loaded mode: instantiates the Kotlin-backed edit store for the record,
-/// subscribes to its state, and renders the loaded form as field rows.
+/// Instantiates the Kotlin-backed edit store for the record, subscribes to
+/// its state, and renders the loaded form as field rows. Owns the Edit push
+/// so saving or cancelling pops back here with re-emitted (fresh) data.
 private struct IdLoadedRecordDetailView: View {
     let key: RecordDetailKey
     let fallbackTitle: String
-    let onEdit: () -> Void
 
     @StateObject private var observer: RecordDetailObserver
+    @State private var editRoute: RecordEditRoute?
+
+    /// Nil when the display type has no editor route; disables Edit.
+    private var editDestination: RecordEditRoute? {
+        RecordEditRoute(
+            displayType: key.displayType,
+            patientId: key.patientId,
+            recordId: key.recordId
+        )
+    }
 
     init(
         key: RecordDetailKey,
-        fallbackTitle: String,
-        onEdit: @escaping () -> Void
+        fallbackTitle: String
     ) {
         self.key = key
         self.fallbackTitle = fallbackTitle
-        self.onEdit = onEdit
         _observer = StateObject(wrappedValue: RecordDetailObserver(key: key))
     }
 
@@ -180,10 +151,17 @@ private struct IdLoadedRecordDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit", action: onEdit)
-                    .font(.subheadline.weight(.semibold))
-                    .disabled(observer.fields == nil)
+                Button {
+                    editRoute = editDestination
+                } label: {
+                    Text("Edit")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .disabled(observer.fields == nil || editDestination == nil)
             }
+        }
+        .navigationDestination(item: $editRoute) { route in
+            recordEditDestination(route)
         }
     }
 }

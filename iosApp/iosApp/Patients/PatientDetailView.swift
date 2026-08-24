@@ -5,7 +5,6 @@ struct PatientDetailView: View {
     @StateObject private var viewModel: PatientDetailViewModel
     @State private var selectedTab: DetailTab = .overview
     @State private var addRecordRoute: RecordEditRoute?
-    @State private var editRoute: RecordEditRoute?
     @State private var recordDetail: RecordDetailNav?
     /// Bumped when returning from a record editor so the visible tab's
     /// view model is recreated and reloads fresh data.
@@ -83,27 +82,13 @@ struct PatientDetailView: View {
                 viewModel.load()
             }
         }
-        .onChange(of: editRoute) { oldValue, newValue in
-            // Same refresh contract when returning from editing an existing record.
-            if oldValue != nil, newValue == nil {
-                recordsRefreshToken += 1
-                viewModel.load()
-            }
-        }
         .navigationDestination(item: $addRecordRoute) { route in
             recordEditDestination(route)
         }
-        .navigationDestination(item: $editRoute) { route in
-            recordEditDestination(route)
-        }
         .navigationDestination(item: $recordDetail) { nav in
-            RecordDetailView(nav: nav) {
-                editRoute = RecordEditRoute(
-                    displayType: nav.displayType,
-                    patientId: nav.patientId,
-                    recordId: nav.recordId
-                )
-            }
+            // The detail view owns the Edit push itself, so saving an edit
+            // pops back to the refreshed read-only detail instead of the tab.
+            RecordDetailView(nav: nav)
         }
     }
 

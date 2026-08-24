@@ -156,6 +156,20 @@ struct ReproductionTabView: View {
                             .foregroundStyle(Theme.textSecondary)
                             .padding(.leading, 48)
                         }
+                        if let summary = Self.ultrasoundExtraLine(record) {
+                            // Same visual treatment as the Preventive tab's
+                            // amber next-due lines, so every card carries one
+                            // scannable identifying line.
+                            HStack(spacing: 4) {
+                                Image(systemName: "note.text")
+                                    .font(.caption2)
+                                Text(summary)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(Theme.amber)
+                            .padding(.leading, 48)
+                        }
                     }
                     .contentShape(Rectangle())
 
@@ -272,6 +286,15 @@ struct ReproductionTabView: View {
     private static func isActive(_ gestation: Gestation_) -> Bool {
         let resolved = ["Completed", "Failed", "Foaled"]
         return !resolved.contains { gestation.status.caseInsensitiveCompare($0) == .orderedSame }
+    }
+
+    /// One-line identifying summary for an ultrasound card: findings text,
+    /// falling back to the uterine status when findings are empty.
+    private static func ultrasoundExtraLine(_ record: Ultrasound_) -> String? {
+        let findings = record.findings?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !findings.isEmpty { return findings }
+        let uterine = record.uterineStatus?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return uterine.isEmpty ? nil : uterine
     }
 
     /// Shared field rows for the read-only gestation detail screen.
