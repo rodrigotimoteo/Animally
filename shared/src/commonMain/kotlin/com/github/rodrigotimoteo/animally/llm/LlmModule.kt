@@ -6,5 +6,13 @@ val llmModule =
     module {
         single { LlmConfig() }
         single { LlmEngine(get()) }
-        single { GenerateRagResponseUseCase(get(), get()) }
+        // Adapt the platform expect class to the testable RagLlmEngine seam.
+        single {
+            GenerateRagResponseUseCase(
+                get(),
+                RagLlmEngine { prompt, instructions ->
+                    get<LlmEngine>().generate(prompt, instructions)
+                },
+            )
+        }
     }

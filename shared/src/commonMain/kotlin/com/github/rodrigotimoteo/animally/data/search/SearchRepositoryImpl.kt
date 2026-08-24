@@ -352,6 +352,8 @@ class SearchRepositoryImpl(
                 listOfNotNull(
                     it.ovaryStatus,
                     it.uterineStatus,
+                    it.leftOvaryStatus,
+                    it.rightOvaryStatus,
                     it.uterineEdema,
                     it.uterineLiquidDescription,
                     it.uterusDescription,
@@ -371,7 +373,17 @@ class SearchRepositoryImpl(
 
     private val reindexGestationRows: () -> Unit = {
         database.gestationQueries.selectAll().executeAsList().forEach {
-            val searchableText = listOfNotNull(it.status, it.notes).joinToString(" ")
+            // Natural questions ("is she pregnant?") must hit unresolved
+            // gestations, whose raw fields (status "Active", notes) may not
+            // contain those words. Resolved pregnancies (Completed/Failed,
+            // mirroring GetUpcomingRemindersUseCase) must NOT claim an active
+            // pregnancy, so they keep only their own indexed text.
+            val isResolved =
+                it.status.equals("Completed", ignoreCase = true) ||
+                    it.status.equals("Failed", ignoreCase = true)
+            val pregnancyVocabulary =
+                if (isResolved) null else "pregnant in foal active gestation expected foaling"
+            val searchableText = listOfNotNull(it.status, it.notes, pregnancyVocabulary).joinToString(" ")
             indexRecord(
                 recordType = RecordType.Gestation.wireName,
                 patientId = it.patientId,

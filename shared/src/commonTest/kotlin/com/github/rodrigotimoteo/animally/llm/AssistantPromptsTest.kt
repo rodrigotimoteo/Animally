@@ -29,4 +29,11 @@ class AssistantPromptsTest {
     fun `given content words when enriched then query unchanged`() {
         assertEquals("tendon injury grade 2", AssistantPrompts.enrichQuery("tendon injury grade 2"))
     }
+
+    @Test
+    fun `given pregnancy pronoun question when enriched then only content word kept`() {
+        // Regression lock: "She is pregnant" must reduce to "pregnant" so the
+        // gestation vocabulary in the FTS index can match it.
+        assertEquals("pregnant", AssistantPrompts.enrichQuery("She is pregnant"))
+    }
 }
