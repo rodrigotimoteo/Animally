@@ -23,6 +23,17 @@ val llmModule =
                 RagRecordSearch { ftsQuery ->
                     searchRepository.searchSnippets(ftsQuery, from = null, to = null, recordTypes = null)
                 }
+            // Analysis mode: Kotlin computes count/trend/overdue summaries
+            // from the repositories; the model only narrates them.
+            val analysisContextBuilder =
+                AnalysisContextBuilder(
+                    patientRepository = get(),
+                    weightRepository = get(),
+                    vaccinationRepository = get(),
+                    dewormingRepository = get(),
+                    farrierVisitRepository = get(),
+                    gestationRepository = get(),
+                )
             GenerateRagResponseUseCase(
                 get(),
                 object : RagLlmEngine {
@@ -39,6 +50,7 @@ val llmModule =
                 strings = get(),
                 recordSearch = recordSearch,
                 patientRepository = get(),
+                analysisContextBuilder = analysisContextBuilder,
             )
         }
     }

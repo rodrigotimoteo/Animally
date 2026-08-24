@@ -33,6 +33,12 @@ interface AssistantStrings {
      */
     val dosageRefusal: String
 
+    /**
+     * Emitted before retrieval starts so the user sees immediate feedback;
+     * replaced by the first real chunk (consumers replace their buffer).
+     */
+    val searchingPlaceholder: String
+
     /** Follow-up chip: cited Vaccination record. */
     val followUpNextBooster: String
 
@@ -77,6 +83,8 @@ object EnAssistantStrings : AssistantStrings {
     override val dosageRefusal: String =
         "I can't advise on dosages. Check the medication record or consult the treating vet."
 
+    override val searchingPlaceholder: String = "Searching your records…"
+
     override val followUpNextBooster: String = "When is the next booster due?"
 
     override val followUpGestationDay: String = "What day of gestation is she?"
@@ -114,6 +122,8 @@ object PtAssistantStrings : AssistantStrings {
 
     override val dosageRefusal: String =
         "Não posso aconselhar sobre doses. Consulte o registo do medicamento ou o veterinário responsável."
+
+    override val searchingPlaceholder: String = "A pesquisar nos seus registos…"
 
     override val followUpNextBooster: String = "Quando é a próxima vacina?"
 

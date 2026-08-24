@@ -8,7 +8,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 import kotlin.math.ceil
+import kotlin.time.Clock
 
 /**
  * Narrow generation seam so the RAG pipeline can be tested without the
@@ -64,6 +68,8 @@ class GenerateRagResponseUseCase(
     private val strings: AssistantStrings = EnAssistantStrings,
     private val recordSearch: RagRecordSearch? = null,
     private val patientRepository: IPatientRepository? = null,
+    private val analysisContextBuilder: AnalysisContextBuilder? = null,
+    private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
 ) {
     /** Rough token estimate: ~4 characters per token (see RAG budget in CONTEXT docs). */
     private companion object {
@@ -89,6 +95,20 @@ class GenerateRagResponseUseCase(
 
         // Bracketed citation header in the final answer text: [TYPE #id].
         val citationRegex = Regex("\\[([A-Z_]+) #(\\d+)]")
+
+        // Citation-enforcement fallback caps appended headers: a ten-record
+        // answer must not gain ten noise lines when the model cites nothing.
+        const val MAX_ENFORCED_SOURCES = 3
+
+        /** Human-readable month abbreviations for chunk/TODAY dates (locale-independent). */
+        val MONTH_ABBREVIATIONS =
+            listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+        /** Renders a date as "14 Mar 2026" (locale-independent, model-friendly). */
+        fun formatHumanDate(date: LocalDate): String {
+            val month = MONTH_ABBREVIATIONS[date.monthNumber - 1]
+            return "${date.dayOfMonth} $month ${date.year}"
+        }
     }
 
     /**
@@ -125,6 +145,11 @@ class GenerateRagResponseUseCase(
                 emit(RagStreamEvent.Chunk(turnStrings.tooShortReply))
                 return@flow
             }
+            // Immediate feedback: retrieval runs before the first model
+            // emission, so without this line the user stares at nothing.
+            // Consumers replace their buffer with each chunk, so this
+            // placeholder is overwritten by the real answer (or fallback).
+            emit(RagStreamEvent.Chunk(turnStrings.searchingPlaceholder))
             val results = prioritizePatientScope(retrieve(query, enriched), query)
             // Dosage guardrail: a how-much-drug question answered without any
             // medication record in context must be refused deterministically -
@@ -135,19 +160,25 @@ class GenerateRagResponseUseCase(
                 emit(RagStreamEvent.Chunk(turnStrings.dosageRefusal))
                 return@flow
             }
+            // Analysis mode: deterministic summaries computed in Kotlin feed
+            // as authoritative context so the model narrates instead of doing
+            // arithmetic. Built once per turn; counts toward the token budget.
+            val deterministicSummary = analysisContextBuilder?.build(query)
             val recentConversation = formatHistory(history)
             val chunks = results.map { result -> formatChunk(result) }
+            val reservedTokens =
+                estimateTokens(recentConversation) + estimateTokens(deterministicSummary.orEmpty())
             val selectedIndices =
                 selectWithinBudget(
                     chunks,
-                    reservedTokens = estimateTokens(recentConversation),
+                    reservedTokens = reservedTokens,
                 )
-            if (selectedIndices.isEmpty() && recentConversation.isEmpty()) {
+            if (selectedIndices.isEmpty() && recentConversation.isEmpty() && deterministicSummary == null) {
                 emit(RagStreamEvent.Chunk(turnStrings.noResultsFallback))
                 return@flow
             }
             val selected = selectedIndices.map(chunks::get)
-            val context = buildContext(selected, query, recentConversation)
+            val context = buildContext(selected, query, recentConversation, deterministicSummary)
             streamAnswer(context, turnStrings, selected, selectedIndices.map(results::get))
         }
 
@@ -189,7 +220,9 @@ class GenerateRagResponseUseCase(
         // is enforced here - when records were used and the reply carries
         // none, append the ACTUAL retrieved headers (never invented ones).
         if (selected.isNotEmpty() && "[" !in lastEmitted) {
-            val sources = selected.mapNotNull(::sourceHeader)
+            // Top-3 by retrieval rank only: appending every selected header
+            // turns a ten-record answer into ten lines of citation noise.
+            val sources = selected.mapNotNull(::sourceHeader).take(MAX_ENFORCED_SOURCES)
             if (sources.isNotEmpty()) {
                 lastEmitted =
                     listOf(lastEmitted.takeIf(String::isNotBlank), sources.joinToString("\n"))
@@ -268,14 +301,17 @@ class GenerateRagResponseUseCase(
      * Formats one search hit as a citable source block. The bracketed header
      * carries record id and patient id so the model can cite precisely; the
      * system prompt tells the model these headers are source references.
+     * Dates render humanized ("14 Mar 2026") - raw ISO strings read as noise
+     * to the model and leak into answers verbatim. Snippets are capped at
+     * [RagConfig.chunkCharCap] so one long record cannot dominate the budget.
      */
     private fun formatChunk(result: SearchResult): String {
-        val date = result.date?.toString() ?: "unknown date"
+        val date = result.date?.let(::formatHumanDate) ?: "unknown date"
         val breed = result.breed ?: "unknown breed"
         return buildString {
             val header = "[${result.recordType} #${result.recordId}] ${result.patientName} ($breed, $date)"
             appendLine("$header | patient #${result.patientId}")
-            appendLine(result.snippet)
+            appendLine(result.snippet.take(config.chunkCharCap))
         }
     }
 
@@ -286,6 +322,12 @@ class GenerateRagResponseUseCase(
      * strings) so callers can map back to the originating [SearchResult]s
      * for source-card emission. An empty result means every chunk was
      * filtered out (or there were none).
+     *
+     * An individually oversized chunk is SKIPPED, not a stopping point: with
+     * `break`, one huge record early in the ranking starved every smaller
+     * relevant record behind it. Chunks are pre-capped by
+     * [RagConfig.chunkCharCap] in [formatChunk], so skipping only fires when
+     * the remaining budget is genuinely exhausted for that chunk.
      */
     private fun selectWithinBudget(
         chunks: List<String>,
@@ -299,7 +341,7 @@ class GenerateRagResponseUseCase(
         var used = 0
         for ((index, chunk) in chunks.withIndex()) {
             val est = ceil(chunk.length / CHARS_PER_TOKEN).toInt()
-            if (used + est > budget) break
+            if (used + est > budget) continue
             selected.add(index)
             used += est
         }
@@ -368,17 +410,27 @@ class GenerateRagResponseUseCase(
             result.recordType == RecordType.ReproMedication.wireName
 
     /**
-     * Assembles the user-turn prompt: optional recent conversation for
-     * multi-turn context, retrieved context, then the raw question.
-     * Role/scope/citation rules live in the system prompt and are passed as
-     * instructions, not inline.
+     * Assembles the user-turn prompt: today's date first (so relative
+     * questions like "is the Coggins still valid?" are answerable - kept in
+     * the user turn, not the system prompt, so the reserve budget stays
+     * stable), optional deterministic summary (computed facts the model must
+     * never contradict), then optional recent conversation for multi-turn
+     * context, retrieved context, and the raw question. Role/scope/citation
+     * rules live in the system prompt and are passed as instructions, not
+     * inline.
      */
     private fun buildContext(
         chunks: List<String>,
         query: String,
         recentConversation: String = "",
+        deterministicSummary: String? = null,
     ): String {
         val prompt = StringBuilder()
+        prompt.appendLine("TODAY IS ${formatHumanDate(today)}.")
+        if (deterministicSummary != null) {
+            prompt.appendLine(deterministicSummary)
+            prompt.appendLine("---")
+        }
         if (recentConversation.isNotEmpty()) {
             prompt.appendLine(recentConversation)
             prompt.appendLine("---")

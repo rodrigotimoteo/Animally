@@ -17,6 +17,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Hand-rolled fake: LlmEngine is an expect class and cannot be faked from common code. */
@@ -56,12 +57,16 @@ class GenerateRagResponseUseCaseTest {
         strings: AssistantStrings = EnAssistantStrings,
         recordSearch: RagRecordSearch? =
             RagRecordSearch { ftsQuery -> searchRepositoryMock.search(ftsQuery, null, null, null) },
+        analysisContextBuilder: AnalysisContextBuilder? = null,
+        today: LocalDate = LocalDate(2026, 8, 24),
     ) = GenerateRagResponseUseCase(
         SearchUseCase(searchRepositoryMock),
         engine,
         config,
         strings,
         recordSearch,
+        analysisContextBuilder = analysisContextBuilder,
+        today = today,
     )
 
     private fun result(snippet: String = "tetanus booster") =
@@ -89,13 +94,13 @@ class GenerateRagResponseUseCaseTest {
         )
 
     @Test
-    fun `given empty search results when invoked then fallback emitted and engine never called`() =
+    fun `given empty search results when invoked then placeholder then fallback emitted and engine never called`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
             val output = sut()(QUERY).chunks()
 
-            assertEquals(listOf(FALLBACK_TEXT), output)
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
             assertEquals(0, engine.calls)
         }
 
@@ -107,8 +112,79 @@ class GenerateRagResponseUseCaseTest {
 
             val output = sut(tinyBudget)(QUERY).chunks()
 
-            assertEquals(listOf(FALLBACK_TEXT), output)
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
             assertEquals(0, engine.calls)
+        }
+
+    @Test
+    fun `given oversized first chunk when invoked then smaller later chunks still selected`() =
+        runTest {
+            // Regression: selectWithinBudget used to break on the first chunk
+            // that did not fit, starving every smaller relevant record behind
+            // it. The oversized lead must be skipped (and capped), not a
+            // stopping point.
+            val oversized = result().copy(recordId = 1L, snippet = "y".repeat(10_000))
+            val smallA = result().copy(recordId = 2L, snippet = "colic treated")
+            val smallB = result().copy(recordId = 3L, snippet = "hoof abscess")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(oversized, smallA, smallB)
+            // Budget sits between the capped oversized chunk (~300 tokens) and
+            // its raw size (~2500 tokens): with the old break nothing survives.
+            val config = RagConfig(maxContextTokens = 3000)
+
+            val output = sut(config)(QUERY).answers()
+
+            assertEquals(1, engine.calls, "small chunks after the oversized one must unlock the model call")
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains("[VACCINATION #2]"), "small chunk A missing from context")
+            assertTrue(prompt.contains("[VACCINATION #3]"), "small chunk B missing from context")
+            assertTrue(prompt.contains("[VACCINATION #1]"), "oversized chunk is capped, not dropped")
+            assertFalse(
+                prompt.contains("y".repeat(RagConfig.DEFAULT.chunkCharCap + 1)),
+                "oversized snippet must be truncated to the char cap",
+            )
+            assertTrue(output.first().contains("pregnant"))
+        }
+
+    @Test
+    fun `given snippet longer than char cap when invoked then prompt carries capped snippet`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result(snippet = "z".repeat(5000)))
+
+            sut()(QUERY).toList()
+
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains("zzzzzzzzzz"), "capped snippet content must survive")
+            assertFalse(prompt.contains("z".repeat(RagConfig.DEFAULT.chunkCharCap + 1)), "snippet must be truncated to chunkCharCap")
+        }
+
+    @Test
+    fun `given any query when invoked then prompt leads with today line and humanized chunk date`() =
+        runTest {
+            // "Is the Coggins still valid?" is unanswerable unless the model
+            // knows today's date; raw ISO dates in chunks read as noise.
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+
+            sut()(QUERY).toList()
+
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.startsWith("TODAY IS 24 Aug 2026."), "today line must lead the user turn: ${prompt.take(60)}")
+            assertTrue(prompt.contains("(Thoroughbred, 1 May 2024)"), "chunk date must be humanized: $prompt")
+            assertFalse(prompt.contains("2024-05-01"), "raw ISO dates must not leak into the context")
+            // Today line lives in the user turn, not the system prompt, so the
+            // reserve budget stays stable.
+            assertEquals(AssistantPrompts.SYSTEM_PROMPT, engine.lastInstructions)
+        }
+
+    @Test
+    fun `given retrieval turn when invoked then searching placeholder leads and is replaced`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+
+            val output = sut()(QUERY).chunks()
+
+            assertEquals(PLACEHOLDER, output.first(), "placeholder must give immediate feedback")
+            assertTrue(output.size > 1, "real answer must replace the placeholder (buffer semantics)")
+            assertTrue(output.drop(1).none { it == PLACEHOLDER })
         }
 
     @Test
@@ -123,16 +199,18 @@ class GenerateRagResponseUseCaseTest {
             assertTrue(engine.lastPrompt.orEmpty().contains("Question: She is pregnant"))
             assertEquals(AssistantPrompts.SYSTEM_PROMPT, engine.lastInstructions)
             // Model output passes through sanitize(): no markdown survives.
-            // Citation enforcement may append a final sources snapshot, so the
-            // model text itself is the FIRST chunk.
-            val text = events.filterIsInstance<RagStreamEvent.Chunk>().first().text
+            // The searching placeholder leads the stream; the model text is
+            // the first answer chunk (citation enforcement may append a final
+            // sources snapshot after it).
+            val text = events.map { (it as? RagStreamEvent.Chunk)?.text }.filterNotNull().first { it != PLACEHOLDER }
             assertTrue(text.contains("She is pregnant with a due date of May 2025. See Vaccination #1."))
             assertTrue("**" !in text && "`" !in text && "__" !in text && "http" !in text)
         }
 
     // --- sanitize() cases, exercised through the public flow ---
-    // The sanitized model text is the first chunk; citation enforcement
-    // may append a final snapshot with the retrieved source headers.
+    // The sanitized model text is the first answer chunk (after the searching
+    // placeholder); citation enforcement may append a final snapshot with the
+    // retrieved source headers.
 
     @Test
     fun `sanitize removes bold marker pairs`() =
@@ -140,7 +218,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "**Answer** here"
 
-            val output = sut()(QUERY).chunks()
+            val output = sut()(QUERY).answers()
 
             assertEquals("Answer here", output.first())
         }
@@ -151,7 +229,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "See [Vaccination #123](https://vet.example.com/x) for details"
 
-            val output = sut()(QUERY).chunks()
+            val output = sut()(QUERY).answers()
 
             assertEquals("See Vaccination #123 for details", output.first())
         }
@@ -162,7 +240,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "- Plain line, 2 doses, due 2025-05-01."
 
-            val output = sut()(QUERY).chunks()
+            val output = sut()(QUERY).answers()
 
             assertEquals("- Plain line, 2 doses, due 2025-05-01.", output.first())
         }
@@ -173,7 +251,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "**Pregnant** — see [Ultrasound #9](https://x.co/y) and `notes` __here__"
 
-            val output = sut()(QUERY).chunks()
+            val output = sut()(QUERY).answers()
 
             assertEquals("Pregnant — see Ultrasound #9 and notes here", output.first())
         }
@@ -201,7 +279,7 @@ class GenerateRagResponseUseCaseTest {
                     listOf(result()),
                 )
 
-            val output = sut()("Which patients belong to Daniela").chunks()
+            val output = sut()("Which patients belong to Daniela").answers()
 
             assertEquals(1, engine.calls)
             assertTrue(engine.lastPrompt.orEmpty().contains("[VACCINATION #123] Thunder"))
@@ -249,7 +327,7 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
             val history = listOf(RagHistoryEntry("Tell me about Thunder", "Thunder is a 7 year old mare."))
-            val output = sut()("How old is she?", history).chunks()
+            val output = sut()("How old is she?", history).answers()
 
             assertEquals(1, engine.calls, "follow-up must reach the model with conversation context")
             assertTrue(engine.lastPrompt.orEmpty().contains("Recent conversation:"))
@@ -263,8 +341,11 @@ class GenerateRagResponseUseCaseTest {
 
             val output = sut(strings = PtAssistantStrings)(QUERY).chunks()
 
-            assertEquals(PtAssistantStrings.noResultsFallback, output.single())
-            assertTrue(output.single().startsWith("Não encontrei"))
+            assertEquals(
+                listOf(PtAssistantStrings.searchingPlaceholder, PtAssistantStrings.noResultsFallback),
+                output,
+            )
+            assertTrue(output.last().startsWith("Não encontrei"))
         }
 
     @Test
@@ -274,7 +355,7 @@ class GenerateRagResponseUseCaseTest {
 
             val output = sut()("Quantos pacientes tenho?").chunks()
 
-            assertTrue(output.single().startsWith("Não encontrei"), "PT question must get a PT turn: ${output.single()}")
+            assertTrue(output.last().startsWith("Não encontrei"), "PT question must get a PT turn: ${output.last()}")
         }
 
     @Test
@@ -294,11 +375,33 @@ class GenerateRagResponseUseCaseTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "Thunder is a horse."
 
-            val output = sut()(QUERY).chunks()
+            val output = sut()(QUERY).answers()
 
             val final = output.last()
             assertTrue(final.contains("[VACCINATION #123]"), "citation must be enforced: $final")
             assertTrue(final.contains("Thunder is a horse."))
+        }
+
+    @Test
+    fun `given many selected records and no model citations when enforced then exactly top-3 headers appended`() =
+        runTest {
+            // Regression: enforcement used to append EVERY selected header -
+            // a ten-record answer gained ten noise lines. Cap is top-3 by rank.
+            val five =
+                (1L..5L).map { id -> result().copy(recordId = id, snippet = "note $id") }
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns five
+            engine.nextChunkOverride = "Thunder is a horse."
+
+            val output = sut()(QUERY).answers()
+
+            val final = output.last()
+            val headerMatches = Regex("\\[[A-Z_]+ #\\d+]").findAll(final).toList()
+            assertEquals(3, headerMatches.size, "exactly three headers must be appended: $final")
+            assertEquals(
+                listOf("[VACCINATION #1]", "[VACCINATION #2]", "[VACCINATION #3]"),
+                headerMatches.map { it.value },
+                "appended headers must be the top-3 by retrieval rank",
+            )
         }
 
     @Test
@@ -364,7 +467,7 @@ class GenerateRagResponseUseCaseTest {
 
             val output = sut()("How much vaccine should I administer?").chunks()
 
-            assertEquals(listOf(EnAssistantStrings.dosageRefusal), output)
+            assertEquals(listOf(PLACEHOLDER, EnAssistantStrings.dosageRefusal), output)
             assertEquals(0, engine.calls, "dosage refusal must be deterministic - no model call")
         }
 
@@ -373,7 +476,7 @@ class GenerateRagResponseUseCaseTest {
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(medicationResult())
 
-            val output = sut()("How much metronidazole was given?").chunks()
+            val output = sut()("How much metronidazole was given?").answers()
 
             assertEquals(1, engine.calls, "grounded dosage question must reach the model")
             assertTrue(output.first().contains("pregnant")) // default fake chunk passes through sanitize
@@ -384,7 +487,7 @@ class GenerateRagResponseUseCaseTest {
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
 
-            val output = sut()("How much does she weigh?").chunks()
+            val output = sut()("How much does she weigh?").answers()
 
             assertEquals(1, engine.calls, "weight questions are not dosage intents")
             assertTrue(!output.first().contains("dosages"))
@@ -397,7 +500,7 @@ class GenerateRagResponseUseCaseTest {
 
             val output = sut()("Quantos ml de detomidine administrar?").chunks()
 
-            assertEquals(PtAssistantStrings.dosageRefusal, output.single())
+            assertEquals(PtAssistantStrings.dosageRefusal, output.last())
             assertEquals(0, engine.calls)
         }
 
@@ -429,13 +532,69 @@ class GenerateRagResponseUseCaseTest {
             }
         }
 
+    // --- Analysis mode: deterministic summaries reach the prompt ---
+
+    @Test
+    fun `given analysis query when invoked then deterministic summary reaches prompt and engine called`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Thunder"))
+
+            val output = sut(analysisContextBuilder = repos.builder)("How many patients do I have?").answers()
+
+            assertEquals(1, engine.calls, "summary alone must unlock the model call - unlike the fallback paths")
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains(AnalysisContextBuilder.SUMMARY_HEADER))
+            assertTrue(prompt.contains("PATIENT CENSUS: 1 active patients: Thunder."))
+            assertTrue(prompt.indexOf("DETERMINISTIC SUMMARY") < prompt.indexOf("Context:"), "summary precedes Context")
+            assertTrue(engine.lastInstructions.orEmpty().contains("DETERMINISTIC SUMMARY LINES ARE COMPUTED FACTS"))
+            assertTrue(output.first().contains("pregnant")) // default fake chunk passes through sanitize
+        }
+
+    @Test
+    fun `given tiny budget when invoked then summary kept and chunks dropped`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result(snippet = "x".repeat(4000)))
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Thunder"))
+            val config = RagConfig(maxContextTokens = 1200)
+
+            sut(config, analysisContextBuilder = repos.builder)("How many patients do I have?").chunks()
+
+            assertEquals(1, engine.calls)
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains(AnalysisContextBuilder.SUMMARY_HEADER), "computed summary must survive the budget")
+            assertFalse(prompt.contains("[VACCINATION #123]"), "chunk must lose to the reserved summary budget")
+        }
+
+    @Test
+    fun `given builder wired and non-analysis query when invoked then prompt has no summary`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Thunder"))
+
+            sut(analysisContextBuilder = repos.builder)("What treatment did Thunder receive for colic?").chunks()
+
+            assertEquals(1, engine.calls)
+            assertFalse(engine.lastPrompt.orEmpty().contains("DETERMINISTIC SUMMARY"), "retrieval-only turns skip the scan")
+        }
+
     private companion object {
         const val QUERY = "She is pregnant"
         const val FALLBACK_TEXT =
             "I couldn't find anything about that in your records. Try asking " +
                 "about a horse by name, a treatment, vaccination, or a date."
+        const val PLACEHOLDER = "Searching your records…"
     }
 }
 
 /** Chunk texts in emission order - the user-visible answer snapshots. */
 private suspend fun Flow<RagStreamEvent>.chunks(): List<String> = toList().filterIsInstance<RagStreamEvent.Chunk>().map { it.text }
+
+/**
+ * Answer snapshots excluding the leading searching placeholder (emitted
+ * before retrieval and replaced by consumers' buffer semantics).
+ */
+private suspend fun Flow<RagStreamEvent>.answers(): List<String> = chunks().filter { it != EnAssistantStrings.searchingPlaceholder }
