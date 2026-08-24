@@ -49,14 +49,14 @@ class GenerateRagResponseUseCaseTest {
     private fun sut(
         config: RagConfig = RagConfig.DEFAULT,
         strings: AssistantStrings = EnAssistantStrings,
-        orSearch: RagOrSearch? =
-            RagOrSearch { ftsQuery -> searchRepositoryMock.search(ftsQuery, null, null, null) },
+        recordSearch: RagRecordSearch? =
+            RagRecordSearch { ftsQuery -> searchRepositoryMock.search(ftsQuery, null, null, null) },
     ) = GenerateRagResponseUseCase(
         SearchUseCase(searchRepositoryMock),
         engine,
         config,
         strings,
-        orSearch,
+        recordSearch,
     )
 
     private fun result(snippet: String = "tetanus booster") =
@@ -175,9 +175,9 @@ class GenerateRagResponseUseCaseTest {
     @Test
     fun `given AND query misses but OR retry matches when invoked then OR results feed the engine`() =
         runTest {
-            // Call 1: the AND query from SearchUseCase ("patients* AND belong*
-            // AND Daniela*"). Call 2: the FTS-safe OR expression hitting the
-            // repository directly via RagOrSearch.
+            // Call 1: the AND query built from the enriched question. Call 2:
+            // the FTS-safe OR expression hitting the repository directly via
+            // RagRecordSearch.
             every { searchRepositoryMock.search(any(), any(), any(), any()) } sequentiallyReturns
                 listOf(
                     emptyList(),

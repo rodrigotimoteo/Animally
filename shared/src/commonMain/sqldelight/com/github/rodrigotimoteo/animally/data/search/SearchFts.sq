@@ -42,6 +42,8 @@ SELECT COUNT(*) FROM SearchFtsIndex;
 -- Global search across patients, consultations and medications.
 -- Date filtering is applied in SQL (nullable bounds), record-type filtering
 -- is applied in Kotlin because SQLDelight cannot bind list parameters.
+-- Ordered by BM25 relevance (lower rank = better match) with the record
+-- date descending as tiebreak so equally-relevant hits surface newest first.
 search:
 SELECT
     p.id AS patientId,
@@ -58,11 +60,35 @@ JOIN Patient p ON p.id = i.patientId AND p.isActive = 1
 WHERE SearchFts MATCH :query
     AND (:fromDate IS NULL OR i.date >= :fromDate)
     AND (:toDate IS NULL OR i.date <= :toDate)
-ORDER BY p.name, i.date;
+ORDER BY bm25(SearchFts), i.date DESC;
+
+-- RAG-facing variant of [search]: identical matching and ordering, but the
+-- matched text is returned as an FTS5 snippet window (24 tokens) instead of
+-- the full indexed text, so long consultations cannot eat the assistant's
+-- context budget. The global Search screen keeps using [search] with full
+-- text; only the retrieval-augmented pipeline consumes this query.
+searchSnippets:
+SELECT
+    p.id AS patientId,
+    p.name AS patientName,
+    p.breed AS breed,
+    p.microchipId AS microchipId,
+    i.recordType AS recordType,
+    i.recordId AS recordId,
+    i.date AS date,
+    COALESCE(snippet(SearchFts, f.searchableText, '', '', '...', 24), '') AS snippetText
+FROM SearchFts f
+JOIN SearchFtsIndex i ON i.id = f.rowid
+JOIN Patient p ON p.id = i.patientId AND p.isActive = 1
+WHERE SearchFts MATCH :query
+    AND (:fromDate IS NULL OR i.date >= :fromDate)
+    AND (:toDate IS NULL OR i.date <= :toDate)
+ORDER BY bm25(SearchFts), i.date DESC;
 
 -- Owner hits share the same index but join the Owner table instead of
 -- Patient: owner rows are stored with patientId = 0 and recordId = ownerId.
--- Date bounds do not apply (owners carry no indexed date).
+-- Date bounds do not apply (owners carry no indexed date). Owners carry no
+-- date either, so the name is the tiebreak after BM25 relevance.
 searchOwners:
 SELECT
     o.id AS ownerId,
@@ -74,4 +100,4 @@ JOIN SearchFtsIndex i ON i.id = f.rowid
 JOIN Owner o ON o.id = i.recordId AND o.isActive = 1
 WHERE SearchFts MATCH :query
     AND i.recordType = 'OWNER'
-ORDER BY o.name;
+ORDER BY bm25(SearchFts), o.name;

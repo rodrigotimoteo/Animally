@@ -99,6 +99,30 @@ object AssistantPrompts {
     private val portugueseDiacriticRegex = Regex("[áâãàçéêíóôõú]")
 
     /**
+     * Domain synonym groups for retrieval recall: when a query token matches
+     * a member, the group's remaining members are appended as OR-terms so a
+     * natural phrasing ("in foal", "shod") can still reach records indexed
+     * under different vocabulary. Multi-word members are allowed; they are
+     * emitted as quoted FTS phrases. At most [MAX_SYNONYM_GROUPS] groups are
+     * expanded per query (first matches in declared order) to bound query
+     * growth. Note: expansion lives in the FTS-shaped builders
+     * ([toFtsOrQuery]/[toFtsAndQuery]) — NOT in [enrichQuery], whose output
+     * is AND-joined token-by-token by SearchUseCase and would turn embedded
+     * OR syntax into an invalid MATCH expression.
+     */
+    private val SYNONYM_GROUPS: List<List<String>> =
+        listOf(
+            listOf("pregnant", "in foal", "gestation", "foaling", "bred"),
+            listOf("shod", "shoeing", "shoes", "trim", "farrier"),
+            listOf("vaccination", "vaccine", "booster", "shot"),
+            listOf("embryo transfer", "flush", "donor", "recipient"),
+            listOf("colic", "abdominal pain"),
+        )
+
+    /** Maximum synonym groups expanded into a single query. */
+    private const val MAX_SYNONYM_GROUPS = 2
+
+    /**
      * System prompt for the veterinary records assistant. Kept under ~200
      * tokens: the RAG context budget is 4096 tokens total and
      * [RagConfig.systemReserveTokens] reserves this prompt's share.
@@ -169,13 +193,50 @@ object AssistantPrompts {
     /**
      * FTS5-safe OR expression over the content (non-filler) tokens of [query]:
      * each token starred and joined with bare uppercase OR, e.g.
-     * "thunder* OR farrier*". Unlike [toOrQuery], the output is already a
-     * MATCH expression - it must NOT be routed through SearchUseCase, whose
+     * "thunder* OR farrier*". Synonym groups matched by the query's tokens
+     * contribute their remaining members as extra OR-terms (at most
+     * [MAX_SYNONYM_GROUPS] groups). Unlike [toOrQuery], the output is already
+     * a MATCH expression - it must NOT be routed through SearchUseCase, whose
      * tokenizer stars every whitespace token and would corrupt the operators
      * ("OR" becomes "OR*", a syntax error). Callers pass it straight to the
      * repository. Returns the empty string when no content token survives.
      */
-    fun toFtsOrQuery(query: String): String = contentTokens(query).joinToString(" OR ") { "$it*" }
+    fun toFtsOrQuery(query: String): String {
+        val tokens = contentTokens(query)
+        if (tokens.isEmpty()) return ""
+        val terms = tokens.map { "$it*" } + synonymExpansionTerms(tokens)
+        return terms.joinToString(" OR ")
+    }
+
+    /**
+     * FTS5-safe AND expression over the content (non-filler) tokens of
+     * [query]: each token starred and joined with bare uppercase AND, e.g.
+     * "colic* AND surgery*". Mirrors SearchUseCase's tokenizer for callers
+     * that bypass the use case and hand queries straight to the repository
+     * (the RAG pipeline does this so both retrieval legs share one seam).
+     * Returns the empty string when no content token survives.
+     */
+    fun toFtsAndQuery(query: String): String = contentTokens(query).joinToString(" AND ") { "$it*" }
+
+    /**
+     * OR-terms contributed by synonym expansion: for the first
+     * [MAX_SYNONYM_GROUPS] groups containing at least one match against
+     * [tokens] (single-word members match by token equality, multi-word
+     * members by phrase containment in the lowercased raw query), every other
+     * member not already present as a token is rendered as a starred term
+     * ("shoeing*") or a starred quoted phrase ("in foal"*). The repository's
+     * sanitizer passes these through unchanged.
+     */
+    private fun synonymExpansionTerms(tokens: List<String>): List<String> {
+        val lowered = tokens.map(String::lowercase).toSet()
+        val phrase = tokens.joinToString(" ").lowercase()
+        val expansions = mutableListOf<String>()
+        SYNONYM_GROUPS
+            .filter { group -> group.matchesAny(lowered, phrase) }
+            .take(MAX_SYNONYM_GROUPS)
+            .forEach { group -> expansions += group.expansionTerms(lowered) }
+        return expansions
+    }
 
     /** Content tokens of [query]: cleaned, non-blank, non-filler. */
     private fun contentTokens(query: String): List<String> =
@@ -196,3 +257,22 @@ object AssistantPrompts {
         return if (kept.isEmpty()) query else kept.joinToString(" OR ")
     }
 }
+
+/** True when [this] synonym group is triggered by [loweredTokens] or [phrase]. */
+private fun List<String>.matchesAny(
+    loweredTokens: Set<String>,
+    phrase: String,
+): Boolean =
+    any { term ->
+        if (' ' in term) phrase.contains(term) else term in loweredTokens
+    }
+
+/** Starred terms for every member of [this] not already in [loweredTokens]. */
+private fun List<String>.expansionTerms(loweredTokens: Set<String>): List<String> =
+    mapNotNull { term ->
+        when {
+            ' ' in term -> "\"$term\"*" // starred quoted phrase keeps word order
+            term in loweredTokens -> null
+            else -> "$term*"
+        }
+    }

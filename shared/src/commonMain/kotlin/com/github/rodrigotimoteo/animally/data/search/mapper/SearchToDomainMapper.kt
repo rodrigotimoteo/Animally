@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.data.search.mapper
 
 import com.github.rodrigotimoteo.animally.data.search.Search
 import com.github.rodrigotimoteo.animally.data.search.SearchOwners
+import com.github.rodrigotimoteo.animally.data.search.SearchSnippets
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 
@@ -20,6 +21,25 @@ fun Search.toDomain(): SearchResult =
         recordId = recordId,
         date = date,
         snippet = searchableText,
+    )
+
+/**
+ * Converts a persistence [SearchSnippets] row (RAG variant) to a domain
+ * [SearchResult]. The snippet column already carries the FTS5 window around
+ * the match instead of the full indexed text.
+ *
+ * @return mapped [SearchResult]
+ */
+fun SearchSnippets.toDomain(): SearchResult =
+    SearchResult(
+        patientId = patientId,
+        patientName = patientName,
+        breed = breed,
+        microchipId = microchipId,
+        recordType = recordType,
+        recordId = recordId,
+        date = date,
+        snippet = snippetText,
     )
 
 /**

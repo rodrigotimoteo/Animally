@@ -74,4 +74,13 @@ interface IPatientRepository {
      * @return the number of active linked records.
      */
     fun countActiveRecords(patientId: Long): Long
+
+    /**
+     * Returns the names of all active patients. Lightweight lookup used by
+     * the assistant for client-side patient-name scoping of retrieved
+     * records (prefix matching only, no fuzzy logic).
+     *
+     * @return the list of active patient names.
+     */
+    fun patientNames(): List<String>
 }

@@ -660,9 +660,26 @@ class RagGoldenSetTest {
             Golden("Completed", expected = setOf(GESTATION_COMPLETED), exact = true),
             Golden("filly", expected = setOf(GESTATION_COMPLETED), exact = true),
             // Current gaps pinned as empty: synonym expansion must flip these deliberately.
-            Golden("vaccination", expected = emptySet(), exact = true),
-            Golden("shod", expected = emptySet(), exact = true),
-            Golden("embryo transfer", expected = emptySet(), exact = true),
+            // FLIPPED (deliberate recall gains):
+            // - "vaccination": vaccination rows now index generic vaccination
+            //   vocabulary ("vaccination vaccine booster shot"), so the AND
+            //   query itself retrieves every vaccination record instead of
+            //   zeroing out on raw field values (vaccine name/batch/site).
+            Golden(
+                "vaccination",
+                expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE),
+                exact = true,
+            ),
+            // FLIPPED: "shod" shares no token with the indexed farrier text
+            // ("Shoeing", "Steel full set"); the hoof-care synonym group
+            // (shod/shoeing/shoes/trim/farrier) bridges it through the OR
+            // retry to the shoeing visit.
+            Golden("shod", expected = setOf(FARRIER_SHOEING), exact = true),
+            // FLIPPED: embryo-transfer rows now index "embryo transfer flush
+            // donor recipient" vocabulary, so the natural phrase retrieves the
+            // ET record whose raw fields (a bare count and recipient mare
+            // names) never contained those words.
+            Golden("embryo transfer", expected = setOf(ET_BELLA), exact = true),
             // --- Owner questions ---
             Golden(
                 "Which patients belong to Daniela Costa?",
@@ -739,28 +756,28 @@ class RagGoldenSetTest {
     }
 
     /**
-     * Locks the CURRENT default ordering (`ORDER BY p.name, i.date`, SQLite
-     * ASC puts NULL dates first) for a tie-free query. Ranking changes must
-     * update this expectation deliberately.
+     * Locks the CURRENT relevance ordering (`ORDER BY bm25(SearchFts),
+     * i.date DESC`) for a tie-free query. Ranking changes must update this
+     * expectation deliberately.
      */
     @Test
-    fun currentDefaultOrderWilson() {
+    fun relevanceOrderWilson() {
         val orderedKeys = retrieve("Wilson").map { it.key() }
         assertEquals(
             listOf(
-                // Bella group (p.name ASC), i.date ascending:
-                VACC_WEST_NILE, // 2026-04-12
-                US_BELLA_FOLLICLE, // 2026-05-18
-                DEWORM_FENBENDAZOLE, // 2026-05-20
-                LAB_COGGINS, // 2026-05-21
-                IMAGING_KNEE, // 2026-06-01
-                // Comet group:
-                CONSULT_COUGH, // 2026-04-08
-                // Thunder group:
-                DENTISTRY_FLOATING, // 2026-01-28
+                // BM25 relevance, best first: the single term "wilson" appears
+                // once in every hit, so shorter documents score higher; no
+                // date ties occur so the DESC tiebreak stays latent here.
+                IMAGING_KNEE, // Bella - shortest indexed text
+                LAB_COGGINS, // Bella
+                DEWORM_FENBENDAZOLE, // Bella
+                DENTISTRY_FLOATING, // Thunder
+                US_BELLA_FOLLICLE, // Bella
+                VACC_WEST_NILE, // Bella - longest of the short rows (v7 vocabulary)
+                CONSULT_COUGH, // Comet - full SOAP text, lowest rank
             ),
             orderedKeys,
-            "default order changed - update this baseline deliberately with the ranking change",
+            "relevance order changed - update this baseline deliberately with the ranking change",
         )
     }
 

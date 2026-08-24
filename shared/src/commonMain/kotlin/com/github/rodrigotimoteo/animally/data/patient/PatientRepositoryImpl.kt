@@ -147,4 +147,10 @@ class PatientRepositoryImpl(
             ultrasoundQueries.countActiveByPatient(patientId).executeAsOne() +
             vaccinationQueries.countActiveByPatient(patientId).executeAsOne() +
             weightQueries.countActiveByPatient(patientId).executeAsOne()
+
+    override fun patientNames(): List<String> =
+        patientQueries
+            .selectAll()
+            .executeAsList()
+            .map { it.name }
 }

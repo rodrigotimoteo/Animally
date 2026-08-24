@@ -10,16 +10,18 @@ val llmModule =
         single { LlmEngine(get()) }
         // Assistant strings resolve once from the device locale at wiring time.
         single<AssistantStrings> { assistantStrings() }
-        // Adapt the platform expect class to the testable RagLlmEngine seam.
-        // The OR retry bypasses SearchUseCase (its tokenizer stars every token,
-        // corrupting boolean operators) and hits the repository directly with
-        // the FTS-safe expression built by AssistantPrompts.toFtsOrQuery.
+        // Retrieval goes through the repository's RAG snippet variant: chunks
+        // carry a 24-token FTS5 window instead of full record text so long
+        // consultations cannot eat the context budget. The OR retry bypasses
+        // SearchUseCase (its tokenizer stars every token, corrupting boolean
+        // operators) and hits the repository directly with the FTS-safe
+        // expressions built by AssistantPrompts.
         single {
             val engine = get<LlmEngine>()
             val searchRepository = get<ISearchRepository>()
-            val orSearch =
-                RagOrSearch { ftsQuery ->
-                    searchRepository.search(ftsQuery, from = null, to = null, recordTypes = null)
+            val recordSearch =
+                RagRecordSearch { ftsQuery ->
+                    searchRepository.searchSnippets(ftsQuery, from = null, to = null, recordTypes = null)
                 }
             GenerateRagResponseUseCase(
                 get(),
@@ -35,7 +37,8 @@ val llmModule =
                     ): Flow<String> = engine.generateStreaming(prompt, instructions)
                 },
                 strings = get(),
-                orSearch = orSearch,
+                recordSearch = recordSearch,
+                patientRepository = get(),
             )
         }
     }

@@ -87,6 +87,33 @@ class SearchRepositoryImpl(
         return recordHits + ownerHits
     }
 
+    override fun searchSnippets(
+        query: String,
+        from: LocalDate?,
+        to: LocalDate?,
+        recordTypes: List<String>?,
+    ): List<SearchResult> {
+        // Same sanitization contract as [search]: accepts raw or already
+        // FTS-shaped input (the sanitizer is idempotent on shaped input).
+        val matchQuery = toPrefixMatchQuery(query)
+        if (matchQuery.isBlank()) return emptyList()
+        val recordHits =
+            searchQueries
+                .searchSnippets(matchQuery, from, to)
+                .executeAsList()
+                .filter { recordTypes == null || it.recordType in recordTypes }
+                .map { it.toDomain() }
+        // Owner text (name/email/phone/address) is short by construction;
+        // the full-text owner query needs no snippet window.
+        val ownerHits =
+            if (recordTypes == null || ISearchRepository.TYPE_OWNER in recordTypes) {
+                searchQueries.searchOwners(matchQuery).executeAsList().map { it.toDomain() }
+            } else {
+                emptyList()
+            }
+        return recordHits + ownerHits
+    }
+
     override fun rebuild() {
         database.transaction {
             searchQueries.deleteAllFts().value
@@ -179,6 +206,11 @@ class SearchRepositoryImpl(
 
     private val reindexVaccinationRows: () -> Unit = {
         database.vaccinationQueries.selectAll().executeAsList().forEach {
+            // Natural questions ("vaccination", "booster") must hit
+            // vaccination rows, whose raw fields (vaccine name, batch, site)
+            // never contain those generic words. Mirrors the gestation
+            // vocabulary approach below.
+            val vaccinationVocabulary = "vaccination vaccine booster shot"
             val searchableText =
                 listOfNotNull(
                     it.vaccineName,
@@ -186,6 +218,7 @@ class SearchRepositoryImpl(
                     it.vetName,
                     it.site,
                     it.notes,
+                    vaccinationVocabulary,
                 ).joinToString(" ")
             indexRecord(
                 recordType = RecordType.Vaccination.wireName,
@@ -449,12 +482,17 @@ class SearchRepositoryImpl(
 
     private val reindexEmbryoTransferRows: () -> Unit = {
         database.embryoTransferQueries.selectAll().executeAsList().forEach {
+            // Raw fields (count as bare number, recipient mare names) never
+            // contain the words "embryo transfer"; natural questions about
+            // embryo transfer / flushes must still hit these rows.
+            val embryoTransferVocabulary = "embryo transfer flush donor recipient"
             val searchableText =
                 listOfNotNull(
                     it.embryoCount?.toString(),
                     it.recipientMares,
                     it.vetName,
                     it.notes,
+                    embryoTransferVocabulary,
                 ).joinToString(" ")
             indexRecord(
                 recordType = RecordType.EmbryoTransfer.wireName,

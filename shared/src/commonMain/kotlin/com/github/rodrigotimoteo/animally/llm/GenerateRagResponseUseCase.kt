@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
 import kotlinx.coroutines.flow.Flow
@@ -39,13 +40,17 @@ data class RagHistoryEntry(
 )
 
 /**
- * Broad-retrieval seam for the OR retry. Deliberately separate from
- * [SearchUseCase]: the use case's tokenizer stars every whitespace token,
- * which corrupts boolean operators ("OR" -> "OR*", an FTS5 syntax error).
- * Implementations receive an ALREADY FTS5-shaped expression from
- * [AssistantPrompts.toFtsOrQuery] and must pass it to the repository untouched.
+ * Retrieval seam for the RAG pipeline. Receives an ALREADY FTS5-shaped
+ * expression (from [AssistantPrompts.toFtsAndQuery] or
+ * [AssistantPrompts.toFtsOrQuery]) and must pass it to the repository
+ * untouched. Production wiring routes it to
+ * [com.github.rodrigotimoteo.animally.domain.search.ISearchRepository.searchSnippets]
+ * so retrieved chunks carry snippet windows instead of full record text;
+ * [SearchUseCase] is deliberately bypassed because its tokenizer stars every
+ * whitespace token, which corrupts boolean operators ("OR" -> "OR*", an FTS5
+ * syntax error).
  */
-fun interface RagOrSearch {
+fun interface RagRecordSearch {
     fun search(ftsQuery: String): List<SearchResult>
 }
 
@@ -54,7 +59,8 @@ class GenerateRagResponseUseCase(
     private val llmEngine: RagLlmEngine,
     private val config: RagConfig = RagConfig.DEFAULT,
     private val strings: AssistantStrings = EnAssistantStrings,
-    private val orSearch: RagOrSearch? = null,
+    private val recordSearch: RagRecordSearch? = null,
+    private val patientRepository: IPatientRepository? = null,
 ) {
     /** Rough token estimate: ~4 characters per token (see RAG budget in CONTEXT docs). */
     private companion object {
@@ -69,6 +75,10 @@ class GenerateRagResponseUseCase(
         // truncate each side so one verbose turn cannot eat the budget.
         const val MAX_HISTORY_ENTRIES = 3
         const val MAX_HISTORY_SIDE_CHARS = 200
+
+        // Patient-name scoping: tokens shorter than this never count as name
+        // prefixes (a single letter would prefix-match unrelated names).
+        const val MIN_NAME_PREFIX_CHARS = 2
 
         // Model sometimes regurgitates prompt scaffolding (--- separators,
         // "Question: ..." echoes). Stripped defensively from every chunk.
@@ -105,15 +115,7 @@ class GenerateRagResponseUseCase(
                 emit(turnStrings.tooShortReply)
                 return@flow
             }
-            val results =
-                searchUseCase(enriched, from = null, to = null, recordTypes = null)
-                    .ifEmpty {
-                        // AND semantics require every content word to match, so
-                        // natural questions like "which patients belong to X"
-                        // zero out on words like "belong". One broad OR retry
-                        // over an FTS-safe expression recovers broad matches.
-                        orSearch?.search(AssistantPrompts.toFtsOrQuery(query)).orEmpty()
-                    }
+            val results = prioritizePatientScope(retrieve(query, enriched), query)
             val recentConversation = formatHistory(history)
             val selected =
                 selectWithinBudget(
@@ -150,6 +152,67 @@ class GenerateRagResponseUseCase(
                 }
             }
         }
+
+    /**
+     * Two-leg retrieval mirroring the production contract: a strict AND query
+     * over the filler-stripped question first, then one broad OR retry (with
+     * synonym expansion) when the AND leg zeroes out — AND semantics require
+     * every content word to match, so natural questions like "which patients
+     * belong to X" would otherwise return nothing. When no [recordSearch]
+     * seam is wired, falls back to [SearchUseCase] with full-text snippets.
+     */
+    private fun retrieve(
+        query: String,
+        enriched: String,
+    ): List<SearchResult> {
+        val seam = recordSearch ?: return searchUseCase(enriched, from = null, to = null, recordTypes = null)
+        val andResults = seam.search(AssistantPrompts.toFtsAndQuery(enriched))
+        if (andResults.isNotEmpty()) return andResults
+        return seam.search(AssistantPrompts.toFtsOrQuery(query))
+    }
+
+    /**
+     * Patient-name scoping: when a query token prefix-matches exactly one
+     * active patient name (case-insensitive, no fuzzy matching), that
+     * patient's records move to the front of the retrieval order so
+     * [selectWithinBudget] keeps them inside the context budget ahead of
+     * same-topic records from other patients. Ambiguous prefixes (two or
+     * more patients) and misses leave the order untouched.
+     */
+    private fun prioritizePatientScope(
+        results: List<SearchResult>,
+        query: String,
+    ): List<SearchResult> {
+        val target = scopedPatientName(results, query) ?: return results
+        val (scoped, rest) = results.partition { it.patientName.lowercase() == target }
+        return scoped + rest
+    }
+
+    /** The single patient name (lowercased) whose records should be boosted, or null. */
+    private fun scopedPatientName(
+        results: List<SearchResult>,
+        query: String,
+    ): String? {
+        val repository = patientRepository
+        if (repository == null || results.size < 2) return null
+        val tokens =
+            query
+                .split(Regex("\\s+"))
+                .map { it.trim('?', ',', '.', '!', ':', ';', '\'') }
+                .filter { it.length >= MIN_NAME_PREFIX_CHARS }
+                .map(String::lowercase)
+                .toSet()
+        val matchedNames =
+            if (tokens.isEmpty()) {
+                emptyList()
+            } else {
+                repository.patientNames().filter { name ->
+                    val lowered = name.lowercase()
+                    tokens.any { token -> lowered.startsWith(token) }
+                }
+            }
+        return matchedNames.singleOrNull()?.lowercase()
+    }
 
     /**
      * Formats one search hit as a citable source block. The bracketed header

@@ -49,10 +49,38 @@ class AssistantPromptsTest {
     fun `given natural question when toFtsOrQuery then starred OR expression`() {
         // Apostrophes and multi-word tokens are left as-is here; the
         // repository's sanitizer splits them into prefix terms downstream.
+        // "farrier" matches the hoof-care synonym group, so its remaining
+        // members are appended as extra OR-terms (deliberate recall gain).
         assertEquals(
-            "Thunder's* OR last* OR farrier* OR visit*",
+            "Thunder's* OR last* OR farrier* OR visit* OR shod* OR shoeing* OR shoes* OR trim*",
             AssistantPrompts.toFtsOrQuery("When was Thunder's last farrier visit?"),
         )
+    }
+
+    @Test
+    fun `given query without synonym matches when toFtsOrQuery then no expansion appended`() {
+        assertEquals(
+            "follicle* OR ultrasound*",
+            AssistantPrompts.toFtsOrQuery("follicle ultrasound"),
+        )
+    }
+
+    @Test
+    fun `given more than two synonym groups when toFtsOrQuery then only first two expanded`() {
+        // "colic" (group 5) and "shod" (group 2) both match; declared order
+        // caps expansion at the FIRST two groups: hoof care + vaccination.
+        val query = AssistantPrompts.toFtsOrQuery("colic shod vaccination")
+        assertTrue(query.contains("shoeing*"), "first matched group must expand")
+        assertTrue(query.contains("vaccine*"), "second matched group must expand")
+        assertTrue(!query.contains("abdominal"), "third group must be dropped by the cap")
+    }
+
+    @Test
+    fun `given multi word synonym member when expanded then quoted phrase emitted`() {
+        // "in foal" must survive as a starred quoted phrase so the repository
+        // sanitizer keeps the exact word sequence instead of starring "in".
+        val query = AssistantPrompts.toFtsOrQuery("gestation")
+        assertTrue(query.contains("\"in foal\"*"), "multi-word synonyms need phrase quoting: $query")
     }
 
     @Test

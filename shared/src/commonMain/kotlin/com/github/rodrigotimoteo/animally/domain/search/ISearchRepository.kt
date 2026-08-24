@@ -28,6 +28,20 @@ interface ISearchRepository {
     ): List<SearchResult>
 
     /**
+     * RAG-facing variant of [search]: identical matching, filtering and BM25
+     * ordering, but each hit's [SearchResult.snippet] carries an FTS5 snippet
+     * window (24 tokens around the first match) instead of the full indexed
+     * text so long records cannot exhaust the assistant's context budget.
+     * The global Search screen keeps using [search] with full text.
+     */
+    fun searchSnippets(
+        query: String,
+        from: LocalDate?,
+        to: LocalDate?,
+        recordTypes: List<String>?,
+    ): List<SearchResult>
+
+    /**
      * Indexes (or replaces) the searchable record identified by [recordType] and [recordId].
      */
     fun indexRecord(
@@ -88,7 +102,12 @@ interface ISearchRepository {
          * Current search-index layout version. Bump whenever indexing logic,
          * indexed record types, or searchableText field selection changes so
          * every launch after the change performs one healing pass.
+         *
+         * v7: vaccination rows gained generic vaccination vocabulary and
+         * embryo-transfer rows gained embryo-transfer vocabulary in their
+         * indexed text (natural questions like "vaccination" / "embryo
+         * transfer" previously zeroed out on raw field values alone).
          */
-        const val SEARCH_INDEX_VERSION = "6"
+        const val SEARCH_INDEX_VERSION = "7"
     }
 }
