@@ -31,11 +31,13 @@ import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.mock
+import io.ktor.client.HttpClient
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -126,6 +128,8 @@ class SettingsViewModelTest {
 
     private val themePreferenceStore = SettingsFakeThemePreferenceStore()
 
+    private val cloudLlmSettings = FakeCloudLlmSettingsStore()
+
     private val navigator = AnimallyNavigator()
 
     private lateinit var database: AnimallyDatabase
@@ -149,6 +153,12 @@ class SettingsViewModelTest {
                 ),
             patientRepository = patientRepositoryMock,
             themePreferenceStore = themePreferenceStore,
+            cloudLlmSettings = cloudLlmSettings,
+            cloudModelCatalog =
+                CloudModelCatalog(
+                    // Engine never used: these tests never trigger a models fetch.
+                    HttpClient(),
+                ),
             animallyNavigator = navigator,
         )
 
@@ -254,5 +264,48 @@ private class SettingsFakeThemePreferenceStore : ThemePreferenceStore {
 
     override fun setThemeMode(mode: ThemeMode) {
         storedMode = mode
+    }
+}
+
+/** In-memory cloud LLM settings for ViewModel tests. */
+private class FakeCloudLlmSettingsStore : CloudLlmSettingsStore {
+    private val values = mutableMapOf<String, Any?>()
+
+    override fun isEnabled(): Boolean = values[KEY_ENABLED] == true
+
+    override fun setEnabled(enabled: Boolean) {
+        values[KEY_ENABLED] = enabled
+    }
+
+    override fun apiKey(): String? = values[KEY_API_KEY] as? String
+
+    override fun setApiKey(key: String?) {
+        values[KEY_API_KEY] = key
+    }
+
+    override fun model(): String = values[KEY_MODEL] as? String ?: ""
+
+    override fun setModel(model: String) {
+        values[KEY_MODEL] = model
+    }
+
+    override fun baseUrl(): String = values[KEY_BASE_URL] as? String ?: ""
+
+    override fun setBaseUrl(url: String) {
+        values[KEY_BASE_URL] = url
+    }
+
+    override fun presetId(): String = values[KEY_PRESET_ID] as? String ?: ""
+
+    override fun setPresetId(id: String) {
+        values[KEY_PRESET_ID] = id
+    }
+
+    private companion object {
+        const val KEY_ENABLED = "enabled"
+        const val KEY_API_KEY = "apiKey"
+        const val KEY_MODEL = "model"
+        const val KEY_BASE_URL = "baseUrl"
+        const val KEY_PRESET_ID = "presetId"
     }
 }

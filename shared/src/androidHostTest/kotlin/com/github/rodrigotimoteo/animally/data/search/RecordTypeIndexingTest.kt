@@ -118,8 +118,14 @@ class RecordTypeIndexingTest {
         repo.reindexRecords()
         repo.rebuild()
 
-        val hits = repo.searchSnippets("thunders* OR last* OR farrier* OR visit*", null, null, null)
-        assertEquals(1, hits.size, "sparse farrier row must be reachable by farrier/visit terms")
-        assertEquals(RecordType.FarrierVisit.wireName, hits.single().recordType)
+        // Only the bridging vocabulary terms: leftover thunders*/last* terms
+        // (copied from an unrelated query shape) could mask a broken bridge,
+        // and a size==1 assertion breaks whenever other indexed rows happen
+        // to share a term. Assert the sparse row itself is reachable.
+        val hits = repo.searchSnippets("farrier* OR visit*", null, null, null)
+        assertTrue(
+            hits.any { it.recordType == RecordType.FarrierVisit.wireName && it.recordId == 9L },
+            "sparse farrier row must be reachable by farrier/visit terms",
+        )
     }
 }

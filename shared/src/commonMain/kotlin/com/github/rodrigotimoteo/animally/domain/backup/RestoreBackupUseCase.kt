@@ -50,6 +50,7 @@ class RestoreBackupUseCase(
             database.insertSubstances(payload)
             database.insertEmbryoTransfers(payload)
             database.insertIcsi(payload)
+            database.insertCustomReminders(payload)
         }
     }
 }

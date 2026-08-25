@@ -1,6 +1,13 @@
 package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmConfig
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudRagLlmEngine
+import com.github.rodrigotimoteo.animally.llm.cloud.FmFirstRagLlmEngine
+import com.github.rodrigotimoteo.animally.presentation.settings.CloudLlmSettingsStore
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.flow.Flow
 import org.koin.dsl.module
 
@@ -10,6 +17,46 @@ val llmModule =
         single { LlmEngine(get()) }
         // Assistant strings resolve once from the device locale at wiring time.
         single<AssistantStrings> { assistantStrings() }
+        // CloudLlmSettingsStore is provided by CloudLlmModule (Koin annotations,
+        // picked up by the AppModule component scan) so the annotation processor
+        // can satisfy SettingsViewModel's constructor dependency.
+        single {
+            HttpClient {
+                install(HttpTimeout)
+            }
+        }
+        // Models-list discovery for the Cloud AI settings (GET {baseUrl}/models);
+        // shares the engine/timeout wiring with the chat-completions client above.
+        single { CloudModelCatalog(get()) }
+        // Cloud engine: OpenAI-compatible chat completions over Ktor. Config resolved
+        // per request from settings, so edits (key/model/URL) apply without restart;
+        // the platform service loader picks the transport engine (Android/Darwin/CIO).
+        single<CloudRagLlmEngine> {
+            val settings = get<CloudLlmSettingsStore>()
+            CloudRagLlmEngine(
+                httpClient = get(),
+                configProvider = {
+                    CloudLlmConfig(
+                        baseUrl = settings.baseUrl(),
+                        model = settings.model(),
+                        apiKey = settings.apiKey().orEmpty(),
+                    )
+                },
+            )
+        }
+        // Routing: on-device Foundation Models first; the cloud engine answers only
+        // when the user enabled it, stored a key, AND the primary is unavailable or
+        // fails/times out. The wrapper announces which engine served each request so
+        // the assistant UI can badge cloud answers.
+        single<FmFirstRagLlmEngine> {
+            val settings = get<CloudLlmSettingsStore>()
+            FmFirstRagLlmEngine(
+                primary = LlmEngineRagAdapter(get<LlmEngine>()),
+                fallback = get<CloudRagLlmEngine>(),
+                isFallbackEligible = { settings.isEnabled() && !settings.apiKey().isNullOrBlank() },
+                isPrimaryAvailable = { get<LlmEngine>().availability() is LlmAvailability.Available },
+            )
+        }
         // Retrieval goes through the repository's RAG snippet variant: chunks
         // carry a 24-token FTS5 window instead of full record text so long
         // consultations cannot eat the context budget. The OR retry bypasses
@@ -17,7 +64,6 @@ val llmModule =
         // operators) and hits the repository directly with the FTS-safe
         // expressions built by AssistantPrompts.
         single {
-            val engine = get<LlmEngine>()
             val searchRepository = get<ISearchRepository>()
             val recordSearch =
                 RagRecordSearch { ftsQuery ->
@@ -36,17 +82,7 @@ val llmModule =
                 )
             GenerateRagResponseUseCase(
                 get(),
-                object : RagLlmEngine {
-                    override fun generate(
-                        prompt: String,
-                        instructions: String,
-                    ): Flow<String> = engine.generate(prompt, instructions)
-
-                    override fun generateStreaming(
-                        prompt: String,
-                        instructions: String,
-                    ): Flow<String> = engine.generateStreaming(prompt, instructions)
-                },
+                get<FmFirstRagLlmEngine>(),
                 strings = get(),
                 recordSearch = recordSearch,
                 patientRepository = get(),
@@ -54,3 +90,18 @@ val llmModule =
             )
         }
     }
+
+/** Adapts the platform [LlmEngine] expect class to the domain-side [RagLlmEngine] seam. */
+private class LlmEngineRagAdapter(
+    private val engine: LlmEngine,
+) : RagLlmEngine {
+    override fun generate(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> = engine.generate(prompt, instructions)
+
+    override fun generateStreaming(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> = engine.generateStreaming(prompt, instructions)
+}

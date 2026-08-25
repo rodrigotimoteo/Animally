@@ -73,3 +73,9 @@ internal fun AnimallyDatabase.icsiRows(): List<IcsiDto> =
         .selectAllRows()
         .executeAsList()
         .map { it.toDto() }
+
+internal fun AnimallyDatabase.customReminderRows(): List<CustomReminderDto> =
+    customReminderQueries
+        .selectAllRows()
+        .executeAsList()
+        .map { it.toDto() }

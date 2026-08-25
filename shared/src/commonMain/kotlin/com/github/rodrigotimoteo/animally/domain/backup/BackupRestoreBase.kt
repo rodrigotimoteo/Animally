@@ -28,6 +28,7 @@ internal fun AnimallyDatabase.deleteAllBackupRows() {
     follicleQueries.deleteAll()
     embryoTransferQueries.deleteAll()
     icsiQueries.deleteAll()
+    customReminderQueries.deleteAll()
 }
 
 internal fun AnimallyDatabase.insertOwners(payload: BackupPayload) {
@@ -79,6 +80,23 @@ internal fun AnimallyDatabase.insertAnamnese(payload: BackupPayload) {
             generalHistory = row.generalHistory,
             chronicConditions = row.chronicConditions,
             allergies = row.allergies,
+            createdAt = row.createdAt,
+            updatedAt = row.updatedAt,
+        )
+    }
+}
+
+internal fun AnimallyDatabase.insertCustomReminders(payload: BackupPayload) {
+    payload.customReminders.forEach { row ->
+        customReminderQueries.insertWithId(
+            id = row.id,
+            patientId = row.patientId,
+            title = row.title,
+            dueDate = row.dueDate,
+            linkedRecordType = row.linkedRecordType,
+            linkedRecordId = row.linkedRecordId,
+            notes = row.notes,
+            isActive = row.isActive,
             createdAt = row.createdAt,
             updatedAt = row.updatedAt,
         )

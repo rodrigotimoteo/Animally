@@ -557,7 +557,9 @@ class SearchRepositoryImpl(
      * stay useful where 2-letter alphabetic prefixes are pure noise.
      * Quoted segments become quoted FTS phrases with a trailing star
      * (FTS5 applies the prefix to the phrase's final token), preserving the
-     * exact word sequence. Internal asterisks are stripped everywhere — only
+     * exact word sequence — subject to the SAME short-final-token guard as
+     * bare tokens, so "barn b" matches the exact phrase instead of emitting
+     * a b* explosion. Internal asterisks are stripped everywhere — only
      * the trailing wildcard this function appends is ever emitted. Bare
      * uppercase AND/OR/NOT pass through as boolean operators. Returns an
      * empty string when nothing survives sanitization; callers treat that as
@@ -584,19 +586,27 @@ class SearchRepositoryImpl(
             }.joinToString(" ")
 
     /**
+     * True when [word] is safe to star-join as a prefix: long enough, or
+     * numeric (digit prefixes stay useful where 2-letter alphabetic ones are
+     * pure noise). Shared by bare tokens and quoted phrases' final token.
+     */
+    private fun keepsPrefixStar(word: String): Boolean = word.length >= MIN_PREFIX_STAR_CHARS || word.all(Char::isDigit)
+
+    /**
      * Stars [word] for prefix matching, or renders it as a quoted exact term
      * when it is too short to star-join safely (alphabetic words under
      * [MIN_PREFIX_STAR_CHARS]); numeric words always keep the star.
      */
-    private fun starOrExact(word: String): String =
-        if (word.length >= MIN_PREFIX_STAR_CHARS || word.all(Char::isDigit)) {
-            "$word*"
-        } else {
-            "\"$word\""
-        }
+    private fun starOrExact(word: String): String = if (keepsPrefixStar(word)) "$word*" else "\"$word\""
 
-    /** Renders a quoted segment as a quoted FTS phrase with a trailing
-     * prefix star, or null when no words survive sanitization. */
+    /**
+     * Renders a quoted segment as a quoted FTS phrase with a trailing prefix
+     * star (FTS5 applies the star to the phrase's FINAL token), or null when
+     * no words survive sanitization. The final token gets the same
+     * short-prefix guard as bare tokens ([starOrExact]): a quoted "barn b"
+     * would otherwise emit `"barn b"*` and b* explodes onto every b- token,
+     * so short final tokens match the exact phrase instead.
+     */
     private fun toQuotedPhrase(content: String): String? {
         val words =
             content
@@ -604,7 +614,8 @@ class SearchRepositoryImpl(
                 .split(Regex("[^\\p{L}\\p{N}]+"))
                 .filter { it.isNotBlank() }
         if (words.isEmpty()) return null
-        return "\"${words.joinToString(" ")}\"*"
+        val body = "\"${words.joinToString(" ")}\""
+        return if (keepsPrefixStar(words.last())) "$body*" else body
     }
 
     private companion object {

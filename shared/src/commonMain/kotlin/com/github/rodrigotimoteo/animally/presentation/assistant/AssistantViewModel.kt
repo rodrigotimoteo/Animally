@@ -10,9 +10,12 @@ import com.github.rodrigotimoteo.animally.llm.LlmEngine
 import com.github.rodrigotimoteo.animally.llm.RagHistoryEntry
 import com.github.rodrigotimoteo.animally.llm.RagStreamEvent
 import com.github.rodrigotimoteo.animally.llm.assistantStrings
+import com.github.rodrigotimoteo.animally.llm.cloud.EngineSource
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -23,6 +26,7 @@ import kotlinx.coroutines.launch
  *   [text] carries the partial reply and the UI offers a retry.
  * @property sources Retrieved records cited in [text] (source-card chips).
  * @property followUps Deterministic follow-up suggestions for this answer.
+ * @property source Which engine produced this turn (drives the cloud badge).
  */
 data class AssistantChatMessage(
     val role: AssistantChatMessageRole,
@@ -30,6 +34,7 @@ data class AssistantChatMessage(
     val interrupted: Boolean = false,
     val sources: List<SearchResult> = emptyList(),
     val followUps: List<String> = emptyList(),
+    val source: EngineSource = EngineSource.ON_DEVICE,
 )
 
 /** Author of an [AssistantChatMessage]. */
@@ -65,14 +70,34 @@ class AssistantViewModel(
     private val generateRagResponse: GenerateRagResponseUseCase,
     private val llmEngine: LlmEngine,
     private val strings: AssistantStrings = assistantStrings(),
+    engineSourceEvents: Flow<EngineSource> = emptyFlow(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AssistantUiState())
 
     /** Observable state of the assistant screen. */
     val uiState: StateFlow<AssistantUiState> = _uiState.asStateFlow()
 
+    /**
+     * Engine chosen for the CURRENT turn. The routing engine announces its choice
+     * before streaming chunks, but through a separate flow — so the value is kept
+     * here and stamped onto every message created until the next ask() resets it.
+     */
+    private var currentTurnSource: EngineSource = EngineSource.ON_DEVICE
+
     init {
         refreshAvailability()
+        viewModelScope.launch {
+            engineSourceEvents.collect { source ->
+                currentTurnSource = source
+                if (source == EngineSource.CLOUD) {
+                    // Patch any assistant turn already on screen so a late event
+                    // still badges it (ordering across flows is not guaranteed).
+                    _uiState.update { state ->
+                        state.copy(messages = state.messages.upsertLast { it.copy(source = source) })
+                    }
+                }
+            }
+        }
     }
 
     /** Re-checks platform LLM availability (call after settings changes or app resume). */
@@ -92,6 +117,7 @@ class AssistantViewModel(
         if (trimmed.isEmpty() || _uiState.value.isGenerating) return
 
         val history = _uiState.value.messages.toRagHistory()
+        currentTurnSource = EngineSource.ON_DEVICE
         _uiState.update {
             it.copy(
                 messages = it.messages + AssistantChatMessage(AssistantChatMessageRole.USER, trimmed),
@@ -173,7 +199,15 @@ class AssistantViewModel(
         val replacement =
             when (lastOrNull()?.role) {
                 AssistantChatMessageRole.ASSISTANT -> dropLast(1) + transform(last())
-                else -> this + transform(AssistantChatMessage(AssistantChatMessageRole.ASSISTANT, ""))
+                else ->
+                    this +
+                        transform(
+                            AssistantChatMessage(
+                                role = AssistantChatMessageRole.ASSISTANT,
+                                text = "",
+                                source = currentTurnSource,
+                            ),
+                        )
             }
         return replacement
     }

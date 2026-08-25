@@ -23,7 +23,7 @@ struct DictationCaptureView: View {
     @State private var liveTranscript = ""
     @State private var editableTranscript = ""
     @State private var errorMessage: String?
-    @State private var assetHint: String?
+    @State private var fallbackLocaleHint: String?
     @State private var disambiguatedPatients: [Int: Patient] = [:]
 
     @State private var transcriber: (any SpeechTranscribing)?
@@ -75,14 +75,6 @@ struct DictationCaptureView: View {
 
     private var idleView: some View {
         VStack(spacing: 24) {
-            if let assetHint {
-                Label(assetHint, systemImage: "arrow.down.circle")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.amber)
-                    .multilineTextAlignment(.leading)
-                    .padding(.horizontal, 24)
-            }
-
             Text("Describe the records you want to save — weights, ultrasounds, deworming.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
@@ -114,6 +106,12 @@ struct DictationCaptureView: View {
         VStack(spacing: 28) {
             WaveformIndicator()
                 .frame(height: 48)
+
+            if let fallbackLocaleHint {
+                Text(fallbackLocaleHint)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+            }
 
             ScrollView {
                 Text(liveTranscript.isEmpty ? "Listening…" : liveTranscript)
@@ -206,11 +204,12 @@ struct DictationCaptureView: View {
 
     private func prepareEngines() async {
         extractor = DictationExtractorFactory.make()
-        if #available(iOS 26.0, *) {
-            let preparation = await SpeechTranscriberService.prepareAssets()
-            assetHint = preparation.userHint
-        }
-        transcriber = await SpeechTranscriberService.make()
+        let resolved = await SpeechTranscriberService.resolve()
+        transcriber = resolved.transcriber
+        fallbackLocaleHint =
+            resolved.usesFallbackLocale
+            ? "Dictating in \(resolved.localeDisplayName)"
+            : nil
     }
 
     private func startRecording() {

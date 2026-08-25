@@ -112,6 +112,12 @@ interface ISearchRepository {
          * rows the "surgeon" label, and controlled-substance rows the
          * "witness" label, so dictation-adjacent field-label questions ("who
          * was the surgeon") hit the rows.
+         *
+         * v9: farrier-visit rows gained the "farrier visit trim shoeing
+         * care" vocabulary (sparse UI-created visits with no hoof-care words
+         * were unreachable by any natural farrier question), and query
+         * sanitization gained the short-prefix guard (alphabetic tokens
+         * under 3 chars match exactly instead of star-joining).
          */
         const val SEARCH_INDEX_VERSION = "9"
     }

@@ -30,96 +30,145 @@ protocol SpeechTranscribing: AnyObject {
     func cancel() async
 }
 
-/// Result of the pt-PT asset pre-flight for the iOS 26 SpeechAnalyzer path.
-enum SpeechAssetPreparation: Equatable {
-    /// Assets installed; SpeechAnalyzer usable.
-    case ready
-    /// The pt-PT model exists for this device but still needs downloading.
-    case needsDownload
-    /// The device cannot run SpeechAnalyzer for pt-PT at all.
-    case localeUnsupported
-    /// Download or reservation failed; carries the reason.
-    case failed(String)
+/// A ready-to-use transcriber together with the locale it recognizes in.
+struct ResolvedDictationEngine {
+    let transcriber: any SpeechTranscribing
 
-    /// Human-readable hint shown by the capture screen.
-    var userHint: String? {
-        switch self {
-        case .ready: return nil
-        case .needsDownload:
-            return "The Português (Portugal) speech model still needs to be downloaded."
-        case .localeUnsupported:
-            return "This device does not support on-device speech recognition for Português (Portugal)."
-        case .failed(let reason): return reason
-        }
+    /// BCP-47 identifier of the locale the engine actually recognizes,
+    /// e.g. "pt-PT" or a degraded fallback like "en-US".
+    let localeIdentifier: String
+
+    /// True when recognition runs in a language other than the preferred
+    /// dictation locale (graceful degradation).
+    var usesFallbackLocale: Bool {
+        localeIdentifier != SpeechTranscriberService.dictationLocale.identifier
+    }
+
+    /// Human-readable language name for hints, e.g. "English".
+    var localeDisplayName: String {
+        let languageCode =
+            Locale(identifier: localeIdentifier).language.languageCode?.identifier
+            ?? localeIdentifier
+        return Locale(identifier: languageCode).localizedString(forIdentifier: languageCode)
+            ?? localeIdentifier
     }
 }
 
 /// Factory choosing the best available transcriber engine.
 ///
-/// Prefers the iOS 26 SpeechAnalyzer pipeline (on-device, streaming volatile
-/// results) whenever the device supports pt-PT there; otherwise falls back to
-/// the classic `SFSpeechRecognizer` pipeline (`DictationTranscriber`).
+/// Preference order, degrading gracefully — dictation is never blocked:
+/// 1. iOS 26 SpeechAnalyzer in the preferred pt-PT locale, downloading its
+///    speech assets first when the platform offers that.
+/// 2. iOS 26 SpeechAnalyzer in the best installed alternative locale
+///    (en-US preferred, then any other supported locale).
+/// 3. Classic `SFSpeechRecognizer` pipeline (`DictationTranscriber`), whose
+///    locale support is broader than the SpeechAnalyzer asset catalog.
 enum SpeechTranscriberService {
     /// Locale dictated sessions are captured in.
     static let dictationLocale = Locale(identifier: "pt-PT")
 
-    /// Runs the AssetInventory pre-flight for the dictation locale.
-    ///
-    /// When the model is present-but-not-installed this reserves the locale
-    /// and downloads it, surfacing download progress through `onProgress`.
+    /// Resolves the best usable dictation engine for this device.
     @MainActor
-    static func prepareAssets(
-        onProgress: ((Double) -> Void)? = nil
-    ) async -> SpeechAssetPreparation {
-        guard #available(iOS 26.0, *) else {
-            return .localeUnsupported
+    static func resolve() async -> ResolvedDictationEngine {
+        if #available(iOS 26.0, *) {
+            if let engine = await analyzerEngine(for: dictationLocale, allowDownload: true) {
+                return engine
+            }
+            for candidate in await fallbackAnalyzerLocales()
+            where candidate.identifier != dictationLocale.identifier {
+                if let engine = await analyzerEngine(for: candidate, allowDownload: false) {
+                    return engine
+                }
+            }
         }
+        return legacyEngine()
+    }
+
+    /// Builds a SpeechAnalyzer engine for `locale` when its speech assets are
+    /// usable, optionally downloading them first. Returns nil when the locale
+    /// is unsupported or its assets cannot be made available, so the caller
+    /// can degrade to the next option.
+    @available(iOS 26.0, *)
+    @MainActor
+    private static func analyzerEngine(
+        for locale: Locale,
+        allowDownload: Bool
+    ) async -> ResolvedDictationEngine? {
         guard
-            (try? await SpeechTranscriber.supportedLocale(equivalentTo: dictationLocale)) != nil
+            let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale)
         else {
-            return .localeUnsupported
+            return nil
         }
         let transcriber = SpeechTranscriber(
-            locale: dictationLocale,
+            locale: supported,
             transcriptionOptions: [],
             reportingOptions: [.volatileResults],
             attributeOptions: []
         )
-        let status = try await AssetInventory.status(forModules: [transcriber])
-        if status == .installed {
-            return .ready
-        }
+        let status = await AssetInventory.status(forModules: [transcriber])
         if status == .unsupported {
-            return .localeUnsupported
+            return nil
         }
+
+        func engine() -> ResolvedDictationEngine {
+            ResolvedDictationEngine(
+                transcriber: SpeechAnalyzerTranscriber(locale: supported),
+                localeIdentifier: supported.identifier
+            )
+        }
+
+        if status == .installed {
+            return engine()
+        }
+        // Only the preferred locale gets an asset download; fallback locales
+        // must already be installed.
+        guard allowDownload else { return nil }
+
         do {
-            _ = try await AssetInventory.reserve(locale: dictationLocale)
+            _ = try await AssetInventory.reserve(locale: supported)
             guard
                 let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber])
             else {
-                return .ready
+                return engine()
             }
-            let observer = ProgressObserver(progress: request.progress) { fraction in
-                onProgress?(fraction)
-            }
-            defer { observer.invalidate() }
             try await request.downloadAndInstall()
-            return .ready
+            return engine()
         } catch {
-            return .failed(error.localizedDescription)
+            // Download failed or unavailable → degrade silently.
+            return nil
         }
     }
 
-    /// Builds the concrete transcriber for this device.
+    /// Alternative SpeechAnalyzer locales to try, best first: en-US, then
+    /// every other supported locale in deterministic order.
+    @available(iOS 26.0, *)
+    private static func fallbackAnalyzerLocales() async -> [Locale] {
+        let englishUS = Locale(identifier: "en-US")
+        let rest = await SpeechTranscriber.supportedLocales
+            .filter { $0 != englishUS }
+            .sorted { $0.identifier < $1.identifier }
+        return [englishUS] + rest
+    }
+
+    /// Classic `SFSpeechRecognizer` fallback with broader locale coverage:
+    /// the preferred locale when recognized, else en-US, else whatever the
+    /// system lists first.
     @MainActor
-    static func make() async -> any SpeechTranscribing {
-        if #available(iOS 26.0, *) {
-            let preparation = await prepareAssets()
-            if preparation == .ready {
-                return SpeechAnalyzerTranscriber(locale: dictationLocale)
-            }
+    private static func legacyEngine() -> ResolvedDictationEngine {
+        let supportedIdentifiers = SFSpeechRecognizer.supportedLocales().map(\.identifier)
+        let preferred = dictationLocale.identifier
+        let identifier: String
+        if supportedIdentifiers.contains(preferred) {
+            identifier = preferred
+        } else if supportedIdentifiers.contains("en-US") {
+            identifier = "en-US"
+        } else {
+            identifier = supportedIdentifiers.first ?? "en-US"
         }
-        return DictationTranscriber(localeIdentifier: dictationLocale.identifier)
+        return ResolvedDictationEngine(
+            transcriber: DictationTranscriber(localeIdentifier: identifier),
+            localeIdentifier: identifier
+        )
     }
 }
 
@@ -244,30 +293,6 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         analyzer = nil
         transcriber = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    }
-}
-
-/// Forwards `Progress.fractionCompleted` snapshots to a main-actor closure.
-private final class ProgressObserver {
-    private let progress: Progress
-    private let handler: (Double) -> Void
-    private var observation: NSKeyValueObservation?
-
-    init(progress: Progress, handler: @escaping (Double) -> Void) {
-        self.progress = progress
-        self.handler = handler
-        observation = progress.observe(\.fractionCompleted) { observed, _ in
-            handler(observed.fractionCompleted)
-        }
-    }
-
-    func invalidate() {
-        observation?.invalidate()
-        observation = nil
-    }
-
-    deinit {
-        observation?.invalidate()
     }
 }
 

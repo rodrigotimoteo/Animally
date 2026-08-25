@@ -82,4 +82,5 @@ data class BackupPayload(
     val follicles: List<FollicleDto> = emptyList(),
     val embryoTransfers: List<EmbryoTransferDto> = emptyList(),
     val icsi: List<IcsiDto> = emptyList(),
+    val customReminders: List<CustomReminderDto> = emptyList(),
 )

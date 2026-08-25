@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.backup
 
 import com.github.rodrigotimoteo.animally.data.migrations.Consultation
+import com.github.rodrigotimoteo.animally.data.migrations.CustomReminder
 import com.github.rodrigotimoteo.animally.data.migrations.Dentistry
 import com.github.rodrigotimoteo.animally.data.migrations.Deworming
 import com.github.rodrigotimoteo.animally.data.migrations.Lameness
@@ -119,6 +120,23 @@ data class LamenessDto(
     @Serializable(with = InstantSerializer::class) val updatedAt: Instant,
 )
 
+/**
+ * Serializable mirror of the CustomReminder table.
+ */
+@Serializable
+data class CustomReminderDto(
+    val id: Long,
+    val patientId: Long,
+    val title: String,
+    @Serializable(with = LocalDateSerializer::class) val dueDate: LocalDate,
+    val linkedRecordType: String?,
+    val linkedRecordId: Long?,
+    val notes: String?,
+    val isActive: Boolean,
+    @Serializable(with = InstantSerializer::class) val createdAt: Instant,
+    @Serializable(with = InstantSerializer::class) val updatedAt: Instant,
+)
+
 internal fun Consultation.toDto(): ConsultationDto =
     ConsultationDto(
         id = id,
@@ -204,6 +222,20 @@ internal fun Lameness.toDto(): LamenessDto =
         diagnosis = diagnosis,
         treatment = treatment,
         vetName = vetName,
+        notes = notes,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )
+
+internal fun CustomReminder.toDto(): CustomReminderDto =
+    CustomReminderDto(
+        id = id,
+        patientId = patientId,
+        title = title,
+        dueDate = dueDate,
+        linkedRecordType = linkedRecordType,
+        linkedRecordId = linkedRecordId,
         notes = notes,
         isActive = isActive,
         createdAt = createdAt,
