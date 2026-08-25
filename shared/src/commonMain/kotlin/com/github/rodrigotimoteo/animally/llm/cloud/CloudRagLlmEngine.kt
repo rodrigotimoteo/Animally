@@ -37,18 +37,18 @@ data class CloudLlmConfig(
     val socketTimeoutMillis: Long = DEFAULT_SOCKET_TIMEOUT_MILLIS,
     val connectTimeoutMillis: Long = DEFAULT_CONNECT_TIMEOUT_MILLIS,
     /**
-     * Completion budget sent as `max_tokens`. Reasoning tokens COUNT toward this
-     * budget on most OpenAI-compatible backends, so a small cap lets a model burn
-     * the entire allowance on invisible reasoning and return `finish_reason=length`
-     * with zero visible content.
+     * Optional completion budget for local OpenAI-compatible runtimes.
+     * Cloud providers choose their own supported limit, so this is omitted there.
      */
-    val maxTokens: Int = DEFAULT_MAX_TOKENS,
+    val maxTokens: Int? = null,
 ) {
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1/chat/completions"
         const val DEFAULT_MODEL = "gpt-4o-mini"
         const val DEFAULT_SOCKET_TIMEOUT_MILLIS = 120_000L
         const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000L
+
+        /** Default output budget for local OpenAI-compatible runtimes. */
         const val DEFAULT_MAX_TOKENS = 2048
     }
 }
@@ -96,8 +96,9 @@ class CloudRagLlmEngine(
             var sawDone = false
             var finishReason: String? = null
             httpClient
-                .preparePost(config.baseUrl) { applyCloudLlmRequest(this, config, prompt, instructions) }
-                .execute { response ->
+                .preparePost(cloudChatCompletionsUrl(config.baseUrl)) {
+                    applyCloudLlmRequest(this, config, prompt, instructions)
+                }.execute { response ->
                     if (!response.status.isSuccess()) {
                         error("Cloud LLM request failed: HTTP ${response.status.value}")
                     }
@@ -243,13 +244,8 @@ internal data class ChatCompletionRequest(
     val model: String,
     val messages: List<ChatMessage>,
     val stream: Boolean,
-    /**
-     * Required (no default) ON PURPOSE: kotlinx.serialization omits properties
-     * equal to their default unless `encodeDefaults=true`, and the wire Json
-     * instances here do not enable it - a defaulted field would silently drop
-     * `max_tokens` from the request body.
-     */
-    @SerialName("max_tokens") val maxTokens: Int,
+    /** Null is omitted by the request Json configuration for cloud providers. */
+    @SerialName("max_tokens") val maxTokens: Int?,
 )
 
 @Serializable

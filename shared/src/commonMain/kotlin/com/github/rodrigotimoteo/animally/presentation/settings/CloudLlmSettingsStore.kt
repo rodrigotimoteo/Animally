@@ -37,7 +37,7 @@ const val PREF_CLOUD_LLM_ENABLED = "llm_cloud_enabled"
 /** Preference key for the cloud model name. */
 const val PREF_CLOUD_LLM_MODEL = "llm_cloud_model"
 
-/** Preference key for the chat-completions endpoint URL. */
+/** Preference key for the cloud API root or chat-completions endpoint URL. */
 const val PREF_CLOUD_LLM_BASE_URL = "llm_cloud_base_url"
 
 /** Preference key for the selected provider preset id. */

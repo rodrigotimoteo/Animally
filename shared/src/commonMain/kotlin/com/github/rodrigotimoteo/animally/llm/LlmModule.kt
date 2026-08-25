@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmConfig
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmProviderPreset
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudRagLlmEngine
 import com.github.rodrigotimoteo.animally.llm.cloud.FmFirstRagLlmEngine
@@ -33,7 +34,13 @@ val llmModule =
             // so SSE streams get an inactivity cap instead of hanging forever.
             HttpClient {
                 install(ContentNegotiation) {
-                    json(Json { ignoreUnknownKeys = true })
+                    json(
+                        Json {
+                            ignoreUnknownKeys = true
+                            // A null local-only field must not become `"max_tokens": null`.
+                            explicitNulls = false
+                        },
+                    )
                 }
                 install(HttpTimeout)
             }
@@ -49,10 +56,12 @@ val llmModule =
             CloudRagLlmEngine(
                 httpClient = get(),
                 configProvider = {
+                    val provider = CloudLlmProviderPreset.fromId(settings.presetId())
                     CloudLlmConfig(
                         baseUrl = settings.baseUrl(),
                         model = settings.model(),
                         apiKey = settings.apiKey().orEmpty(),
+                        maxTokens = provider.takeIf { it.isLocalRuntime }?.let { CloudLlmConfig.DEFAULT_MAX_TOKENS },
                     )
                 },
             )

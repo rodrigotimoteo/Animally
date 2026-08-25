@@ -76,7 +76,7 @@ class CloudModelCatalog(
         baseUrl: String,
         apiKey: String?,
     ): CloudModelsResult {
-        val url = "${baseUrl.trimEnd('/')}/models"
+        val url = cloudModelsUrl(baseUrl)
         return try {
             val response =
                 httpClient.get(url) {
@@ -100,5 +100,35 @@ class CloudModelCatalog(
         const val HTTP_FORBIDDEN = 403
 
         private fun isSuccessStatus(code: Int): Boolean = code in 200..299
+    }
+}
+
+/**
+ * Builds the OpenAI-compatible models URL from either an API root or a full
+ * chat-completions URL. Settings presets store API roots, while the default
+ * OpenAI value historically stored the full chat endpoint; both forms remain
+ * valid user input.
+ */
+internal fun cloudModelsUrl(baseUrl: String): String {
+    val normalized = baseUrl.trim().trimEnd('/')
+    return when {
+        normalized.endsWith("/models") -> normalized
+        normalized.endsWith("/chat/completions") ->
+            normalized.removeSuffix("/chat/completions") + "/models"
+        else -> "$normalized/models"
+    }
+}
+
+/**
+ * Builds the chat-completions URL from either an API root or a full endpoint.
+ * This is important for provider presets such as OpenCode Go, whose stored
+ * value is `/v1` but whose request endpoint is `/v1/chat/completions`.
+ */
+internal fun cloudChatCompletionsUrl(baseUrl: String): String {
+    val normalized = baseUrl.trim().trimEnd('/')
+    return if (normalized.endsWith("/chat/completions")) {
+        normalized
+    } else {
+        "$normalized/chat/completions"
     }
 }

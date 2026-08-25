@@ -10,6 +10,8 @@ enum class CloudLlmProviderPreset(
     val displayName: String,
     val baseUrl: String,
     val requiresApiKey: Boolean,
+    /** True for local OpenAI-compatible runtimes where the app owns the budget. */
+    val isLocalRuntime: Boolean = false,
     /** Local runtimes point at localhost, only reachable on desktop builds. */
     val visibleOnMobile: Boolean = true,
 ) {
@@ -19,8 +21,22 @@ enum class CloudLlmProviderPreset(
     TOGETHER("together", "Together", "https://api.together.xyz/v1", true),
     ZEN("zen", "OpenCode Zen", "https://opencode.ai/zen/v1", true),
     OPENCODE_GO("opencode_go", "OpenCode Go", "https://opencode.ai/zen/go/v1", true),
-    OLLAMA("ollama", "Ollama (local)", "http://localhost:11434/v1", false, visibleOnMobile = false),
-    LM_STUDIO("lm_studio", "LM Studio (local)", "http://localhost:1234/v1", false, visibleOnMobile = false),
+    OLLAMA(
+        "ollama",
+        "Ollama (local)",
+        "http://localhost:11434/v1",
+        false,
+        isLocalRuntime = true,
+        visibleOnMobile = false,
+    ),
+    LM_STUDIO(
+        "lm_studio",
+        "LM Studio (local)",
+        "http://localhost:1234/v1",
+        false,
+        isLocalRuntime = true,
+        visibleOnMobile = false,
+    ),
     CUSTOM("custom", "Custom", "", true),
     ;
 

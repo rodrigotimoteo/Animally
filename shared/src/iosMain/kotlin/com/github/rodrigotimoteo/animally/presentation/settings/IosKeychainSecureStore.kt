@@ -47,11 +47,18 @@ class IosKeychainSecureStore : SecureStore {
     // CFStrings created for them are cached instead of released per call.
     private val keyNameCache = mutableMapOf<String, CFStringRef>()
 
+    // An unsigned simulator build cannot access the Keychain (errSecMissingEntitlement).
+    // Keep a process-local value so settings edits remain usable without ever falling
+    // back to plaintext preferences. A signed app persists through the Keychain.
+    private val sessionFallback = mutableMapOf<String, String>()
+
     override fun get(key: String): String? {
         val query = query(account = cachedKeyName(key)) { it.setValue(kSecReturnData, kCFBooleanTrue) }
         return memScoped {
             val result = alloc<CFTypeRefVar>()
-            if (SecItemCopyMatching(query, result.ptr) != errSecSuccess) return@memScoped null
+            if (SecItemCopyMatching(query, result.ptr) != errSecSuccess) {
+                return@memScoped sessionFallback[key]
+            }
             val data = result.value as? CFDataRef ?: return@memScoped null
             val length = CFDataGetLength(data).toInt()
             if (length <= 0) {
@@ -68,27 +75,38 @@ class IosKeychainSecureStore : SecureStore {
         key: String,
         value: String,
     ) {
-        memScoped {
-            val data =
-                value.encodeToByteArray().toUByteArray().usePinned { pinned ->
-                    CFDataCreate(null, pinned.addressOf(0), value.length.convert())
-                } ?: error("Keychain: failed to allocate value data")
-            try {
-                val base = query(account = cachedKeyName(key))
-                // Update first so repeated saves don't duplicate items; when the item
-                // does not exist yet, clear any stale entry and add fresh.
-                if (SecItemUpdate(base, attributes { it.setValue(kSecValueData, data) }) == errSecSuccess) return
-                SecItemDelete(base)
-                check(SecItemAdd(base.withValue(kSecValueData, data), null) == errSecSuccess) {
-                    "Keychain write failed"
+        sessionFallback[key] = value
+        try {
+            memScoped {
+                val bytes = value.encodeToByteArray()
+                if (bytes.isEmpty()) return@memScoped
+                val data =
+                    bytes.toUByteArray().usePinned { pinned ->
+                        CFDataCreate(null, pinned.addressOf(0), bytes.size.convert())
+                    } ?: return@memScoped
+                try {
+                    val base = query(account = cachedKeyName(key))
+                    // Update first so repeated saves don't duplicate items; when the item
+                    // does not exist yet, clear any stale entry and add fresh.
+                    if (
+                        SecItemUpdate(base, attributes { it.setValue(kSecValueData, data) }) == errSecSuccess
+                    ) {
+                        return@memScoped
+                    }
+                    SecItemDelete(base)
+                    SecItemAdd(base.withValue(kSecValueData, data), null)
+                } finally {
+                    CFRelease(data)
                 }
-            } finally {
-                CFRelease(data)
             }
+        } catch (_: Throwable) {
+            // Keychain access can fail in unsigned simulator/test builds. The
+            // process-local value above keeps the current session functional.
         }
     }
 
     override fun remove(key: String) {
+        sessionFallback.remove(key)
         SecItemDelete(query(account = cachedKeyName(key)))
     }
 

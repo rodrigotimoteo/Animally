@@ -61,6 +61,32 @@ class CloudModelsListParserTest {
     }
 }
 
+class CloudEndpointTest {
+    @Test
+    fun `chat endpoint appends completions path to provider roots`() {
+        assertEquals(
+            "https://opencode.ai/zen/go/v1/chat/completions",
+            cloudChatCompletionsUrl(CloudLlmProviderPreset.OPENCODE_GO.baseUrl),
+        )
+        assertEquals(
+            "https://api.openai.com/v1/chat/completions",
+            cloudChatCompletionsUrl("https://api.openai.com/v1/chat/completions"),
+        )
+    }
+
+    @Test
+    fun `models endpoint accepts both api roots and full chat endpoints`() {
+        assertEquals(
+            "https://opencode.ai/zen/go/v1/models",
+            cloudModelsUrl(CloudLlmProviderPreset.OPENCODE_GO.baseUrl),
+        )
+        assertEquals(
+            "https://api.openai.com/v1/models",
+            cloudModelsUrl("https://api.openai.com/v1/chat/completions"),
+        )
+    }
+}
+
 class CloudLlmProviderPresetTest {
     @Test
     fun `preset base urls match provider endpoints`() {
@@ -84,6 +110,15 @@ class CloudLlmProviderPresetTest {
         assertTrue(CloudLlmProviderPreset.OPENCODE_GO.requiresApiKey)
         assertTrue(!CloudLlmProviderPreset.OLLAMA.requiresApiKey)
         assertTrue(!CloudLlmProviderPreset.LM_STUDIO.requiresApiKey)
+    }
+
+    @Test
+    fun `only local runtimes opt into local output budgets`() {
+        assertTrue(CloudLlmProviderPreset.OLLAMA.isLocalRuntime)
+        assertTrue(CloudLlmProviderPreset.LM_STUDIO.isLocalRuntime)
+        CloudLlmProviderPreset.entries
+            .filter { it != CloudLlmProviderPreset.OLLAMA && it != CloudLlmProviderPreset.LM_STUDIO }
+            .forEach { preset -> assertTrue(!preset.isLocalRuntime, preset.name) }
     }
 
     @Test

@@ -41,12 +41,23 @@ class CloudRagLlmEngineTest {
     }
 
     @Test
-    fun `request dto carries a generous max_tokens budget`() {
-        // Reasoning tokens count toward max_tokens on OpenAI-compatible backends;
-        // a small cap starves the visible answer (finish_reason=length, no content).
-        val wire = Json.encodeToString(ChatCompletionRequest.serializer(), buildChatCompletionRequest(config, "q", "i"))
+    fun `cloud request omits local-only max_tokens`() {
+        val request = buildChatCompletionRequest(config, "q", "i")
+        val wire =
+            Json {
+                explicitNulls = false
+            }.encodeToString(ChatCompletionRequest.serializer(), request)
+        assertTrue(!wire.contains("max_tokens"))
+        assertNull(request.maxTokens)
+    }
+
+    @Test
+    fun `local request carries the configured max_tokens budget`() {
+        val localConfig = config.copy(maxTokens = CloudLlmConfig.DEFAULT_MAX_TOKENS)
+        val request = buildChatCompletionRequest(localConfig, "q", "i")
+        val wire = Json.encodeToString(ChatCompletionRequest.serializer(), request)
         assertTrue(wire.contains("\"max_tokens\":${CloudLlmConfig.DEFAULT_MAX_TOKENS}"))
-        assertEquals(CloudLlmConfig.DEFAULT_MAX_TOKENS, buildChatCompletionRequest(config, "q", "i").maxTokens)
+        assertEquals(CloudLlmConfig.DEFAULT_MAX_TOKENS, request.maxTokens)
     }
 
     @Test
