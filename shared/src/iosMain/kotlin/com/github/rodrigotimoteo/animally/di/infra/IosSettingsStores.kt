@@ -65,11 +65,14 @@ object IosSettingsStores {
     fun assistantStore(): AssistantStore {
         val routingEngine: com.github.rodrigotimoteo.animally.llm.cloud.FmFirstRagLlmEngine =
             IosAppBridge.koin.get()
+        val cloudSettings: com.github.rodrigotimoteo.animally.presentation.settings.CloudLlmSettingsStore =
+            IosAppBridge.koin.get()
         val viewModel =
             AssistantViewModel(
                 generateRagResponse = IosAppBridge.koin.get(),
                 llmEngine = IosAppBridge.koin.get(),
                 engineSourceEvents = routingEngine.sourceEvents,
+                isCloudReady = { cloudSettings.isEnabled() && !cloudSettings.apiKey().isNullOrBlank() },
             )
         return AssistantStore(viewModel)
     }

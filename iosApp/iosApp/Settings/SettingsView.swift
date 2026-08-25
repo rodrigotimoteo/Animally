@@ -33,6 +33,15 @@ struct SettingsView: View {
                     restoreView
                 }
             }
+            .sheet(isPresented: $showModelPicker) {
+                CloudModelPickerSheet(
+                    models: viewModel.cloudModelChoices,
+                    onSelect: { model in
+                        viewModel.setCloudModel(model)
+                        showModelPicker = false
+                    }
+                )
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -97,11 +106,29 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings_cloud_api_key")
 
                 HStack {
-                    TextField("Model", text: Binding(
-                        get: { viewModel.cloudModel },
-                        set: { viewModel.setCloudModel($0) }
-                    ))
-                    .accessibilityIdentifier("settings_cloud_model")
+                    if showsModelPicker {
+                        // Fetched models exist: the field becomes a picker row;
+                        // tapping opens the searchable sheet.
+                        Button {
+                            showModelPicker = true
+                        } label: {
+                            HStack {
+                                Text(viewModel.cloudModel.isEmpty ? "Choose a model" : viewModel.cloudModel)
+                                    .foregroundStyle(viewModel.cloudModel.isEmpty ? Theme.textSecondary : Theme.textPrimary)
+                                Spacer()
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
+                        }
+                        .accessibilityIdentifier("settings_cloud_model")
+                    } else {
+                        TextField("Model", text: Binding(
+                            get: { viewModel.cloudModel },
+                            set: { viewModel.setCloudModel($0) }
+                        ))
+                        .accessibilityIdentifier("settings_cloud_model")
+                    }
 
                     Button("Fetch models") {
                         Task { await viewModel.fetchCloudModels() }
@@ -134,15 +161,13 @@ struct SettingsView: View {
         } footer: {
             Text("When enabled, the assistant falls back to a cloud model if on-device AI is unavailable. The key is stored in the Keychain.")
         }
-        .sheet(isPresented: $showModelPicker) {
-            CloudModelPickerSheet(
-                models: viewModel.cloudModelChoices,
-                onSelect: { model in
-                    viewModel.setCloudModel(model)
-                    showModelPicker = false
-                }
-            )
-        }
+    }
+
+    /// Manual typing only under the Custom preset; known providers pick from
+    /// fetched models once discovery has results.
+    private var showsModelPicker: Bool {
+        viewModel.cloudProviderPreset != CloudLlmProviderPreset.custom &&
+            !viewModel.cloudModelChoices.isEmpty
     }
 
     private var dataSection: some View {
@@ -344,6 +369,7 @@ private struct CloudModelPickerSheet: View {
                 } else {
                     List(filtered, id: \.self) { model in
                         Button(model) { onSelect(model) }
+                            .accessibilityIdentifier("cloud_model_row")
                     }
                 }
             }

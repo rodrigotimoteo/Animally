@@ -71,6 +71,7 @@ class AssistantViewModel(
     private val llmEngine: LlmEngine,
     private val strings: AssistantStrings = assistantStrings(),
     engineSourceEvents: Flow<EngineSource> = emptyFlow(),
+    private val isCloudReady: () -> Boolean = { false },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AssistantUiState())
 
@@ -100,10 +101,20 @@ class AssistantViewModel(
         }
     }
 
-    /** Re-checks platform LLM availability (call after settings changes or app resume). */
+    /**
+     * Re-checks which engine can serve the assistant (call after settings changes
+     * or app resume). On-device availability is the primary signal, but a configured
+     * cloud engine (enabled + keyed) also makes the assistant usable — the routing
+     * engine falls back to it when the platform LLM is unavailable. The Apple
+     * Intelligence warning only shows when NO working engine exists.
+     */
     fun refreshAvailability() {
         viewModelScope.launch {
-            _uiState.update { it.copy(availability = llmEngine.availability()) }
+            val fmAvailability = llmEngine.availability()
+            val usable = fmAvailability is LlmAvailability.Available || isCloudReady()
+            _uiState.update {
+                it.copy(availability = if (usable) LlmAvailability.Available else fmAvailability)
+            }
         }
     }
 

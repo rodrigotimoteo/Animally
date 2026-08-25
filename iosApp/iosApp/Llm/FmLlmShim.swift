@@ -15,6 +15,12 @@ class FmLlmShim: NSObject {
 
     @objc
     func availability() -> String {
+        // Test-only seam: UI tests pass "-forceFmUnavailable" so the cloud
+        // fallback path can be exercised deterministically on hosts whose
+        // simulator proxies the Mac's real Foundation Model.
+        if ProcessInfo.processInfo.arguments.contains("-forceFmUnavailable") {
+            return "unavailable:modelNotReady"
+        }
         guard #available(iOS 26.0, *) else {
             return "unavailable:modelNotReady"
         }

@@ -126,11 +126,17 @@ final class SettingsViewModel: ObservableObject {
     /// cached results. Local presets (Ollama / LM Studio) work keyless.
     func fetchCloudModels() async {
         isFetchingCloudModels = true
-        // The Kotlin side never throws (all failures land in cloudModelsStatus);
-        // the bridged signature still declares `throws`, so swallow here.
-        try? await store.fetchCloudModels()
+        do {
+            try await store.fetchCloudModels()
+            // Kotlin clears the status on a new attempt and sets it on failure,
+            // so nil here means success.
+            cloudModelsStatus = store.cloudModelsStatus
+        } catch {
+            // The bridged suspend call can still throw across the ObjC boundary
+            // (e.g. bridge/threading failures); surface it instead of swallowing.
+            cloudModelsStatus = "Could not fetch models: \(error.localizedDescription)"
+        }
         cloudModelChoices = (store.cloudModelChoices as? [String]) ?? []
-        cloudModelsStatus = store.cloudModelsStatus
         isFetchingCloudModels = false
     }
 
