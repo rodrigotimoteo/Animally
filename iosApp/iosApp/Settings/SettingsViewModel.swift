@@ -10,6 +10,10 @@ final class SettingsViewModel: ObservableObject {
     @Published var backupStatus: String?
     @Published var restoreStatus: String?
     @Published var pdfStatus: String?
+    // Danger zone: irreversible database wipe.
+    @Published var isWipingData = false
+    @Published var dataWiped = false
+    @Published var wipeStatus: String?
     // Cloud AI settings (API key round-trips through secure storage only).
     @Published var cloudAiEnabled: Bool
     @Published var cloudApiKey: String
@@ -69,6 +73,15 @@ final class SettingsViewModel: ObservableObject {
     func exportPdf() {
         store.exportPdf()
         pdfStatus = store.pdfStatus
+    }
+
+    /// Erases every table and resets the search index. Call only after the
+    /// user confirmed in the confirmation dialog — irreversible.
+    func wipeAllData() {
+        store.wipeAllData()
+        isWipingData = store.isWipingData
+        dataWiped = store.dataWiped
+        wipeStatus = store.wipeStatus
     }
 
     func setThemeMode(mode: ThemeMode) {

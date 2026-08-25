@@ -41,6 +41,7 @@ object IosSettingsStores {
                 exportBackupUseCase = IosAppBridge.koin.get(),
                 restoreBackupUseCase = IosAppBridge.koin.get(),
                 exportReportUseCase = IosAppBridge.koin.get(),
+                wipeAllDataUseCase = IosAppBridge.koin.get(),
                 patientRepository = IosAppBridge.koin.get(),
                 themePreferenceStore = createPlatformThemePreferenceStore(),
                 cloudLlmSettings = IosAppBridge.koin.get(),

@@ -30,5 +30,6 @@ actual fun initKoin(context: Any?): KoinApplication =
             cloudLlmModule,
             com.github.rodrigotimoteo.animally.llm.llmModule,
             com.github.rodrigotimoteo.animally.di.dictationModule,
+            com.github.rodrigotimoteo.animally.di.settingsModule,
         )
     }

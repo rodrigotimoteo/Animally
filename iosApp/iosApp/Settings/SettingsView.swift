@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var theme: ThemeViewModel
     @State private var showModelPicker = false
+    @State private var showWipeConfirmation = false
 
     var body: some View {
         // Presented as a sheet from the Patients toolbar gear; owns its navigation
@@ -21,6 +22,7 @@ struct SettingsView: View {
                     cloudAiSection
                     dataSection
                     pdfSection
+                    dangerZoneSection
                 }
                 .listStyle(.insetGrouped)
             }
@@ -248,6 +250,59 @@ struct SettingsView: View {
             }
         } header: {
             sectionHeader("PDF Export")
+        }
+    }
+
+    /// Irreversible database wipe: red destructive action behind a
+    /// confirmation dialog that states data cannot be recovered and
+    /// recommends exporting a backup first.
+    private var dangerZoneSection: some View {
+        Section {
+            Button {
+                showWipeConfirmation = true
+            } label: {
+                if viewModel.isWipingData {
+                    HStack {
+                        ProgressView()
+                        Text("Erasing…")
+                    }
+                } else {
+                    Label("Erase All Data", systemImage: "trash")
+                        .foregroundStyle(.red)
+                }
+            }
+            .disabled(viewModel.isWipingData)
+
+            if viewModel.dataWiped {
+                Text("All data erased. Restart the app to start fresh.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+
+            if let status = viewModel.wipeStatus {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        } header: {
+            sectionHeader("Danger Zone")
+        } footer: {
+            Text("Deletes every patient, owner and record. Cannot be undone.")
+        }
+        .confirmationDialog(
+            "Erase All Data?",
+            isPresented: $showWipeConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Erase Everything", role: .destructive) {
+                viewModel.wipeAllData()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "This permanently deletes every patient, owner and record in the app. "
+                    + "This cannot be undone. Export a backup first if you may need this data."
+            )
         }
     }
 

@@ -50,6 +50,18 @@ class SettingsStore(
     val pdfStatus: String?
         get() = viewModel.pdfStatus
 
+    /** True while the database wipe is in flight. */
+    val isWipingData: Boolean
+        get() = viewModel.isWipingData
+
+    /** True once a wipe completed successfully (done state: suggest relaunch). */
+    val dataWiped: Boolean
+        get() = viewModel.dataWiped
+
+    /** Message from the last failed wipe, or `null`. */
+    val wipeStatus: String?
+        get() = viewModel.wipeStatus
+
     /** Exports every patient's records to a CSV file. */
     fun exportCsv() {
         viewModel.onExportClick()
@@ -73,6 +85,14 @@ class SettingsStore(
     /** Renders the selected patient's history as a PDF and shares it. */
     fun exportPdf() {
         viewModel.onExportPdfClick()
+    }
+
+    /**
+     * Erases every table and resets the search index. Call only after the
+     * user confirmed in the UI — irreversible.
+     */
+    fun wipeAllData() {
+        viewModel.onWipeAllDataClick()
     }
 
     /** Updates the theme mode, persisting the choice. */

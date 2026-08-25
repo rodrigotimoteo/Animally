@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.presentation.settings
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.search.SearchRepositoryImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.anamnese.IAnamneseRepository
 import com.github.rodrigotimoteo.animally.domain.backup.BACKUP_SCHEMA_VERSION
@@ -26,6 +27,7 @@ import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepositor
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
+import com.github.rodrigotimoteo.animally.domain.settings.usecase.WipeAllDataUseCase
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
@@ -134,9 +136,12 @@ class SettingsViewModelTest {
 
     private lateinit var database: AnimallyDatabase
 
+    private lateinit var searchRepository: SearchRepositoryImpl
+
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
+        searchRepository = SearchRepositoryImpl(database, database.ownerQueries)
     }
 
     private fun createViewModel() =
@@ -151,6 +156,7 @@ class SettingsViewModelTest {
                     clinicalRecords,
                     reproductiveRecords,
                 ),
+            wipeAllDataUseCase = WipeAllDataUseCase(database, searchRepository),
             patientRepository = patientRepositoryMock,
             themePreferenceStore = themePreferenceStore,
             cloudLlmSettings = cloudLlmSettings,

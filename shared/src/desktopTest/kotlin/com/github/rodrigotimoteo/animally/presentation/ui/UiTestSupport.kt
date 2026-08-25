@@ -78,6 +78,7 @@ import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReprodu
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.GetReproMedicationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.settings.usecase.WipeAllDataUseCase
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import com.github.rodrigotimoteo.animally.domain.substance.usecase.GetControlledSubstancesByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
@@ -185,7 +186,7 @@ private fun uiServicesModule(): Module =
         single<IReproMedicationRepository> { ReproMedicationRepositoryImpl(get()) }
         single<ILabResultRepository> { LabResultRepositoryImpl(get()) }
         single<IImagingRepository> { ImagingRepositoryImpl(get()) }
-        single<ISearchRepository> { SearchRepositoryImpl(get()) }
+        single<ISearchRepository> { SearchRepositoryImpl(get(), get<AnimallyDatabase>().ownerQueries) }
 
         single { GetPatientListUseCase(get()) }
         single { GetPatientDetailUseCase(get()) }
@@ -218,6 +219,7 @@ private fun uiServicesModule(): Module =
         single { ExportPatientReportUseCase(get(), get(), get(), get()) }
         single { ExportBackupUseCase(get()) }
         single { RestoreBackupUseCase(get()) }
+        single { WipeAllDataUseCase(get(), get()) }
         single { GetVaccinationRemindersUseCase(get(), get()) }
         single { GetDentistryRemindersUseCase(get(), get()) }
         single<NotificationPermissionController> { NotificationPermissionControllerImpl() }
@@ -245,7 +247,7 @@ private class FakeSyncMetadataRepository : SyncMetadataRepository {
 
 private fun uiViewModelModule(): List<Module> =
     module {
-        viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get()) }
+        viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
         viewModel {
             ReminderSettingsViewModel(get(), get(), get(named(IO_DISPATCHER)), get())
         }

@@ -31,6 +31,11 @@ DELETE FROM SearchFts WHERE rowid = ?;
 deleteAllFts:
 DELETE FROM SearchFts;
 
+-- Wipe the metadata table (full database wipe); rebuild() then re-seeds an
+-- empty FTS from it, so the index matches the emptied database.
+deleteAllIndex:
+DELETE FROM SearchFtsIndex;
+
 -- Re-seed the FTS index from the metadata table.
 reseed:
 INSERT INTO SearchFts(rowid, searchableText) SELECT id, searchableText FROM SearchFtsIndex;

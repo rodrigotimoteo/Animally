@@ -14,6 +14,7 @@ import com.github.rodrigotimoteo.animally.domain.export.shareFileAt
 import com.github.rodrigotimoteo.animally.domain.export.sharePdf
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.domain.settings.usecase.WipeAllDataUseCase
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmProviderPreset
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelsResult
@@ -31,12 +32,13 @@ import org.koin.core.annotation.KoinViewModel
 import kotlin.time.Clock
 
 @KoinViewModel
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "TooManyFunctions")
 class SettingsViewModel(
     private val exportCsvUseCase: ExportCsvUseCase,
     private val exportBackupUseCase: ExportBackupUseCase,
     private val restoreBackupUseCase: RestoreBackupUseCase,
     private val exportReportUseCase: ExportPatientReportUseCase,
+    private val wipeAllDataUseCase: WipeAllDataUseCase,
     private val patientRepository: IPatientRepository,
     private val themePreferenceStore: ThemePreferenceStore,
     private val cloudLlmSettings: CloudLlmSettingsStore,
@@ -59,6 +61,18 @@ class SettingsViewModel(
     var backupStatus: String? by mutableStateOf(null)
     var restoreStatus: String? by mutableStateOf(null)
     var pdfStatus: String? by mutableStateOf(null)
+
+    /** True while the database wipe is in flight. */
+    var isWipingData: Boolean by mutableStateOf(false)
+        private set
+
+    /** True once a wipe completed successfully; drives the "relaunch" done state. */
+    var dataWiped: Boolean by mutableStateOf(false)
+        private set
+
+    /** Message from the last failed wipe, or `null`. */
+    var wipeStatus: String? by mutableStateOf(null)
+        private set
 
     private val _themeMode = MutableStateFlow(themePreferenceStore.getThemeMode())
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -158,6 +172,28 @@ class SettingsViewModel(
      */
     fun onSelectPatient(patientId: Long) {
         selectedPatientIdState.value = patientId
+    }
+
+    /**
+     * Erases every table and resets the search index. Call only after an
+     * explicit user confirmation — irreversible. On success the patient list
+     * reloads (now empty) so open screens reflect the wiped state.
+     */
+    fun onWipeAllDataClick() {
+        if (isWipingData) return
+        isWipingData = true
+        try {
+            wipeAllDataUseCase()
+            dataWiped = true
+            patientsState.value = patientRepository.getPatientList()
+            selectedPatientIdState.value = null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            wipeStatus = "Erase failed: ${e.message}"
+        } finally {
+            isWipingData = false
+        }
     }
 
     /**
