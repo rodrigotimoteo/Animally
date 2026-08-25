@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.di.AndroidDatabaseModule
 import com.github.rodrigotimoteo.animally.di.database.QueriesModule
 import com.github.rodrigotimoteo.animally.di.navigation.navigationEntryModule
 import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
+import com.github.rodrigotimoteo.animally.di.presentation.cloudLlmModule
 import com.github.rodrigotimoteo.animally.domain.notification.ensureReminderChannel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.KoinApplication
@@ -26,6 +27,7 @@ actual fun initKoin(context: Any?): KoinApplication =
             AndroidDatabaseModule().provide(),
             QueriesModule().provide(),
             PresentationModule().provide(),
+            cloudLlmModule,
             com.github.rodrigotimoteo.animally.llm.llmModule,
             com.github.rodrigotimoteo.animally.di.dictationModule,
         )

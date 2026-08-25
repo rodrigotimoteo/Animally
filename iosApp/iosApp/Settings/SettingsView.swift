@@ -5,6 +5,7 @@ struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var theme: ThemeViewModel
+    @State private var showModelPicker = false
 
     var body: some View {
         // Presented as a sheet from the Patients toolbar gear; owns its navigation
@@ -17,6 +18,7 @@ struct SettingsView: View {
             Group {
                 List {
                     themeSection
+                    cloudAiSection
                     dataSection
                     pdfSection
                 }
@@ -62,6 +64,82 @@ struct SettingsView: View {
             }
         } header: {
             sectionHeader("Appearance")
+        }
+    }
+
+    /// Cloud AI: opt-in toggle, provider preset picker, API key (masked), model
+    /// discovery ("Fetch models" + searchable picker), and a collapsed advanced
+    /// endpoint field. Answers from the cloud model are badged in chat.
+    private var cloudAiSection: some View {
+        Section {
+            Toggle("Cloud AI", isOn: Binding(
+                get: { viewModel.cloudAiEnabled },
+                set: { viewModel.setCloudAiEnabled($0) }
+            ))
+
+            if viewModel.cloudAiEnabled {
+                Picker("Provider", selection: Binding(
+                    get: { viewModel.cloudProviderPreset },
+                    set: { viewModel.setCloudProviderPreset($0) }
+                )) {
+                    ForEach(viewModel.cloudProviderPresets, id: \.self) { preset in
+                        Text(preset.displayName).tag(preset)
+                    }
+                }
+                .accessibilityIdentifier("settings_cloud_provider")
+
+                SecureField("API Key", text: Binding(
+                    get: { viewModel.cloudApiKey },
+                    set: { viewModel.setCloudApiKey($0) }
+                ))
+                .accessibilityIdentifier("settings_cloud_api_key")
+
+                HStack {
+                    TextField("Model", text: Binding(
+                        get: { viewModel.cloudModel },
+                        set: { viewModel.setCloudModel($0) }
+                    ))
+                    .accessibilityIdentifier("settings_cloud_model")
+
+                    Button("Fetch models") {
+                        Task { await viewModel.fetchCloudModels() }
+                    }
+                    .disabled(viewModel.isFetchingCloudModels)
+
+                    if viewModel.isFetchingCloudModels {
+                        ProgressView()
+                    }
+                }
+
+                if let status = viewModel.cloudModelsStatus {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+
+                DisclosureGroup("Advanced") {
+                    TextField("Endpoint URL", text: Binding(
+                        get: { viewModel.cloudBaseUrl },
+                        set: { viewModel.setCloudBaseUrl($0) }
+                    ))
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier("settings_cloud_base_url")
+                }
+            }
+        } header: {
+            sectionHeader("Cloud AI")
+        } footer: {
+            Text("When enabled, the assistant falls back to a cloud model if on-device AI is unavailable. The key is stored in the Keychain.")
+        }
+        .sheet(isPresented: $showModelPicker) {
+            CloudModelPickerSheet(
+                models: viewModel.cloudModelChoices,
+                onSelect: { model in
+                    viewModel.setCloudModel(model)
+                    showModelPicker = false
+                }
+            )
         }
     }
 
@@ -183,4 +261,45 @@ struct SettingsView: View {
 
 enum SettingsRoute: Hashable {
     case restoreBackup
+}
+
+/// Searchable sheet over the last-fetched model list; tapping a row selects it.
+private struct CloudModelPickerSheet: View {
+    let models: [String]
+    let onSelect: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var filter = ""
+
+    private var filtered: [String] {
+        filter.isEmpty ? models : models.filter { $0.localizedCaseInsensitiveContains(filter) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if models.isEmpty {
+                    ContentUnavailableView(
+                        "No models fetched",
+                        systemImage: "tray",
+                        description: Text("Tap \"Fetch models\" first.")
+                    )
+                } else if filtered.isEmpty {
+                    ContentUnavailableView.search(text: filter)
+                } else {
+                    List(filtered, id: \.self) { model in
+                        Button(model) { onSelect(model) }
+                    }
+                }
+            }
+            .navigationTitle("Choose a model")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $filter, prompt: "Filter models")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+    }
 }

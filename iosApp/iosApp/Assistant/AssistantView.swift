@@ -394,6 +394,9 @@ private struct ChatBubble: View {
                 if message.interrupted {
                     interruptedFooter
                 }
+                if !isUser && message.source == EngineSource.cloud {
+                    cloudSourceFooter
+                }
                 if !isUser && !sources.isEmpty {
                     sourceChips
                 }
@@ -425,6 +428,19 @@ private struct ChatBubble: View {
                 .accessibilityIdentifier("assistant_retry")
             }
         }
+    }
+
+    /// Transparency badge: this answer came from the cloud model, not the
+    /// on-device engine. Required so users always know where data was sent.
+    private var cloudSourceFooter: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "cloud.fill")
+                .font(.caption2)
+            Text("Answered by cloud model")
+                .font(.caption2.weight(.medium))
+        }
+        .foregroundStyle(Theme.textSecondary)
+        .accessibilityIdentifier("assistant_cloud_badge")
     }
 
     /// Tappable chips for the records cited in this answer.

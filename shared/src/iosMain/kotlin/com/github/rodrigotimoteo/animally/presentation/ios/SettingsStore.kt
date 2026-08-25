@@ -5,6 +5,7 @@ package com.github.rodrigotimoteo.animally.presentation.ios
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmProviderPreset
 import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewModel
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import kotlin.experimental.ExperimentalObjCName
@@ -77,5 +78,71 @@ class SettingsStore(
     /** Updates the theme mode, persisting the choice. */
     fun setThemeMode(mode: ThemeMode) {
         viewModel.onThemeModeChange(mode)
+    }
+
+    /** True when cloud AI routing is enabled. */
+    val cloudAiEnabled: Boolean
+        get() = viewModel.cloudAiEnabled
+
+    /** The stored cloud API key (masked), or empty when none was entered. */
+    val cloudApiKey: String
+        get() = viewModel.cloudApiKey
+
+    /** The chat-completions model name. */
+    val cloudModel: String
+        get() = viewModel.cloudModel
+
+    /** The OpenAI-compatible endpoint URL. */
+    val cloudBaseUrl: String
+        get() = viewModel.cloudBaseUrl
+
+    /** Toggles cloud AI routing, persisting the choice. */
+    fun setCloudAiEnabled(enabled: Boolean) {
+        viewModel.onCloudAiEnabledChange(enabled)
+    }
+
+    /** Persists the cloud API key (blank clears it). */
+    fun setCloudApiKey(key: String) {
+        viewModel.onCloudApiKeyChange(key)
+    }
+
+    /** Persists the cloud model name. */
+    fun setCloudModel(model: String) {
+        viewModel.onCloudModelChange(model)
+    }
+
+    /** Persists the cloud endpoint URL. */
+    fun setCloudBaseUrl(url: String) {
+        viewModel.onCloudBaseUrlChange(url)
+    }
+
+    /** All selectable provider presets, in display order. */
+    val cloudProviderPresets: List<CloudLlmProviderPreset>
+        get() = CloudLlmProviderPreset.entries.toList()
+
+    /** The currently selected provider preset. */
+    val cloudProviderPreset: CloudLlmProviderPreset
+        get() = viewModel.cloudProviderPreset
+
+    /** Selects a provider preset; non-custom presets fill the endpoint URL. */
+    fun setCloudProviderPreset(preset: CloudLlmProviderPreset) {
+        viewModel.onCloudProviderChange(preset)
+    }
+
+    /** Models from the last successful discovery (in-memory cache). */
+    val cloudModelChoices: List<String>
+        get() = viewModel.cloudModelChoices
+
+    /** Status message from the last models fetch, or null when idle/successful. */
+    val cloudModelsStatus: String?
+        get() = viewModel.cloudModelsStatus
+
+    /** True while a models fetch is in flight. */
+    val isFetchingCloudModels: Boolean
+        get() = viewModel.isFetchingCloudModels
+
+    /** Fetches the model list from the configured endpoint; results land in [cloudModelChoices]. */
+    suspend fun fetchCloudModels() {
+        viewModel.fetchCloudModelsAwait()
     }
 }

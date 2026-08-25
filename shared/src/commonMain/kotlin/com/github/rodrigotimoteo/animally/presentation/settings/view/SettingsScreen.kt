@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -74,6 +75,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             AppearanceSection(viewModel)
+            CloudAiSection(viewModel)
             CsvExportSection(viewModel)
             BackupSection(viewModel)
             PdfExportSection(viewModel)
@@ -101,6 +103,11 @@ private fun AppearanceSection(viewModel: SettingsViewModel) {
         }
     }
 }
+
+/**
+ * Cloud AI section lives in CloudAiSettingsSection.kt (provider presets, API key,
+ * model discovery, advanced endpoint field).
+ */
 
 @Composable
 private fun CsvExportSection(viewModel: SettingsViewModel) {

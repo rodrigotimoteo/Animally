@@ -43,6 +43,8 @@ object IosSettingsStores {
                 exportReportUseCase = IosAppBridge.koin.get(),
                 patientRepository = IosAppBridge.koin.get(),
                 themePreferenceStore = createPlatformThemePreferenceStore(),
+                cloudLlmSettings = IosAppBridge.koin.get(),
+                cloudModelCatalog = IosAppBridge.koin.get(),
                 animallyNavigator = IosAppBridge.koin.get(),
             )
         return SettingsStore(viewModel)
@@ -60,10 +62,13 @@ object IosSettingsStores {
      * dependencies outside the Koin component scan.
      */
     fun assistantStore(): AssistantStore {
+        val routingEngine: com.github.rodrigotimoteo.animally.llm.cloud.FmFirstRagLlmEngine =
+            IosAppBridge.koin.get()
         val viewModel =
             AssistantViewModel(
                 generateRagResponse = IosAppBridge.koin.get(),
                 llmEngine = IosAppBridge.koin.get(),
+                engineSourceEvents = routingEngine.sourceEvents,
             )
         return AssistantStore(viewModel)
     }
