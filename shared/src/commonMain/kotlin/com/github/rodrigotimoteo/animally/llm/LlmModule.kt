@@ -8,7 +8,10 @@ import com.github.rodrigotimoteo.animally.llm.cloud.FmFirstRagLlmEngine
 import com.github.rodrigotimoteo.animally.presentation.settings.CloudLlmSettingsStore
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 
 val llmModule =
@@ -21,7 +24,17 @@ val llmModule =
         // picked up by the AppModule component scan) so the annotation processor
         // can satisfy SettingsViewModel's constructor dependency.
         single {
+            // MUST install ContentNegotiation: the cloud engine posts a
+            // @Serializable ChatCompletionRequest via setBody(dto), and without a
+            // serializer plugin Ktor fails the request before it is ever sent
+            // ("Fail to prepare request body for sending") - which surfaced to
+            // users as "Response cut short" on EVERY cloud answer. This client is
+            // deliberately separate from HttpClientModule's: it adds HttpTimeout
+            // so SSE streams get an inactivity cap instead of hanging forever.
             HttpClient {
+                install(ContentNegotiation) {
+                    json(Json { ignoreUnknownKeys = true })
+                }
                 install(HttpTimeout)
             }
         }

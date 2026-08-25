@@ -15,6 +15,7 @@ import io.ktor.http.isSuccess
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -27,15 +28,28 @@ data class CloudLlmConfig(
     val baseUrl: String = DEFAULT_BASE_URL,
     val model: String = DEFAULT_MODEL,
     val apiKey: String,
-    /** Socket inactivity timeout; SSE streams may legitimately outlive a total-request cap. */
+    /**
+     * Socket INACTIVITY timeout. Reasoning models can stay silent well past 30s
+     * while thinking before (and between) visible tokens, so this must be far
+     * more generous than a page-load budget - a mid-thought kill surfaces to the
+     * user as "Response cut short".
+     */
     val socketTimeoutMillis: Long = DEFAULT_SOCKET_TIMEOUT_MILLIS,
     val connectTimeoutMillis: Long = DEFAULT_CONNECT_TIMEOUT_MILLIS,
+    /**
+     * Completion budget sent as `max_tokens`. Reasoning tokens COUNT toward this
+     * budget on most OpenAI-compatible backends, so a small cap lets a model burn
+     * the entire allowance on invisible reasoning and return `finish_reason=length`
+     * with zero visible content.
+     */
+    val maxTokens: Int = DEFAULT_MAX_TOKENS,
 ) {
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1/chat/completions"
         const val DEFAULT_MODEL = "gpt-4o-mini"
-        const val DEFAULT_SOCKET_TIMEOUT_MILLIS = 30_000L
+        const val DEFAULT_SOCKET_TIMEOUT_MILLIS = 120_000L
         const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000L
+        const val DEFAULT_MAX_TOKENS = 2048
     }
 }
 
@@ -49,7 +63,9 @@ data class CloudLlmConfig(
  * implementation through that seam.
  *
  * Any transport/HTTP/parse failure surfaces as a flow error; fallback handling is the
- * caller's job ([FmFirstRagLlmEngine]).
+ * caller's job ([FmFirstRagLlmEngine]). A stream that ends WITHOUT the `[DONE]`
+ * sentinel or a terminal `finish_reason` is treated as interrupted (not silently
+ * truncated) so callers see the typed failure instead of a confident half-answer.
  */
 class CloudRagLlmEngine(
     private val httpClient: HttpClient,
@@ -77,6 +93,8 @@ class CloudRagLlmEngine(
         flow {
             // Resolved per request so settings edits (key/model/URL) apply immediately.
             val config = configProvider()
+            var sawDone = false
+            var finishReason: String? = null
             httpClient
                 .preparePost(config.baseUrl) { applyCloudLlmRequest(this, config, prompt, instructions) }
                 .execute { response ->
@@ -87,42 +105,100 @@ class CloudRagLlmEngine(
                     val cumulative = StringBuilder()
                     while (!channel.isClosedForRead) {
                         val line = channel.readUTF8Line() ?: break
-                        appendSseDelta(line, cumulative)?.let { delta ->
-                            if (delta.isNotEmpty()) emit(cumulative.toString())
+                        if (appendSseDelta(line, cumulative)?.isNotEmpty() == true) {
+                            emit(cumulative.toString())
                         }
+                        if (line.contains(SSE_DONE_SENTINEL)) sawDone = true
+                        parseFinishReason(line)?.let { finishReason = it }
                     }
+                    // Terminal-state validation: a connection that closes without
+                    // [DONE] nor a finish_reason dropped the answer mid-flight -
+                    // surface that instead of ending the flow like a complete reply.
+                    validateStreamEnd(
+                        sawDone = sawDone,
+                        finishReason = finishReason,
+                        contentLength = cumulative.length,
+                    )?.let { message -> error(message) }
                 }
         }
 
     /**
      * Parses one SSE line; returns the content delta it carries, or null for
-     * non-data lines / keep-alive comments / the terminal `[DONE]` sentinel.
-     * Internal so contract tests drive the exact production decode path.
+     * non-data lines / keep-alive comments / the terminal `[DONE]` sentinel /
+     * anything with no visible content (reasoning-only deltas, usage tails,
+     * malformed payloads — all inert, never fatal). Internal so contract tests
+     * drive the exact production decode path.
      */
     internal fun appendSseDelta(
         line: String,
         cumulative: StringBuilder,
     ): String? {
-        if (!line.startsWith(SSE_DATA_PREFIX)) return null
-        val payload = line.removePrefix(SSE_DATA_PREFIX).trim()
-        if (payload.isEmpty() || payload == SSE_DONE_SENTINEL) return null
+        val payload =
+            line
+                .takeIf { it.startsWith(SSE_DATA_PREFIX) }
+                ?.removePrefix(SSE_DATA_PREFIX)
+                ?.trim()
+        if (payload.isNullOrEmpty() || payload == SSE_DONE_SENTINEL) return null
+        // Null means "nothing to append": non-data lines, the [DONE] sentinel,
+        // malformed payloads, and content-free frames (reasoning-only deltas,
+        // usage tails) are all inert. Only a real content delta is appended.
         val delta =
-            json
-                .decodeFromString<ChatCompletionChunk>(payload)
-                .choices
-                .firstOrNull()
+            decodeChunk(payload)
+                ?.choices
+                ?.firstOrNull()
                 ?.delta
                 ?.content
-                .orEmpty()
+                ?: return null
         cumulative.append(delta)
         return delta
     }
+
+    /** Extracts `choices[0].finish_reason` from a data line, or null. */
+    private fun parseFinishReason(line: String): String? =
+        line
+            .removePrefix(SSE_DATA_PREFIX)
+            .trim()
+            .takeIf { it.startsWith("{") }
+            ?.let(::decodeChunk)
+            ?.choices
+            ?.firstOrNull()
+            ?.finishReason
+
+    /** Tolerant frame decode: malformed payloads yield null instead of throwing. */
+    private fun decodeChunk(payload: String): ChatCompletionChunk? =
+        runCatching {
+            json.decodeFromString<ChatCompletionChunk>(payload)
+        }.getOrNull()
 
     private companion object {
         const val SSE_DATA_PREFIX = "data:"
         const val SSE_DONE_SENTINEL = "[DONE]"
     }
 }
+
+/**
+ * Terminal-state check shared by the stream loop and contract tests. Returns a
+ * human-readable failure message when the stream ended abnormally, null when the
+ * termination is legitimate ([DONE], or an explicit finish_reason such as `stop`).
+ * `length` with zero visible content means the token budget was consumed entirely
+ * by reasoning - reported explicitly instead of surfacing as an empty reply.
+ */
+internal fun validateStreamEnd(
+    sawDone: Boolean,
+    finishReason: String?,
+    contentLength: Int,
+): String? =
+    when {
+        sawDone || finishReason != null ->
+            if (finishReason == FINISH_LENGTH && contentLength == 0) {
+                "Cloud model spent its entire token budget on reasoning and returned no answer"
+            } else {
+                null
+            }
+        else -> "Cloud LLM stream ended before completion"
+    }
+
+private const val FINISH_LENGTH = "length"
 
 private const val ROLE_SYSTEM = "system"
 private const val ROLE_USER = "user"
@@ -142,6 +218,7 @@ internal fun buildChatCompletionRequest(
         model = config.model,
         messages = messages,
         stream = true,
+        maxTokens = config.maxTokens,
     )
 }
 
@@ -166,6 +243,13 @@ internal data class ChatCompletionRequest(
     val model: String,
     val messages: List<ChatMessage>,
     val stream: Boolean,
+    /**
+     * Required (no default) ON PURPOSE: kotlinx.serialization omits properties
+     * equal to their default unless `encodeDefaults=true`, and the wire Json
+     * instances here do not enable it - a defaulted field would silently drop
+     * `max_tokens` from the request body.
+     */
+    @SerialName("max_tokens") val maxTokens: Int,
 )
 
 @Serializable
@@ -182,9 +266,17 @@ internal data class ChatCompletionChunk(
 @Serializable
 internal data class ChunkChoice(
     val delta: Delta? = null,
+    /** Terminal marker (`stop`, `length`, ...); absent on every non-final chunk. */
+    @SerialName("finish_reason") val finishReason: String? = null,
 )
 
 @Serializable
 internal data class Delta(
     val content: String? = null,
+    /**
+     * Reasoning models stream hidden chain-of-thought here BEFORE/AFTER content
+     * deltas. Never rendered; declared so the shape is documented and greppable
+     * (unknown keys are ignored anyway).
+     */
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
 )

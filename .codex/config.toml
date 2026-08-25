@@ -1,0 +1,7 @@
+# Project-scoped Codex MCP configuration.
+# Animally is trusted in ~/.codex/config.toml, so Codex may load this file.
+
+[mcp_servers.ios-simulator]
+command = "npx"
+args = ["-y", "ios-simulator-mcp"]
+startup_timeout_sec = 120

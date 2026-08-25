@@ -41,6 +41,71 @@ class CloudRagLlmEngineTest {
     }
 
     @Test
+    fun `request dto carries a generous max_tokens budget`() {
+        // Reasoning tokens count toward max_tokens on OpenAI-compatible backends;
+        // a small cap starves the visible answer (finish_reason=length, no content).
+        val wire = Json.encodeToString(ChatCompletionRequest.serializer(), buildChatCompletionRequest(config, "q", "i"))
+        assertTrue(wire.contains("\"max_tokens\":${CloudLlmConfig.DEFAULT_MAX_TOKENS}"))
+        assertEquals(CloudLlmConfig.DEFAULT_MAX_TOKENS, buildChatCompletionRequest(config, "q", "i").maxTokens)
+    }
+
+    @Test
+    fun `reasoning deltas and malformed frames never kill the stream`() {
+        val engine = engine()
+        val cumulative = StringBuilder()
+
+        // Reasoning models emit hidden chain-of-thought deltas with no content.
+        assertNull(engine.appendSseDelta("data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"thinking\"}}]}", cumulative))
+        assertEquals("", cumulative.toString())
+
+        // Usage-only tail chunk (no choices content) is equally inert.
+        assertNull(engine.appendSseDelta("data: {\"choices\":[],\"usage\":{\"total_tokens\":42}}", cumulative))
+
+        // A malformed payload is skipped, not fatal.
+        assertNull(engine.appendSseDelta("data: not-json", cumulative))
+        assertEquals("", cumulative.toString())
+    }
+
+    @Test
+    fun `snake_case wire fields decode into typed chunk fields`() {
+        val chunk =
+            Json
+                .decodeFromString(
+                    ChatCompletionChunk.serializer(),
+                    """{"choices":[{"delta":{"reasoning_content":"hmm"},"finish_reason":null}]}""",
+                )
+        val reasoningDelta = chunk.choices.first().delta
+        assertEquals("hmm", reasoningDelta?.reasoningContent)
+        assertNull(chunk.choices.first().finishReason)
+
+        val terminal =
+            Json
+                .decodeFromString(
+                    ChatCompletionChunk.serializer(),
+                    """{"choices":[{"delta":{},"finish_reason":"length"}]}""",
+                )
+        assertEquals("length", terminal.choices.first().finishReason)
+    }
+
+    @Test
+    fun `stream end validation distinguishes clean done from truncation`() {
+        assertNull(validateStreamEnd(sawDone = true, finishReason = null, contentLength = 10))
+        assertNull(validateStreamEnd(sawDone = false, finishReason = "stop", contentLength = 10))
+        assertNull(validateStreamEnd(sawDone = true, finishReason = "length", contentLength = 42))
+
+        // Connection dropped mid-answer: must surface as an error, not silence.
+        assertEquals(
+            "Cloud LLM stream ended before completion",
+            validateStreamEnd(sawDone = false, finishReason = null, contentLength = 7),
+        )
+        // Budget consumed by reasoning with zero visible content: explicit message.
+        assertEquals(
+            "Cloud model spent its entire token budget on reasoning and returned no answer",
+            validateStreamEnd(sawDone = true, finishReason = "length", contentLength = 0),
+        )
+    }
+
+    @Test
     fun `sse deltas accumulate into cumulative snapshots`() {
         val engine = engine()
         val cumulative = StringBuilder()
