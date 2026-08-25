@@ -8,6 +8,7 @@ import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.SaveMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.domain.search.usecase.RetrievalPolicy
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -40,9 +41,6 @@ class RagGoldenSetTest {
 
     /** Stable record keys used across golden expectations. */
     private companion object {
-        /** Mirrors GenerateRagResponseUseCase.WEAK_RESULT_THRESHOLD (private there). */
-        const val WEAK_RESULT_THRESHOLD = 3
-
         const val PATIENT_THUNDER = "PATIENT#1"
         const val PATIENT_BELLA = "PATIENT#2"
         const val PATIENT_COMET = "PATIENT#3"
@@ -1994,11 +1992,15 @@ class RagGoldenSetTest {
     private fun SearchResult.key(): String = "$recordType#$recordId"
 
     /**
-     * Mirrors the production retrieval path in [GenerateRagResponseUseCase]:
-     * filler-stripped AND query first, one broad OR retry (with synonym
-     * expansion) when the AND query is empty OR WEAK (fewer than
-     * [WEAK_RESULT_THRESHOLD] records), with retry hits deduplicated against
-     * the AND leg by record identity.
+     * Runs the REAL production retrieval policy ([RetrievalPolicy.mergeWeakRetry],
+     * shared with [GenerateRagResponseUseCase]): filler-stripped AND query
+     * first, one broad OR retry (with synonym expansion) when the AND query is
+     * empty OR WEAK (fewer than [RetrievalPolicy.WEAK_RESULT_THRESHOLD]
+     * records), with retry hits deduplicated against the AND leg by record
+     * identity. Leg CONSTRUCTION stays harness-side (SearchUseCase for the
+     * AND leg, [SearchRepositoryImpl] directly for the OR leg) - only the
+     * weak-retry/dedup policy is shared, so a production policy change flips
+     * golden expectations visibly instead of drifting silently.
      *
      * The OR leg goes through [SearchRepositoryImpl] directly with an
      * FTS-safe expression from [AssistantPrompts.toFtsOrQuery]:
@@ -2006,14 +2008,10 @@ class RagGoldenSetTest {
      * fallback becomes `a* AND OR* AND b*` and FTS5 rejects the reserved
      * operator carrying a suffix star (retrieval bug fixed in the llm lane).
      */
-    private fun retrieve(question: String): List<SearchResult> {
-        val andResults =
-            searchUseCase(AssistantPrompts.enrichQuery(question), from = null, to = null, recordTypes = null)
-        if (andResults.size >= WEAK_RESULT_THRESHOLD) return andResults
-        val retryResults = searchRepo.search(AssistantPrompts.toFtsOrQuery(question), null, null, null)
-        return andResults +
-            retryResults.filter { retry ->
-                andResults.none { it.recordType == retry.recordType && it.recordId == retry.recordId }
-            }
-    }
+    private fun retrieve(question: String): List<SearchResult> =
+        RetrievalPolicy.mergeWeakRetry(
+            searchUseCase(AssistantPrompts.enrichQuery(question), from = null, to = null, recordTypes = null),
+        ) {
+            searchRepo.search(AssistantPrompts.toFtsOrQuery(question), null, null, null)
+        }
 }

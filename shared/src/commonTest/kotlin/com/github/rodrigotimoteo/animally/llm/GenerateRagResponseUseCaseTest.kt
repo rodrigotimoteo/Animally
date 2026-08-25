@@ -10,6 +10,8 @@ import dev.mokkery.answering.sequentiallyReturns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
 import dev.mokkery.mock
+import dev.mokkery.verify
+import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
@@ -110,6 +112,143 @@ class GenerateRagResponseUseCaseTest {
 
             assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
             assertEquals(0, engine.calls)
+        }
+
+    @Test
+    fun `given empty retrieval no summary and no history when invoked then honest fallback and zero engine calls`() =
+        runTest {
+            // Farrier regression guard: with NOTHING to ground on the model
+            // must never be consulted - it freeballs plausible-sounding dates
+            // ("last farrier visit was on 24 Aug") that neither citation
+            // enforcement nor the honest fallback can catch.
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val output = sut()("When was Thunder's last farrier visit?").chunks()
+
+            assertEquals(0, engine.calls, "engine must never run on empty grounding")
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+        }
+
+    @Test
+    fun `given empty retrieval and unrelated history when invoked then fallback emitted and engine never called`() =
+        runTest {
+            // History alone must not unlock the model call: only turns that
+            // actually share subject matter with the question may.
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val history =
+                listOf(
+                    RagHistoryEntry(
+                        question = "What dental work does Bella need?",
+                        answer = "Bella has a floating appointment planned.",
+                    ),
+                )
+
+            val output = sut()("When was Thunder's last farrier visit?", history).chunks()
+
+            assertEquals(0, engine.calls, "unrelated history must not unlock the model")
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+        }
+
+    @Test
+    fun `given retrieval without the asked-for record type when invoked then fallback emitted and engine never called`() =
+        runTest {
+            // Sim regression: seeded patient data makes retrieval NON-empty
+            // (the OR-retry matches Thunder's PATIENT identity record) while
+            // zero farrier records exist - the model freeballed a visit date.
+            val patientOnly =
+                SearchResult(
+                    patientId = 7L,
+                    patientName = "Thunder",
+                    breed = "Thoroughbred",
+                    microchipId = null,
+                    recordType = "PATIENT",
+                    recordId = 7L,
+                    date = null,
+                    snippet = "Thunder - Thoroughbred gelding, owner Daniela",
+                )
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(patientOnly)
+
+            val output = sut()("When was Thunder's last farrier visit?").chunks()
+
+            assertEquals(0, engine.calls, "patient-identity grounding must not unlock a farrier-date answer")
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+        }
+
+    @Test
+    fun `given retrieval containing the asked-for record type when invoked then engine called normally`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns
+                listOf(result().copy(recordType = "FARRIER_VISIT", recordId = 301L, snippet = "Shoeing, all four feet"))
+
+            // Non-superlative phrasing: "last ... visit" questions take the
+            // deterministic date path instead of the model.
+            sut()("What did the farrier do for Thunder?").answers()
+
+            assertEquals(1, engine.calls, "a real farrier record grounds the question")
+        }
+
+    @Test
+    fun `given latest-record date question with typed records when invoked then deterministic answer without engine`() =
+        runTest {
+            // Live-FM regression: the model freeballed today-ish dates ("last
+            // farrier visit was on 25 Aug") even with the real chunks in
+            // context. Superlative-date questions must be answered in Kotlin.
+            val older =
+                result().copy(
+                    recordType = "FARRIER_VISIT",
+                    recordId = 301L,
+                    date = LocalDate(2026, 7, 2),
+                    snippet = "Trim, all four feet",
+                )
+            val newest =
+                result().copy(
+                    recordType = "FARRIER_VISIT",
+                    recordId = 302L,
+                    date = LocalDate(2026, 8, 22),
+                    snippet = "Shoeing",
+                )
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(older, newest)
+
+            val events = sut()("When was Thunder's last farrier visit?").toList()
+            val chunks = events.filterIsInstance<RagStreamEvent.Chunk>().map { it.text }
+
+            assertEquals(0, engine.calls, "superlative-date answers are computed, never modeled")
+            val answer = chunks.last()
+            assertTrue(answer.contains("22 Aug 2026"), "answer must carry the actual latest date: $answer")
+            assertTrue(answer.contains("[FARRIER_VISIT #302]"), "deterministic answer cites its source inline")
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(302L, sources.sources.single().recordId)
+        }
+
+    @Test
+    fun `given latest-record date question without typed records when invoked then honest fallback and zero engine calls`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result()) // VACCINATION only
+
+            val output = sut()("When was Thunder's last farrier visit?").chunks()
+
+            assertEquals(0, engine.calls)
+            assertEquals(FALLBACK_TEXT, output.last())
+        }
+
+    @Test
+    fun `given empty retrieval but relevant history when invoked then engine still called`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val history =
+                listOf(
+                    RagHistoryEntry(
+                        question = "Who shoes Thunder?",
+                        answer = "Thunder's farrier visits are tracked in the app.",
+                    ),
+                )
+
+            val output = sut()("When was his last farrier visit?", history).answers()
+
+            assertEquals(1, engine.calls, "history sharing the subject keeps multi-turn context usable")
+            assertTrue(output.first().contains("pregnant")) // default fake chunk passes through sanitize
         }
 
     @Test
@@ -323,6 +462,31 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given exactly three AND hits when invoked then threshold not crossed and no OR retry fires`() =
+        runTest {
+            // Boundary: WEAK_RESULT_THRESHOLD = 3 means three hits are STRONG
+            // (retry skipped - the lazy OR leg is never queried).
+            val three = (1L..3L).map { id -> result().copy(recordId = id) }
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns three
+
+            sut()(QUERY).answers()
+
+            verify(VerifyMode.exactly(1)) { searchRepositoryMock.search(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `given two AND hits when invoked then weak leg crosses below threshold and OR retry fires`() =
+        runTest {
+            // Boundary: two hits are WEAK, so the broad OR retry must run.
+            val two = (1L..2L).map { id -> result().copy(recordId = id) }
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns two
+
+            sut()(QUERY).answers()
+
+            verify(VerifyMode.exactly(2)) { searchRepositoryMock.search(any(), any(), any(), any()) }
+        }
+
+    @Test
     fun `given history when invoked then recent conversation block is in the prompt`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
@@ -406,50 +570,56 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `given model reply without citation when records were used then retrieved headers appended`() =
+    fun `given model reply without citation when records were used then sources enforced and bubble text stripped`() =
         runTest {
+            // Enforcement appends the retrieved header, the Sources event
+            // maps it to a chip, and the final bubble text carries NO
+            // bracket - the citation lives in the chip, not the prose.
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "Thunder is a horse."
 
-            val output = sut()(QUERY).answers()
+            val events = sut()(QUERY).toList()
 
-            val final = output.last()
-            assertTrue(final.contains("[VACCINATION #123]"), "citation must be enforced: $final")
-            assertTrue(final.contains("Thunder is a horse."))
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals("Thunder is a horse.", final)
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals("VACCINATION", sources.sources.single().recordType)
         }
 
     @Test
-    fun `given many selected records and no model citations when enforced then exactly top-3 headers appended`() =
+    fun `given many selected records and no model citations when enforced then top-3 become source chips`() =
         runTest {
             // Regression: enforcement used to append EVERY selected header -
-            // a ten-record answer gained ten noise lines. Cap is top-3 by rank.
+            // a ten-record answer gained ten noise lines. Cap is top-3 by
+            // rank, surfaced as Sources chips; the bubble text stays clean.
             val five =
                 (1L..5L).map { id -> result().copy(recordId = id, snippet = "note $id") }
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns five
             engine.nextChunkOverride = "Thunder is a horse."
 
-            val output = sut()(QUERY).answers()
+            val events = sut()(QUERY).toList()
 
-            val final = output.last()
-            val headerMatches = Regex("\\[[A-Z_]+ #\\d+]").findAll(final).toList()
-            assertEquals(3, headerMatches.size, "exactly three headers must be appended: $final")
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertFalse(final.contains("["), "enforced headers must not reach the bubble text: $final")
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals(
-                listOf("[VACCINATION #1]", "[VACCINATION #2]", "[VACCINATION #3]"),
-                headerMatches.map { it.value },
-                "appended headers must be the top-3 by retrieval rank",
+                listOf("VACCINATION#1", "VACCINATION#2", "VACCINATION#3"),
+                sources.sources.map { "${it.recordType}#${it.recordId}" },
+                "chips must carry the top-3 by retrieval rank",
             )
         }
 
     @Test
-    fun `given model reply already citing when records were used then no extra sources appended`() =
+    fun `given model reply already citing when records were used then single sources event and clean text`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "Tetanus booster recorded in [VACCINATION #123] Thunder."
 
-            val output = sut()(QUERY).chunks()
+            val events = sut()(QUERY).toList()
 
-            val citedChunks = output.count { it.contains("[") }
-            assertEquals(1, citedChunks, "cited reply must not gain a duplicate source block")
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals("Tetanus booster recorded in Thunder.", final)
+            assertEquals(1, events.filterIsInstance<RagStreamEvent.Sources>().size, "cited reply must not gain a duplicate source block")
         }
 
     // --- Sources event: cited records exposed for source-card chips ---
@@ -495,7 +665,8 @@ class GenerateRagResponseUseCaseTest {
             val events = sut()(QUERY).toList()
 
             val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
-            assertTrue(final.contains("[VACCINATION #123]"), "real header must be enforced: $final")
+            assertEquals("See Ghost for details.", final)
+            assertFalse(final.contains("["), "fabricated and enforced brackets must not reach the bubble: $final")
             val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals(
                 listOf("VACCINATION#123"),
@@ -505,34 +676,97 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `given possessive farrier query when AND leg misses and retry recovers record then header appended and sources emitted`() =
+    fun `given mixed mapped and fabricated citations when completed then only mapped becomes a chip and all brackets stripped`() =
+        runTest {
+            // Defect: fabricated brackets ([GROOMING #77] - no such record in
+            // context) used to stay visible in the bubble even though they
+            // produced no source card. Every bracket is stripped from the
+            // display text; only the MAPPED one reaches the Sources channel.
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride = "Booster given per [VACCINATION #123]; see also [GROOMING #77]."
+
+            val events = sut()(QUERY).toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertFalse(final.contains("["), "all citation brackets must be stripped: $final")
+            assertFalse(final.contains("#77"), "fabricated record id must not reach the bubble: $final")
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(
+                listOf("VACCINATION#123"),
+                sources.sources.map { "${it.recordType}#${it.recordId}" },
+                "only the mapped citation may become a source card",
+            )
+        }
+
+    @Test
+    fun `given prompt-format placeholder echoed by model when completed then placeholder stripped from bubble`() =
+        runTest {
+            // Defect: the system prompt's old example ([Vaccination #123]
+            // Thunder) was parroted verbatim by small models as if it were a
+            // real record. The example is a FORMAT placeholder now, and even
+            // when the model echoes it, the strip removes it from the bubble.
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride = "Cite sources like [RECORD_TYPE #ID] in your answer."
+
+            val events = sut()(QUERY).toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertFalse(final.contains("[RECORD_TYPE #ID]"), "prompt format placeholder must never surface: $final")
+            assertTrue(AssistantPrompts.SYSTEM_PROMPT.contains("[RECORD_TYPE #ID]"), "format-only example expected in prompt")
+            assertFalse(
+                AssistantPrompts.SYSTEM_PROMPT.contains("[Vaccination #123]"),
+                "real-looking example invites parroting",
+            )
+        }
+
+    @Test
+    fun `given mid-sentence summary tag when completed then tag removed and sentence intact`() =
+        runTest {
+            // Defect: "Thunder had [Summary] treatment on 25 Aug 2026." used
+            // the computed-facts tag as a word inside the sentence. The tag
+            // is stripped and the surrounding whitespace repaired so the
+            // sentence reads naturally.
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride = "Thunder had [Summary] treatment on 25 Aug 2026."
+
+            val events = sut()(QUERY).toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals("Thunder had treatment on 25 Aug 2026.", final)
+        }
+
+    @Test
+    fun `given possessive farrier query when AND leg misses and retry recovers record then deterministic dated answer with sources`() =
         runTest {
             // Regression shape for the farrier UI test: the possessive cleans
             // to "Thunders", the strict AND leg misses, and the weak-retry OR
-            // leg recovers the farrier visit. The citation-less model reply
-            // must still gain the retrieved header and a Sources event.
+            // leg recovers the farrier visit. Superlative-date questions are
+            // answered deterministically from the retrieved record date - the
+            // model previously freeballed today-ish dates here - and the
+            // answer cites the real header inline with a Sources event.
             val farrier =
                 result().copy(recordType = "FARRIER_VISIT", recordId = 301L, snippet = "Full set steel shoes")
             every { searchRepositoryMock.search(any(), any(), any(), any()) } sequentiallyReturns
                 listOf(emptyList(), listOf(farrier))
-            engine.nextChunkOverride = "Thunder's last farrier visit was 24 Aug 2026."
 
             val events = sut()("When was Thunder's last farrier visit?").toList()
 
+            assertEquals(0, engine.calls, "superlative-date answers are computed, never modeled")
             val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
-            assertTrue(final.contains("[FARRIER_VISIT #301]"), "citation must be enforced: $final")
+            assertTrue(final.contains("1 May 2024"), "answer must carry the retrieved date: $final")
+            assertTrue(final.contains("[FARRIER_VISIT #301]"), "deterministic answer cites its source inline")
             val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals("FARRIER_VISIT", sources.sources.single().recordType)
         }
 
     @Test
-    fun `given zero retrieval and care summary when model answers uncited then Summary citation appended`() =
+    fun `given zero retrieval and care summary when model answers uncited then bubble text stays clean`() =
         runTest {
             // Regression: fix-18's deterministic summary answers recency
             // questions even when retrieval is empty (sparse-indexed rows).
-            // With no selected records the record-header enforcement never
-            // fired, so the reply shipped with no citation at all and no
-            // Sources event. The summary path must enforce [Summary] too.
+            // The [Summary] tag is enforced internally for the citation
+            // channel, then stripped - the bubble must never show it, and no
+            // record card may be invented without a retrieved record.
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
             val repos = FakeAnalysisRepos()
             repos.patients.patients = listOf(testPatient(1, "Thunder"))
@@ -544,10 +778,40 @@ class GenerateRagResponseUseCaseTest {
                 sut(analysisContextBuilder = repos.builder)("When was Thunder's last farrier visit?").toList()
 
             val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
-            assertTrue(final.contains("[Summary]"), "summary-only answers must carry a citation: $final")
+            assertEquals("Thunder's last farrier visit was 2026-08-24.", final)
+            assertFalse(final.contains("["), "no bracket may reach the bubble: $final")
             assertTrue(
                 events.filterIsInstance<RagStreamEvent.Sources>().isEmpty(),
                 "no record was retrieved - no source cards may be invented",
+            )
+        }
+
+    @Test
+    fun `given summary-only turn with fabricated bracket when model skips Summary tag then brackets still never surface`() =
+        runTest {
+            // Regression: the [Summary]-append guard used to key on bare "[",
+            // so a FABRICATED bracket the model invented ([Giraffe #1]) -
+            // which maps to zero source cards - blocked the append and
+            // shipped an uncited answer wearing a fake citation. The guard
+            // keys on the literal [Summary] tag now, and the display strip
+            // removes the fabricated bracket from the bubble either way.
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Thunder"))
+            repos.farrierVisits.entries =
+                listOf(testFarrierVisit(id = 301, patientId = 1, date = LocalDate(2026, 8, 24)))
+            engine.nextChunkOverride = "Thunder's last farrier visit was 2026-08-24. See [GIRAFFE #1]."
+
+            val events =
+                sut(analysisContextBuilder = repos.builder)("When was Thunder's last farrier visit?").toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(final.contains("farrier visit was 2026-08-24"), "answer sentence must survive: $final")
+            assertFalse(final.contains("["), "fabricated bracket must not reach the bubble: $final")
+            assertFalse(final.contains("GIRAFFE"), "fabricated record type must not reach the bubble: $final")
+            assertTrue(
+                events.filterIsInstance<RagStreamEvent.Sources>().isEmpty(),
+                "the fabricated citation maps to no record - no source card may be invented",
             )
         }
 

@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.llm
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.domain.search.usecase.RetrievalPolicy
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -89,19 +90,26 @@ class GenerateRagResponseUseCase(
         // prefixes (a single letter would prefix-match unrelated names).
         const val MIN_NAME_PREFIX_CHARS = 2
 
-        // Weak-leg retry threshold: an AND leg returning FEWER than this many
-        // records is treated as a miss for retrieval purposes. A single weak
-        // hit used to suppress the synonym/OR retry entirely ("standing
-        // sedation" locked onto Xylazine while Detomidine's "Colic sedation"
-        // never joined; "trim" never reached the hoof-care synonyms).
-        const val WEAK_RESULT_THRESHOLD = 3
-
         // Model sometimes regurgitates prompt scaffolding (--- separators,
         // "Question: ..." echoes). Stripped defensively from every chunk.
         val scaffoldLineRegex = Regex("(?m)^\\s*(?:-{3,}|Question:.*|Context:.*|You are .*)\\s*\\n?")
 
         // Bracketed citation header in the final answer text: [TYPE #id].
         val citationRegex = Regex("\\[([A-Z_]+) #(\\d+)]")
+
+        // Literal non-record citation tags: the computed-facts tag and the
+        // system prompt's FORMAT placeholder ([RECORD_TYPE #ID] - "ID" is
+        // not digits, so citationRegex cannot catch it). Small models echo
+        // both verbatim; neither may reach the bubble.
+        val literalTagRegex = Regex("\\[Summary]|\\[RECORD_TYPE #ID]")
+
+        // Whitespace damage left behind by a stripped citation: doubled
+        // spaces, a space before punctuation ("in ." -> "in."), line-leading
+        // spaces, and blank-line runs where a standalone citation line sat.
+        val multiSpaceRegex = Regex("[ \\t]{2,}")
+        val spaceBeforePunctuationRegex = Regex("[ \\t]+([.,;:!?])")
+        val lineLeadingSpaceRegex = Regex("(?m)^[ \\t]+")
+        val blankLineRunRegex = Regex("\\n{3,}")
 
         // Citation-enforcement fallback caps appended headers: a ten-record
         // answer must not gain ten noise lines when the model cites nothing.
@@ -167,9 +175,14 @@ class GenerateRagResponseUseCase(
                 emit(RagStreamEvent.Chunk(turnStrings.dosageRefusal))
                 return@flow
             }
-            // Analysis mode: deterministic summaries computed in Kotlin feed
-            // as authoritative context so the model narrates instead of doing
-            // arithmetic. Built once per turn; counts toward the token budget.
+            // "When was the last <type> visit?" is answered deterministically
+            // from the retrieved record dates instead of streaming through the
+            // model: small models freeball today-ish dates for this shape even
+            // with the right chunks in context (the drifting-answer UI
+            // regression), and the citation guarantee cannot catch a confident
+            // wrong date after the bubble strips citation brackets. The reply
+            // carries the real record header inline so the turn still cites.
+            if (emitLatestRecordAnswer(query, results, scopedPatientName(results, query))) return@flow
             val deterministicSummary = analysisContextBuilder?.build(query)
             val recentConversation = formatHistory(history)
             val chunks = results.map { result -> formatChunk(result) }
@@ -180,7 +193,29 @@ class GenerateRagResponseUseCase(
                     chunks,
                     reservedTokens = reservedTokens,
                 )
-            if (selectedIndices.isEmpty() && recentConversation.isEmpty() && deterministicSummary == null) {
+            // Grounding gates, dosage-guard style: the engine is never called
+            // without anything to ground on. Two failure shapes are covered:
+            // (1) retrieval empty or everything budget-filtered out, and
+            // (2) retrieval non-empty but carrying none of the record kind the
+            // question asks about (the OR-retry leg matches the named
+            // patient's identity record only). A deterministic summary counts
+            // as grounding. Prior conversation unlocks the model call ONLY
+            // when it actually carries turns about the same subject -
+            // otherwise the model freeballs an answer from thin context
+            // instead of admitting it has nothing.
+            val historyRelevant =
+                recentConversation.isNotEmpty() &&
+                    RecordTypeIntent.sharesContentToken(query, recentConversation)
+            val expectedTypes = RecordTypeIntent.expectedRecordTypes(query)
+            val grounded =
+                when {
+                    deterministicSummary != null -> true
+                    selectedIndices.isEmpty() -> false
+                    expectedTypes.isNotEmpty() ->
+                        selectedIndices.any { results[it].recordType in expectedTypes }
+                    else -> true
+                }
+            if (!grounded && !historyRelevant) {
                 emit(RagStreamEvent.Chunk(turnStrings.noResultsFallback))
                 return@flow
             }
@@ -229,6 +264,10 @@ class GenerateRagResponseUseCase(
             emit(RagStreamEvent.Interrupted(partialText = lastEmitted, error = t.message))
             return
         }
+        // Snapshot BEFORE enforcement: appended citation headers below exist
+        // for the Sources channel only - the bubble must never show them
+        // (nor their bracket-stripped residue).
+        val streamedText = lastEmitted
         // Citation enforcement: the system prompt mandates citing bracketed
         // headers, but the model skips them often enough that the guarantee
         // is enforced here - when records were used and the reply carries
@@ -255,8 +294,11 @@ class GenerateRagResponseUseCase(
         // headers to append - and an uncited confident answer is exactly
         // what the citation guarantee forbids. The system prompt tells the
         // model to cite the summary as [Summary]; when it skips that too,
-        // the tag is enforced here.
-        if (usedDeterministicSummary && mappedCitations.isEmpty() && "[" !in lastEmitted) {
+        // the tag is enforced here. The guard keys on the LITERAL [Summary]
+        // tag, not bare "[": a fabricated bracket the model invented
+        // ([Giraffe #1]) satisfies the eye but maps to no source card, so it
+        // must not block the append either.
+        if (usedDeterministicSummary && mappedCitations.isEmpty() && "[Summary]" !in lastEmitted) {
             lastEmitted =
                 listOf(lastEmitted.takeIf(String::isNotBlank), "[Summary]")
                     .filterNotNull()
@@ -266,17 +308,27 @@ class GenerateRagResponseUseCase(
         citedResults(lastEmitted, contextResults).takeIf { it.isNotEmpty() }?.let {
             emit(RagStreamEvent.Sources(it))
         }
+        // Display split: citations are parsed from the bracketed text FIRST
+        // (above), then the bubble is re-emitted from the PRE-enforcement
+        // snapshot with every citation token stripped - mapped, fabricated,
+        // and prompt-placeholder brackets alike. The references live on as
+        // Sources chips; the prose carries none of them.
+        val displayText = stripCitationTokens(streamedText)
+        if (displayText != lastEmitted) {
+            lastEmitted = displayText
+            emit(RagStreamEvent.Chunk(lastEmitted))
+        }
     }
 
     /**
      * Two-leg retrieval mirroring the production contract: a strict AND query
      * over the filler-stripped question first, then one broad OR retry (with
      * synonym expansion) when the AND leg is EMPTY or WEAK (fewer than
-     * [WEAK_RESULT_THRESHOLD] records) — AND semantics require every content
-     * word to match, so natural questions like "which patients belong to X"
-     * would otherwise return nothing, and a single lucky hit used to suppress
-     * the recall-fixing retry. Retry hits are deduplicated against the AND
-     * leg by record identity and appended after it. The caller applies
+     * [RetrievalPolicy.WEAK_RESULT_THRESHOLD] records) — AND semantics require
+     * every content word to match, so natural questions like "which patients
+     * belong to X" would otherwise return nothing, and a single lucky hit used
+     * to suppress the recall-fixing retry. Retry hits are deduplicated against
+     * the AND leg by record identity and appended after it. The caller applies
      * patient-scope prioritization to the MERGED list, so scoped-patient
      * records recovered by the retry rank ahead of same-topic records from
      * other patients exactly like leg-1 results.
@@ -290,9 +342,9 @@ class GenerateRagResponseUseCase(
     ): List<SearchResult> {
         val seam = recordSearch ?: return searchUseCase(enriched, from = null, to = null, recordTypes = null)
         val andResults = seam.search(AssistantPrompts.toFtsAndQuery(enriched))
-        if (andResults.size >= WEAK_RESULT_THRESHOLD) return andResults
-        val retryResults = seam.search(AssistantPrompts.toFtsOrQuery(query))
-        return andResults + retryResults.filter { retry -> andResults.none { it.sameRecordAs(retry) } }
+        return RetrievalPolicy.mergeWeakRetry(andResults) {
+            seam.search(AssistantPrompts.toFtsOrQuery(query))
+        }
     }
 
     /**
@@ -489,6 +541,26 @@ class GenerateRagResponseUseCase(
     }
 
     /**
+     * Removes citation tokens from answer text AFTER the Sources event has
+     * been derived from them: the bubble renders prose only, while the
+     * bracketed references live on as source-card chips. Mapped and
+     * fabricated brackets are stripped alike, and the whitespace the removal
+     * leaves behind is repaired (doubled spaces, space before punctuation,
+     * orphaned blank lines).
+     */
+    private val stripCitationTokens: (String) -> String =
+        { text ->
+            text
+                .replace(citationRegex, "")
+                .replace(literalTagRegex, "")
+                .replace(multiSpaceRegex, " ")
+                .replace(spaceBeforePunctuationRegex, "$1")
+                .replace(lineLeadingSpaceRegex, "")
+                .replace(blankLineRunRegex, "\n\n")
+                .trim()
+        }
+
+    /**
      * Strips markdown the model was told not to produce but sometimes does:
      * bold markers (** and __), backticks, and [text](url) links reduced to
      * their text. Applied to every emitted chunk before it reaches the UI.
@@ -503,7 +575,3 @@ class GenerateRagResponseUseCase(
             .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
 }
-
-/** True when both results point at the same stored record. File-level so the
- * use case class stays under its detekt function-count threshold. */
-private fun SearchResult.sameRecordAs(that: SearchResult) = recordType == that.recordType && recordId == that.recordId

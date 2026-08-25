@@ -127,23 +127,30 @@ object AssistantPrompts {
     private const val MAX_SYNONYM_GROUPS = 2
 
     /**
-     * System prompt for the veterinary records assistant. Kept under ~200
-     * tokens: the RAG context budget is 4096 tokens total and
+     * System prompt for the veterinary records assistant. Kept compact
+     * (~260 tokens): the RAG context budget is 4096 tokens total and
      * [RagConfig.systemReserveTokens] reserves this prompt's share.
      *
      * Grounding hardening for small on-device models: species identity,
      * context-only answering, citation and formatting rules are stated as
      * uppercase directives because small models weight them more reliably
-     * than prose. The honest not-found line is localized via [strings] so a
-     * PT device is told to answer with the PT sentence.
+     * than prose. The citation example is a FORMAT placeholder
+     * ([RECORD_TYPE #ID]), never a real-looking record - small models
+     * parrot verbatim examples into answers. The honest not-found line is
+     * localized via [strings] so a PT device is told to answer with the PT
+     * sentence.
      */
     fun systemPrompt(strings: AssistantStrings = EnAssistantStrings): String =
         """
         YOU ARE THE RECORDS ASSISTANT FOR AN EQUINE (HORSE) VETERINARY CLINIC. ALL PATIENTS ARE HORSES.
         ANSWER ONLY FROM THE CONTEXT BELOW. DO NOT USE OUTSIDE KNOWLEDGE. IF THE CONTEXT DOES NOT CONTAIN THE ANSWER, SAY EXACTLY: ${strings.notFoundInRecords}
-        ALWAYS CITE YOUR SOURCES: WHEN THE CONTEXT CONTAINS RECORDS, YOUR ANSWER MUST INCLUDE AT LEAST ONE BRACKETED HEADER FROM THE CONTEXT VERBATIM, e.g. [Vaccination #123] Thunder.
-        DETERMINISTIC SUMMARY LINES ARE COMPUTED FACTS FROM THE DATABASE: TREAT THEM AS AUTHORITATIVE, CITE THEM AS [Summary] WHEN USED, AND NEVER CONTRADICT THEM.
-        NEVER invent sources, citations, or URLs. Cite only bracketed headers present in the context verbatim, e.g. [Vaccination #123] Thunder.
+        ALWAYS CITE YOUR SOURCES: WHEN THE CONTEXT CONTAINS RECORDS, YOUR ANSWER MUST INCLUDE AT LEAST ONE BRACKETED HEADER FROM THE CONTEXT VERBATIM. BRACKET FORMAT IS [RECORD_TYPE #ID] - FORMAT ONLY, NEVER A REAL CITATION OR A REAL RECORD NAME.
+        PLACE EVERY CITATION AT THE END OF THE RELEVANT SENTENCE OR LINE. NEVER INSERT A CITATION BRACKET INSIDE A SENTENCE BETWEEN WORDS.
+        NEVER INVENT DETAILS (BREEDS, DATES, COUNTS) THAT DO NOT APPEAR IN A HEADER OR RECORD LINE.
+        [Summary] MARKS A COMPUTED-FACTS SOURCE: CITE IT WHEN USED, BUT NEVER USE IT AS A WORD IN A SENTENCE.
+        STATE FACTS ABOUT THE SPECIFIC ENTITY THE USER NAMED - NEVER ATTRIBUTE OWNER-LEVEL FACTS TO A PATIENT OR PATIENT FACTS TO AN OWNER.
+        DETERMINISTIC SUMMARY LINES ARE COMPUTED FACTS FROM THE DATABASE: TREAT THEM AS AUTHORITATIVE AND NEVER CONTRADICT THEM.
+        NEVER invent sources, citations, or URLs. Cite only bracketed headers present in the context verbatim.
         NEVER repeat context blocks, separators like ---, or the Question line. Answer in your own words.
         You MAY combine facts from multiple provided records.
         WRITE PLAIN TEXT ONLY: no markdown, no bold (**), no links, no bullet symbols other than dashes.
@@ -309,8 +316,8 @@ private fun List<String>.expansionTerms(loweredTokens: Set<String>): List<String
 /** Minimum token length before plural suffixes are considered ("is" stays). */
 private const val PLURAL_MIN_TOKEN_LENGTH = 4
 
-/** Length of the stripped plural suffix ("ies"/"s"). */
-private const val PLURAL_SUFFIX_LENGTH = 3
+/** Length of the stripped "ies" suffix ("vaccinations" keeps its own rule). */
+private const val PLURAL_IES_SUFFIX_LENGTH = 3
 
 /**
  * Naive English plural folder for synonym-group matching ONLY (never applied
@@ -321,7 +328,7 @@ private const val PLURAL_SUFFIX_LENGTH = 3
 private fun singularize(token: String): String =
     when {
         token.length > PLURAL_MIN_TOKEN_LENGTH && token.endsWith("ies") ->
-            token.dropLast(PLURAL_SUFFIX_LENGTH) + "y"
+            token.dropLast(PLURAL_IES_SUFFIX_LENGTH) + "y"
         token.length > PLURAL_MIN_TOKEN_LENGTH && token.endsWith("s") ->
             token.dropLast(1)
         else -> token

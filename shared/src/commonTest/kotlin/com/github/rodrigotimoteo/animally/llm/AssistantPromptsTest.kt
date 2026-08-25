@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.llm
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AssistantPromptsTest {
@@ -117,5 +118,21 @@ class AssistantPromptsTest {
     fun `given english question when detected then false`() {
         assertTrue(!AssistantPrompts.isPortugueseQuery("Tell me about Thunder"))
         assertTrue(!AssistantPrompts.isPortugueseQuery("When was the last farrier visit?"))
+    }
+
+    @Test
+    fun `given system prompt when built then citation hardening directives present`() {
+        // Defect hardening: the old prompt carried a real-looking example
+        // ([Vaccination #123] Thunder) that small models parroted verbatim,
+        // and no rules against mid-sentence brackets, invented details,
+        // [Summary]-as-a-word, or entity confusion.
+        val prompt = AssistantPrompts.SYSTEM_PROMPT
+        assertTrue(prompt.contains("[RECORD_TYPE #ID]"), "citation example must be a format placeholder")
+        assertFalse(prompt.contains("[Vaccination #123]"), "real-looking example invites parroting")
+        assertTrue(prompt.contains("NEVER INSERT A CITATION BRACKET INSIDE A SENTENCE"))
+        assertTrue(prompt.contains("NEVER INVENT DETAILS (BREEDS, DATES, COUNTS)"))
+        assertTrue(prompt.contains("NEVER USE IT AS A WORD IN A SENTENCE"))
+        assertTrue(prompt.contains("NEVER ATTRIBUTE OWNER-LEVEL FACTS TO A PATIENT"))
+        assertTrue(prompt.contains("MUST INCLUDE AT LEAST ONE BRACKETED HEADER"), "citation mandate must survive")
     }
 }
