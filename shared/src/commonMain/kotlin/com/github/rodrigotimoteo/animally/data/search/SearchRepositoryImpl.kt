@@ -258,6 +258,14 @@ class SearchRepositoryImpl(
 
     private val reindexFarrierVisitRows: () -> Unit = {
         database.farrierVisitQueries.selectAll().executeAsList().forEach {
+            // Natural questions ("farrier", "visit") must hit farrier rows,
+            // whose raw fields (trim type, farrier name, findings) may not
+            // contain those generic words - a UI-created visit with only a
+            // farrier name + "checkup" was unreachable by any farrier query.
+            // Mirrors the vaccination vocabulary approach. "hoof" is
+            // deliberately NOT added: hoof terms must keep reaching only the
+            // rows whose findings actually mention hooves.
+            val farrierVocabulary = "farrier visit trim shoeing care"
             val searchableText =
                 listOfNotNull(
                     it.trimOrShoe,
@@ -265,6 +273,7 @@ class SearchRepositoryImpl(
                     it.findings,
                     it.farrier,
                     it.notes,
+                    farrierVocabulary,
                 ).joinToString(" ")
             indexRecord(
                 recordType = RecordType.FarrierVisit.wireName,
@@ -278,6 +287,10 @@ class SearchRepositoryImpl(
 
     private val reindexLamenessRows: () -> Unit = {
         database.lamenessQueries.selectAll().executeAsList().forEach {
+            // Dictation-adjacent FIELD LABELS ("grade", "flexion") are never
+            // part of the stored values ("3", "Positive") — inject them so
+            // "what was the flexion grade" style questions hit lameness rows.
+            val lamenessFieldLabels = "grade flexion"
             val searchableText =
                 listOfNotNull(
                     it.gradeAAEP.toString(),
@@ -287,6 +300,7 @@ class SearchRepositoryImpl(
                     it.treatment,
                     it.vetName,
                     it.notes,
+                    lamenessFieldLabels,
                 ).joinToString(" ")
             indexRecord(
                 recordType = RecordType.Lameness.wireName,
@@ -300,6 +314,9 @@ class SearchRepositoryImpl(
 
     private val reindexSurgeryRows: () -> Unit = {
         database.surgeryQueries.selectAll().executeAsList().forEach {
+            // "surgeon" is the FIELD label; its VALUE ("Dr. Mendes") alone
+            // cannot answer "who was the surgeon". Inject the label.
+            val surgeryFieldLabels = "surgeon"
             val searchableText =
                 listOfNotNull(
                     it.type,
@@ -310,6 +327,7 @@ class SearchRepositoryImpl(
                     it.analgesia,
                     it.complications,
                     it.recoveryNotes,
+                    surgeryFieldLabels,
                 ).joinToString(" ")
             indexRecord(
                 recordType = RecordType.Surgery.wireName,
@@ -323,6 +341,9 @@ class SearchRepositoryImpl(
 
     private val reindexControlledSubstanceRows: () -> Unit = {
         database.substanceQueries.selectAll().executeAsList().forEach {
+            // "witness" is the FIELD label (regulatory queries ask "who
+            // witnessed the sedation"); its VALUE is a nurse name. Inject.
+            val substanceFieldLabels = "witness"
             val searchableText =
                 listOfNotNull(
                     it.drugName,
@@ -333,6 +354,7 @@ class SearchRepositoryImpl(
                     it.witness,
                     it.reason,
                     it.notes,
+                    substanceFieldLabels,
                 ).joinToString(" ")
             indexRecord(
                 recordType = RecordType.ControlledSubstance.wireName,
@@ -526,6 +548,13 @@ class SearchRepositoryImpl(
      * Plain tokens are split on non-alphanumeric characters (hyphens,
      * punctuation — FTS5 tokenizes content the same way) and each surviving
      * word gets a trailing prefix star, so "thun" finds "Thunder".
+     * SHORT-PREFIX GUARD: alphabetic words shorter than
+     * [MIN_PREFIX_STAR_CHARS] match EXACTLY (quoted, starless) instead of
+     * star-joining — a bare "da*" explodes onto every da- token in the
+     * corpus (Daniela, daily, days, "day 30"), polluting retrieval with
+     * hundreds of weak hits. Numeric tokens keep the star at any length: the
+     * weight-series UX types "5" to surface 512/525/538, and digit prefixes
+     * stay useful where 2-letter alphabetic prefixes are pure noise.
      * Quoted segments become quoted FTS phrases with a trailing star
      * (FTS5 applies the prefix to the phrase's final token), preserving the
      * exact word sequence. Internal asterisks are stripped everywhere — only
@@ -549,10 +578,22 @@ class SearchRepositoryImpl(
                             .replace("*", "")
                             .split(Regex("[^\\p{L}\\p{N}]+"))
                             .filter { it.isNotBlank() }
-                            .map { "$it*" }
+                            .map(::starOrExact)
                     }
                 }
             }.joinToString(" ")
+
+    /**
+     * Stars [word] for prefix matching, or renders it as a quoted exact term
+     * when it is too short to star-join safely (alphabetic words under
+     * [MIN_PREFIX_STAR_CHARS]); numeric words always keep the star.
+     */
+    private fun starOrExact(word: String): String =
+        if (word.length >= MIN_PREFIX_STAR_CHARS || word.all(Char::isDigit)) {
+            "$word*"
+        } else {
+            "\"$word\""
+        }
 
     /** Renders a quoted segment as a quoted FTS phrase with a trailing
      * prefix star, or null when no words survive sanitization. */
@@ -568,6 +609,10 @@ class SearchRepositoryImpl(
 
     private companion object {
         const val VERSION_KEY = "search_index_version"
+
+        // Minimum alphabetic word length for prefix star-joining; shorter
+        // words match exactly instead (see [toPrefixMatchQuery]).
+        const val MIN_PREFIX_STAR_CHARS = 3
 
         // Group 1: a fully quoted segment (may contain spaces). Group 2: any
         // other whitespace-delimited run (including unmatched lone quotes,

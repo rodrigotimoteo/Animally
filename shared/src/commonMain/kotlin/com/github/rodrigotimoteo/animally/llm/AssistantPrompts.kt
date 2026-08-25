@@ -117,6 +117,10 @@ object AssistantPrompts {
             listOf("vaccination", "vaccine", "booster", "shot"),
             listOf("embryo transfer", "flush", "donor", "recipient"),
             listOf("colic", "abdominal pain"),
+            // Morphology bridge, NOT stemming: "tendon*" cannot prefix-match
+            // "tendinitis" (diverges at the 6th character), so the pair is
+            // bridged lexically. FTS5 porter stemmer is unavailable here.
+            listOf("tendon", "tendinitis"),
         )
 
     /** Maximum synonym groups expanded into a single query. */
@@ -235,11 +239,13 @@ object AssistantPrompts {
     /**
      * OR-terms contributed by synonym expansion: for the first
      * [MAX_SYNONYM_GROUPS] groups containing at least one match against
-     * [tokens] (single-word members match by token equality, multi-word
-     * members by phrase containment in the lowercased raw query), every other
-     * member not already present as a token is rendered as a starred term
-     * ("shoeing*") or a starred quoted phrase ("in foal"*). The repository's
-     * sanitizer passes these through unchanged.
+     * [tokens] (single-word members match by token equality OR by
+     * plural-folded equality — "vaccinations" reaches the singular-indexed
+     * "vaccination" vocabulary; multi-word members match by phrase
+     * containment in the lowercased raw query), every other member not
+     * already present as a token is rendered as a starred term ("shoeing*")
+     * or a starred quoted phrase ("in foal"*). The repository's sanitizer
+     * passes these through unchanged.
      */
     private fun synonymExpansionTerms(tokens: List<String>): List<String> {
         val lowered = tokens.map(String::lowercase).toSet()
@@ -272,13 +278,22 @@ object AssistantPrompts {
     }
 }
 
-/** True when [this] synonym group is triggered by [loweredTokens] or [phrase]. */
+/**
+ * True when [this] synonym group is triggered by [loweredTokens] or [phrase].
+ * Single-word members also match PLURAL query tokens via [singularize]
+ * ("vaccinations" triggers the vaccination group) so plural questions reach
+ * singular-indexed vocabulary through the emitted expansions.
+ */
 private fun List<String>.matchesAny(
     loweredTokens: Set<String>,
     phrase: String,
 ): Boolean =
     any { term ->
-        if (' ' in term) phrase.contains(term) else term in loweredTokens
+        if (' ' in term) {
+            phrase.contains(term)
+        } else {
+            loweredTokens.any { token -> token == term || singularize(token) == term }
+        }
     }
 
 /** Starred terms for every member of [this] not already in [loweredTokens]. */
@@ -289,4 +304,25 @@ private fun List<String>.expansionTerms(loweredTokens: Set<String>): List<String
             term in loweredTokens -> null
             else -> "$term*"
         }
+    }
+
+/** Minimum token length before plural suffixes are considered ("is" stays). */
+private const val PLURAL_MIN_TOKEN_LENGTH = 4
+
+/** Length of the stripped plural suffix ("ies"/"s"). */
+private const val PLURAL_SUFFIX_LENGTH = 3
+
+/**
+ * Naive English plural folder for synonym-group matching ONLY (never applied
+ * to the FTS terms themselves): "vaccinations" -> "vaccination",
+ * "vaccines" -> "vaccine". Conservative length guards keep short tokens
+ * ("is", "gas") untouched.
+ */
+private fun singularize(token: String): String =
+    when {
+        token.length > PLURAL_MIN_TOKEN_LENGTH && token.endsWith("ies") ->
+            token.dropLast(PLURAL_SUFFIX_LENGTH) + "y"
+        token.length > PLURAL_MIN_TOKEN_LENGTH && token.endsWith("s") ->
+            token.dropLast(1)
+        else -> token
     }

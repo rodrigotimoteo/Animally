@@ -112,9 +112,12 @@ class AnalysisContextBuilderTest {
         val text = summary.orEmpty()
         assertTrue(text.contains("CARE COUNTS:"), text)
         val line = text.lineSequence().first { it.startsWith("- Care Bella") }
-        assertTrue(line.contains("2 vaccinations (last 2024-09-09)"), line)
+        assertTrue(line.contains("2 vaccinations (last 9 Sep 2024)"), line)
         assertTrue(line.contains("0 dewormings"), line)
-        assertTrue(line.contains("1 farrier visits (last 2024-06-01)"), line)
+        assertTrue(line.contains("1 farrier visits (last 1 Jun 2024)"), line)
+        // Humanized on purpose: raw ISO strings in the authoritative block
+        // leak into spoken answers verbatim.
+        assertFalse(text.contains("2024-09-09"), line)
         assertFalse(text.contains("- Care Ghost"), "patients without records must be omitted")
     }
 

@@ -150,7 +150,7 @@ class AnalysisContextBuilder(
         count: Int,
         label: String,
         lastDate: LocalDate?,
-    ): String = "$count $label" + (lastDate?.let { " (last $it)" } ?: "")
+    ): String = "$count $label" + (lastDate?.let { " (last ${formatHumanDate(it)})" } ?: "")
 
     /** Active gestations with freshly computed day counts and foaling dates. */
     private fun gestationBlock(
@@ -265,6 +265,21 @@ class AnalysisContextBuilder(
 
         private const val STABLE_WEIGHT_DELTA_KG = 0.5
     }
+}
+
+/** Human-readable month abbreviations for summary dates (locale-independent). */
+private val MONTH_ABBREVIATIONS =
+    listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+/**
+ * Renders a date as "24 Aug 2026" (locale-independent, model-friendly).
+ * Raw ISO strings in the summary leak into spoken answers verbatim - the
+ * model parrots exactly what the authoritative block shows. File-level so
+ * the class stays under its detekt function-count threshold.
+ */
+private fun formatHumanDate(date: LocalDate): String {
+    val month = MONTH_ABBREVIATIONS[date.monthNumber - 1]
+    return "${date.dayOfMonth} $month ${date.year}"
 }
 
 /** True when the pregnancy has ended (foaled or failed): nothing active to report. */

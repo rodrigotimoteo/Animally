@@ -40,6 +40,9 @@ class RagGoldenSetTest {
 
     /** Stable record keys used across golden expectations. */
     private companion object {
+        /** Mirrors GenerateRagResponseUseCase.WEAK_RESULT_THRESHOLD (private there). */
+        const val WEAK_RESULT_THRESHOLD = 3
+
         const val PATIENT_THUNDER = "PATIENT#1"
         const val PATIENT_BELLA = "PATIENT#2"
         const val PATIENT_COMET = "PATIENT#3"
@@ -1083,11 +1086,28 @@ class RagGoldenSetTest {
             // --- Treatment / drug keywords ---
             Golden("Ivermectin", expected = setOf(DEWORM_IVERMECTIN), exact = true),
             Golden("Metronidazole 500", expected = setOf("MEDICATION#$medicationId"), exact = true),
-            Golden("Detomidine sedation", expected = setOf(SUBSTANCE_DETOMIDINE), exact = true),
-            Golden("Tetanus booster", expected = setOf(VACC_TETANUS), exact = true),
+            Golden("Detomidine sedation", expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE), exact = true),
+            // FLIPPED (weak-leg retry): the single AND hit no longer
+            // suppresses the OR retry; booster*/tetanus* plus the vaccination
+            // synonym group pull every vaccination row's generic vocabulary.
+            Golden(
+                "Tetanus booster",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                    ),
+                exact = true,
+            ),
             Golden("Fenbendazole", expected = setOf(DEWORM_FENBENDAZOLE), exact = true),
             Golden("Deslorelin", expected = setOf(REPRO_MEDICATION_DESLORELIN), exact = true),
-            Golden("colic surgery", expected = setOf(CONSULT_COLIC), exact = true),
+            // FLIPPED (weak-leg retry): colic* unions the Detomidine row
+            // ("Colic sedation") next to the consultation.
+            Golden("colic surgery", expected = setOf(CONSULT_COLIC, SUBSTANCE_DETOMIDINE), exact = true),
             Golden("Arthroscopy stifle", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
             Golden("Navicular syndrome", expected = setOf(LAMENESS_NAVICULAR), exact = true),
             Golden("RAO", expected = setOf(CONSULT_COUGH), exact = true),
@@ -1175,7 +1195,9 @@ class RagGoldenSetTest {
             Golden("Miguel Santos", expected = setOf(OWNER_MIGUEL), exact = true),
             Golden("owner of Comet", expected = setOf(PATIENT_COMET), exact = true),
             // --- Multi-patient disambiguation ---
-            Golden("West Nile Virus", expected = setOf(VACC_WEST_NILE), exact = true),
+            // FLIPPED (weak-leg retry): virus* unions the EHV row ("Equine
+            // Herpes Virus") - honest shared-token breadth.
+            Golden("West Nile Virus", expected = setOf(VACC_WEST_NILE, VACC_EHV), exact = true),
             Golden("Comet cough", expected = setOf(PATIENT_COMET, CONSULT_COUGH), exact = true),
             Golden(
                 "Bella knee radiograph",
@@ -1196,10 +1218,21 @@ class RagGoldenSetTest {
                 expected = setOf(PATIENT_BELLA, US_BELLA_FOLLICLE, REPRO_HEAT, US_THUNDER_FOLLICLE),
                 exact = true,
             ),
-            Golden("follicle 22", expected = setOf(US_BELLA_FOLLICLE, REPRO_HEAT), exact = true),
-            Golden("follicle 35", expected = setOf(US_THUNDER_FOLLICLE), exact = true),
+            // FLIPPED (weak-leg retry): follicle* unions both mares'
+            // ultrasounds with the Heat event.
+            Golden("follicle 22", expected = setOf(US_BELLA_FOLLICLE, REPRO_HEAT, US_THUNDER_FOLLICLE), exact = true),
+            // FLIPPED (weak-leg retry): follicle* unions the 22 mm rows;
+            // numeric "35*" also leaks the two +351 phone tokens (same
+            // numeric-prefix breadth class as the pinned "grade 3").
+            Golden(
+                "follicle 35",
+                expected = setOf(US_THUNDER_FOLLICLE, US_BELLA_FOLLICLE, REPRO_HEAT, OWNER_DANIELA, OWNER_SOFIA),
+                exact = true,
+            ),
             Golden("Eclipse", expected = setOf(REPRO_BREEDING, GESTATION_ACTIVE), exact = true),
-            Golden("Breeding Eclipse fresh", expected = setOf(REPRO_BREEDING), exact = true),
+            // FLIPPED (weak-leg retry): eclipse* unions the active gestation
+            // whose notes name stallion Eclipse.
+            Golden("Breeding Eclipse fresh", expected = setOf(REPRO_BREEDING, GESTATION_ACTIVE), exact = true),
             Golden("Heat", expected = setOf(REPRO_HEAT), exact = true),
             Golden("Icsi oocytes", expected = setOf(ICSI_COMET), exact = true),
             // --- Weight series ---
@@ -1228,7 +1261,13 @@ class RagGoldenSetTest {
             // --- Punctuation / hyphen robustness ---
             // Hyphenated input tokenizes exactly like the spaced content in
             // the record ("Steel full set"), so the AND leg matches directly.
-            Golden("Steel full-set shoeing", expected = setOf(FARRIER_SHOEING), exact = true),
+            // FLIPPED (weak-leg retry): the hoof-care synonym group fires on
+            // "shoeing" and unions both Trim rows through farrier*.
+            Golden(
+                "Steel full-set shoeing",
+                expected = setOf(FARRIER_SHOEING, FARRIER_TRIM_STORM, FARRIER_TRIM_TROV),
+                exact = true,
+            ),
             // Possessive apostrophe is stripped by AssistantPrompts.clean()
             // ("Thunder's" -> "Thunders"); the name token misses (record text
             // never carries patient names), so the broad OR retry runs and
@@ -1280,21 +1319,29 @@ class RagGoldenSetTest {
             Golden("microchip", expected = emptySet(), exact = true),
             Golden("ueln", expected = emptySet(), exact = true),
             // --- Record-type breadth: lameness ---
-            Golden("flexion test positive", expected = setOf(LAMENESS_NAVICULAR), exact = true),
-            // "flexion" is a field label (values are "Positive"/"Negative"), so the
-            // AND leg zeroes; negative* unions the lameness row with the
-            // Coggins lab whose result is also "Negative".
-            Golden("flexion negative", expected = setOf(LAMENESS_SUSPENSORY, LAB_COGGINS), exact = true),
+            // FLIPPED (field labels + weak-leg retry): "flexion" is now
+            // indexed as a field label, so flexion* unions both lameness
+            // rows; positive* keeps Navicular anchored.
+            Golden("flexion test positive", expected = setOf(LAMENESS_NAVICULAR, LAMENESS_SUSPENSORY), exact = true),
+            // FLIPPED (field labels + weak-leg retry): flexion* adds the
+            // Positive navicular row to the Negative union.
+            Golden(
+                "flexion negative",
+                expected = setOf(LAMENESS_SUSPENSORY, LAB_COGGINS, LAMENESS_NAVICULAR),
+                exact = true,
+            ),
             Golden("suspensory desmitis", expected = setOf(LAMENESS_SUSPENSORY), exact = true),
             Golden("shockwave therapy", expected = setOf(LAMENESS_SUSPENSORY), exact = true),
-            // "grade" is a field label, never indexed; only the bare AAEP
-            // digit is. The OR retry unions every row holding a 3* token -
-            // including weight "380" and the phone numbers starting +351.
+            // "grade" is now an indexed field label (v8); the OR retry unions
+            // every row holding a 3* token - including weight "380" and the
+            // phone numbers starting +351 - and grade* adds the grade-2
+            // suspensory row.
             Golden(
                 "grade 3",
                 expected =
                     setOf(
                         LAMENESS_NAVICULAR,
+                        LAMENESS_SUSPENSORY,
                         US_THUNDER_FOLLICLE,
                         GESTATION_FAILED,
                         WEIGHT_380,
@@ -1304,8 +1351,22 @@ class RagGoldenSetTest {
                     ),
                 exact = true,
             ),
-            Golden("right forelimb", expected = setOf(LAMENESS_NAVICULAR), exact = true),
-            Golden("left hindlimb", expected = setOf(LAMENESS_SUSPENSORY), exact = true),
+            // FLIPPED (weak-leg retry): forelimb* unions both forelimb rows
+            // (navicular Right, tendon ultrasound Left) plus right* reaching
+            // Bella's "right ovary" ultrasound.
+            Golden(
+                "right forelimb",
+                expected = setOf(LAMENESS_NAVICULAR, US_STORM_TENDON, US_BELLA_FOLLICLE),
+                exact = true,
+            ),
+            // FLIPPED (weak-leg retry): left*/hindlimb* union every row with
+            // a left- token (tendon ultrasound, left ovary, Left hip and
+            // Left shoulder vaccination sites).
+            Golden(
+                "left hindlimb",
+                expected = setOf(LAMENESS_SUSPENSORY, US_STORM_TENDON, US_THUNDER_FOLLICLE, VACC_RABIES, VACC_TETANUS),
+                exact = true,
+            ),
             // Cross-type token: "forelimb" appears in the lameness row AND in
             // the tendon ultrasound findings.
             Golden("forelimb", expected = setOf(LAMENESS_NAVICULAR, US_STORM_TENDON), exact = true),
@@ -1314,15 +1375,26 @@ class RagGoldenSetTest {
             Golden("chip fragment", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
             Golden("successful", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
             Golden("general anesthesia", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
-            Golden("stall rest", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
-            Golden("6 weeks", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
+            // FLIPPED (weak-leg retry): stall* unions the active gestation
+            // ("AI with stallion Eclipse" - stallion carries the stall-
+            // prefix) and rest* the cough consult and navicular row.
+            Golden(
+                "stall rest",
+                expected = setOf(SURGERY_ARTHROSCOPY, GESTATION_ACTIVE, CONSULT_COUGH, LAMENESS_NAVICULAR),
+                exact = true,
+            ),
+            // FLIPPED (weak-leg retry): numeric 6* leaks the "60 days" fetus
+            // token on the pregnancy check (same numeric-prefix breadth class
+            // as the pinned "grade 3").
+            Golden("6 weeks", expected = setOf(SURGERY_ARTHROSCOPY, REPRO_PREG_CHECK), exact = true),
             Golden("phenylbutazone", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
             // "recovery" exists only as a FIELD NAME (recoveryNotes); its
             // indexed VALUE is "Stall rest 6 weeks". Field labels are never
             // indexed, so the word cannot match.
             Golden("arthroscopy recovery", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
-            // Same field-label gap for "surgeon" (value "Dr. Mendes").
-            Golden("surgeon", expected = emptySet(), exact = true),
+            // FLIPPED (field labels, v8): "surgeon" is indexed on the surgery
+            // row, so "who was the surgeon" style queries hit.
+            Golden("surgeon", expected = setOf(SURGERY_ARTHROSCOPY), exact = true),
             // Null column -> its label and value are both absent.
             Golden("complications", expected = emptySet(), exact = true),
             // OR retry unions rows across types sharing one token each.
@@ -1332,19 +1404,23 @@ class RagGoldenSetTest {
             Golden("xylazine", expected = setOf(SUBSTANCE_XYLAZINE), exact = true),
             Golden("detomidine", expected = setOf(SUBSTANCE_DETOMIDINE), exact = true),
             Golden("sedation", expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE), exact = true),
-            // Leg 1 hits directly (both tokens in the Xylazine reason) and a
-            // non-empty first leg SUPPRESSES the OR retry - Detomidine's
-            // "Colic sedation" lacks "standing" and never joins.
-            Golden("standing sedation", expected = setOf(SUBSTANCE_XYLAZINE), exact = true),
-            // "witness" is the FIELD label; its indexed VALUES are "Nurse
-            // Silva"/"Nurse Alves" - the word itself appears nowhere.
-            Golden("witness", expected = emptySet(), exact = true),
+            // FLIPPED (weak-leg retry): the single AND hit no longer
+            // suppresses the OR retry; sedation* unions Detomidine's "Colic
+            // sedation" next to Xylazine's "Standing sedation".
+            Golden("standing sedation", expected = setOf(SUBSTANCE_XYLAZINE, SUBSTANCE_DETOMIDINE), exact = true),
+            // FLIPPED (field labels, v8): "witness" is indexed on controlled
+            // substance rows for "who witnessed" regulatory queries.
+            Golden("witness", expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE), exact = true),
             Golden("nurse", expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE), exact = true),
-            Golden("Nurse Silva", expected = setOf(SUBSTANCE_DETOMIDINE), exact = true),
-            // Short-prefix blowup: "iv*" matches route "IV" AND "Ivermectin".
+            // FLIPPED (weak-leg retry): nurse* unions the second substance
+            // row ("Nurse Alves") with Silva's.
+            Golden("Nurse Silva", expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE), exact = true),
+            // FLIPPED (short-prefix guard): "IV" is 2 letters, so it now
+            // matches EXACTLY - the route value on both substance rows - and
+            // no longer prefix-leaks onto "Ivermectin".
             Golden(
                 "IV",
-                expected = setOf(DEWORM_IVERMECTIN, SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE),
+                expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE),
                 exact = true,
             ),
             // --- Record-type breadth: labs ---
@@ -1353,7 +1429,9 @@ class RagGoldenSetTest {
             Golden("strongyle", expected = setOf(LAB_FECAL), exact = true),
             Golden("ACTH", expected = setOf(LAB_ACTH), exact = true),
             // --- Record-type breadth: dentistry ---
-            Golden("enamel points", expected = setOf(DENTISTRY_FLOATING), exact = true),
+            // FLIPPED (weak-leg retry): points* unions the quidding consult
+            // ("Sharp points molars") with the enamel row.
+            Golden("enamel points", expected = setOf(DENTISTRY_FLOATING, CONSULT_QUIDDING), exact = true),
             Golden("wave mouth", expected = setOf(DENTISTRY_WAVE_MOUTH), exact = true),
             // "teeth" never appears (indexed value is "Floating"); the OR
             // retry still recovers both floating rows via float*.
@@ -1365,14 +1443,17 @@ class RagGoldenSetTest {
             Golden("quidding", expected = setOf(CONSULT_QUIDDING), exact = true),
             Golden("molars", expected = setOf(CONSULT_QUIDDING), exact = true),
             // --- Record-type breadth: farrier ---
-            // Single-token AND hit SUPPRESSES the synonym retry: trim* alone
-            // matches the two Trim rows directly, so no expansion runs.
-            Golden("trim", expected = setOf(FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
+            // FLIPPED (weak-leg retry): the two Trim AND-hits no longer
+            // suppress the synonym retry; farrier* unions the Shoeing row.
+            Golden("trim", expected = setOf(FARRIER_SHOEING, FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
             Golden("farrier", expected = setOf(FARRIER_SHOEING, FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
-            Golden("Rui Alves", expected = setOf(FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
+            // FLIPPED (weak-leg retry): alves* unions the Xylazine row whose
+            // witness is "Nurse Alves".
+            Golden("Rui Alves", expected = setOf(FARRIER_TRIM_STORM, FARRIER_TRIM_TROV, SUBSTANCE_XYLAZINE), exact = true),
             Golden("aluminum", expected = setOf(FARRIER_TRIM_STORM), exact = true),
             Golden("barefoot", expected = setOf(FARRIER_TRIM_TROV), exact = true),
-            Golden("hoof rings", expected = setOf(FARRIER_TRIM_TROV), exact = true),
+            // FLIPPED (weak-leg retry): hoof* unions the wall-crack Trim row.
+            Golden("hoof rings", expected = setOf(FARRIER_TRIM_TROV, FARRIER_TRIM_STORM), exact = true),
             Golden("hoof", expected = setOf(FARRIER_TRIM_STORM, FARRIER_TRIM_TROV), exact = true),
             // "abscess" is absent from every seeded row (true vocabulary
             // gap in the fixture, not an indexing bug); hoof* carries the
@@ -1408,22 +1489,74 @@ class RagGoldenSetTest {
             Golden("FLU", expected = setOf(VACC_INFLUENZA, ET_BELLA), exact = true),
             Golden("batch RAB-2026-010", expected = setOf(VACC_RABIES), exact = true),
             Golden("neck", expected = setOf(VACC_INFLUENZA, VACC_WEST_NILE, VACC_EHV, VACC_EVA, CONSULT_DERMATITIS, CONSULT_CHOKE), exact = true),
-            // Plural "vaccinations" neither prefix-matches the singular
-            // vocabulary NOR triggers the synonym group (token equality);
-            // neck* does the work through the OR retry (incl. the choke
-            // consult's "neck extended").
+            // FLIPPED (plural folding + weak-leg retry): "vaccinations"
+            // singularizes into the vaccination synonym group, whose
+            // expansions pull every vaccination row's generic vocabulary.
             Golden(
                 "Neck site vaccinations",
-                expected = setOf(VACC_INFLUENZA, VACC_WEST_NILE, VACC_EHV, VACC_EVA, CONSULT_DERMATITIS, CONSULT_CHOKE),
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                        CONSULT_DERMATITIS,
+                        CONSULT_CHOKE,
+                    ),
                 exact = true,
             ),
             Golden("booster", expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA), exact = true),
             Golden("shot", expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA), exact = true),
             Golden("vaccine", expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA), exact = true),
             // --- Multi-word clinical phrasings ---
-            Golden("West Nile booster", expected = setOf(VACC_WEST_NILE), exact = true),
-            Golden("tetanus shot", expected = setOf(VACC_TETANUS), exact = true),
-            Golden("flu vaccine", expected = setOf(VACC_INFLUENZA), exact = true),
+            // FLIPPED (weak-leg retry): booster* + the vaccination synonym
+            // group pull all six vaccination rows.
+            Golden(
+                "West Nile booster",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                    ),
+                exact = true,
+            ),
+            // FLIPPED (weak-leg retry): shot* + the vaccination synonym group
+            // pull all six vaccination rows.
+            Golden(
+                "tetanus shot",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                    ),
+                exact = true,
+            ),
+            // FLIPPED (weak-leg retry): vaccine*/flu* + the vaccination group
+            // pull all six vaccination rows; flu* keeps the ET flush leak.
+            Golden(
+                "flu vaccine",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                        ET_BELLA,
+                    ),
+                exact = true,
+            ),
             Golden("dry cough", expected = setOf(CONSULT_COUGH), exact = true),
             Golden("RAO cough", expected = setOf(CONSULT_COUGH), exact = true),
             Golden("navicular", expected = setOf(LAMENESS_NAVICULAR), exact = true),
@@ -1435,7 +1568,9 @@ class RagGoldenSetTest {
             Golden("pain", expected = emptySet(), exact = true),
             Golden("colic surgery recovery", expected = setOf(CONSULT_COLIC, SUBSTANCE_DETOMIDINE), exact = true),
             Golden("pregnancy check result", expected = setOf(REPRO_PREG_CHECK), exact = true),
-            Golden("skin wound", expected = setOf(CONSULT_WIRE_CUT), exact = true),
+            // FLIPPED (weak-leg retry): skin* unions the dermatitis consult
+            // ("Itchy skin and hives").
+            Golden("skin wound", expected = setOf(CONSULT_WIRE_CUT, CONSULT_DERMATITIS), exact = true),
             Golden("wire cut", expected = setOf(CONSULT_WIRE_CUT), exact = true),
             Golden("laceration", expected = setOf(CONSULT_WIRE_CUT), exact = true),
             Golden("suture", expected = setOf(CONSULT_WIRE_CUT), exact = true),
@@ -1446,9 +1581,10 @@ class RagGoldenSetTest {
             Golden("antihistamine", expected = setOf(CONSULT_DERMATITIS), exact = true),
             Golden("poor appetite", expected = emptySet(), exact = true),
             Golden("body condition", expected = setOf(CONSULT_QUIDDING), exact = true),
-            // Morphology gap: "tendon*" cannot reach "tendinitis" (different
-            // stem characters); the exact term is required.
-            Golden("tendon injury", expected = emptySet(), exact = true),
+            // FLIPPED (tendon synonym group): "tendon" now triggers the
+            // tendon/tendinitis morphology bridge, so the OR retry reaches
+            // the tendinitis ultrasound without a stemmer.
+            Golden("tendon injury", expected = setOf(US_STORM_TENDON), exact = true),
             Golden("tendinitis", expected = setOf(US_STORM_TENDON), exact = true),
             Golden("SDFT", expected = setOf(US_STORM_TENDON), exact = true),
             Golden("fetus", expected = setOf(REPRO_PREG_CHECK), exact = true),
@@ -1467,9 +1603,13 @@ class RagGoldenSetTest {
             Golden("failed", expected = setOf(GESTATION_FAILED), exact = true),
             Golden("active", expected = setOf(GESTATION_ACTIVE), exact = true),
             Golden("Live filly born", expected = setOf(GESTATION_COMPLETED), exact = true),
-            Golden("Eclipse stallion", expected = setOf(GESTATION_ACTIVE), exact = true),
+            // FLIPPED (weak-leg retry): eclipse* unions the breeding event
+            // whose stallion is Eclipse.
+            Golden("Eclipse stallion", expected = setOf(GESTATION_ACTIVE, REPRO_BREEDING), exact = true),
             Golden("fresh cooled semen", expected = setOf(REPRO_BREEDING), exact = true),
-            Golden("AI breeding", expected = setOf(REPRO_BREEDING), exact = true),
+            // FLIPPED (weak-leg retry): the exact "AI" token also matches the
+            // active gestation's notes ("AI with stallion Eclipse").
+            Golden("AI breeding", expected = setOf(REPRO_BREEDING, GESTATION_ACTIVE), exact = true),
             Golden("expected foaling date", expected = setOf(GESTATION_ACTIVE), exact = true),
             Golden("Recipient mares", expected = setOf(ET_BELLA), exact = true),
             Golden("flush", expected = setOf(ET_BELLA), exact = true),
@@ -1485,10 +1625,22 @@ class RagGoldenSetTest {
             // "this"/"year" match nothing.
             Golden("colic this year", expected = setOf(CONSULT_COLIC, SUBSTANCE_DETOMIDINE), exact = true),
             Golden("rabies last spring", expected = setOf(VACC_RABIES), exact = true),
-            // Month names are NEVER indexed (dates are stored as epoch days,
-            // not text) and the plural blocks the vaccination vocabulary -
-            // fully empty retrieval.
-            Golden("vaccines in January", expected = emptySet(), exact = true),
+            // FLIPPED (plural folding): "vaccines" singularizes into the
+            // vaccination synonym group, whose expansions hit the generic
+            // vocabulary on every vaccination row. Month names stay unindexed.
+            Golden(
+                "vaccines in January",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                    ),
+                exact = true,
+            ),
             Golden("January", expected = emptySet(), exact = true),
             // Years surface only through batch-number text.
             Golden(
@@ -1528,16 +1680,29 @@ class RagGoldenSetTest {
             // The stable letter suffix does NOT discriminate: leg 1 zeroes
             // (single-letter "b*"/"c*" prefixes match nothing here) and the
             // OR retry unions every barn* patient row.
+            // FLIPPED (short-prefix guard): "B" is 1 letter, so it now matches
+            // EXACTLY - surfacing the standalone "B" token in "Recipient mares
+            // A and B" - while barn* still carries the patient rows.
             Golden(
                 "Barn B",
-                expected = setOf(PATIENT_THUNDER, PATIENT_COMET, PATIENT_THUNDERSTORM, PATIENT_ISABELLA),
+                expected = setOf(PATIENT_THUNDER, PATIENT_COMET, PATIENT_THUNDERSTORM, PATIENT_ISABELLA, ET_BELLA),
                 exact = true,
             ),
-            Golden("Barn C", expected = setOf(PATIENT_COMET, PATIENT_ISABELLA), exact = true),
-            Golden("Quinta do Vale", expected = setOf(PATIENT_BELLA), exact = true),
-            Golden("Quinta do Sol", expected = setOf(PATIENT_BELINHA), exact = true),
-            Golden("Herdade Nova", expected = setOf(PATIENT_TROVOADA), exact = true),
-            Golden("Herdade Boa Esperanca", expected = setOf(OWNER_MIGUEL), exact = true),
+            // FLIPPED (weak-leg retry): the two Barn-C AND-hits no longer
+            // suppress the retry; barn* unions every Barn-A patient row too.
+            Golden("Barn C", expected = setOf(PATIENT_COMET, PATIENT_ISABELLA, PATIENT_THUNDER, PATIENT_THUNDERSTORM), exact = true),
+            // FLIPPED (short-prefix guard + weak-leg retry): "do" now matches
+            // EXACTLY instead of do*-exploding, and the single AND hit no
+            // longer suppresses the retry - Belinha's "Quinta do Sol" joins
+            // through its shared exact "do" token.
+            Golden("Quinta do Vale", expected = setOf(PATIENT_BELLA, PATIENT_BELINHA), exact = true),
+            Golden("Quinta do Sol", expected = setOf(PATIENT_BELINHA, PATIENT_BELLA), exact = true),
+            // FLIPPED (weak-leg retry): herdade* unions Miguel's owner row
+            // ("Herdade Boa Esperanca").
+            Golden("Herdade Nova", expected = setOf(PATIENT_TROVOADA, OWNER_MIGUEL), exact = true),
+            // FLIPPED (weak-leg retry): herdade* unions Trovoada's patient row
+            // ("Herdade Nova").
+            Golden("Herdade Boa Esperanca", expected = setOf(OWNER_MIGUEL, PATIENT_TROVOADA), exact = true),
             // --- Owner coverage beyond Daniela ---
             Golden("Ana Ferreira", expected = setOf(OWNER_ANA), exact = true),
             Golden("Sofia Marques", expected = setOf(OWNER_SOFIA), exact = true),
@@ -1562,12 +1727,13 @@ class RagGoldenSetTest {
             // --- Portuguese (proper-noun anchored via OR retry) ---
             // "tem*" leaks onto "temperature" in Comet's SOAP text.
             Golden("Quantas vacinas tem a Thunder?", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM, CONSULT_COUGH), exact = true),
-            // Two-letter "da*" blows up onto every da- token: Daniela,
-            // "day 30", "daily" (both medication dosages), "days" - the
-            // widest short-prefix leak pinned in this file.
+            // FLIPPED (short-prefix guard): "da" is 2 letters, so it now
+            // matches EXACTLY (no indexed standalone "da" token) instead of
+            // exploding onto Daniela/daily/days/"day 30" - only the proper
+            // noun survives.
             Golden(
                 "Cólica da Trovoada",
-                expected = setOf(PATIENT_TROVOADA, OWNER_DANIELA, GESTATION_FAILED, "MEDICATION#$medicationId", "MEDICATION#$medication2Id", REPRO_PREG_CHECK),
+                expected = setOf(PATIENT_TROVOADA),
                 exact = true,
             ),
             // Diacritic folding gives "gestacao*", which misses "gestation";
@@ -1594,19 +1760,43 @@ class RagGoldenSetTest {
             Golden("Ivermectina", expected = emptySet(), exact = true),
             // --- Analysis-intent phrasings (retrieval returns record sets;
             // summaries are computed separately by the RAG pipeline) ---
+            // FLIPPED (plural folding): "vaccinations" singularizes into the
+            // vaccination synonym group, so the OR retry now recovers all six
+            // vaccination rows alongside the thunder* patient anchors.
             Golden(
                 "How many vaccinations did Thunder have?",
-                // "many" is not filler, "vaccinations" plural misses the
-                // singular vocabulary; thunder* patient rows carry the leg.
-                expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM),
+                expected =
+                    setOf(
+                        PATIENT_THUNDER,
+                        PATIENT_THUNDERSTORM,
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                    ),
                 exact = true,
             ),
             // Weight rows index bare kg values, so "weight" itself never
             // matches - only the name anchor survives.
             Golden("average weight of Thunder", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM), exact = true),
             Golden("how much does Comet weigh", expected = setOf(PATIENT_COMET), exact = true),
-            // Plural + temporal + analysis words ALL miss: fully empty.
-            Golden("How many vaccines this year?", expected = emptySet(), exact = true),
+            // FLIPPED (plural folding): "vaccines" singularizes into the
+            // vaccination synonym group and recovers every vaccination row.
+            Golden(
+                "How many vaccines this year?",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                    ),
+                exact = true,
+            ),
             // "count*" leaks onto the Fecal Egg Count test type.
             Golden("count weight entries Thunderstorm", expected = setOf(PATIENT_THUNDERSTORM, LAB_FECAL), exact = true),
             Golden("How many foals does Daniela have?", expected = setOf(OWNER_DANIELA), exact = true),
@@ -1614,7 +1804,8 @@ class RagGoldenSetTest {
             Golden("IVERMECTIN", expected = setOf(DEWORM_IVERMECTIN), exact = true),
             Golden("coggins!", expected = setOf(LAB_COGGINS), exact = true),
             Golden("West-Nile-Virus", expected = setOf(VACC_WEST_NILE), exact = true),
-            Golden("detomidine, sedation", expected = setOf(SUBSTANCE_DETOMIDINE), exact = true),
+            // FLIPPED (weak-leg retry): sedation* unions the Xylazine row.
+            Golden("detomidine, sedation", expected = setOf(SUBSTANCE_DETOMIDINE, SUBSTANCE_XYLAZINE), exact = true),
             // Repository sanitizer splits "(rao)" on non-alphanumerics.
             Golden("(RAO)", expected = setOf(CONSULT_COUGH), exact = true),
             Golden(
@@ -1804,8 +1995,10 @@ class RagGoldenSetTest {
 
     /**
      * Mirrors the production retrieval path in [GenerateRagResponseUseCase]:
-     * filler-stripped AND query first, one broad OR retry when the AND query
-     * zeroes out.
+     * filler-stripped AND query first, one broad OR retry (with synonym
+     * expansion) when the AND query is empty OR WEAK (fewer than
+     * [WEAK_RESULT_THRESHOLD] records), with retry hits deduplicated against
+     * the AND leg by record identity.
      *
      * The OR leg goes through [SearchRepositoryImpl] directly with an
      * FTS-safe expression from [AssistantPrompts.toFtsOrQuery]:
@@ -1813,7 +2006,14 @@ class RagGoldenSetTest {
      * fallback becomes `a* AND OR* AND b*` and FTS5 rejects the reserved
      * operator carrying a suffix star (retrieval bug fixed in the llm lane).
      */
-    private fun retrieve(question: String): List<SearchResult> =
-        searchUseCase(AssistantPrompts.enrichQuery(question), from = null, to = null, recordTypes = null)
-            .ifEmpty { searchRepo.search(AssistantPrompts.toFtsOrQuery(question), null, null, null) }
+    private fun retrieve(question: String): List<SearchResult> {
+        val andResults =
+            searchUseCase(AssistantPrompts.enrichQuery(question), from = null, to = null, recordTypes = null)
+        if (andResults.size >= WEAK_RESULT_THRESHOLD) return andResults
+        val retryResults = searchRepo.search(AssistantPrompts.toFtsOrQuery(question), null, null, null)
+        return andResults +
+            retryResults.filter { retry ->
+                andResults.none { it.recordType == retry.recordType && it.recordId == retry.recordId }
+            }
+    }
 }

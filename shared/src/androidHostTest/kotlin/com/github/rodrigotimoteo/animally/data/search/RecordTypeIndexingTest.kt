@@ -90,4 +90,36 @@ class RecordTypeIndexingTest {
         assertEquals(1, results.size)
         assertEquals(RecordType.Surgery.wireName, results.single().recordType)
     }
+
+    @Test
+    fun givenSparseFarrierVisitWhenReindexedThenReachableByFarrierQuery() {
+        // Regression: a UI-created farrier visit whose free-text fields carry
+        // no hoof-care vocabulary (only a farrier name + "checkup") was
+        // invisible to every natural farrier question - the RAG OR retry has
+        // no term that prefix-matches "UITest…" or "checkup". The indexed
+        // vocabulary ("farrier visit trim shoeing hoof care") bridges it.
+        val patientId = seedPatient()
+        val now = Clock.System.now()
+        database.farrierVisitQueries.insertWithId(
+            id = 9L,
+            patientId = patientId,
+            date = kotlinx.datetime.LocalDate(2026, 8, 24),
+            trimOrShoe = null,
+            shoeType = null,
+            findings = "checkup",
+            nextDueDate = null,
+            farrier = "UITestABC123",
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+
+        repo.reindexRecords()
+        repo.rebuild()
+
+        val hits = repo.searchSnippets("thunders* OR last* OR farrier* OR visit*", null, null, null)
+        assertEquals(1, hits.size, "sparse farrier row must be reachable by farrier/visit terms")
+        assertEquals(RecordType.FarrierVisit.wireName, hits.single().recordType)
+    }
 }

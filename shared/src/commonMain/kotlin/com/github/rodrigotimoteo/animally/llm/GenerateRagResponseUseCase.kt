@@ -89,6 +89,13 @@ class GenerateRagResponseUseCase(
         // prefixes (a single letter would prefix-match unrelated names).
         const val MIN_NAME_PREFIX_CHARS = 2
 
+        // Weak-leg retry threshold: an AND leg returning FEWER than this many
+        // records is treated as a miss for retrieval purposes. A single weak
+        // hit used to suppress the synonym/OR retry entirely ("standing
+        // sedation" locked onto Xylazine while Detomidine's "Colic sedation"
+        // never joined; "trim" never reached the hoof-care synonyms).
+        const val WEAK_RESULT_THRESHOLD = 3
+
         // Model sometimes regurgitates prompt scaffolding (--- separators,
         // "Question: ..." echoes). Stripped defensively from every chunk.
         val scaffoldLineRegex = Regex("(?m)^\\s*(?:-{3,}|Question:.*|Context:.*|You are .*)\\s*\\n?")
@@ -179,7 +186,13 @@ class GenerateRagResponseUseCase(
             }
             val selected = selectedIndices.map(chunks::get)
             val context = buildContext(selected, query, recentConversation, deterministicSummary)
-            streamAnswer(context, turnStrings, selected, selectedIndices.map(results::get))
+            streamAnswer(
+                context,
+                turnStrings,
+                selected,
+                selectedIndices.map(results::get),
+                usedDeterministicSummary = deterministicSummary != null,
+            )
         }
 
     /**
@@ -194,6 +207,7 @@ class GenerateRagResponseUseCase(
         turnStrings: AssistantStrings,
         selected: List<String>,
         contextResults: List<SearchResult>,
+        usedDeterministicSummary: Boolean,
     ) {
         // Streaming emits cumulative snapshots; sanitize() is idempotent, so
         // re-sanitizing the growing text each step is safe and downstream
@@ -219,7 +233,12 @@ class GenerateRagResponseUseCase(
         // headers, but the model skips them often enough that the guarantee
         // is enforced here - when records were used and the reply carries
         // none, append the ACTUAL retrieved headers (never invented ones).
-        if (selected.isNotEmpty() && "[" !in lastEmitted) {
+        // The trigger is MAPPED citations, not bare "[": a fabricated or
+        // stale header the model invented ([Giraffe #1], a deleted id)
+        // satisfies the eye but maps to no source card, so the guarantee
+        // needs the real headers appended anyway.
+        val mappedCitations = citedResults(lastEmitted, contextResults)
+        if (selected.isNotEmpty() && mappedCitations.isEmpty()) {
             // Top-3 by retrieval rank only: appending every selected header
             // turns a ten-record answer into ten lines of citation noise.
             val sources = selected.mapNotNull(::sourceHeader).take(MAX_ENFORCED_SOURCES)
@@ -231,6 +250,19 @@ class GenerateRagResponseUseCase(
                 emit(RagStreamEvent.Chunk(lastEmitted))
             }
         }
+        // Summary-only answers: when retrieval came back empty but the
+        // deterministic summary carried the facts, there are no record
+        // headers to append - and an uncited confident answer is exactly
+        // what the citation guarantee forbids. The system prompt tells the
+        // model to cite the summary as [Summary]; when it skips that too,
+        // the tag is enforced here.
+        if (usedDeterministicSummary && mappedCitations.isEmpty() && "[" !in lastEmitted) {
+            lastEmitted =
+                listOf(lastEmitted.takeIf(String::isNotBlank), "[Summary]")
+                    .filterNotNull()
+                    .joinToString("\n\n")
+            emit(RagStreamEvent.Chunk(lastEmitted))
+        }
         citedResults(lastEmitted, contextResults).takeIf { it.isNotEmpty() }?.let {
             emit(RagStreamEvent.Sources(it))
         }
@@ -239,10 +271,18 @@ class GenerateRagResponseUseCase(
     /**
      * Two-leg retrieval mirroring the production contract: a strict AND query
      * over the filler-stripped question first, then one broad OR retry (with
-     * synonym expansion) when the AND leg zeroes out — AND semantics require
-     * every content word to match, so natural questions like "which patients
-     * belong to X" would otherwise return nothing. When no [recordSearch]
-     * seam is wired, falls back to [SearchUseCase] with full-text snippets.
+     * synonym expansion) when the AND leg is EMPTY or WEAK (fewer than
+     * [WEAK_RESULT_THRESHOLD] records) — AND semantics require every content
+     * word to match, so natural questions like "which patients belong to X"
+     * would otherwise return nothing, and a single lucky hit used to suppress
+     * the recall-fixing retry. Retry hits are deduplicated against the AND
+     * leg by record identity and appended after it. The caller applies
+     * patient-scope prioritization to the MERGED list, so scoped-patient
+     * records recovered by the retry rank ahead of same-topic records from
+     * other patients exactly like leg-1 results.
+     *
+     * When no [recordSearch] seam is wired, falls back to [SearchUseCase]
+     * with full-text snippets.
      */
     private fun retrieve(
         query: String,
@@ -250,8 +290,9 @@ class GenerateRagResponseUseCase(
     ): List<SearchResult> {
         val seam = recordSearch ?: return searchUseCase(enriched, from = null, to = null, recordTypes = null)
         val andResults = seam.search(AssistantPrompts.toFtsAndQuery(enriched))
-        if (andResults.isNotEmpty()) return andResults
-        return seam.search(AssistantPrompts.toFtsOrQuery(query))
+        if (andResults.size >= WEAK_RESULT_THRESHOLD) return andResults
+        val retryResults = seam.search(AssistantPrompts.toFtsOrQuery(query))
+        return andResults + retryResults.filter { retry -> andResults.none { it.sameRecordAs(retry) } }
     }
 
     /**
@@ -462,3 +503,7 @@ class GenerateRagResponseUseCase(
             .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
 }
+
+/** True when both results point at the same stored record. File-level so the
+ * use case class stays under its detekt function-count threshold. */
+private fun SearchResult.sameRecordAs(that: SearchResult) = recordType == that.recordType && recordId == that.recordId

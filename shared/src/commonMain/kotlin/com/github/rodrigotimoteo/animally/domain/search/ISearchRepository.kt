@@ -107,7 +107,12 @@ interface ISearchRepository {
          * embryo-transfer rows gained embryo-transfer vocabulary in their
          * indexed text (natural questions like "vaccination" / "embryo
          * transfer" previously zeroed out on raw field values alone).
+         *
+         * v8: lameness rows gained the "grade flexion" field labels, surgery
+         * rows the "surgeon" label, and controlled-substance rows the
+         * "witness" label, so dictation-adjacent field-label questions ("who
+         * was the surgeon") hit the rows.
          */
-        const val SEARCH_INDEX_VERSION = "7"
+        const val SEARCH_INDEX_VERSION = "9"
     }
 }

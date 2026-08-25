@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
@@ -18,6 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** Hand-rolled fake: LlmEngine is an expect class and cannot be faked from common code. */
@@ -50,6 +52,7 @@ private class FakeRagLlmEngine : RagLlmEngine {
 
 class GenerateRagResponseUseCaseTest {
     private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
+    private val patientRepositoryMock: IPatientRepository = mock(MockMode.autoUnit)
     private val engine = FakeRagLlmEngine()
 
     private fun sut(
@@ -59,27 +62,32 @@ class GenerateRagResponseUseCaseTest {
             RagRecordSearch { ftsQuery -> searchRepositoryMock.search(ftsQuery, null, null, null) },
         analysisContextBuilder: AnalysisContextBuilder? = null,
         today: LocalDate = LocalDate(2026, 8, 24),
+        patientRepository: IPatientRepository? = null,
     ) = GenerateRagResponseUseCase(
         SearchUseCase(searchRepositoryMock),
         engine,
         config,
         strings,
         recordSearch,
+        patientRepository = patientRepository,
         analysisContextBuilder = analysisContextBuilder,
         today = today,
     )
 
-    private fun result(snippet: String = "tetanus booster") =
-        SearchResult(
-            patientId = 7L,
-            patientName = "Thunder",
-            breed = "Thoroughbred",
-            microchipId = null,
-            recordType = "VACCINATION",
-            recordId = 123L,
-            date = LocalDate(2024, 5, 1),
-            snippet = snippet,
-        )
+    private fun result(
+        snippet: String = "tetanus booster",
+        recordId: Long = 123L,
+        patientName: String = "Thunder",
+    ) = SearchResult(
+        patientId = 7L,
+        patientName = patientName,
+        breed = "Thoroughbred",
+        microchipId = null,
+        recordType = "VACCINATION",
+        recordId = recordId,
+        date = LocalDate(2024, 5, 1),
+        snippet = snippet,
+    )
 
     private fun medicationResult() =
         SearchResult(
@@ -287,6 +295,34 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given weak AND leg when OR retry recovers records then patient scoping ranks them first`() =
+        runTest {
+            // Call 1: the AND query - ONE weak hit, on the WRONG patient
+            // (pre-threshold behavior would have returned it unscooped).
+            // Call 2: the OR retry recovering both patients' records.
+            val andLegComet = result(recordId = 201, patientName = "Comet")
+            val retryBella = result(recordId = 202, patientName = "Bella")
+            val retryComet = result(recordId = 203, patientName = "Comet")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } sequentiallyReturns
+                listOf(
+                    listOf(andLegComet),
+                    listOf(retryBella, retryComet),
+                )
+            every { patientRepositoryMock.patientNames() } returns listOf("Bella", "Comet")
+
+            sut(patientRepository = patientRepositoryMock)("colic Bella").answers()
+
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains("[VACCINATION #202] Bella"))
+            val bellaIndex = prompt.indexOf("[VACCINATION #202] Bella")
+            val firstCometIndex = prompt.indexOf("[VACCINATION #201] Comet")
+            assertTrue(
+                bellaIndex in 0 until firstCometIndex,
+                "scoped-patient record recovered by the OR retry must rank ahead of the weak AND-leg hit",
+            )
+        }
+
+    @Test
     fun `given history when invoked then recent conversation block is in the prompt`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
@@ -445,18 +481,89 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `given fabricated citation when not in context then no source emitted for it`() =
+    fun `given fabricated citation when not in context then real headers enforced and only real source emitted`() =
         runTest {
+            // A fabricated header ([GESTATION #999] - wrong type and id)
+            // satisfies the eye but maps to no source card, which left
+            // completed answers without a Sources event (dead follow-up
+            // chips). Enforcement now keys on MAPPED citations: the real
+            // retrieved headers are appended, and only the real record is
+            // carded - never the fabricated one.
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
             engine.nextChunkOverride = "See [GESTATION #999] Ghost for details."
 
             val events = sut()(QUERY).toList()
 
-            assertTrue(
-                events.filterIsInstance<RagStreamEvent.Sources>().isEmpty(),
-                "citations outside the selected context must not become source cards",
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(final.contains("[VACCINATION #123]"), "real header must be enforced: $final")
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(
+                listOf("VACCINATION#123"),
+                sources.sources.map { "${it.recordType}#${it.recordId}" },
+                "only the retrieved record may become a source card",
             )
         }
+
+    @Test
+    fun `given possessive farrier query when AND leg misses and retry recovers record then header appended and sources emitted`() =
+        runTest {
+            // Regression shape for the farrier UI test: the possessive cleans
+            // to "Thunders", the strict AND leg misses, and the weak-retry OR
+            // leg recovers the farrier visit. The citation-less model reply
+            // must still gain the retrieved header and a Sources event.
+            val farrier =
+                result().copy(recordType = "FARRIER_VISIT", recordId = 301L, snippet = "Full set steel shoes")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } sequentiallyReturns
+                listOf(emptyList(), listOf(farrier))
+            engine.nextChunkOverride = "Thunder's last farrier visit was 24 Aug 2026."
+
+            val events = sut()("When was Thunder's last farrier visit?").toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(final.contains("[FARRIER_VISIT #301]"), "citation must be enforced: $final")
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals("FARRIER_VISIT", sources.sources.single().recordType)
+        }
+
+    @Test
+    fun `given zero retrieval and care summary when model answers uncited then Summary citation appended`() =
+        runTest {
+            // Regression: fix-18's deterministic summary answers recency
+            // questions even when retrieval is empty (sparse-indexed rows).
+            // With no selected records the record-header enforcement never
+            // fired, so the reply shipped with no citation at all and no
+            // Sources event. The summary path must enforce [Summary] too.
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Thunder"))
+            repos.farrierVisits.entries =
+                listOf(testFarrierVisit(id = 301, patientId = 1, date = LocalDate(2026, 8, 24)))
+            engine.nextChunkOverride = "Thunder's last farrier visit was 2026-08-24."
+
+            val events =
+                sut(analysisContextBuilder = repos.builder)("When was Thunder's last farrier visit?").toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(final.contains("[Summary]"), "summary-only answers must carry a citation: $final")
+            assertTrue(
+                events.filterIsInstance<RagStreamEvent.Sources>().isEmpty(),
+                "no record was retrieved - no source cards may be invented",
+            )
+        }
+
+    @Test
+    fun `given care summary when built then last-done dates are humanized not ISO`() {
+        val repos = FakeAnalysisRepos()
+        repos.patients.patients = listOf(testPatient(1, "Thunder"))
+        repos.farrierVisits.entries =
+            listOf(testFarrierVisit(id = 301, patientId = 1, date = LocalDate(2026, 8, 24)))
+
+        val summary = repos.builder.build("When was Thunder's last farrier visit?")
+
+        assertNotNull(summary)
+        assertTrue(summary.contains("last 24 Aug 2026"), "ISO date leaked into summary: $summary")
+        assertFalse(summary.contains("2026-08-24"), "raw ISO date must not reach the prompt: $summary")
+    }
 
     // --- Dosage guardrail: deterministic refusal, no model call ---
 
