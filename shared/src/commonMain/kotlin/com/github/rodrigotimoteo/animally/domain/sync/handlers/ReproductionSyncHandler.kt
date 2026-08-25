@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.reproduction.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
@@ -109,7 +110,12 @@ class ReproductionSyncHandler(
         record: SyncRecord,
         payload: ReproductionPayload,
     ): Long {
-        val local = reproductionRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.reproductionQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         reproductionRepository.update(
             ReproductionEvent(

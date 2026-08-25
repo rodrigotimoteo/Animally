@@ -48,10 +48,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Consultation WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Consultation WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Consultation WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Consultation SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Consultation WHERE id = ?;

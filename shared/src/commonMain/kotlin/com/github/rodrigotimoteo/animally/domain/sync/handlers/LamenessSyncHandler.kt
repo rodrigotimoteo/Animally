@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.lameness.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -116,7 +117,12 @@ class LamenessSyncHandler(
         record: SyncRecord,
         payload: LamenessPayload,
     ): Long {
-        val local = lamenessRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.lamenessQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         lamenessRepository.update(
             Lameness(

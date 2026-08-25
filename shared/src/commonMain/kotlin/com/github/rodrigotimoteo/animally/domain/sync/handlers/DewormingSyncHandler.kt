@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.deworming.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -110,7 +111,12 @@ class DewormingSyncHandler(
         record: SyncRecord,
         payload: DewormingPayload,
     ): Long {
-        val local = dewormingRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.dewormingQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         dewormingRepository.update(
             Deworming(

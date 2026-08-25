@@ -47,10 +47,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Dentistry WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Dentistry WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Dentistry WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Dentistry SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Dentistry WHERE id = ?;

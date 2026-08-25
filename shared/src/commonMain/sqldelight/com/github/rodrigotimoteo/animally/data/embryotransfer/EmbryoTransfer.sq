@@ -53,3 +53,7 @@ SELECT * FROM EmbryoTransfer WHERE updatedAt > ? AND isActive = 1;
 
 setServerId:
 UPDATE EmbryoTransfer SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM EmbryoTransfer WHERE id = ?;

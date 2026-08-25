@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.gestation.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -113,7 +114,12 @@ class GestationSyncHandler(
         record: SyncRecord,
         payload: GestationPayload,
     ): Long {
-        val local = gestationRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.gestationQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         gestationRepository.update(
             Gestation(

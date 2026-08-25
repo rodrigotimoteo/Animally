@@ -72,10 +72,12 @@ class AnamneseSyncHandler(
 
     override fun decodePayload(r: SyncRecord): AnamnesePayload = r.decode(AnamnesePayload.serializer())
 
-    override suspend fun serverIdOf(entityId: Long): String? {
-        val patientId = anamneseIdToPatientId(entityId) ?: return null
-        return anamneseRepository.getByPatient(patientId)?.serverId
-    }
+    override suspend fun serverIdOf(entityId: Long): String? =
+        // Read the raw row: domain mappers intentionally do not carry serverId.
+        database.anamneseQueries
+            .selectById(entityId)
+            .executeAsOneOrNull()
+            ?.serverId
 
     override suspend fun localIdFor(serverId: String): Long? =
         database.anamneseQueries

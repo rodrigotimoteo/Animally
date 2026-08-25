@@ -48,10 +48,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Gestation WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Gestation WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Gestation WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Gestation SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Gestation WHERE id = ?;

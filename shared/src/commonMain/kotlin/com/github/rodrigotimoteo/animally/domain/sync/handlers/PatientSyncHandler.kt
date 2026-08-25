@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.patient.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.sync.ENTITY_NOT_APPLIED
@@ -102,7 +103,12 @@ class PatientSyncHandler(
         }
     }
 
-    override suspend fun serverIdOf(entityId: Long): String? = patientRepository.getPatientById(entityId)?.serverId
+    override suspend fun serverIdOf(entityId: Long): String? =
+        // Read the raw row: domain mappers intentionally do not carry serverId.
+        database.patientQueries
+            .selectRowById(entityId)
+            .executeAsOneOrNull()
+            ?.serverId
 
     override suspend fun localIdFor(serverId: String): Long? =
         database.patientQueries
@@ -148,7 +154,12 @@ class PatientSyncHandler(
         record: SyncRecord,
         payload: PatientPayload,
     ): Long {
-        val local = patientRepository.getPatientById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.patientQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         patientRepository.updatePatient(
             Patient(

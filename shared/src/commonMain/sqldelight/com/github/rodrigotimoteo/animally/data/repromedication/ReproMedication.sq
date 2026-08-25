@@ -47,10 +47,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM ReproMedication WHERE serverId = ? AND isActive = 1;
+SELECT * FROM ReproMedication WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM ReproMedication WHERE updatedAt > ?;
 
 setServerId:
 UPDATE ReproMedication SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM ReproMedication WHERE id = ?;

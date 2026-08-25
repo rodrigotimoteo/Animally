@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.farrier.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -115,7 +116,12 @@ class FarrierVisitSyncHandler(
         record: SyncRecord,
         payload: FarrierVisitPayload,
     ): Long {
-        val local = farrierVisitRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.farrierVisitQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         farrierVisitRepository.update(
             FarrierVisit(

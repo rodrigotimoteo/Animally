@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.embryotransfer.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.embryotransfer.IEmbryoTransferRepository
 import com.github.rodrigotimoteo.animally.domain.embryotransfer.model.EmbryoTransfer
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -108,7 +109,12 @@ class EmbryoTransferSyncHandler(
         record: SyncRecord,
         payload: EmbryoTransferPayload,
     ): Long {
-        val local = repository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.embryoTransferQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         repository.update(
             EmbryoTransfer(

@@ -49,10 +49,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Lameness WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Lameness WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Lameness WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Lameness SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Lameness WHERE id = ?;

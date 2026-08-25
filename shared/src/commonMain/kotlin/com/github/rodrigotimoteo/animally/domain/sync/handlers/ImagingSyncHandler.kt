@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.imaging.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -110,7 +111,12 @@ class ImagingSyncHandler(
         record: SyncRecord,
         payload: ImagingPayload,
     ): Long {
-        val local = imagingRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.imagingQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         imagingRepository.update(
             Imaging(

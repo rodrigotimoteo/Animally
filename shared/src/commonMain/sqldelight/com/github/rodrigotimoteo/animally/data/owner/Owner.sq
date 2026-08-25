@@ -38,10 +38,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Owner WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Owner WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Owner WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Owner SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Owner WHERE id = ?;

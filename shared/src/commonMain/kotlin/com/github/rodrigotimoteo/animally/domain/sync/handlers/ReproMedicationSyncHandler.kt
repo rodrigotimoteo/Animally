@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.repromedication.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
@@ -112,7 +113,12 @@ class ReproMedicationSyncHandler(
         record: SyncRecord,
         payload: ReproMedicationPayload,
     ): Long {
-        val local = reproMedicationRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.reproMedicationQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         reproMedicationRepository.update(
             ReproMedication(

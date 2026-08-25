@@ -44,12 +44,27 @@ SELECT * FROM CustomReminder WHERE isActive = 1 AND dueDate >= ? ORDER BY dueDat
 selectOverdue:
 SELECT * FROM CustomReminder WHERE isActive = 1 AND dueDate < ? ORDER BY dueDate;
 
+-- Backup support --
+deleteAll:
+DELETE FROM CustomReminder;
+
+selectAllRows:
+SELECT * FROM CustomReminder;
+
+insertWithId:
+INSERT INTO CustomReminder (id, patientId, title, dueDate, linkedRecordType, linkedRecordId, notes, isActive, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
 -- Sync support --
 selectByServerId:
-SELECT * FROM CustomReminder WHERE serverId = ? AND isActive = 1;
+SELECT * FROM CustomReminder WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM CustomReminder WHERE updatedAt > ?;
 
 setServerId:
 UPDATE CustomReminder SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM CustomReminder WHERE id = ?;

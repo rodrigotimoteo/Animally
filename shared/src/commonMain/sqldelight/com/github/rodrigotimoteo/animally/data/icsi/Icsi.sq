@@ -52,3 +52,7 @@ SELECT * FROM Icsi WHERE updatedAt > ? AND isActive = 1;
 
 setServerId:
 UPDATE Icsi SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Icsi WHERE id = ?;

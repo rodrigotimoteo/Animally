@@ -45,10 +45,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Weight WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Weight WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Weight WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Weight SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Weight WHERE id = ?;

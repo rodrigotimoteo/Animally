@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.owner.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.sync.ENTITY_NOT_APPLIED
@@ -111,7 +112,12 @@ class OwnerSyncHandler(
         record: SyncRecord,
         payload: OwnerPayload,
     ): Long {
-        val local = ownerRepository.getOwnerById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.ownerQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         ownerRepository.updateOwner(
             Owner(

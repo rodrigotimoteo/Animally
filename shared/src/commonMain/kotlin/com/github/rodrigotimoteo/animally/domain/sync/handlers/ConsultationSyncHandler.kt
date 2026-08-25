@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.consultation.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -115,7 +116,12 @@ class ConsultationSyncHandler(
         record: SyncRecord,
         payload: ConsultationPayload,
     ): Long {
-        val local = consultationRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.consultationQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         consultationRepository.update(
             Consultation(

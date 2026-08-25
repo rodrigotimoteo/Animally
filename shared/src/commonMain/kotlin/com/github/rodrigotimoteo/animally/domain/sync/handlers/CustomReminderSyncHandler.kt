@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.customreminder.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderRepository
 import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomReminder
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -116,7 +117,12 @@ class CustomReminderSyncHandler(
         record: SyncRecord,
         payload: CustomReminderPayload,
     ): Long {
-        val local = customReminderRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.customReminderQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         customReminderRepository.update(
             CustomReminder(

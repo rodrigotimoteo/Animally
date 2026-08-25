@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.icsi.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.icsi.IIcsiRepository
 import com.github.rodrigotimoteo.animally.domain.icsi.model.Icsi
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -104,7 +105,12 @@ class IcsiSyncHandler(
         record: SyncRecord,
         payload: IcsiPayload,
     ): Long {
-        val local = repository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.icsiQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         repository.update(
             Icsi(

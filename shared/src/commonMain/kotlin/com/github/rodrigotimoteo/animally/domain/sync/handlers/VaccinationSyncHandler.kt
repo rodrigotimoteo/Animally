@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.vaccination.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.sync.ENTITY_NOT_APPLIED
 import com.github.rodrigotimoteo.animally.domain.sync.SyncEntityType
@@ -115,7 +116,12 @@ class VaccinationSyncHandler(
         record: SyncRecord,
         payload: VaccinationPayload,
     ): Long {
-        val local = vaccinationRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.vaccinationQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         vaccinationRepository.update(
             Vaccination(

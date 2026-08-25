@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.dentistry.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -110,7 +111,12 @@ class DentistrySyncHandler(
         record: SyncRecord,
         payload: DentistryPayload,
     ): Long {
-        val local = dentistryRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.dentistryQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         dentistryRepository.update(
             Dentistry(

@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.labresult.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
@@ -110,7 +111,12 @@ class LabResultSyncHandler(
         record: SyncRecord,
         payload: LabResultPayload,
     ): Long {
-        val local = labResultRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.labResultQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         labResultRepository.update(
             LabResult(

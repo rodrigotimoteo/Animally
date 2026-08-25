@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.surgery.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
@@ -119,7 +120,12 @@ class SurgerySyncHandler(
         record: SyncRecord,
         payload: SurgeryPayload,
     ): Long {
-        val local = surgeryRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.surgeryQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         surgeryRepository.update(
             Surgery(

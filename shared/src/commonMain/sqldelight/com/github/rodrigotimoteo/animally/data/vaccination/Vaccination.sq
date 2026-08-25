@@ -48,10 +48,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Vaccination WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Vaccination WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Vaccination WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Vaccination SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Vaccination WHERE id = ?;

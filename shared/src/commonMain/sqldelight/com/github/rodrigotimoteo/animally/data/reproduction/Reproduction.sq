@@ -49,10 +49,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Reproduction WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Reproduction WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Reproduction WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Reproduction SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Reproduction WHERE id = ?;

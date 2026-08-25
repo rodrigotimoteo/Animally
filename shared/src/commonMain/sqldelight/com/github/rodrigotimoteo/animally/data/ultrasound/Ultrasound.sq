@@ -57,10 +57,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Sync support --
 selectByServerId:
-SELECT * FROM Ultrasound WHERE serverId = ? AND isActive = 1;
+SELECT * FROM Ultrasound WHERE serverId = ?;
 
 selectChangedSince:
 SELECT * FROM Ultrasound WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Ultrasound SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Ultrasound WHERE id = ?;

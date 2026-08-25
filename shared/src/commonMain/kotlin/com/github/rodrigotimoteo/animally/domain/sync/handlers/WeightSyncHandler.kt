@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.sync.handlers
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.weight.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.sync.ENTITY_NOT_APPLIED
 import com.github.rodrigotimoteo.animally.domain.sync.SyncEntityType
@@ -101,7 +102,12 @@ class WeightSyncHandler(
         record: SyncRecord,
         payload: WeightPayload,
     ): Long {
-        val local = weightRepository.getById(existingId) ?: return ENTITY_NOT_APPLIED
+        val local =
+            database.weightQueries
+                .selectRowById(existingId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: return ENTITY_NOT_APPLIED
         if (lwwDecision(record, local.updatedAt) == Lww.KEEP) return existingId
         weightRepository.update(
             Weight(
