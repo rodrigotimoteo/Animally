@@ -132,8 +132,8 @@ object AssistantPrompts {
      * Foundation Models path. Cloud fallback turns use a warmer policy that
      * permits general questions while keeping patient facts record-grounded.
      *
-     * @param allowGeneralQuestions true only when the router selected cloud
-     *   fallback for this turn.
+     * @param allowGeneralQuestions true when the router selected a cloud or
+     *   tool-backed path for this turn.
      */
     fun systemPrompt(
         strings: AssistantStrings = EnAssistantStrings,

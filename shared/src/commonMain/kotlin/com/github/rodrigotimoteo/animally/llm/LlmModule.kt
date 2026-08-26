@@ -103,6 +103,17 @@ val llmModule =
                     dewormingRepository = get(),
                     farrierVisitRepository = get(),
                     gestationRepository = get(),
+                    calculateGestationUseCase = get(),
+                )
+            val analysisToolRegistry =
+                AnalysisToolRegistry(
+                    patientRepository = get(),
+                    weightRepository = get(),
+                    vaccinationRepository = get(),
+                    dewormingRepository = get(),
+                    farrierVisitRepository = get(),
+                    gestationRepository = get(),
+                    calculateGestationUseCase = get(),
                 )
             val routedEngine = get<FmFirstRagLlmEngine>()
             GenerateRagResponseUseCase(
@@ -113,6 +124,8 @@ val llmModule =
                 patientRepository = get(),
                 analysisContextBuilder = analysisContextBuilder,
                 queryPolicyProvider = { routedEngine.queryPolicy() },
+                toolCallingEngine = routedEngine,
+                toolRegistry = analysisToolRegistry,
             )
         }
     }

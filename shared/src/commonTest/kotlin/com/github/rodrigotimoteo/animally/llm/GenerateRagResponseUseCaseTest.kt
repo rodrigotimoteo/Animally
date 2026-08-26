@@ -970,6 +970,35 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given analysis builder when invoked then the use case reference date reaches gestation summary`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Bella"))
+            repos.gestations.entries =
+                listOf(
+                    testGestation(
+                        id = 41,
+                        patientId = 1,
+                        breedingDate = LocalDate(2025, 1, 1),
+                        expectedDueDate = LocalDate(2000, 1, 1),
+                    ),
+                )
+
+            sut(
+                analysisContextBuilder = repos.builder,
+                today = LocalDate(2025, 5, 11),
+            )("Which mares are pregnant?").chunks()
+
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains("day 130"), "summary must use the turn's reference date: $prompt")
+            assertTrue(
+                prompt.contains("expected foaling 2025-12-07"),
+                "summary must recompute the due date: $prompt",
+            )
+        }
+
+    @Test
     fun `given tiny budget when invoked then summary kept and chunks dropped`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result(snippet = "x".repeat(4000)))

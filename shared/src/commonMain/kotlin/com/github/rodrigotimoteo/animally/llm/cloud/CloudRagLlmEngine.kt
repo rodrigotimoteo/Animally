@@ -1,6 +1,11 @@
 package com.github.rodrigotimoteo.animally.llm.cloud
 
+import com.github.rodrigotimoteo.animally.llm.RagChatMessage
 import com.github.rodrigotimoteo.animally.llm.RagLlmEngine
+import com.github.rodrigotimoteo.animally.llm.RagToolCall
+import com.github.rodrigotimoteo.animally.llm.RagToolCallingEngine
+import com.github.rodrigotimoteo.animally.llm.RagToolDefinition
+import com.github.rodrigotimoteo.animally.llm.RagToolStreamEvent
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
@@ -16,6 +21,8 @@ import io.ktor.http.isSuccess
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -73,10 +80,12 @@ data class CloudLlmConfig(
  * terminal frame is treated as interrupted (not silently truncated) so callers see
  * the typed failure instead of a confident half-answer.
  */
+@Suppress("TooManyFunctions")
 class CloudRagLlmEngine(
     private val httpClient: HttpClient,
     private val configProvider: () -> CloudLlmConfig,
-) : RagLlmEngine {
+) : RagLlmEngine,
+    RagToolCallingEngine {
     private val json =
         Json {
             ignoreUnknownKeys = true
@@ -96,18 +105,56 @@ class CloudRagLlmEngine(
         prompt: String,
         instructions: String,
     ): Flow<String> =
-        // Ktor executes streaming response callbacks on the native engine
-        // dispatcher. A regular flow builder cannot emit from that callback
-        // context, so use channelFlow to safely bridge those emissions back
-        // to the collector without violating Flow's context invariant.
-        channelFlow {
-            // Resolved per request so settings edits (key/model/URL) apply immediately.
+        flow {
             val config = configProvider()
+            streamRequest(
+                buildChatCompletionRequest(
+                    config,
+                    prompt,
+                    instructions,
+                ),
+                config,
+            ).collect { event ->
+                if (event is RagToolStreamEvent.Text) emit(event.text)
+            }
+        }
+
+    override val supportsToolCalling: Boolean = true
+
+    override fun generateStreamingWithTools(
+        messages: List<RagChatMessage>,
+        tools: List<RagToolDefinition>,
+    ): Flow<RagToolStreamEvent> {
+        require(tools.isNotEmpty()) { "At least one tool definition is required." }
+        val config = configProvider()
+        return streamRequest(
+            buildToolChatCompletionRequest(
+                config = config,
+                messages = messages,
+                tools = tools,
+            ),
+            config,
+        )
+    }
+
+    /**
+     * Executes one OpenAI-compatible streaming request. Text and tool-call
+     * responses share this parser so reasoning filtering and terminal handling
+     * cannot drift between the normal and tool-aware paths.
+     */
+    @Suppress("CyclomaticComplexMethod")
+    private fun streamRequest(
+        request: ChatCompletionRequest,
+        config: CloudLlmConfig,
+    ): Flow<RagToolStreamEvent> =
+        // Ktor executes streaming response callbacks on the native engine
+        // dispatcher. channelFlow safely bridges those emissions to collectors.
+        channelFlow {
             var sawDone = false
             var finishReason: String? = null
             httpClient
                 .preparePost(cloudChatCompletionsUrl(config.baseUrl)) {
-                    applyCloudLlmRequest(this, config, prompt, instructions)
+                    applyCloudLlmRequest(this, config, request)
                 }.execute { response ->
                     if (!response.status.isSuccess()) {
                         val detail = response.bodyAsText().compactCloudError()
@@ -117,11 +164,22 @@ class CloudRagLlmEngine(
                     val channel = response.bodyAsChannel()
                     val cumulative = StringBuilder()
                     val thinkingFilter = ThinkingBlockFilter()
+                    val toolCalls = linkedMapOf<Int, MutableCloudToolCall>()
                     while (!channel.isClosedForRead) {
                         val line = channel.readUTF8Line() ?: break
                         parseSseError(line)?.let { message -> error(message) }
                         if (appendSseDelta(line, cumulative, thinkingFilter)?.isNotEmpty() == true) {
-                            send(cumulative.toString())
+                            send(RagToolStreamEvent.Text(cumulative.toString()))
+                        }
+                        val chunk =
+                            dataPayload(line)
+                                ?.takeUnless { it.isEmpty() || it.equals(SSE_DONE_SENTINEL, ignoreCase = true) }
+                                ?.let(::decodeChunk)
+                        chunk?.choices?.firstOrNull()?.let { choice ->
+                            choice.delta?.toolCalls?.let { deltas -> appendToolCallDeltas(toolCalls, deltas) }
+                            if (choice.delta?.toolCalls == null) {
+                                choice.message?.toolCalls?.let { calls -> appendToolCallDeltas(toolCalls, calls) }
+                            }
                         }
                         if (isTerminalSseFrame(line)) sawDone = true
                         parseFinishReason(line)?.let { finishReason = it }
@@ -131,19 +189,34 @@ class CloudRagLlmEngine(
                         .takeIf(String::isNotEmpty)
                         ?.let { tail ->
                             cumulative.append(tail)
-                            send(cumulative.toString())
+                            send(RagToolStreamEvent.Text(cumulative.toString()))
                         }
-                    // Terminal-state validation: a connection that closes without
-                    // a recognized completion frame or finish_reason dropped the
-                    // answer mid-flight - surface that instead of ending the flow
-                    // like a complete reply.
                     validateStreamEnd(
                         sawDone = sawDone,
                         finishReason = finishReason,
                         contentLength = cumulative.length,
                     )?.let { message -> error(message) }
+                    toolCalls
+                        .toList()
+                        .sortedBy { (index, _) -> index }
+                        .mapIndexedNotNull { index, (_, call) -> call.toRagToolCall(index) }
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { calls -> send(RagToolStreamEvent.ToolCalls(calls)) }
                 }
         }
+
+    private fun appendToolCallDeltas(
+        accumulator: MutableMap<Int, MutableCloudToolCall>,
+        deltas: List<ChatToolCall>,
+    ) {
+        deltas.forEachIndexed { fallbackIndex, delta ->
+            val index = delta.index ?: fallbackIndex
+            val current = accumulator.getOrPut(index) { MutableCloudToolCall() }
+            delta.id?.takeIf(String::isNotBlank)?.let { current.id = it }
+            delta.function?.name?.let { current.name.append(it) }
+            delta.function?.arguments?.let { current.arguments.append(it) }
+        }
+    }
 
     /**
      * Parses one SSE line; returns the content delta it carries, or null for
@@ -526,8 +599,25 @@ internal fun buildChatCompletionRequest(
         messages = messages,
         stream = true,
         maxTokens = config.maxTokens,
+        tools = null,
+        toolChoice = null,
     )
 }
+
+/** Builds the wire request used for one turn of native function calling. */
+internal fun buildToolChatCompletionRequest(
+    config: CloudLlmConfig,
+    messages: List<RagChatMessage>,
+    tools: List<RagToolDefinition>,
+): ChatCompletionRequest =
+    ChatCompletionRequest(
+        model = config.model,
+        messages = messages.map(RagChatMessage::toCloudMessage),
+        stream = true,
+        maxTokens = config.maxTokens,
+        tools = tools.map(::toCloudTool),
+        toolChoice = TOOL_CHOICE_AUTO,
+    )
 
 internal fun applyCloudLlmRequest(
     builder: HttpRequestBuilder,
@@ -547,6 +637,23 @@ internal fun applyCloudLlmRequest(
     builder.setBody(buildChatCompletionRequest(config, prompt, instructions))
 }
 
+internal fun applyCloudLlmRequest(
+    builder: HttpRequestBuilder,
+    config: CloudLlmConfig,
+    request: ChatCompletionRequest,
+) {
+    if (config.apiKey.isNotBlank()) {
+        builder.headers.append(HttpHeaders.Authorization, "Bearer ${config.apiKey}")
+    }
+    builder.contentType(ContentType.Application.Json)
+    builder.accept(ContentType.Text.EventStream)
+    builder.timeout {
+        socketTimeoutMillis = config.socketTimeoutMillis
+        connectTimeoutMillis = config.connectTimeoutMillis
+    }
+    builder.setBody(request)
+}
+
 @Serializable
 internal data class ChatCompletionRequest(
     val model: String,
@@ -554,12 +661,44 @@ internal data class ChatCompletionRequest(
     val stream: Boolean,
     /** Null is omitted by the request Json configuration for cloud providers. */
     @SerialName("max_tokens") val maxTokens: Int?,
+    val tools: List<ChatCompletionTool>?,
+    @SerialName("tool_choice") val toolChoice: String?,
 )
 
 @Serializable
 internal data class ChatMessage(
     val role: String,
-    val content: String,
+    val content: String?,
+    @SerialName("tool_calls") val toolCalls: List<ChatToolCall>? = null,
+    @SerialName("tool_call_id") val toolCallId: String? = null,
+    val name: String? = null,
+)
+
+@Serializable
+internal data class ChatCompletionTool(
+    val type: String,
+    val function: ChatFunctionDefinition,
+)
+
+@Serializable
+internal data class ChatFunctionDefinition(
+    val name: String,
+    val description: String,
+    val parameters: JsonObject,
+)
+
+@Serializable
+internal data class ChatToolCall(
+    val id: String? = null,
+    val type: String? = null,
+    val function: ChatFunctionCall? = null,
+    val index: Int? = null,
+)
+
+@Serializable
+internal data class ChatFunctionCall(
+    val name: String? = null,
+    val arguments: String? = null,
 )
 
 @Serializable
@@ -591,6 +730,7 @@ internal data class ChunkChoice(
 @Serializable
 internal data class CompletionMessage(
     val content: JsonElement? = null,
+    @SerialName("tool_calls") val toolCalls: List<ChatToolCall>? = null,
 )
 
 @Serializable
@@ -607,4 +747,50 @@ internal data class Delta(
     val reasoning: JsonElement? = null,
     val thinking: JsonElement? = null,
     val analysis: JsonElement? = null,
+    @SerialName("tool_calls") val toolCalls: List<ChatToolCall>? = null,
 )
+
+private fun RagChatMessage.toCloudMessage(): ChatMessage =
+    ChatMessage(
+        role = role.wireName,
+        content = content,
+        toolCalls = toolCalls.map { call -> call.toCloudToolCall() }.takeIf { it.isNotEmpty() },
+        toolCallId = toolCallId,
+        name = name,
+    )
+
+private fun RagToolCall.toCloudToolCall(): ChatToolCall =
+    ChatToolCall(
+        id = id,
+        type = TOOL_TYPE_FUNCTION,
+        function = ChatFunctionCall(name = name, arguments = arguments),
+    )
+
+private fun toCloudTool(definition: RagToolDefinition): ChatCompletionTool {
+    val function =
+        ChatFunctionDefinition(
+            name = definition.name,
+            description = definition.description,
+            parameters = definition.parameters,
+        )
+    return ChatCompletionTool(type = TOOL_TYPE_FUNCTION, function = function)
+}
+
+private const val TOOL_TYPE_FUNCTION = "function"
+private const val TOOL_CHOICE_AUTO = "auto"
+
+private data class MutableCloudToolCall(
+    var id: String = "",
+    val name: StringBuilder = StringBuilder(),
+    val arguments: StringBuilder = StringBuilder(),
+) {
+    fun toRagToolCall(index: Int): RagToolCall? {
+        val toolName = name.toString().trim()
+        if (toolName.isEmpty()) return null
+        return RagToolCall(
+            id = id.ifBlank { "tool_call_$index" },
+            name = toolName,
+            arguments = arguments.toString().ifBlank { "{}" },
+        )
+    }
+}

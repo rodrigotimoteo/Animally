@@ -1,0 +1,203 @@
+package com.github.rodrigotimoteo.animally.llm
+
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
+import dev.mokkery.MockMode
+import dev.mokkery.mock
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.LocalDate
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+private class FakeToolEngine(
+    private val alwaysRequestsTools: Boolean = false,
+    private val failsOnFirstRequest: Boolean = false,
+    private val includeCitation: Boolean = true,
+) : RagToolCallingEngine {
+    override val supportsToolCalling: Boolean = true
+    var calls: Int = 0
+    var messageSnapshots: List<List<RagChatMessage>> = emptyList()
+
+    override fun generateStreamingWithTools(
+        messages: List<RagChatMessage>,
+        tools: List<RagToolDefinition>,
+    ): Flow<RagToolStreamEvent> =
+        flow {
+            calls += 1
+            messageSnapshots = messageSnapshots + listOf(messages)
+            assertTrue(tools.isNotEmpty())
+            if (failsOnFirstRequest && calls == 1) error("tools unsupported")
+            if (alwaysRequestsTools || calls == 1) {
+                emit(RagToolStreamEvent.Text("I’ll check that."))
+                emit(
+                    RagToolStreamEvent.ToolCalls(
+                        listOf(
+                            RagToolCall(
+                                id = "call-$calls",
+                                name = AnalysisToolNames.WEIGHT_SUMMARY,
+                                arguments = "{}",
+                            ),
+                        ),
+                    ),
+                )
+            } else {
+                val answer = "The average is 505 kg." + if (includeCitation) " [WEIGHT #7]" else ""
+                emit(RagToolStreamEvent.Text(answer))
+            }
+        }
+}
+
+private class FakeToolRegistry : RagToolRegistry {
+    override val definitions: List<RagToolDefinition> = AnalysisToolSchemas.definitions
+    var calls: Int = 0
+
+    override suspend fun execute(call: RagToolCall): RagToolResult {
+        calls += 1
+        return RagToolResult(
+            toolCallId = call.id,
+            name = call.name,
+            content = """{"dataset":"weights","source":"[WEIGHT #7]","average_kg":505.0}""",
+            sources =
+                listOf(
+                    SearchResult(
+                        patientId = 1L,
+                        patientName = "Bella",
+                        breed = "Arabian",
+                        microchipId = null,
+                        recordType = "WEIGHT",
+                        recordId = 7L,
+                        date = LocalDate(2025, 2, 1),
+                        snippet = "Weight 505 kg.",
+                    ),
+                ),
+        )
+    }
+}
+
+private class PlainFallbackEngine : RagLlmEngine {
+    var calls: Int = 0
+
+    override fun generate(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> =
+        flow {
+            calls += 1
+            emit("I can still answer from the available context.")
+        }
+}
+
+class ToolAwareGenerateRagResponseUseCaseTest {
+    private val searchRepository: ISearchRepository = mock(MockMode.autoUnit)
+
+    private fun sut(
+        toolEngine: RagToolCallingEngine,
+        registry: RagToolRegistry,
+        plainEngine: RagLlmEngine = PlainFallbackEngine(),
+        recordSearch: RagRecordSearch = RagRecordSearch { emptyList() },
+    ): GenerateRagResponseUseCase =
+        GenerateRagResponseUseCase(
+            searchUseCase = SearchUseCase(searchRepository),
+            llmEngine = plainEngine,
+            recordSearch = recordSearch,
+            toolCallingEngine = toolEngine,
+            toolRegistry = registry,
+            today = LocalDate(2025, 5, 11),
+        )
+
+    @Test
+    fun `broader analysis executes a tool and replays its result into the final turn`() =
+        runTest {
+            val toolEngine = FakeToolEngine()
+            val registry = FakeToolRegistry()
+
+            val events = sut(toolEngine, registry)("Analyze the weight data").toList()
+            val finalChunk = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+
+            assertEquals(2, toolEngine.calls)
+            assertEquals(1, registry.calls)
+            assertEquals(4, toolEngine.messageSnapshots[1].size)
+            assertEquals(RagChatRole.ASSISTANT, toolEngine.messageSnapshots[1][2].role)
+            assertEquals(RagChatRole.TOOL, toolEngine.messageSnapshots[1][3].role)
+            assertEquals("The average is 505 kg.", finalChunk)
+            assertEquals(
+                7L,
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .single()
+                    .recordId,
+            )
+        }
+
+    @Test
+    fun `provider tool rejection falls back to the existing text path`() =
+        runTest {
+            val plain = PlainFallbackEngine()
+            val events =
+                sut(
+                    toolEngine = FakeToolEngine(failsOnFirstRequest = true),
+                    registry = FakeToolRegistry(),
+                    plainEngine = plain,
+                )("Analyze the weight data").toList()
+
+            assertEquals(1, plain.calls)
+            assertEquals("I can still answer from the available context.", events.filterIsInstance<RagStreamEvent.Chunk>().last().text)
+            assertTrue(events.none { it is RagStreamEvent.Interrupted })
+        }
+
+    @Test
+    fun `uncited tool answer prefers tool sources over retrieved context`() =
+        runTest {
+            val retrievalSource =
+                SearchResult(
+                    patientId = 2L,
+                    patientName = "Shadow",
+                    breed = "Arabian",
+                    microchipId = null,
+                    recordType = "WEIGHT",
+                    recordId = 99L,
+                    date = LocalDate(2025, 1, 1),
+                    snippet = "Weight 490 kg.",
+                )
+            val events =
+                sut(
+                    toolEngine = FakeToolEngine(includeCitation = false),
+                    registry = FakeToolRegistry(),
+                    recordSearch = RagRecordSearch { listOf(retrievalSource) },
+                )("Analyze the weight data").toList()
+
+            assertEquals("The average is 505 kg.", events.filterIsInstance<RagStreamEvent.Chunk>().last().text)
+            assertEquals(
+                7L,
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .single()
+                    .recordId,
+            )
+        }
+
+    @Test
+    fun `tool loop stops after the safe round limit`() =
+        runTest {
+            val toolEngine = FakeToolEngine(alwaysRequestsTools = true)
+            val registry = FakeToolRegistry()
+
+            val events = sut(toolEngine, registry)("Analyze the weight data").toList()
+
+            assertEquals(3, toolEngine.calls)
+            assertEquals(3, registry.calls)
+            assertEquals(
+                EnAssistantStrings.analysisLimitReply,
+                events.filterIsInstance<RagStreamEvent.Chunk>().last().text,
+            )
+        }
+}

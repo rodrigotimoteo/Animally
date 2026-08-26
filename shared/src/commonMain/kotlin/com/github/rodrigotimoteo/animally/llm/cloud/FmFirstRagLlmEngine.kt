@@ -1,7 +1,11 @@
 package com.github.rodrigotimoteo.animally.llm.cloud
 
+import com.github.rodrigotimoteo.animally.llm.RagChatMessage
 import com.github.rodrigotimoteo.animally.llm.RagLlmEngine
 import com.github.rodrigotimoteo.animally.llm.RagQueryPolicy
+import com.github.rodrigotimoteo.animally.llm.RagToolCallingEngine
+import com.github.rodrigotimoteo.animally.llm.RagToolDefinition
+import com.github.rodrigotimoteo.animally.llm.RagToolStreamEvent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
@@ -11,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -53,11 +58,29 @@ class FmFirstRagLlmEngine(
     private val firstEmissionTimeout: Duration = DEFAULT_FIRST_EMISSION_TIMEOUT,
     private val isFallbackEligible: () -> Boolean = { true },
     private val isPrimaryAvailable: suspend () -> Boolean = { true },
-) : RagLlmEngine {
+) : RagLlmEngine,
+    RagToolCallingEngine {
     private val _sourceEvents = MutableSharedFlow<EngineSource>(replay = 1, extraBufferCapacity = 16)
 
     /** Emits [EngineSource] once per request, before that engine's first chunk. */
     val sourceEvents: SharedFlow<EngineSource> = _sourceEvents
+
+    /** Tool calls intentionally select the cloud engine; Foundation Models have no tool seam. */
+    override val supportsToolCalling: Boolean
+        get() = isFallbackEligible() && (fallback as? RagToolCallingEngine)?.supportsToolCalling == true
+
+    override fun generateStreamingWithTools(
+        messages: List<RagChatMessage>,
+        tools: List<RagToolDefinition>,
+    ): Flow<RagToolStreamEvent> =
+        flow {
+            val toolEngine = fallback as? RagToolCallingEngine
+            if (!isFallbackEligible() || toolEngine == null || !toolEngine.supportsToolCalling) {
+                error("Cloud tool calling is not configured for this assistant.")
+            }
+            signal(EngineSource.CLOUD)
+            toolEngine.generateStreamingWithTools(messages, tools).collect { emit(it) }
+        }
 
     /**
      * Reports the policy the next turn should use. The relaxed policy is only

@@ -66,6 +66,15 @@ private fun hasRelevantHistory(
     recentConversation: String,
 ): Boolean = recentConversation.isNotEmpty() && RecordTypeIntent.sharesContentToken(query, recentConversation)
 
+private fun shouldUseAnalysisTools(
+    query: String,
+    toolCallingEngine: RagToolCallingEngine?,
+    toolRegistry: RagToolRegistry?,
+): Boolean =
+    AnalysisIntents.requiresTools(query) &&
+        toolCallingEngine?.supportsToolCalling == true &&
+        toolRegistry?.definitions?.isNotEmpty() == true
+
 /**
  * One prior conversational turn fed back into the prompt for multi-turn
  * context. Both sides are truncated by the use case before prompting.
@@ -90,6 +99,7 @@ fun interface RagRecordSearch {
     fun search(ftsQuery: String): List<SearchResult>
 }
 
+@Suppress("TooManyFunctions")
 class GenerateRagResponseUseCase(
     private val searchUseCase: SearchUseCase,
     private val llmEngine: RagLlmEngine,
@@ -100,6 +110,8 @@ class GenerateRagResponseUseCase(
     private val analysisContextBuilder: AnalysisContextBuilder? = null,
     private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
     private val queryPolicyProvider: suspend () -> RagQueryPolicy = { RagQueryPolicy.ON_DEVICE },
+    private val toolCallingEngine: RagToolCallingEngine? = null,
+    private val toolRegistry: RagToolRegistry? = null,
 ) {
     private data class StreamAnswerRequest(
         val context: String,
@@ -108,6 +120,7 @@ class GenerateRagResponseUseCase(
         val contextResults: List<SearchResult>,
         val usedDeterministicSummary: Boolean,
         val allowGeneralQuestions: Boolean,
+        val useTools: Boolean,
     )
 
     /** Rough token estimate: ~4 characters per token (see RAG budget in CONTEXT docs). */
@@ -222,7 +235,7 @@ class GenerateRagResponseUseCase(
             // wrong date after the bubble strips citation brackets. The reply
             // carries the real record header inline so the turn still cites.
             if (emitLatestRecordAnswer(query, results, scopedPatientName(results, query))) return@flow
-            val deterministicSummary = analysisContextBuilder?.build(query)
+            val deterministicSummary = analysisContextBuilder?.build(query, today)
             val recentConversation = formatHistory(history)
             val chunks = results.map { result -> formatChunk(result) }
             val reservedTokens =
@@ -238,7 +251,15 @@ class GenerateRagResponseUseCase(
             // unrelated record context.
             val historyRelevant = hasRelevantHistory(query, recentConversation)
             val grounded = hasGrounding(query, selectedIndices, results, deterministicSummary)
-            if (shouldUseNoResultsFallback(queryPolicy, grounded, historyRelevant)) {
+            val useTools = shouldUseAnalysisTools(query, toolCallingEngine, toolRegistry)
+            val effectiveAllowGeneralQuestions = queryPolicy.allowGeneralQuestions || useTools
+            if (
+                shouldUseNoResultsFallback(
+                    queryPolicy.copy(allowGeneralQuestions = effectiveAllowGeneralQuestions),
+                    grounded,
+                    historyRelevant,
+                )
+            ) {
                 emit(RagStreamEvent.Chunk(turnStrings.noResultsFallback))
                 return@flow
             }
@@ -250,7 +271,8 @@ class GenerateRagResponseUseCase(
                     selected = selected,
                     contextResults = selectedIndices.map(results::get),
                     usedDeterministicSummary = deterministicSummary != null,
-                    allowGeneralQuestions = queryPolicy.allowGeneralQuestions,
+                    allowGeneralQuestions = effectiveAllowGeneralQuestions,
+                    useTools = useTools,
                 ),
             )
         }
@@ -262,23 +284,21 @@ class GenerateRagResponseUseCase(
      * [RagStreamEvent.Interrupted] marker carrying the partial text instead
      * of tearing down the whole turn.
      */
+    @Suppress("CyclomaticComplexMethod")
     private suspend fun FlowCollector<RagStreamEvent>.streamAnswer(request: StreamAnswerRequest) {
         // Streaming emits cumulative snapshots; sanitize() is idempotent, so
         // re-sanitizing the growing text each step is safe and downstream
         // consumers replace their buffer with each emission.
         var lastEmitted = ""
+        var toolSources = emptyList<SearchResult>()
         try {
-            llmEngine
-                .generateStreaming(
-                    request.context,
-                    AssistantPrompts.systemPrompt(
-                        request.turnStrings,
-                        allowGeneralQuestions = request.allowGeneralQuestions,
-                    ),
-                ).collect { text ->
-                    lastEmitted = sanitize(text)
-                    emit(RagStreamEvent.Chunk(lastEmitted))
-                }
+            val answer = streamModelAnswer(request) { text -> lastEmitted = text }
+            if (answer.fallbackToPlainText) {
+                lastEmitted = streamPlainText(request) { text -> lastEmitted = text }
+            } else {
+                lastEmitted = answer.text
+                toolSources = answer.sources
+            }
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
@@ -300,16 +320,26 @@ class GenerateRagResponseUseCase(
         // stale header the model invented ([Giraffe #1], a deleted id)
         // satisfies the eye but maps to no source card, so the guarantee
         // needs the real headers appended anyway.
-        val mappedCitations = citedResults(lastEmitted, request.contextResults)
-        if (request.selected.isNotEmpty() && mappedCitations.isEmpty()) {
-            // Top-3 by retrieval rank only: appending every selected header
-            // turns a ten-record answer into ten lines of citation noise.
-            val sources = request.selected.mapNotNull(::sourceHeader).take(MAX_ENFORCED_SOURCES)
+        val allContextResults = (request.contextResults + toolSources).distinctBy { it.recordType to it.recordId }
+        var mappedCitations = citedResults(lastEmitted, allContextResults)
+        if (mappedCitations.isEmpty()) {
+            // Prefer tool-backed headers because they identify the authoritative
+            // database rows used by an analysis. Fall back to retrieval headers
+            // for ordinary RAG answers; cap both paths to avoid citation noise.
+            val candidateSources =
+                if (toolSources.isNotEmpty()) {
+                    toolSources.map(::sourceHeader)
+                } else {
+                    request.selected.mapNotNull(::sourceHeader)
+                }
+            val sources =
+                candidateSources.distinct().take(MAX_ENFORCED_SOURCES)
             if (sources.isNotEmpty()) {
                 lastEmitted =
                     listOf(lastEmitted.takeIf(String::isNotBlank), sources.joinToString("\n"))
                         .filterNotNull()
                         .joinToString("\n\n")
+                mappedCitations = citedResults(lastEmitted, allContextResults)
                 emit(RagStreamEvent.Chunk(lastEmitted))
             }
         }
@@ -329,7 +359,7 @@ class GenerateRagResponseUseCase(
                     .joinToString("\n\n")
             emit(RagStreamEvent.Chunk(lastEmitted))
         }
-        citedResults(lastEmitted, request.contextResults).takeIf { it.isNotEmpty() }?.let {
+        citedResults(lastEmitted, allContextResults).takeIf { it.isNotEmpty() }?.let {
             emit(RagStreamEvent.Sources(it))
         }
         // Display split: citations are parsed from the bracketed text FIRST
@@ -342,6 +372,67 @@ class GenerateRagResponseUseCase(
             lastEmitted = displayText
             emit(RagStreamEvent.Chunk(lastEmitted))
         }
+    }
+
+    /** Streams a normal text-only model request and returns its final snapshot. */
+    private suspend fun FlowCollector<RagStreamEvent>.streamPlainText(
+        request: StreamAnswerRequest,
+        onText: (String) -> Unit = {},
+    ): String {
+        var lastEmitted = ""
+        llmEngine
+            .generateStreaming(
+                request.context,
+                AssistantPrompts.systemPrompt(
+                    request.turnStrings,
+                    allowGeneralQuestions = request.allowGeneralQuestions,
+                ),
+            ).collect { text ->
+                lastEmitted = sanitize(text)
+                onText(lastEmitted)
+                emit(RagStreamEvent.Chunk(lastEmitted))
+            }
+        return lastEmitted
+    }
+
+    /** Streams either a normal answer or a bounded native-tool answer. */
+    private suspend fun FlowCollector<RagStreamEvent>.streamModelAnswer(
+        request: StreamAnswerRequest,
+        onText: (String) -> Unit = {},
+    ): RagToolAnswer {
+        val toolAnswer =
+            if (request.useTools) {
+                val engine = toolCallingEngine
+                val registry = toolRegistry
+                if (engine == null || registry == null) {
+                    null
+                } else {
+                    val systemPrompt =
+                        AssistantPrompts.systemPrompt(
+                            request.turnStrings,
+                            allowGeneralQuestions = true,
+                        ) +
+                            "\nUse the read-only analysis tools when they improve accuracy. " +
+                            "Tool results are authoritative for this app's data. Never invent a source header; " +
+                            "when a tool result includes a source field, cite that exact [TYPE #ID] value."
+                    val messages =
+                        mutableListOf(
+                            RagChatMessage(RagChatRole.SYSTEM, content = systemPrompt),
+                            RagChatMessage(RagChatRole.USER, content = request.context),
+                        )
+                    RagToolCallingCoordinator(
+                        engine = engine,
+                        registry = registry,
+                        turnStrings = request.turnStrings,
+                        sanitize = ::sanitize,
+                        onText = onText,
+                        emitChunk = { chunk -> emit(RagStreamEvent.Chunk(chunk)) },
+                    ).run(messages)
+                }
+            } else {
+                null
+            }
+        return toolAnswer ?: RagToolAnswer(streamPlainText(request, onText), emptyList())
     }
 
     /**
@@ -497,6 +588,9 @@ class GenerateRagResponseUseCase(
             .firstOrNull()
             ?.substringBefore(" |")
             ?.takeIf { it.startsWith("[") }
+
+    /** Formats a tool-backed record as the same citation token used by RAG chunks. */
+    private fun sourceHeader(result: SearchResult): String = "[${result.recordType} #${result.recordId}]"
 
     /**
      * Maps the `[TYPE #id]` citations actually present in [answerText] back

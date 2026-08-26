@@ -27,6 +27,9 @@ interface AssistantStrings {
     /** Shown when the model produced no text at all (interrupted/empty stream). */
     val blankReplyFallback: String
 
+    /** Shown when a broader analysis exceeds the safe number of tool rounds. */
+    val analysisLimitReply: String
+
     /**
      * Deterministic refusal for dosage questions asked without medication
      * records in context (no model call). Never advise doses from memory.
@@ -81,6 +84,10 @@ object EnAssistantStrings : AssistantStrings {
         "I wasn’t able to finish that answer. Try asking again, or narrow it " +
             "down to a horse, treatment, or date."
 
+    override val analysisLimitReply: String =
+        "I couldn’t finish that analysis in one pass. Try narrowing it to a " +
+            "horse, date range, or record type."
+
     override val dosageRefusal: String =
         "I can't advise on dosages. Check the medication record or consult the treating vet."
 
@@ -121,6 +128,10 @@ object PtAssistantStrings : AssistantStrings {
     override val blankReplyFallback: String =
         "Não consegui terminar essa resposta. Tente novamente ou indique um " +
             "cavalo, tratamento ou data."
+
+    override val analysisLimitReply: String =
+        "Não consegui terminar essa análise de uma só vez. Tente indicar um " +
+            "cavalo, intervalo de datas ou tipo de registo."
 
     override val dosageRefusal: String =
         "Não posso aconselhar sobre doses. Consulte o registo do medicamento ou o veterinário responsável."

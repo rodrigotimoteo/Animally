@@ -1,7 +1,12 @@
 package com.github.rodrigotimoteo.animally.llm.cloud
 
+import com.github.rodrigotimoteo.animally.llm.RagChatMessage
+import com.github.rodrigotimoteo.animally.llm.RagChatRole
+import com.github.rodrigotimoteo.animally.llm.RagToolCall
+import com.github.rodrigotimoteo.animally.llm.RagToolDefinition
 import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,6 +55,71 @@ class CloudRagLlmEngineTest {
             }.encodeToString(ChatCompletionRequest.serializer(), request)
         assertTrue(!wire.contains("max_tokens"))
         assertNull(request.maxTokens)
+    }
+
+    @Test
+    fun `tool request carries schemas and replayable assistant and tool messages`() {
+        val tool =
+            RagToolDefinition(
+                name = "weight_summary",
+                description = "Summarize weights.",
+                parameters = Json.parseToJsonElement("""{"type":"object","properties":{}}""").jsonObject,
+            )
+        val request =
+            buildToolChatCompletionRequest(
+                config = config,
+                messages =
+                    listOf(
+                        RagChatMessage(RagChatRole.SYSTEM, "instructions"),
+                        RagChatMessage(RagChatRole.USER, "Analyze weights"),
+                        RagChatMessage(
+                            role = RagChatRole.ASSISTANT,
+                            toolCalls = listOf(RagToolCall("call-1", "weight_summary", "{}")),
+                        ),
+                        RagChatMessage(
+                            role = RagChatRole.TOOL,
+                            content = """{"average_kg":505.0}""",
+                            toolCallId = "call-1",
+                            name = "weight_summary",
+                        ),
+                    ),
+                tools = listOf(tool),
+            )
+        val wire =
+            Json {
+                explicitNulls = false
+            }.encodeToString(ChatCompletionRequest.serializer(), request)
+
+        assertEquals("auto", request.toolChoice)
+        assertEquals(1, request.tools?.size)
+        assertTrue(wire.contains("\"tools\""))
+        assertTrue(wire.contains("\"tool_calls\""))
+        assertTrue(wire.contains("\"tool_call_id\":\"call-1\""))
+        assertTrue(wire.contains("\"role\":\"tool\""))
+        assertTrue(!wire.contains("\"content\":null"))
+    }
+
+    @Test
+    fun `tool call fragments decode with indexes and argument fragments`() {
+        val chunk =
+            Json.decodeFromString(
+                ChatCompletionChunk.serializer(),
+                """
+                {"choices":[{"delta":{"tool_calls":[
+                  {"index":0,"id":"call-1","type":"function","function":{"name":"weight_summary","arguments":"{\"patient_name\":"}},
+                  {"index":1,"id":"call-2","type":"function","function":{"name":"care_summary","arguments":"{}"}}
+                ]}}]}
+                """.trimIndent(),
+            )
+
+        val delta = requireNotNull(chunk.choices.single().delta)
+        val calls = requireNotNull(delta.toolCalls)
+        assertEquals(2, calls.size)
+        assertEquals(0, calls[0].index)
+        assertEquals("weight_summary", calls[0].function?.name)
+        assertEquals("{\"patient_name\":", calls[0].function?.arguments)
+        assertEquals(1, calls[1].index)
+        assertEquals("care_summary", calls[1].function?.name)
     }
 
     @Test

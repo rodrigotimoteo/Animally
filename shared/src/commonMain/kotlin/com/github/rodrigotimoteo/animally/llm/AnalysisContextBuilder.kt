@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.gestation.usecase.CalculateGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
@@ -11,7 +12,6 @@ import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.daysUntil
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
@@ -34,6 +34,7 @@ class AnalysisContextBuilder(
     private val dewormingRepository: IDewormingRepository,
     private val farrierVisitRepository: IFarrierVisitRepository,
     private val gestationRepository: IGestationRepository,
+    private val calculateGestationUseCase: CalculateGestationUseCase = CalculateGestationUseCase(),
 ) {
     /**
      * Builds the deterministic summary for [query], or null when the query
@@ -178,9 +179,11 @@ class AnalysisContextBuilder(
         patient: Patient,
         gestation: Gestation,
         today: LocalDate,
-    ): String =
-        "- Gestation ${patient.name}: day ${gestation.breedingDate.daysUntil(today)}, " +
-            "status ${gestation.status}, expected foaling ${gestation.expectedDueDate}."
+    ): String {
+        val progress = calculateGestationUseCase(gestation.breedingDate, today)
+        return "- Gestation ${patient.name}: day ${progress.gestationDays}, " +
+            "status ${gestation.status}, expected foaling ${progress.expectedDueDate}."
+    }
 
     /** Care items whose next-due date already passed (due < today, strict). */
     private fun overdueBlock(
@@ -220,7 +223,8 @@ class AnalysisContextBuilder(
                 }
             }
             gestationRepository.getByPatient(patient.id).filterNot(Gestation::isResolved).forEach { gestation ->
-                gestation.expectedDueDate.takeIf { it < today }?.let { due ->
+                val dueDate = calculateGestationUseCase(gestation.breedingDate, today).expectedDueDate
+                dueDate.takeIf { it < today }?.let { due ->
                     add("- OVERDUE ${patient.name}: Expected foaling was due $due.")
                 }
             }
@@ -285,12 +289,14 @@ private fun formatHumanDate(date: LocalDate): String {
 /** True when the pregnancy has ended (foaled or failed): nothing active to report. */
 private fun Gestation.isResolved(): Boolean =
     status.equals(RESOLVED_STATUS_COMPLETED, ignoreCase = true) ||
-        status.equals(RESOLVED_STATUS_FAILED, ignoreCase = true)
+        status.equals(RESOLVED_STATUS_FAILED, ignoreCase = true) ||
+        status.equals(RESOLVED_STATUS_FOALED, ignoreCase = true)
 
 // Same resolved-status vocabulary as GetUpcomingRemindersUseCase: foaled
 // ("Completed") or failed pregnancies are not active gestations.
 private const val RESOLVED_STATUS_COMPLETED = "Completed"
 private const val RESOLVED_STATUS_FAILED = "Failed"
+private const val RESOLVED_STATUS_FOALED = "Foaled"
 
 /**
  * Deterministic intent detection for analysis-mode summaries. Conservative on
@@ -325,6 +331,23 @@ object AnalysisIntents {
         Regex("\\b(overdue|due|upcoming|reminders?|atrasad[oa]s?|pendentes?|vencid[oa]s?)\\b")
 
     /**
+     * Questions that benefit from the cloud's larger context and native tools
+     * instead of a single compact summary. This is deliberately conservative:
+     * simple patient lookups remain eligible for the on-device path.
+     */
+    private val toolAnalysisRegex =
+        Regex(
+            "\\b(analy[sz]e|analysis|dataset|statistics?|statistical|average|mean|trend|" +
+                "compare|comparison|correlat|" +
+                "percentage|proportion|distribution|median|variance|regression|outlier|" +
+                "across|between|by month|per month|by breed|by species|over time|pattern|relationship|" +
+                "média|media|analisar|análise|analise|dados|estatística|estatistica|comparar|" +
+                "correlação|correlacao|percentagem|proporção|proporcao|distribuição|" +
+                "mediana|variância|variancia|tendência|tendencia|padrão|padrao|relação|relacao|" +
+                "por mês|por mes|por raça|por raca|por espécie|por especie)\\b",
+        )
+
+    /**
      * True when [query] asks a count/list/aggregate question at all: either
      * an explicit analysis pattern ("how many", "trend") or any analysis
      * topic word (weight/vaccination/pregnancy/overdue), because status
@@ -353,6 +376,9 @@ object AnalysisIntents {
     fun wantsGestation(query: String): Boolean = gestationRegex.containsMatchIn(query.lowercase())
 
     fun wantsOverdue(query: String): Boolean = overdueRegex.containsMatchIn(query.lowercase())
+
+    /** True when the question asks for a broader, multi-record analysis pass. */
+    fun requiresTools(query: String): Boolean = toolAnalysisRegex.containsMatchIn(query.lowercase())
 
     private fun anyTopic(lowered: String): Boolean =
         wantsWeight(lowered) ||

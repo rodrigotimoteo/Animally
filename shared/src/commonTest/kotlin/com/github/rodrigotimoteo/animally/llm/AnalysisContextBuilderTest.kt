@@ -140,7 +140,25 @@ class AnalysisContextBuilderTest {
         // 2025-01-01 -> 2025-05-11 is exactly 130 days.
         assertTrue(line.contains("day 130,"), line)
         assertTrue(line.contains("status Active,"), line)
+        assertTrue(line.contains("expected foaling 2025-12-07."), line)
         assertFalse(text.contains("Completed"), "resolved gestations must be excluded")
+    }
+
+    @Test
+    fun `given foaled gestation when built then resolved record is excluded`() {
+        repos.patients.patients = listOf(testPatient(1, "Bella"))
+        repos.gestations.entries =
+            listOf(
+                testGestation(
+                    41,
+                    1,
+                    breedingDate = LocalDate(2025, 1, 1),
+                    expectedDueDate = LocalDate(2025, 12, 6),
+                    status = "Foaled",
+                ),
+            )
+
+        assertNull(builder.build("Which mares are pregnant?", today))
     }
 
     // --- Overdue filter ---
