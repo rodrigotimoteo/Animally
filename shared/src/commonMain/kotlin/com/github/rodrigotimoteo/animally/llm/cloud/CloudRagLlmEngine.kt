@@ -15,7 +15,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -96,7 +96,11 @@ class CloudRagLlmEngine(
         prompt: String,
         instructions: String,
     ): Flow<String> =
-        flow {
+        // Ktor executes streaming response callbacks on the native engine
+        // dispatcher. A regular flow builder cannot emit from that callback
+        // context, so use channelFlow to safely bridge those emissions back
+        // to the collector without violating Flow's context invariant.
+        channelFlow {
             // Resolved per request so settings edits (key/model/URL) apply immediately.
             val config = configProvider()
             var sawDone = false
@@ -117,7 +121,7 @@ class CloudRagLlmEngine(
                         val line = channel.readUTF8Line() ?: break
                         parseSseError(line)?.let { message -> error(message) }
                         if (appendSseDelta(line, cumulative, thinkingFilter)?.isNotEmpty() == true) {
-                            emit(cumulative.toString())
+                            send(cumulative.toString())
                         }
                         if (isTerminalSseFrame(line)) sawDone = true
                         parseFinishReason(line)?.let { finishReason = it }
@@ -127,7 +131,7 @@ class CloudRagLlmEngine(
                         .takeIf(String::isNotEmpty)
                         ?.let { tail ->
                             cumulative.append(tail)
-                            emit(cumulative.toString())
+                            send(cumulative.toString())
                         }
                     // Terminal-state validation: a connection that closes without
                     // a recognized completion frame or finish_reason dropped the
