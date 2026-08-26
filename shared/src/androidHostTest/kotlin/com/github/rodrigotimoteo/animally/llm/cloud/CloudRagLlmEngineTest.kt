@@ -78,6 +78,21 @@ class CloudRagLlmEngineTest {
     }
 
     @Test
+    fun `recognizes OpenCode cost trailer as a terminal frame`() {
+        val engine = engine()
+
+        assertTrue(engine.isTerminalSseFrame("data: {\"choices\":[],\"cost\":\"0\"}"))
+        assertTrue(engine.isTerminalSseFrame("data: [DONE]"))
+        assertTrue(
+            engine.isTerminalSseFrame(
+                "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]} ",
+            ),
+        )
+        assertTrue(!engine.isTerminalSseFrame("data: {\"choices\":[],\"usage\":{\"total_tokens\":42}}"))
+        assertTrue(!engine.isTerminalSseFrame(": keep-alive"))
+    }
+
+    @Test
     fun `snake_case wire fields decode into typed chunk fields`() {
         val chunk =
             Json

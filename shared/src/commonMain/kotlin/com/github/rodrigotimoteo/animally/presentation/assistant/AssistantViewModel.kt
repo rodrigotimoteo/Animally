@@ -190,7 +190,7 @@ class AssistantViewModel(
                 is RagStreamEvent.Interrupted ->
                     state.messages.upsertLast { it.copy(text = event.partialText, interrupted = true) }
             }
-        return state.copy(messages = patched)
+        return state.copy(messages = patched, error = (event as? RagStreamEvent.Interrupted)?.error ?: state.error)
     }
 
     private fun applyBlank(

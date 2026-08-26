@@ -8,6 +8,7 @@ import io.ktor.client.request.accept
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 
 /**
  * Configuration for the OpenAI-compatible chat-completions endpoint used by
@@ -100,7 +102,9 @@ class CloudRagLlmEngine(
                     applyCloudLlmRequest(this, config, prompt, instructions)
                 }.execute { response ->
                     if (!response.status.isSuccess()) {
-                        error("Cloud LLM request failed: HTTP ${response.status.value}")
+                        val detail = response.bodyAsText().compactCloudError()
+                        val suffix = detail.takeIf(String::isNotBlank)?.let { ": $it" }.orEmpty()
+                        error("Cloud LLM request failed: HTTP ${response.status.value}$suffix")
                     }
                     val channel = response.bodyAsChannel()
                     val cumulative = StringBuilder()
@@ -109,7 +113,7 @@ class CloudRagLlmEngine(
                         if (appendSseDelta(line, cumulative)?.isNotEmpty() == true) {
                             emit(cumulative.toString())
                         }
-                        if (line.contains(SSE_DONE_SENTINEL)) sawDone = true
+                        if (isTerminalSseFrame(line)) sawDone = true
                         parseFinishReason(line)?.let { finishReason = it }
                     }
                     // Terminal-state validation: a connection that closes without
@@ -154,6 +158,24 @@ class CloudRagLlmEngine(
         return delta
     }
 
+    /**
+     * True for a protocol completion marker. OpenCode Go can finish a valid
+     * chat-completions stream with `{"choices":[],"cost":"0"}` instead of
+     * sending a finish reason or `[DONE]`; that frame is terminal, not a usage
+     * chunk that should trigger the generic interruption footer.
+     */
+    internal fun isTerminalSseFrame(line: String): Boolean {
+        val payload = line.removePrefix(SSE_DATA_PREFIX).trim()
+        return when {
+            payload == SSE_DONE_SENTINEL -> true
+            !line.startsWith(SSE_DATA_PREFIX) || !payload.startsWith("{") -> false
+            else -> {
+                val chunk = decodeChunk(payload)
+                chunk?.cost != null || chunk?.choices?.firstOrNull()?.finishReason != null
+            }
+        }
+    }
+
     /** Extracts `choices[0].finish_reason` from a data line, or null. */
     private fun parseFinishReason(line: String): String? =
         line
@@ -171,9 +193,12 @@ class CloudRagLlmEngine(
             json.decodeFromString<ChatCompletionChunk>(payload)
         }.getOrNull()
 
+    private fun String.compactCloudError(): String = replace(Regex("\\s+"), " ").trim().take(MAX_ERROR_DETAIL_CHARS)
+
     private companion object {
         const val SSE_DATA_PREFIX = "data:"
         const val SSE_DONE_SENTINEL = "[DONE]"
+        const val MAX_ERROR_DETAIL_CHARS = 240
     }
 }
 
@@ -257,6 +282,8 @@ internal data class ChatMessage(
 @Serializable
 internal data class ChatCompletionChunk(
     val choices: List<ChunkChoice> = emptyList(),
+    /** OpenCode Go's non-standard terminal usage/cost trailer. */
+    val cost: JsonElement? = null,
 )
 
 @Serializable
