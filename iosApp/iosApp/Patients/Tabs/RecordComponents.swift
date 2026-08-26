@@ -371,7 +371,7 @@ private struct RecordSectionRows<Item>: View {
         .onTapGesture {
             onOpenRecord?(spec.displayType, spec.recordId(item), spec.fields(item).filter { !$0.value.isEmpty })
         }
-        .recordSwipeDelete(title: spec.deleteTitle ?? spec.title) {
+        .confirmationSwipeDelete(title: spec.deleteTitle ?? spec.title) {
             spec.onDelete(item)
         }
     }

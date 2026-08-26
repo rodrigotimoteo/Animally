@@ -4,9 +4,6 @@ import Shared
 struct PatientListView: View {
     @StateObject private var viewModel = PatientListViewModel()
     @State private var showSettings = false
-    @State private var showDeleteConfirmation = false
-    @State private var pendingPatientId: Int64?
-    @State private var pendingPatientName = ""
     @State private var searchText = ""
 
     var body: some View {
@@ -64,14 +61,11 @@ struct PatientListView: View {
                             PatientRowView(patient: patient)
                         }
                         .accessibilityIdentifier("patient_row_\(patient.id)")
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                pendingPatientId = patient.id
-                                pendingPatientName = patient.name
-                                showDeleteConfirmation = true
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
+                        .confirmationSwipeDelete(
+                            title: patient.name,
+                            message: "The patient will be removed from the active list. Existing history is kept."
+                        ) {
+                            viewModel.delete(patientId: patient.id)
                         }
                     }
                 }
@@ -84,20 +78,6 @@ struct PatientListView: View {
         .listStyle(.insetGrouped)
         .refreshable {
             viewModel.load()
-        }
-        .confirmationDialog(
-            "Delete \(pendingPatientName)?",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                guard let pendingPatientId else { return }
-                viewModel.delete(patientId: pendingPatientId)
-                self.pendingPatientId = nil
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The patient will be removed from the active list. Existing history is kept.")
         }
     }
 

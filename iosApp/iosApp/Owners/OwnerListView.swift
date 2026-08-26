@@ -4,9 +4,6 @@ import Shared
 struct OwnerListView: View {
     @StateObject private var viewModel = OwnerListViewModel()
     @State private var searchText = ""
-    @State private var showDeleteConfirmation = false
-    @State private var pendingOwnerId: Int64?
-    @State private var pendingOwnerName = ""
 
     var body: some View {
         Group {
@@ -52,14 +49,11 @@ struct OwnerListView: View {
                             OwnerRowView(owner: owner)
                         }
                         .accessibilityIdentifier("owner_row_\(owner.id)")
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                pendingOwnerId = owner.id
-                                pendingOwnerName = owner.name
-                                showDeleteConfirmation = true
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
+                        .confirmationSwipeDelete(
+                            title: owner.name,
+                            message: "Owners with linked patients cannot be deleted. Unlink their patients first."
+                        ) {
+                            viewModel.delete(ownerId: owner.id)
                         }
                     }
                 }
@@ -72,20 +66,6 @@ struct OwnerListView: View {
         .listStyle(.insetGrouped)
         .refreshable {
             viewModel.load()
-        }
-        .confirmationDialog(
-            "Delete \(pendingOwnerName)?",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                guard let pendingOwnerId else { return }
-                viewModel.delete(ownerId: pendingOwnerId)
-                self.pendingOwnerId = nil
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Owners with linked patients cannot be deleted. Unlink their patients first.")
         }
     }
 

@@ -214,6 +214,13 @@ enum SpeechTranscriberService {
         }
 
         if status == .installed {
+            // SpeechAnalyzer does not convert microphone audio for us. If the
+            // installed assets cannot provide a compatible analyzer format,
+            // let the resolver continue to the legacy engine instead of
+            // starting a pipeline that will fail when its first buffer arrives.
+            guard await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) != nil else {
+                return nil
+            }
             return engine()
         }
         // Only the preferred locale gets an asset download; fallback locales
@@ -225,9 +232,15 @@ enum SpeechTranscriberService {
             guard
                 let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber])
             else {
+                guard await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) != nil else {
+                    return nil
+                }
                 return engine()
             }
             try await request.downloadAndInstall()
+            guard await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) != nil else {
+                return nil
+            }
             return engine()
         } catch {
             // Download failed or unavailable → degrade silently.
@@ -273,11 +286,82 @@ enum SpeechTranscriberService {
 
 // MARK: - iOS 26 SpeechAnalyzer pipeline
 
+private enum SpeechAnalyzerTranscriberError: LocalizedError {
+    case analyzerFormatUnavailable
+    case audioConverterUnavailable
+    case audioConversionFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .analyzerFormatUnavailable:
+            return "Speech recognition cannot find a compatible audio format on this device."
+        case .audioConverterUnavailable, .audioConversionFailed:
+            return "Speech recognition could not prepare the microphone audio."
+        }
+    }
+}
+
+/// Converts the hardware microphone format to the format supported by the
+/// active SpeechAnalyzer module. The wrapper is intentionally sendable because
+/// its only cross-thread operation is protected by a lock; the audio tap can
+/// run independently of the main actor that owns the transcriber.
+@available(iOS 26.0, *)
+private final class SpeechAnalyzerAudioConverter: @unchecked Sendable {
+    private let converter: AVAudioConverter
+    private let analyzerFormat: AVAudioFormat
+    private let lock = NSLock()
+
+    init?(inputFormat: AVAudioFormat, analyzerFormat: AVAudioFormat) {
+        guard let converter = AVAudioConverter(from: inputFormat, to: analyzerFormat) else {
+            return nil
+        }
+        self.converter = converter
+        self.analyzerFormat = analyzerFormat
+    }
+
+    func convert(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let sampleRateRatio = analyzerFormat.sampleRate / buffer.format.sampleRate
+        guard sampleRateRatio > 0, buffer.frameLength > 0 else {
+            throw SpeechAnalyzerTranscriberError.audioConversionFailed
+        }
+
+        let outputCapacity = AVAudioFrameCount(
+            ceil(Double(buffer.frameLength) * sampleRateRatio) + 32
+        )
+        guard let converted = AVAudioPCMBuffer(
+            pcmFormat: analyzerFormat,
+            frameCapacity: outputCapacity
+        ) else {
+            throw SpeechAnalyzerTranscriberError.audioConversionFailed
+        }
+
+        var conversionError: NSError?
+        var hasProvidedInput = false
+        _ = converter.convert(to: converted, error: &conversionError) { _, status in
+            guard !hasProvidedInput else {
+                status.pointee = .endOfStream
+                return nil
+            }
+            hasProvidedInput = true
+            status.pointee = .haveData
+            return buffer
+        }
+        guard conversionError == nil, converted.frameLength > 0 else {
+            throw SpeechAnalyzerTranscriberError.audioConversionFailed
+        }
+        return converted
+    }
+}
+
 /// iOS 26 `SpeechAnalyzer` + `SpeechTranscriber` implementation.
 ///
-/// Streams microphone buffers straight into the analyzer and forwards both
-/// volatile (in-progress) and final results. `finalizeAndFinishThroughEndOfInput`
-/// flushes trailing audio so the last words are never cut off.
+/// Converts microphone buffers to the analyzer's supported format, then
+/// forwards both volatile (in-progress) and final results.
+/// `finalizeAndFinishThroughEndOfInput` flushes trailing audio so the last
+/// words are never cut off.
 @available(iOS 26.0, *)
 @MainActor
 final class SpeechAnalyzerTranscriber: SpeechTranscribing {
@@ -286,7 +370,8 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
     private var analyzer: SpeechAnalyzer?
     private var transcriber: SpeechTranscriber?
     private let engine = AVAudioEngine()
-    private var bufferStream: AsyncStream<AVAudioPCMBuffer>.Continuation?
+    private var bufferStream: AsyncStream<Speech.AnalyzerInput>.Continuation?
+    private var audioConverter: SpeechAnalyzerAudioConverter?
     private var pumpTask: Task<Void, Never>?
     private var resultsTask: Task<Void, Never>?
 
@@ -323,9 +408,38 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
 
         configureAudioSession()
 
-        var continuation: AsyncStream<AVAudioPCMBuffer>.Continuation!
+        let input = engine.inputNode
+        let inputFormat = input.outputFormat(forBus: 0)
+        guard
+            let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
+                compatibleWith: [transcriber]
+            )
+        else {
+            teardownAudioPipeline()
+            throw SpeechAnalyzerTranscriberError.analyzerFormatUnavailable
+        }
+        guard let audioConverter = SpeechAnalyzerAudioConverter(
+            inputFormat: inputFormat,
+            analyzerFormat: analyzerFormat
+        ) else {
+            teardownAudioPipeline()
+            throw SpeechAnalyzerTranscriberError.audioConverterUnavailable
+        }
+        self.audioConverter = audioConverter
+
+        // Prepare before the first buffer arrives. The old implementation
+        // relied on lazy setup and passed the hardware format directly into
+        // AnalyzerInput, which triggers an assertion on some iPhones.
+        do {
+            try await analyzer.prepareToAnalyze(in: analyzerFormat)
+        } catch {
+            teardownAudioPipeline()
+            throw error
+        }
+
+        var continuation: AsyncStream<Speech.AnalyzerInput>.Continuation!
         let stream = AsyncStream(
-            AVAudioPCMBuffer.self,
+            Speech.AnalyzerInput.self,
             bufferingPolicy: .bufferingNewest(64)
         ) { continuation = $0 }
         self.bufferStream = continuation
@@ -333,8 +447,7 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         // Pump microphone buffers into the analyzer until the stream ends.
         pumpTask = Task { [weak self, analyzer] in
             do {
-                let mapped = stream.map { Speech.AnalyzerInput(buffer: $0) }
-                try await analyzer.start(inputSequence: mapped)
+                try await analyzer.start(inputSequence: stream)
             } catch is CancellationError {
                 // Expected when the user cancels or finishes the recording.
             } catch {
@@ -361,14 +474,33 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
             }
         }
 
-        let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
-        audioWriter?.start(format: format)
+        audioWriter?.start(format: inputFormat)
         let audioWriter = self.audioWriter
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [continuation, audioWriter] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) {
+            [weak self, continuation, audioWriter, audioConverter] buffer, when in
             audioWriter?.append(buffer)
-            if let pcmBuffer = buffer as? AVAudioPCMBuffer {
-                continuation?.yield(pcmBuffer)
+            do {
+                let converted = try audioConverter.convert(buffer)
+                let startTime: CMTime?
+                if when.isSampleTimeValid, when.sampleRate > 0 {
+                    startTime = CMTime(
+                        seconds: Double(when.sampleTime) / when.sampleRate,
+                        preferredTimescale: 1_000_000
+                    )
+                } else {
+                    startTime = nil
+                }
+                continuation?.yield(
+                    Speech.AnalyzerInput(buffer: converted, bufferStartTime: startTime)
+                )
+            } catch {
+                // Never throw from an audio tap. Finishing the input stream
+                // lets the analyzer unwind normally, while the view receives
+                // an actionable failure message on the main actor.
+                continuation?.finish()
+                Task { @MainActor [weak self] in
+                    self?.failureHandler?(error.localizedDescription)
+                }
             }
         }
         engine.prepare()
@@ -383,6 +515,11 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
     func finish() async throws -> String {
         keepCompletedRecording = true
         defer { teardownAudioPipeline() }
+
+        // Stop production before ending the sequence so no tap callback can
+        // race the final input. The custom converter is synchronous and has no
+        // pending frames once its callback returns.
+        stopAudioInput()
         bufferStream?.finish()
         try await analyzer?.finalizeAndFinishThroughEndOfInput()
         if let resultsTask {
@@ -397,6 +534,7 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         let analyzer = self.analyzer
         resultsTask?.cancel()
         pumpTask?.cancel()
+        stopAudioInput()
         await analyzer?.cancelAndFinishNow()
         resultsTask = nil
         pumpTask = nil
@@ -409,11 +547,16 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         try? session.setActive(true)
     }
 
-    private func teardownAudioPipeline() {
+    private func stopAudioInput() {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+    }
+
+    private func teardownAudioPipeline() {
+        stopAudioInput()
         bufferStream?.finish()
         bufferStream = nil
+        audioConverter = nil
         analyzer = nil
         transcriber = nil
         if keepCompletedRecording {

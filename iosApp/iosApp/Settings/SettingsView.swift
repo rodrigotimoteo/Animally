@@ -37,6 +37,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showModelPicker) {
                 CloudModelPickerSheet(
                     models: viewModel.cloudModelChoices,
+                    accentColor: selectedAccentColor,
                     onSelect: { model in
                         viewModel.setCloudModel(model)
                         showModelPicker = false
@@ -140,18 +141,32 @@ struct SettingsView: View {
             ))
 
             if viewModel.cloudAiEnabled {
-                Picker("Provider", selection: Binding(
-                    get: { viewModel.cloudProviderPreset },
-                    set: { viewModel.setCloudProviderPreset($0) }
-                )) {
+                Menu {
                     ForEach(viewModel.cloudProviderPresets, id: \.self) { preset in
-                        Text(preset.displayName).tag(preset)
+                        Button {
+                            viewModel.setCloudProviderPreset(preset)
+                        } label: {
+                            if preset == viewModel.cloudProviderPreset {
+                                Label(preset.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(preset.displayName)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text("Provider")
+                        Spacer()
+                        Text(viewModel.cloudProviderPreset.displayName)
+                            .foregroundStyle(selectedAccentColor)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(selectedAccentColor)
                     }
                 }
-                // Picker menus can retain the first tint they receive while a
-                // sheet remains open; keep the provider control tied directly to
-                // the currently selected accent as well as the surrounding list.
                 .tint(selectedAccentColor)
+                .accessibilityLabel("Provider")
+                .accessibilityValue(viewModel.cloudProviderPreset.displayName)
                 .accessibilityIdentifier("settings_cloud_provider")
 
                 SecureField("API Key", text: Binding(
@@ -405,6 +420,7 @@ enum SettingsRoute: Hashable {
 /// Searchable sheet over the last-fetched model list; tapping a row selects it.
 private struct CloudModelPickerSheet: View {
     let models: [String]
+    let accentColor: Color
     let onSelect: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -435,6 +451,7 @@ private struct CloudModelPickerSheet: View {
             .navigationTitle("Choose a model")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $filter, prompt: "Filter models")
+            .tint(accentColor)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }

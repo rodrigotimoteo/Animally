@@ -1,17 +1,22 @@
 import SwiftUI
 
-/// Adds a trailing red delete swipe action to a record row. Apply directly
-/// to the row content inside `ForEach`. The explicit confirmation protects
-/// clinical history from an accidental swipe, especially on small screens.
-private struct RecordSwipeDelete: ViewModifier {
+/// Adds a trailing red delete swipe action to a row. Apply directly to the
+/// row content inside `ForEach`. The explicit confirmation protects clinical
+/// history from an accidental swipe, especially on small screens.
+private struct ConfirmationSwipeDelete: ViewModifier {
     let title: String
+    let message: String
     let onDelete: () -> Void
     @State private var isShowingConfirmation = false
 
     func body(content: Content) -> some View {
         content
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                Button(role: .destructive) {
+                // This button only opens the confirmation dialog. Keeping it
+                // non-destructive prevents SwiftUI's List coordinator from
+                // treating the swipe as an immediate row deletion before the
+                // user confirms the operation.
+                Button {
                     isShowingConfirmation = true
                 } label: {
                     Text("Delete")
@@ -26,16 +31,17 @@ private struct RecordSwipeDelete: ViewModifier {
                 Button("Delete", role: .destructive, action: onDelete)
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This record will be removed from the patient's active history.")
+                Text(message)
             }
     }
 }
 
 extension View {
-    func recordSwipeDelete(
+    func confirmationSwipeDelete(
         title: String,
-        onDelete: @escaping () -> Void,
+        message: String = "This record will be removed from the patient's active history.",
+        onDelete: @escaping () -> Void
     ) -> some View {
-        modifier(RecordSwipeDelete(title: title, onDelete: onDelete))
+        modifier(ConfirmationSwipeDelete(title: title, message: message, onDelete: onDelete))
     }
 }
