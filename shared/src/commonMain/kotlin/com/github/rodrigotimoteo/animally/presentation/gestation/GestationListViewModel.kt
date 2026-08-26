@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.DeleteGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationsByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class GestationListViewModel(
      */
     fun onEditClick(recordId: Long) = navigateTo(Route.AddEditGestation(patientId, recordId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses any error surfaced by the screen.
      */
@@ -95,6 +118,26 @@ class GestationListViewModel(
  */
 data class GestationListUiState(
     val records: List<Gestation> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Gestations matching the current search query. */
+    val filteredRecords: List<Gestation>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.breedingDate.toString(),
+                    record.expectedDueDate.toString(),
+                    record.gestationDays.toString(),
+                    record.status,
+                    record.fetalCount?.toString(),
+                    record.lastCheckDate?.toString(),
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** Gestations shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<Gestation>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

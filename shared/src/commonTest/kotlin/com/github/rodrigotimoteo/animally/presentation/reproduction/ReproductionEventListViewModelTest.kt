@@ -128,4 +128,53 @@ class ReproductionEventListViewModelTest {
 
             assertNull(vm.uiState.value.errorMessage)
         }
+
+    @Test
+    fun `long list collapses and search reveals matching event`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val events =
+                (1L..6L).map { id ->
+                    reproductionEvent.copy(
+                        id = id,
+                        eventType = if (id == 6L) "Heat" else "Breeding",
+                    )
+                }
+            every { reproductionRepositoryMock.getByPatient(1L) } returns events
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            advanceUntilIdle()
+
+            assertEquals(5, vm.uiState.value.visibleRecords.size)
+            vm.onSearchClick()
+            vm.onSearchQueryChange("heat")
+
+            assertEquals(1, vm.uiState.value.filteredRecords.size)
+            assertEquals(
+                "Heat",
+                vm.uiState.value.visibleRecords
+                    .single()
+                    .eventType,
+            )
+        }
+
+    @Test
+    fun `closing search clears query and expansion toggles`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val events = (1L..6L).map { id -> reproductionEvent.copy(id = id) }
+            every { reproductionRepositoryMock.getByPatient(1L) } returns events
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onToggleExpanded()
+            assertEquals(6, vm.uiState.value.visibleRecords.size)
+
+            vm.onSearchClick()
+            vm.onSearchQueryChange("breeding")
+            vm.onCloseSearch()
+
+            assertEquals(null, vm.uiState.value.displayState.searchQuery)
+            assertEquals(6, vm.uiState.value.visibleRecords.size)
+        }
 }

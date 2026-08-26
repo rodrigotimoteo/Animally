@@ -40,12 +40,12 @@ struct MedicalTabView: View {
     }
 
     private var totalRecords: Int {
-        viewModel.consultations.count +
-        viewModel.lamenessRecords.count +
-        viewModel.surgeries.count +
-        viewModel.medications.count +
-        viewModel.substances.count +
-        viewModel.weights.count
+        viewModel.consultations.totalCount +
+        viewModel.lamenessRecords.totalCount +
+        viewModel.surgeries.totalCount +
+        viewModel.medications.totalCount +
+        viewModel.substances.totalCount +
+        viewModel.weights.totalCount
     }
 
     private var recordList: some View {
@@ -54,7 +54,7 @@ struct MedicalTabView: View {
                 RecordSectionSpec(
                     title: "Consultations",
                     icon: "stethoscope",
-                    items: viewModel.consultations,
+                    items: viewModel.consultations.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.assessment.isEmpty ? "Consultation" : $0.assessment },
                     rowSubtitle: { $0.vetName },
@@ -69,7 +69,8 @@ struct MedicalTabView: View {
                         .init(label: "Veterinarian", value: record.vetName ?? ""),
                         .init(label: "Next Visit", value: record.nextVisitDate?.displayString ?? ""),
                     ] },
-                    onDelete: { viewModel.deleteConsultation($0.id) }
+                    onDelete: { viewModel.deleteConsultation($0.id) },
+                    display: viewModel.display(for: .consultations)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -78,7 +79,7 @@ struct MedicalTabView: View {
                 RecordSectionSpec(
                     title: "Lameness Evaluations",
                     icon: "figure.run",
-                    items: viewModel.lamenessRecords,
+                    items: viewModel.lamenessRecords.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { "AAEP Grade \($0.gradeAAEP)" },
                     rowSubtitle: { $0.limbLocation },
@@ -95,7 +96,8 @@ struct MedicalTabView: View {
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
                     onDelete: { viewModel.deleteLameness($0.id) },
-                    deleteTitle: "Lameness Evaluation"
+                    deleteTitle: "Lameness Evaluation",
+                    display: viewModel.display(for: .lameness)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -104,7 +106,7 @@ struct MedicalTabView: View {
                 RecordSectionSpec(
                     title: "Surgeries",
                     icon: "scissors",
-                    items: viewModel.surgeries,
+                    items: viewModel.surgeries.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.type ?? "Surgery" },
                     rowSubtitle: { $0.surgeon },
@@ -121,7 +123,8 @@ struct MedicalTabView: View {
                         .init(label: "Complications", value: record.complications ?? ""),
                         .init(label: "Recovery Notes", value: record.recoveryNotes ?? ""),
                     ] },
-                    onDelete: { viewModel.deleteSurgery($0.id) }
+                    onDelete: { viewModel.deleteSurgery($0.id) },
+                    display: viewModel.display(for: .surgeries)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -130,7 +133,7 @@ struct MedicalTabView: View {
                 RecordSectionSpec(
                     title: "Medications",
                     icon: "pills",
-                    items: viewModel.medications,
+                    items: viewModel.medications.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.name },
                     rowSubtitle: { $0.dosage },
@@ -146,7 +149,8 @@ struct MedicalTabView: View {
                         .init(label: "Prescribed By", value: record.prescribedBy ?? ""),
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
-                    onDelete: { viewModel.deleteMedication($0.id) }
+                    onDelete: { viewModel.deleteMedication($0.id) },
+                    display: viewModel.display(for: .medications)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -155,7 +159,7 @@ struct MedicalTabView: View {
                 RecordSectionSpec(
                     title: "Controlled Substances",
                     icon: "lock.shield.fill",
-                    items: viewModel.substances,
+                    items: viewModel.substances.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.drugName },
                     rowSubtitle: { $0.dose + ($0.unit.map { " \($0)" } ?? "") },
@@ -172,7 +176,8 @@ struct MedicalTabView: View {
                         .init(label: "Reason", value: record.reason ?? ""),
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
-                    onDelete: { viewModel.deleteSubstance($0.id) }
+                    onDelete: { viewModel.deleteSubstance($0.id) },
+                    display: viewModel.display(for: .substances)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -181,7 +186,7 @@ struct MedicalTabView: View {
                 RecordSectionSpec(
                     title: "Weight Records",
                     icon: "scalemass.fill",
-                    items: viewModel.weights,
+                    items: viewModel.weights.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { String(format: "%.1f kg", $0.weightKg) },
                     rowSubtitle: { _ in nil },
@@ -193,7 +198,8 @@ struct MedicalTabView: View {
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
                     onDelete: { viewModel.deleteWeight($0.id) },
-                    deleteTitle: "Weight Entry"
+                    deleteTitle: "Weight Entry",
+                    display: viewModel.display(for: .weights)
                 ),
                 onOpenRecord: onOpenRecord
             )

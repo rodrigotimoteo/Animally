@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.DeleteFarrierVisitUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.GetFarrierVisitsByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class FarrierVisitListViewModel(
      */
     fun onEditClick(farrierVisitId: Long) = navigateTo(Route.AddEditFarrierVisit(patientId, farrierVisitId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses any error surfaced by the screen.
      */
@@ -95,6 +118,26 @@ class FarrierVisitListViewModel(
  */
 data class FarrierVisitListUiState(
     val records: List<FarrierVisit> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Farrier visits matching the current search query. */
+    val filteredRecords: List<FarrierVisit>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.date.toString(),
+                    record.trimOrShoe,
+                    record.shoeType,
+                    record.findings,
+                    record.nextDueDate?.toString(),
+                    record.farrier,
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** Farrier visits shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<FarrierVisit>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

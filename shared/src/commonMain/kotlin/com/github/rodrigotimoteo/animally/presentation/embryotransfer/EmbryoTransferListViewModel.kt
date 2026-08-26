@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.embryotransfer.model.EmbryoTransfer
 import com.github.rodrigotimoteo.animally.domain.embryotransfer.usecase.DeleteEmbryoTransferUseCase
 import com.github.rodrigotimoteo.animally.domain.embryotransfer.usecase.GetEmbryoTransfersByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import kotlinx.coroutines.CoroutineDispatcher
@@ -67,6 +70,26 @@ class EmbryoTransferListViewModel(
         }
     }
 
+    /** Opens the inline search field. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses the current error message.
      */
@@ -84,6 +107,24 @@ class EmbryoTransferListViewModel(
  */
 data class EmbryoTransferListUiState(
     val records: List<EmbryoTransfer> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Embryo transfers matching the current search query. */
+    val filteredRecords: List<EmbryoTransfer>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.date.toString(),
+                    record.embryoCount.toString(),
+                    record.recipientMares,
+                    record.vetName,
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** Embryo transfers shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<EmbryoTransfer>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

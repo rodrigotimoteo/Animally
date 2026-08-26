@@ -4,8 +4,8 @@ import Shared
 /// Manages the Diagnostics tab: lab results and imaging.
 @MainActor
 final class DiagnosticsTabViewModel: ObservableObject {
-    @Published var labResults: [LabResult_] = []
-    @Published var imagingRecords: [Imaging_] = []
+    @Published var labResults = RecordListState<LabResult_>()
+    @Published var imagingRecords = RecordListState<Imaging_>()
 
     @Published var isLoading: Bool = true
 
@@ -23,11 +23,27 @@ final class DiagnosticsTabViewModel: ObservableObject {
         imagingStore = IosReproAndDiagnosticsStores.shared.imagingListStore(patientId: patientId)
 
         cancellables.append(labStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.labResults = state.records }
+            Task { @MainActor in
+                self?.labResults = Self.recordListState(
+                    allItems: state.records,
+                    visibleItems: state.visibleRecords,
+                    matchingCount: state.filteredRecords.count,
+                    searchQuery: state.displayState.searchQuery,
+                    isExpanded: state.displayState.isExpanded
+                )
+            }
             self?.markFirstEmission("labResults")
         }))
         cancellables.append(imagingStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.imagingRecords = state.records }
+            Task { @MainActor in
+                self?.imagingRecords = Self.recordListState(
+                    allItems: state.records,
+                    visibleItems: state.visibleRecords,
+                    matchingCount: state.filteredRecords.count,
+                    searchQuery: state.displayState.searchQuery,
+                    isExpanded: state.displayState.isExpanded
+                )
+            }
             self?.markFirstEmission("imaging")
         }))
 
@@ -44,6 +60,73 @@ final class DiagnosticsTabViewModel: ObservableObject {
     /// Soft-deletes the record and reloads the list via the store.
     func deleteImaging(_ recordId: Int64) {
         imagingStore.delete(recordId: recordId)
+    }
+
+    enum SectionID {
+        case labResults, imaging
+    }
+
+    func openSearch(for section: SectionID) {
+        switch section {
+        case .labResults: labStore.openSearch()
+        case .imaging: imagingStore.openSearch()
+        }
+    }
+
+    func updateSearch(_ query: String, for section: SectionID) {
+        switch section {
+        case .labResults: labStore.updateSearch(query: query)
+        case .imaging: imagingStore.updateSearch(query: query)
+        }
+    }
+
+    func closeSearch(for section: SectionID) {
+        switch section {
+        case .labResults: labStore.closeSearch()
+        case .imaging: imagingStore.closeSearch()
+        }
+    }
+
+    func toggleExpanded(for section: SectionID) {
+        switch section {
+        case .labResults: labStore.toggleExpanded()
+        case .imaging: imagingStore.toggleExpanded()
+        }
+    }
+
+    func display(for section: SectionID) -> RecordSectionDisplayState {
+        switch section {
+        case .labResults:
+            return labResults.sectionDisplay(
+                onSearchClick: { [weak self] in self?.openSearch(for: .labResults) },
+                onSearchQueryChange: { [weak self] query in self?.updateSearch(query, for: .labResults) },
+                onCloseSearch: { [weak self] in self?.closeSearch(for: .labResults) },
+                onToggleExpanded: { [weak self] in self?.toggleExpanded(for: .labResults) }
+            )
+        case .imaging:
+            return imagingRecords.sectionDisplay(
+                onSearchClick: { [weak self] in self?.openSearch(for: .imaging) },
+                onSearchQueryChange: { [weak self] query in self?.updateSearch(query, for: .imaging) },
+                onCloseSearch: { [weak self] in self?.closeSearch(for: .imaging) },
+                onToggleExpanded: { [weak self] in self?.toggleExpanded(for: .imaging) }
+            )
+        }
+    }
+
+    private static func recordListState<Item>(
+        allItems: [Item],
+        visibleItems: [Item],
+        matchingCount: Int,
+        searchQuery: String?,
+        isExpanded: Bool
+    ) -> RecordListState<Item> {
+        RecordListState(
+            allItems: allItems,
+            visibleItems: visibleItems,
+            matchingCount: matchingCount,
+            searchQuery: searchQuery,
+            isExpanded: isExpanded
+        )
     }
 
     private func markFirstEmission(_ key: String) {

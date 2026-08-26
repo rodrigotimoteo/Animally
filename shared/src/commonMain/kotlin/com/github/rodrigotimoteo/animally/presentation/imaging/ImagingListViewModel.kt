@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.DeleteImagingUseCase
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.GetImagingListByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class ImagingListViewModel(
      */
     fun onEditClick(imagingId: Long) = navigateTo(Route.AddEditImaging(patientId, imagingId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses the current error message.
      */
@@ -95,6 +118,25 @@ class ImagingListViewModel(
  */
 data class ImagingListUiState(
     val records: List<Imaging> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Imaging records matching the current search query. */
+    val filteredRecords: List<Imaging>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.type,
+                    record.date.toString(),
+                    record.findings,
+                    record.imageUris,
+                    record.vetName,
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** Imaging records shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<Imaging>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

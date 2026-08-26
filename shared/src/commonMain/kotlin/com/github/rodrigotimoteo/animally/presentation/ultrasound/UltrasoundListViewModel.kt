@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.DeleteUltrasoundUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundsByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class UltrasoundListViewModel(
      */
     fun onEditClick(recordId: Long) = navigateTo(Route.AddEditUltrasound(patientId, recordId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses any error surfaced by the screen.
      */
@@ -95,6 +118,34 @@ class UltrasoundListViewModel(
  */
 data class UltrasoundListUiState(
     val records: List<Ultrasound> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Ultrasounds matching the current search query. */
+    val filteredRecords: List<Ultrasound>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.date.toString(),
+                    record.ovaryStatus,
+                    record.uterineStatus,
+                    record.follicleSizeMm?.toString(),
+                    record.leftOvaryStatus,
+                    record.rightOvaryStatus,
+                    record.leftFollicleSizeMm?.toString(),
+                    record.rightFollicleSizeMm?.toString(),
+                    record.uterineEdema,
+                    record.uterineLiquid?.toString(),
+                    record.uterineLiquidDescription,
+                    record.uterusDescription,
+                    record.findings,
+                    record.vetName,
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** Ultrasounds shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<Ultrasound>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

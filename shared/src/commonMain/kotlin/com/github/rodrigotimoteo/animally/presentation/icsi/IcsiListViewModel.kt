@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.icsi.model.Icsi
 import com.github.rodrigotimoteo.animally.domain.icsi.usecase.DeleteIcsiUseCase
 import com.github.rodrigotimoteo.animally.domain.icsi.usecase.GetIcsiByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import kotlinx.coroutines.CoroutineDispatcher
@@ -67,6 +70,26 @@ class IcsiListViewModel(
         }
     }
 
+    /** Opens the inline search field. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses the current error message.
      */
@@ -84,6 +107,23 @@ class IcsiListViewModel(
  */
 data class IcsiListUiState(
     val records: List<Icsi> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** ICSI records matching the current search query. */
+    val filteredRecords: List<Icsi>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.date.toString(),
+                    record.folliclesRecovered.toString(),
+                    record.vetName,
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** ICSI records shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<Icsi>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

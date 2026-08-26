@@ -40,107 +40,72 @@ struct DiagnosticsTabView: View {
     }
 
     private var totalRecords: Int {
-        viewModel.labResults.count + viewModel.imagingRecords.count
+        viewModel.labResults.totalCount + viewModel.imagingRecords.totalCount
     }
 
     private var recordList: some View {
         List {
             // Lab Results
-            RecordSection(title: "Lab Results", icon: "testtube.2", count: viewModel.labResults.count) {
-                ForEach(viewModel.labResults, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "testtube.2",
-                            iconTint: Theme.forestGreen,
-                            title: record.testType,
-                            subtitle: record.vetName,
-                            date: record.date.displayString
-                        )
-                        if let results = record.results, !results.isEmpty {
-                            HStack(alignment: .top, spacing: 4) {
-                                Image(systemName: "text.alignleft")
-                                    .font(.caption2)
-                                Text(results)
-                                    .font(.caption2)
-                                    .lineLimit(2)
-                            }
-                            .foregroundStyle(Theme.textSecondary)
-                            .padding(.leading, 48)
-                        }
-                        if let normalRange = record.normalRange, !normalRange.isEmpty {
-                            HStack(spacing: 4) {
-                                Image(systemName: "range.right")
-                                    .font(.caption2)
-                                Text("Normal: \(normalRange)")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(Theme.textSecondary)
-                            .padding(.leading, 48)
-                        }
-                    }
-                    .contentShape(Rectangle())
-
-                    .onTapGesture {
-
-                        onOpenRecord?("Lab Result", record.id, [
-                            .init(label: "Date", value: record.date.displayString),
-                            .init(label: "Test Type", value: record.testType),
-                            .init(label: "Results", value: record.results ?? ""),
-                            .init(label: "Normal Range", value: record.normalRange ?? ""),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-
-                    }
-
-                    .recordSwipeDelete(title: "Lab Result") {
-                        viewModel.deleteLabResult(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Lab Results",
+                    icon: "testtube.2",
+                    items: viewModel.labResults.visibleItems,
+                    recordId: { $0.id },
+                    rowTitle: { $0.testType },
+                    rowSubtitle: { $0.vetName },
+                    rowDate: { $0.date.displayString },
+                    displayType: "Lab Result",
+                    fields: { record in [
+                        .init(label: "Date", value: record.date.displayString),
+                        .init(label: "Test Type", value: record.testType),
+                        .init(label: "Results", value: record.results ?? ""),
+                        .init(label: "Normal Range", value: record.normalRange ?? ""),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteLabResult($0.id) },
+                    extraLine: { record in
+                        [
+                            record.results,
+                            record.normalRange.map { "Normal: \($0)" },
+                        ]
+                        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " · ")
+                    },
+                    extraLineLabel: nil,
+                    display: viewModel.display(for: .labResults)
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
             // Imaging
-            RecordSection(title: "Imaging", icon: "photo.on.rectangle.angled", count: viewModel.imagingRecords.count) {
-                ForEach(viewModel.imagingRecords, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "photo.on.rectangle.angled",
-                            iconTint: Theme.forestGreen,
-                            title: record.type,
-                            subtitle: record.vetName,
-                            date: record.date.displayString
-                        )
-                        if let findings = record.findings, !findings.isEmpty {
-                            HStack(alignment: .top, spacing: 4) {
-                                Image(systemName: "text.alignleft")
-                                    .font(.caption2)
-                                Text(findings)
-                                    .font(.caption2)
-                                    .lineLimit(2)
-                            }
-                            .foregroundStyle(Theme.textSecondary)
-                            .padding(.leading, 48)
-                        }
-                    }
-                    .contentShape(Rectangle())
-
-                    .onTapGesture {
-
-                        onOpenRecord?("Imaging", record.id, [
-                            .init(label: "Date", value: record.date.displayString),
-                            .init(label: "Type", value: record.type),
-                            .init(label: "Findings", value: record.findings ?? ""),
-                            .init(label: "Veterinarian", value: record.vetName ?? ""),
-                            .init(label: "Notes", value: record.notes ?? ""),
-                        ].filter { !$0.value.isEmpty })
-
-                    }
-
-                    .recordSwipeDelete(title: "Imaging Study") {
-                        viewModel.deleteImaging(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Imaging",
+                    icon: "photo.on.rectangle.angled",
+                    items: viewModel.imagingRecords.visibleItems,
+                    recordId: { $0.id },
+                    rowTitle: { $0.type },
+                    rowSubtitle: { $0.vetName },
+                    rowDate: { $0.date.displayString },
+                    displayType: "Imaging",
+                    fields: { record in [
+                        .init(label: "Date", value: record.date.displayString),
+                        .init(label: "Type", value: record.type),
+                        .init(label: "Findings", value: record.findings ?? ""),
+                        .init(label: "Veterinarian", value: record.vetName ?? ""),
+                        .init(label: "Notes", value: record.notes ?? ""),
+                    ] },
+                    onDelete: { viewModel.deleteImaging($0.id) },
+                    deleteTitle: "Imaging Study",
+                    extraLine: { $0.findings },
+                    extraLineLabel: nil,
+                    display: viewModel.display(for: .imaging)
+                ),
+                onOpenRecord: onOpenRecord
+            )
         }
         .listStyle(.insetGrouped)
     }

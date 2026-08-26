@@ -1,6 +1,55 @@
 import SwiftUI
 import Shared
 
+/// Presentation state for one record section.
+///
+/// The Kotlin list view model owns filtering, ordering, and the collapsed
+/// projection. SwiftUI only keeps the full collection available for derived
+/// tab-level content such as the active gestation card.
+struct RecordListState<Item> {
+    var allItems: [Item] = []
+    var visibleItems: [Item] = []
+    var matchingCount: Int = 0
+    var searchQuery: String?
+    var isExpanded: Bool = false
+
+    var totalCount: Int { allItems.count }
+    var isSearching: Bool { searchQuery != nil }
+
+    func sectionDisplay(
+        onSearchClick: @escaping () -> Void,
+        onSearchQueryChange: @escaping (String) -> Void,
+        onCloseSearch: @escaping () -> Void,
+        onToggleExpanded: @escaping () -> Void
+    ) -> RecordSectionDisplayState {
+        RecordSectionDisplayState(
+            totalCount: totalCount,
+            matchingCount: matchingCount,
+            searchQuery: searchQuery,
+            isExpanded: isExpanded,
+            onSearchClick: onSearchClick,
+            onSearchQueryChange: onSearchQueryChange,
+            onCloseSearch: onCloseSearch,
+            onToggleExpanded: onToggleExpanded
+        )
+    }
+}
+
+/// Search and expansion actions supplied by the shared Kotlin list state.
+struct RecordSectionDisplayState {
+    let totalCount: Int
+    let matchingCount: Int
+    let searchQuery: String?
+    let isExpanded: Bool
+    let onSearchClick: () -> Void
+    let onSearchQueryChange: (String) -> Void
+    let onCloseSearch: () -> Void
+    let onToggleExpanded: () -> Void
+
+    var isSearching: Bool { searchQuery != nil }
+    var hasBlankSearch: Bool { searchQuery?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true }
+}
+
 // MARK: - Date Formatting Helper
 
 extension Kotlinx_datetimeLocalDate {
@@ -70,23 +119,101 @@ struct RecordSection<Content: View>: View {
     let title: String
     let icon: String
     let count: Int
+    let display: RecordSectionDisplayState?
     @ViewBuilder let content: () -> Content
 
+    init(
+        title: String,
+        icon: String,
+        count: Int,
+        display: RecordSectionDisplayState? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.icon = icon
+        self.count = count
+        self.display = display
+        self.content = content
+    }
+
     var body: some View {
-        if count > 0 {
+        if count > 0 || (display?.totalCount ?? 0) > 0 {
             Section {
-                content()
+                if let display, display.isSearching, display.matchingCount == 0 {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("No matches")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.textPrimary)
+                        Button("Clear search", action: display.onCloseSearch)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Theme.forestGreen)
+                    }
+                    .padding(.vertical, 8)
+                } else {
+                    content()
+                }
             } header: {
-                HStack(spacing: 6) {
-                    Image(systemName: icon)
-                        .font(.caption)
-                        .foregroundStyle(Theme.forestGreen)
-                    Text("\(title) (\(count))")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.forestGreen)
-                        .textCase(nil)
+                RecordSectionHeader(title: title, icon: icon, count: count, display: display)
+            }
+        }
+    }
+}
+
+private struct RecordSectionHeader: View {
+    let title: String
+    let icon: String
+    let count: Int
+    let display: RecordSectionDisplayState?
+    @FocusState private var isSearchFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let display, display.isSearching {
+                TextField("Search \(title)", text: Binding(
+                    get: { display.searchQuery ?? "" },
+                    set: display.onSearchQueryChange
+                ))
+                .textFieldStyle(.roundedBorder)
+                .font(.subheadline)
+                .focused($isSearchFocused)
+                .accessibilityLabel("Search \(title)")
+
+                Button {
+                    isSearchFocused = false
+                    display.onCloseSearch()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close search \(title)")
+            } else {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(Theme.forestGreen)
+                Text("\(title) (\(count))")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.forestGreen)
+                    .textCase(nil)
+
+                Spacer(minLength: 4)
+
+                if let display {
+                    Button(action: display.onSearchClick) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.forestGreen)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Search \(title)")
                 }
             }
+        }
+        .onAppear {
+            isSearchFocused = display?.isSearching == true
+        }
+        .onChange(of: display?.isSearching) { _, isSearching in
+            isSearchFocused = isSearching ?? false
         }
     }
 }
@@ -107,6 +234,7 @@ struct RecordSectionSpec<Item> {
     let displayType: String
     let fields: (Item) -> [RecordDetailNav.FieldRow]
     let onDelete: (Item) -> Void
+    let display: RecordSectionDisplayState?
 
     /// Title shown on the swipe-delete button; defaults to `title`.
     var deleteTitle: String? = nil
@@ -114,6 +242,9 @@ struct RecordSectionSpec<Item> {
     /// Optional single-line extra under the row (rendered in the amber
     /// calendar style used by next-due lines). Nil line = no extra.
     var extraLine: ((Item) -> String?)? = nil
+
+    /// Optional label for [extraLine]. `nil` renders the value without a prefix.
+    var extraLineLabel: String? = "Next due"
 
     init(
         title: String,
@@ -127,7 +258,9 @@ struct RecordSectionSpec<Item> {
         fields: @escaping (Item) -> [RecordDetailNav.FieldRow],
         onDelete: @escaping (Item) -> Void,
         deleteTitle: String? = nil,
-        extraLine: ((Item) -> String?)? = nil
+        extraLine: ((Item) -> String?)? = nil,
+        extraLineLabel: String? = "Next due",
+        display: RecordSectionDisplayState? = nil
     ) {
         self.title = title
         self.icon = icon
@@ -141,19 +274,25 @@ struct RecordSectionSpec<Item> {
         self.onDelete = onDelete
         self.deleteTitle = deleteTitle
         self.extraLine = extraLine
+        self.extraLineLabel = extraLineLabel
+        self.display = display
     }
 }
 
 /// Renders a `RecordSectionSpec`: section container, rows, optional extra
-/// lines, tap-to-open-record wiring, and swipe-to-delete. When more than
-/// `RecordSectionRowsConfig.collapseLimit` records exist, only the 5 most recent
-/// (by row date, newest first) are shown until the user expands inline.
+/// lines, tap-to-open-record wiring, and swipe-to-delete. The shared Kotlin
+/// list state supplies the filtered and collapsed item projection.
 @ViewBuilder
 func recordSection<Item>(
     _ spec: RecordSectionSpec<Item>,
     onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)?
 ) -> some View {
-    RecordSection(title: spec.title, icon: spec.icon, count: spec.items.count) {
+    RecordSection(
+        title: spec.title,
+        icon: spec.icon,
+        count: spec.display?.matchingCount ?? spec.items.count,
+        display: spec.display
+    ) {
         RecordSectionRows(spec: spec, onOpenRecord: onOpenRecord)
     }
 }
@@ -170,54 +309,40 @@ private struct RecordSectionRows<Item>: View {
     let spec: RecordSectionSpec<Item>
     let onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)?
 
-    @State private var isExpanded = false
-
-    private var sortedItems: [Item] {
-        spec.items.sorted { a, b in
-            let da = spec.rowDate(a) ?? ""
-            let db = spec.rowDate(b) ?? ""
-            if da != db { return da > db }
-            // Same-date ties (bulk-created records): newer auto-increment id wins
-            // so freshly created rows always surface in the recent window.
-            return spec.recordId(a) > spec.recordId(b)
-        }
-    }
-
     var body: some View {
-        let items = sortedItems
-        let visibleCount = isExpanded ? items.count : min(items.count, RecordSectionRowsConfig.collapseLimit)
-
         Group {
             ForEach(
-                items.prefix(visibleCount).map { (spec.recordId($0), $0) },
+                spec.items.map { (spec.recordId($0), $0) },
                 id: \.0
             ) { _, item in
                 row(item)
             }
 
-            if items.count > RecordSectionRowsConfig.collapseLimit {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Spacer()
-                    Text(isExpanded ? "Show less" : "Show all \(items.count)")
-                        .font(.subheadline.weight(.medium))
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.weight(.semibold))
-                }
+            if let display = spec.display,
+               display.matchingCount > RecordSectionRowsConfig.collapseLimit,
+               display.hasBlankSearch {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        display.onToggleExpanded()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Spacer()
+                        Text(display.isExpanded ? "Show less" : "Show all \(display.matchingCount)")
+                            .font(.subheadline.weight(.medium))
+                        Image(systemName: display.isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.semibold))
+                    }
                     .foregroundStyle(Theme.forestGreen)
                     .padding(.vertical, 6)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isExpanded ? "Show fewer \(spec.title)" : "Show all \(items.count) \(spec.title)")
+                .accessibilityLabel(
+                    display.isExpanded
+                        ? "Show fewer \(spec.title)"
+                        : "Show all \(display.matchingCount) \(spec.title)"
+                )
             }
-        }
-        .onChange(of: items.count) { _, _ in
-            // Fresh data (reload/delete): collapse back to the recent top 5.
-            isExpanded = false
         }
     }
 
@@ -235,7 +360,7 @@ private struct RecordSectionRows<Item>: View {
                 HStack(spacing: 4) {
                     Image(systemName: "calendar")
                         .font(.caption2)
-                    Text("Next due: \(extra)")
+                    Text("\(spec.extraLineLabel.map { "\($0): " } ?? "")\(extra)")
                         .font(.caption2)
                 }
                 .foregroundStyle(Theme.amber)

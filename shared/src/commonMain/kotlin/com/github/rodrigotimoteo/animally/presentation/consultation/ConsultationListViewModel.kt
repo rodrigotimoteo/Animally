@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.consultation.usecase.DeleteConsultationUseCase
 import com.github.rodrigotimoteo.animally.domain.consultation.usecase.GetConsultationsByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class ConsultationListViewModel(
      */
     fun onEditClick(consultationId: Long) = navigateTo(Route.AddEditConsultation(patientId, consultationId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses the current error message.
      */
@@ -95,6 +118,26 @@ class ConsultationListViewModel(
  */
 data class ConsultationListUiState(
     val consultations: List<Consultation> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Consultations matching the current search query. */
+    val filteredConsultations: List<Consultation>
+        get() =
+            consultations.filterBySearch(displayState.searchQuery) { consultation ->
+                listOfNotNull(
+                    consultation.date.toString(),
+                    consultation.subjective,
+                    consultation.objective,
+                    consultation.assessment,
+                    consultation.plan,
+                    consultation.vetName,
+                    consultation.nextVisitDate?.toString(),
+                ).joinToString(" ")
+            }
+
+    /** Consultations shown after applying search and the collapsed-list limit. */
+    val visibleConsultations: List<Consultation>
+        get() = filteredConsultations.visibleForListDisplay(displayState)
+}

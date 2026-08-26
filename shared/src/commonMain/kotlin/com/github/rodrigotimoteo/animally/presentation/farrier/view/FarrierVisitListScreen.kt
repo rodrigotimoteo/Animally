@@ -2,13 +2,9 @@ package com.github.rodrigotimoteo.animally.presentation.farrier.view
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +17,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
+import com.github.rodrigotimoteo.animally.presentation.common.list.CollapsibleListContent
+import com.github.rodrigotimoteo.animally.presentation.common.list.CollapsibleListState
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayActions
+import com.github.rodrigotimoteo.animally.presentation.common.list.RecordListActions
+import com.github.rodrigotimoteo.animally.presentation.common.list.SearchableListHeader
 import com.github.rodrigotimoteo.animally.presentation.common.state.ErrorState
 import com.github.rodrigotimoteo.animally.presentation.common.state.ListErrorHandlers
 import com.github.rodrigotimoteo.animally.presentation.farrier.FarrierVisitListUiState
@@ -42,9 +43,19 @@ fun FarrierVisitListScreen(
     FarrierVisitListContent(
         uiState = uiState,
         modifier = modifier,
-        onAddClick = viewModel::onAddClick,
-        onEditClick = viewModel::onEditClick,
-        errorHandlers = ListErrorHandlers(onRetry = viewModel::load, onDismiss = viewModel::onDismissError),
+        actions =
+            RecordListActions(
+                onAddClick = viewModel::onAddClick,
+                onItemClick = viewModel::onEditClick,
+                displayActions =
+                    ListDisplayActions(
+                        onSearchClick = viewModel::onSearchClick,
+                        onSearchQueryChange = viewModel::onSearchQueryChange,
+                        onCloseSearch = viewModel::onCloseSearch,
+                        onToggleExpanded = viewModel::onToggleExpanded,
+                    ),
+                errorHandlers = ListErrorHandlers(onRetry = viewModel::load, onDismiss = viewModel::onDismissError),
+            ),
     )
 }
 
@@ -52,28 +63,19 @@ fun FarrierVisitListScreen(
 private fun FarrierVisitListContent(
     uiState: FarrierVisitListUiState,
     modifier: Modifier,
-    onAddClick: () -> Unit,
-    onEditClick: (Long) -> Unit,
-    errorHandlers: ListErrorHandlers,
+    actions: RecordListActions,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Farrier Visits",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f),
-            )
-            Button(onClick = onAddClick) {
-                Text("Add")
-            }
-        }
+        SearchableListHeader(
+            title = "Farrier Visits",
+            displayState = uiState.displayState,
+            onAddClick = actions.onAddClick,
+            displayActions = actions.displayActions,
+        )
         when {
             uiState.isLoading ->
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator()
@@ -81,29 +83,30 @@ private fun FarrierVisitListContent(
             uiState.errorMessage != null ->
                 ErrorState(
                     message = uiState.errorMessage,
-                    onRetry = errorHandlers.onRetry,
-                    onDismiss = errorHandlers.onDismiss,
+                    onRetry = actions.errorHandlers.onRetry,
+                    onDismiss = actions.errorHandlers.onDismiss,
+                    modifier = Modifier.weight(1f),
                 )
             uiState.records.isEmpty() ->
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("No farrier visits yet", style = MaterialTheme.typography.bodyLarge)
                 }
-            else -> FarrierVisitList(uiState.records, onEditClick)
-        }
-    }
-}
-
-@Composable
-private fun FarrierVisitList(
-    visits: List<FarrierVisit>,
-    onEditClick: (Long) -> Unit,
-) {
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(visits, key = { it.id }) { visit ->
-            FarrierVisitCard(visit, onEditClick)
+            else ->
+                CollapsibleListContent(
+                    listState =
+                        CollapsibleListState(
+                            visibleItems = uiState.visibleRecords,
+                            filteredItemCount = uiState.filteredRecords.size,
+                            displayState = uiState.displayState,
+                        ),
+                    displayActions = actions.displayActions,
+                    itemKey = { it.id },
+                    modifier = Modifier.weight(1f),
+                    itemContent = { visit -> FarrierVisitCard(visit, actions.onItemClick) },
+                )
         }
     }
 }

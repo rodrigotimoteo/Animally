@@ -1,24 +1,24 @@
 package com.github.rodrigotimoteo.animally.presentation.weight.view
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
+import com.github.rodrigotimoteo.animally.presentation.common.list.CollapsibleListContent
+import com.github.rodrigotimoteo.animally.presentation.common.list.CollapsibleListState
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayActions
+import com.github.rodrigotimoteo.animally.presentation.common.list.RecordListActions
+import com.github.rodrigotimoteo.animally.presentation.common.list.SearchableListHeader
 import com.github.rodrigotimoteo.animally.presentation.common.state.EmptyState
 import com.github.rodrigotimoteo.animally.presentation.common.state.ErrorState
 import com.github.rodrigotimoteo.animally.presentation.common.state.ListErrorHandlers
@@ -42,9 +42,19 @@ fun WeightListScreen(
     WeightListContent(
         uiState = uiState,
         modifier = modifier,
-        onAddClick = viewModel::onAddClick,
-        onEditClick = viewModel::onEditClick,
-        errorHandlers = ListErrorHandlers(onRetry = viewModel::load, onDismiss = viewModel::onDismissError),
+        actions =
+            RecordListActions(
+                onAddClick = viewModel::onAddClick,
+                onItemClick = viewModel::onEditClick,
+                displayActions =
+                    ListDisplayActions(
+                        onSearchClick = viewModel::onSearchClick,
+                        onSearchQueryChange = viewModel::onSearchQueryChange,
+                        onCloseSearch = viewModel::onCloseSearch,
+                        onToggleExpanded = viewModel::onToggleExpanded,
+                    ),
+                errorHandlers = ListErrorHandlers(onRetry = viewModel::load, onDismiss = viewModel::onDismissError),
+            ),
     )
 }
 
@@ -52,47 +62,39 @@ fun WeightListScreen(
 private fun WeightListContent(
     uiState: WeightListUiState,
     modifier: Modifier,
-    onAddClick: () -> Unit,
-    onEditClick: (Long) -> Unit,
-    errorHandlers: ListErrorHandlers,
+    actions: RecordListActions,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Weight",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f),
-            )
-            Button(onClick = onAddClick) {
-                Text("Add")
-            }
-        }
+        SearchableListHeader(
+            title = "Weight",
+            displayState = uiState.displayState,
+            onAddClick = actions.onAddClick,
+            displayActions = actions.displayActions,
+        )
         when {
-            uiState.isLoading -> LoadingState()
+            uiState.isLoading -> LoadingState(modifier = Modifier.weight(1f))
             uiState.errorMessage != null ->
                 ErrorState(
                     message = uiState.errorMessage,
-                    onRetry = errorHandlers.onRetry,
-                    onDismiss = errorHandlers.onDismiss,
+                    onRetry = actions.errorHandlers.onRetry,
+                    onDismiss = actions.errorHandlers.onDismiss,
+                    modifier = Modifier.weight(1f),
                 )
             uiState.records.isEmpty() ->
-                EmptyState(title = "No weight records yet")
-            else -> WeightList(uiState.records, onEditClick)
-        }
-    }
-}
-
-@Composable
-private fun WeightList(
-    records: List<Weight>,
-    onEditClick: (Long) -> Unit,
-) {
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(records, key = { it.id }) { record ->
-            WeightCard(record, onEditClick)
+                EmptyState(title = "No weight records yet", modifier = Modifier.weight(1f))
+            else ->
+                CollapsibleListContent(
+                    listState =
+                        CollapsibleListState(
+                            visibleItems = uiState.visibleRecords,
+                            filteredItemCount = uiState.filteredRecords.size,
+                            displayState = uiState.displayState,
+                        ),
+                    displayActions = actions.displayActions,
+                    itemKey = { it.id },
+                    modifier = Modifier.weight(1f),
+                    itemContent = { record -> WeightCard(record, actions.onItemClick) },
+                )
         }
     }
 }

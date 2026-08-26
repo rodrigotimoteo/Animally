@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.DeleteDentistryUseCase
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.GetDentistryListByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class DentistryListViewModel(
      */
     fun onEditClick(dentistryId: Long) = navigateTo(Route.AddEditDentistry(patientId, dentistryId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses any error surfaced by the screen.
      */
@@ -95,6 +118,25 @@ class DentistryListViewModel(
  */
 data class DentistryListUiState(
     val records: List<Dentistry> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Dentistry records matching the current search query. */
+    val filteredRecords: List<Dentistry>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.date.toString(),
+                    record.findings,
+                    record.treatment,
+                    record.nextDueDate?.toString(),
+                    record.vetName,
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** Dentistry records shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<Dentistry>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

@@ -40,10 +40,10 @@ struct PreventiveTabView: View {
     }
 
     private var totalRecords: Int {
-        viewModel.vaccinations.count +
-        viewModel.dewormings.count +
-        viewModel.dentistryRecords.count +
-        viewModel.farrierVisits.count
+        viewModel.vaccinations.totalCount +
+        viewModel.dewormings.totalCount +
+        viewModel.dentistryRecords.totalCount +
+        viewModel.farrierVisits.totalCount
     }
 
     private var recordList: some View {
@@ -52,7 +52,7 @@ struct PreventiveTabView: View {
                 RecordSectionSpec(
                     title: "Vaccinations",
                     icon: "syringe.fill",
-                    items: viewModel.vaccinations,
+                    items: viewModel.vaccinations.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.vaccineName },
                     rowSubtitle: { _ in nil },
@@ -68,7 +68,8 @@ struct PreventiveTabView: View {
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
                     onDelete: { viewModel.deleteVaccination($0.id) },
-                    extraLine: { $0.nextDueDate?.displayString }
+                    extraLine: { $0.nextDueDate?.displayString },
+                    display: viewModel.display(for: .vaccinations)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -77,7 +78,7 @@ struct PreventiveTabView: View {
                 RecordSectionSpec(
                     title: "Dewormings",
                     icon: "pills.fill",
-                    items: viewModel.dewormings,
+                    items: viewModel.dewormings.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.product },
                     rowSubtitle: { $0.dose },
@@ -92,7 +93,8 @@ struct PreventiveTabView: View {
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
                     onDelete: { viewModel.deleteDeworming($0.id) },
-                    extraLine: { $0.nextDueDate?.displayString }
+                    extraLine: { $0.nextDueDate?.displayString },
+                    display: viewModel.display(for: .dewormings)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -101,7 +103,7 @@ struct PreventiveTabView: View {
                 RecordSectionSpec(
                     title: "Dentistry",
                     icon: "mouth.fill",
-                    items: viewModel.dentistryRecords,
+                    items: viewModel.dentistryRecords.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.treatment ?? "Dental check" },
                     rowSubtitle: { $0.findings },
@@ -117,7 +119,8 @@ struct PreventiveTabView: View {
                     ] },
                     onDelete: { viewModel.deleteDentistry($0.id) },
                     deleteTitle: "Dentistry Record",
-                    extraLine: { $0.nextDueDate?.displayString }
+                    extraLine: { $0.nextDueDate?.displayString },
+                    display: viewModel.display(for: .dentistry)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -126,7 +129,7 @@ struct PreventiveTabView: View {
                 RecordSectionSpec(
                     title: "Farrier Visits",
                     icon: "figure.walk",
-                    items: viewModel.farrierVisits,
+                    items: viewModel.farrierVisits.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.trimOrShoe ?? "Farrier visit" },
                     rowSubtitle: { $0.farrier },
@@ -143,7 +146,8 @@ struct PreventiveTabView: View {
                     ] },
                     onDelete: { viewModel.deleteFarrierVisit($0.id) },
                     deleteTitle: "Farrier Visit",
-                    extraLine: { $0.nextDueDate?.displayString }
+                    extraLine: { $0.nextDueDate?.displayString },
+                    display: viewModel.display(for: .farrier)
                 ),
                 onOpenRecord: onOpenRecord
             )

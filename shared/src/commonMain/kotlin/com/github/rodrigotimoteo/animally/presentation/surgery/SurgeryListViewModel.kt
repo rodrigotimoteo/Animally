@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.DeleteSurgeryUseCase
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.GetSurgeriesByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class SurgeryListViewModel(
      */
     fun onEditClick(surgeryId: Long) = navigateTo(Route.AddEditSurgery(patientId, surgeryId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses the current error message.
      */
@@ -95,6 +118,28 @@ class SurgeryListViewModel(
  */
 data class SurgeryListUiState(
     val records: List<Surgery> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Surgeries matching the current search query. */
+    val filteredRecords: List<Surgery>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.date.toString(),
+                    record.type,
+                    record.description,
+                    record.outcome,
+                    record.surgeon,
+                    record.anesthesia,
+                    record.analgesia,
+                    record.complications,
+                    record.recoveryNotes,
+                ).joinToString(" ")
+            }
+
+    /** Surgeries shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<Surgery>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

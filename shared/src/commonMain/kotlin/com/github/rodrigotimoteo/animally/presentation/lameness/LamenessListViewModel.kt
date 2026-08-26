@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.DeleteLamenessUseCase
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.GetLamenessListByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class LamenessListViewModel(
      */
     fun onEditClick(lamenessId: Long) = navigateTo(Route.AddEditLameness(patientId, lamenessId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses the current error message.
      */
@@ -95,6 +118,27 @@ class LamenessListViewModel(
  */
 data class LamenessListUiState(
     val records: List<Lameness> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Lameness records matching the current search query. */
+    val filteredRecords: List<Lameness>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.date.toString(),
+                    record.gradeAAEP.toString(),
+                    record.limbLocation,
+                    record.flexionTest,
+                    record.diagnosis,
+                    record.treatment,
+                    record.vetName,
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** Lameness records shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<Lameness>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

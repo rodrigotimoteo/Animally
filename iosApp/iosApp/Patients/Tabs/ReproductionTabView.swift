@@ -45,19 +45,19 @@ struct ReproductionTabView: View {
     }
 
     private var totalRecords: Int {
-        viewModel.reproductionEvents.count +
-        viewModel.ultrasounds.count +
-        viewModel.gestations.count +
-        viewModel.reproMedications.count +
-        viewModel.embryoTransfers.count +
-        viewModel.icsiRecords.count
+        viewModel.reproductionEvents.totalCount +
+        viewModel.ultrasounds.totalCount +
+        viewModel.gestations.totalCount +
+        viewModel.reproMedications.totalCount +
+        viewModel.embryoTransfers.totalCount +
+        viewModel.icsiRecords.totalCount
     }
 
     private var recordList: some View {
         List {
             // Active pregnancy pinned to the very top — the most important
             // information on this tab.
-            if let active = viewModel.gestations
+            if let active = viewModel.gestations.allItems
                 .filter({ Self.isActive($0) })
                 .max(by: { $0.breedingDate.displayString < $1.breedingDate.displayString }) {
                 Section {
@@ -74,7 +74,7 @@ struct ReproductionTabView: View {
                 RecordSectionSpec(
                     title: "Events",
                     icon: "heart.fill",
-                    items: viewModel.reproductionEvents,
+                    items: viewModel.reproductionEvents.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.eventType },
                     rowSubtitle: { $0.details },
@@ -91,134 +91,66 @@ struct ReproductionTabView: View {
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
                     onDelete: { viewModel.deleteReproductionEvent($0.id) },
-                    deleteTitle: "Reproduction Event"
+                    deleteTitle: "Reproduction Event",
+                    display: viewModel.display(for: .reproductionEvents)
                 ),
                 onOpenRecord: onOpenRecord
             )
 
             // Gestations
-            RecordSection(title: "Gestations", icon: "baby.fill", count: viewModel.gestations.count) {
-                ForEach(viewModel.gestations, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "baby.fill",
-                            iconTint: Theme.forestGreen,
-                            title: "Day \(record.gestationDays)",
-                            subtitle: record.status,
-                            date: record.breedingDate.displayString
-                        )
-                        HStack(spacing: 12) {
-                            Label {
-                                Text("Due: \(record.expectedDueDate.displayString)")
-                            } icon: {
-                                Image(systemName: "calendar.badge.clock")
-                            }
-                            .font(.caption2)
-                            .foregroundStyle(Theme.textSecondary)
-
-                            if let fetalCount = record.fetalCount {
-                                Label {
-                                    Text("\(fetalCount) fetus\(fetalCount.intValue > 1 ? "es" : "")")
-                                } icon: {
-                                    Image(systemName: "number")
-                                }
-                                .font(.caption2)
-                                .foregroundStyle(Theme.textSecondary)
-                            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Gestations",
+                    icon: "baby.fill",
+                    items: viewModel.gestations.visibleItems,
+                    recordId: { $0.id },
+                    rowTitle: { "Day \($0.gestationDays)" },
+                    rowSubtitle: { $0.status },
+                    rowDate: { $0.breedingDate.displayString },
+                    displayType: "Gestation",
+                    fields: { Self.gestationFields($0) },
+                    onDelete: { viewModel.deleteGestation($0.id) },
+                    extraLine: { record in
+                        var details = ["Due: \(record.expectedDueDate.displayString)"]
+                        if let fetalCount = record.fetalCount {
+                            details.append("\(fetalCount) fetus\(fetalCount.intValue > 1 ? "es" : "")")
                         }
-                        .padding(.leading, 48)
-                    }
-                    .contentShape(Rectangle())
-
-                    .onTapGesture {
-                        onOpenRecord?("Gestation", record.id, Self.gestationFields(record))
-                    }
-
-                    .recordSwipeDelete(title: "Gestation") {
-                        viewModel.deleteGestation(record.id)
-                    }
-                }
-            }
+                        return details.joined(separator: " · ")
+                    },
+                    extraLineLabel: nil,
+                    display: viewModel.display(for: .gestations)
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
             // Ultrasounds
-            RecordSection(title: "Ultrasounds", icon: "waveform.path.ecg", count: viewModel.ultrasounds.count) {
-                ForEach(viewModel.ultrasounds, id: \.id) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        RecordRowView(
-                            icon: "waveform.path.ecg",
-                            iconTint: Theme.forestGreen,
-                            title: "Reproductive Ultrasound",
-                            subtitle: record.ovaryStatus,
-                            date: record.date.displayString
-                        )
-                        if let follicleSize = record.follicleSizeMm {
-                            HStack(spacing: 4) {
-                                Image(systemName: "ruler")
-                                    .font(.caption2)
-                                Text(String(format: "Follicle: %.1f mm", follicleSize.doubleValue))
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(Theme.textSecondary)
-                            .padding(.leading, 48)
-                        }
-                        if let summary = Self.ultrasoundExtraLine(record) {
-                            // Same visual treatment as the Preventive tab's
-                            // amber next-due lines, so every card carries one
-                            // scannable identifying line.
-                            HStack(spacing: 4) {
-                                Image(systemName: "note.text")
-                                    .font(.caption2)
-                                Text(summary)
-                                    .font(.caption2)
-                                    .lineLimit(1)
-                            }
-                            .foregroundStyle(Theme.amber)
-                            .padding(.leading, 48)
-                        }
-                    }
-                    .contentShape(Rectangle())
-
-                    .onTapGesture {
-                        let fs = record.follicleSizeMm?.doubleValue
-                        let lfs = record.leftFollicleSizeMm?.doubleValue
-                        let rfs = record.rightFollicleSizeMm?.doubleValue
-                        var fields: [RecordDetailNav.FieldRow] = [
-                            .init(label: "Date", value: record.date.displayString),
-                            .init(label: "Ovary Status", value: record.ovaryStatus ?? ""),
-                            .init(label: "Uterine Status", value: record.uterineStatus ?? ""),
-                        ]
-                        if let fs {
-                            fields.append(.init(label: "Follicle Size (mm)", value: String(format: "%.1f", fs)))
-                        }
-                        fields.append(.init(label: "Left Ovary Status", value: record.leftOvaryStatus ?? ""))
-                        fields.append(.init(label: "Right Ovary Status", value: record.rightOvaryStatus ?? ""))
-                        if let lfs {
-                            fields.append(.init(label: "Left Follicle Size (mm)", value: String(format: "%.1f", lfs)))
-                        }
-                        if let rfs {
-                            fields.append(.init(label: "Right Follicle Size (mm)", value: String(format: "%.1f", rfs)))
-                        }
-                        fields.append(.init(label: "Uterine Edema", value: record.uterineEdema ?? ""))
-                        fields.append(.init(label: "Fluid Description", value: record.uterineLiquidDescription ?? ""))
-                        fields.append(.init(label: "Uterus Description", value: record.uterusDescription ?? ""))
-                        fields.append(.init(label: "Findings", value: record.findings ?? ""))
-                        fields.append(.init(label: "Veterinarian", value: record.vetName ?? ""))
-                        fields.append(.init(label: "Notes", value: record.notes ?? ""))
-                        onOpenRecord?("Ultrasound", record.id, fields.filter { !$0.value.isEmpty })
-                    }
-
-                    .recordSwipeDelete(title: "Ultrasound") {
-                        viewModel.deleteUltrasound(record.id)
-                    }
-                }
-            }
+            recordSection(
+                RecordSectionSpec(
+                    title: "Ultrasounds",
+                    icon: "waveform.path.ecg",
+                    items: viewModel.ultrasounds.visibleItems,
+                    recordId: { $0.id },
+                    rowTitle: { _ in "Reproductive Ultrasound" },
+                    rowSubtitle: { $0.ovaryStatus },
+                    rowDate: { $0.date.displayString },
+                    displayType: "Ultrasound",
+                    fields: { record in
+                        Self.ultrasoundFields(record)
+                    },
+                    onDelete: { viewModel.deleteUltrasound($0.id) },
+                    extraLine: { Self.ultrasoundExtraLine($0) },
+                    extraLineLabel: nil,
+                    display: viewModel.display(for: .ultrasounds)
+                ),
+                onOpenRecord: onOpenRecord
+            )
 
             // Repro Medications
             recordSection(
                 RecordSectionSpec(
                     title: "Medications",
                     icon: "pills",
-                    items: viewModel.reproMedications,
+                    items: viewModel.reproMedications.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { $0.medication },
                     rowSubtitle: { $0.purpose ?? $0.dosage },
@@ -232,7 +164,8 @@ struct ReproductionTabView: View {
                         .init(label: "Veterinarian", value: record.vetName ?? ""),
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
-                    onDelete: { viewModel.deleteReproMedication($0.id) }
+                    onDelete: { viewModel.deleteReproMedication($0.id) },
+                    display: viewModel.display(for: .reproMedications)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -242,7 +175,7 @@ struct ReproductionTabView: View {
                 RecordSectionSpec(
                     title: "Embryo Transfers",
                     icon: "arrow.triangle.branch",
-                    items: viewModel.embryoTransfers,
+                    items: viewModel.embryoTransfers.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { "\($0.embryoCount) embryo\($0.embryoCount == 1 ? "" : "s")" },
                     rowSubtitle: { $0.recipientMares },
@@ -255,7 +188,8 @@ struct ReproductionTabView: View {
                         .init(label: "Veterinarian", value: record.vetName ?? ""),
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
-                    onDelete: { viewModel.deleteEmbryoTransfer($0.id) }
+                    onDelete: { viewModel.deleteEmbryoTransfer($0.id) },
+                    display: viewModel.display(for: .embryoTransfers)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -265,7 +199,7 @@ struct ReproductionTabView: View {
                 RecordSectionSpec(
                     title: "ICSI",
                     icon: "scope",
-                    items: viewModel.icsiRecords,
+                    items: viewModel.icsiRecords.visibleItems,
                     recordId: { $0.id },
                     rowTitle: { "\($0.folliclesRecovered) follicle\($0.folliclesRecovered == 1 ? "" : "s") recovered" },
                     rowSubtitle: { $0.vetName },
@@ -277,7 +211,8 @@ struct ReproductionTabView: View {
                         .init(label: "Veterinarian", value: record.vetName ?? ""),
                         .init(label: "Notes", value: record.notes ?? ""),
                     ] },
-                    onDelete: { viewModel.deleteIcsi($0.id) }
+                    onDelete: { viewModel.deleteIcsi($0.id) },
+                    display: viewModel.display(for: .icsi)
                 ),
                 onOpenRecord: onOpenRecord
             )
@@ -294,12 +229,50 @@ struct ReproductionTabView: View {
     }
 
     /// One-line identifying summary for an ultrasound card: findings text,
-    /// falling back to the uterine status when findings are empty.
+    /// follicle size, then uterine status when findings are empty.
     private static func ultrasoundExtraLine(_ record: Ultrasound_) -> String? {
+        var details: [String] = []
+        if let follicleSize = record.follicleSizeMm {
+            details.append(String(format: "Follicle: %.1f mm", follicleSize.doubleValue))
+        }
         let findings = record.findings?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !findings.isEmpty { return findings }
+        if !findings.isEmpty {
+            details.append(findings)
+            return details.joined(separator: " · ")
+        }
         let uterine = record.uterineStatus?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return uterine.isEmpty ? nil : uterine
+        if !uterine.isEmpty { details.append(uterine) }
+        return details.isEmpty ? nil : details.joined(separator: " · ")
+    }
+
+    /// Shared field rows for the read-only ultrasound detail screen.
+    private static func ultrasoundFields(_ record: Ultrasound_) -> [RecordDetailNav.FieldRow] {
+        let follicleSize = record.follicleSizeMm?.doubleValue
+        let leftFollicleSize = record.leftFollicleSizeMm?.doubleValue
+        let rightFollicleSize = record.rightFollicleSizeMm?.doubleValue
+        var fields: [RecordDetailNav.FieldRow] = [
+            .init(label: "Date", value: record.date.displayString),
+            .init(label: "Ovary Status", value: record.ovaryStatus ?? ""),
+            .init(label: "Uterine Status", value: record.uterineStatus ?? ""),
+        ]
+        if let follicleSize {
+            fields.append(.init(label: "Follicle Size (mm)", value: String(format: "%.1f", follicleSize)))
+        }
+        fields.append(.init(label: "Left Ovary Status", value: record.leftOvaryStatus ?? ""))
+        fields.append(.init(label: "Right Ovary Status", value: record.rightOvaryStatus ?? ""))
+        if let leftFollicleSize {
+            fields.append(.init(label: "Left Follicle Size (mm)", value: String(format: "%.1f", leftFollicleSize)))
+        }
+        if let rightFollicleSize {
+            fields.append(.init(label: "Right Follicle Size (mm)", value: String(format: "%.1f", rightFollicleSize)))
+        }
+        fields.append(.init(label: "Uterine Edema", value: record.uterineEdema ?? ""))
+        fields.append(.init(label: "Fluid Description", value: record.uterineLiquidDescription ?? ""))
+        fields.append(.init(label: "Uterus Description", value: record.uterusDescription ?? ""))
+        fields.append(.init(label: "Findings", value: record.findings ?? ""))
+        fields.append(.init(label: "Veterinarian", value: record.vetName ?? ""))
+        fields.append(.init(label: "Notes", value: record.notes ?? ""))
+        return fields.filter { !$0.value.isEmpty }
     }
 
     /// Shared field rows for the read-only gestation detail screen.

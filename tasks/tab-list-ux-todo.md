@@ -1,0 +1,5 @@
+- [ ] Add reusable list display state and section controls.
+- [ ] Add per-list Kotlin filtering and display actions.
+- [ ] Cover filter, collapse, search, and no-match behavior with tests.
+- [ ] Run focused tests, lint/format checks, and iOS simulator verification.
+- [ ] Review the diff and commit the completed change.

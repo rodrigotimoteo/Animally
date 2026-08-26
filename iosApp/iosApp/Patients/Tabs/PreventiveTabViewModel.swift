@@ -4,10 +4,10 @@ import Shared
 /// Manages the Preventive tab: vaccination, deworming, dentistry, farrierVisit.
 @MainActor
 final class PreventiveTabViewModel: ObservableObject {
-    @Published var vaccinations: [Vaccination_] = []
-    @Published var dewormings: [Deworming_] = []
-    @Published var dentistryRecords: [Dentistry_] = []
-    @Published var farrierVisits: [FarrierVisit_] = []
+    @Published var vaccinations = RecordListState<Vaccination_>()
+    @Published var dewormings = RecordListState<Deworming_>()
+    @Published var dentistryRecords = RecordListState<Dentistry_>()
+    @Published var farrierVisits = RecordListState<FarrierVisit_>()
 
     @Published var isLoading: Bool = true
 
@@ -29,19 +29,51 @@ final class PreventiveTabViewModel: ObservableObject {
         farrierStore = IosRecordStores.shared.farrierVisitListStore(patientId: patientId)
 
         cancellables.append(vaccinationStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.vaccinations = state.vaccinations }
+            Task { @MainActor in
+                self?.vaccinations = RecordListState(
+                    allItems: state.vaccinations,
+                    visibleItems: state.visibleVaccinations,
+                    matchingCount: state.filteredVaccinations.count,
+                    searchQuery: state.displayState.searchQuery,
+                    isExpanded: state.displayState.isExpanded
+                )
+            }
             self?.markFirstEmission("vaccinations")
         }))
         cancellables.append(dewormingStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.dewormings = state.records }
+            Task { @MainActor in
+                self?.dewormings = Self.recordListState(
+                    allItems: state.records,
+                    visibleItems: state.visibleRecords,
+                    matchingCount: state.filteredRecords.count,
+                    searchQuery: state.displayState.searchQuery,
+                    isExpanded: state.displayState.isExpanded
+                )
+            }
             self?.markFirstEmission("dewormings")
         }))
         cancellables.append(dentistryStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.dentistryRecords = state.records }
+            Task { @MainActor in
+                self?.dentistryRecords = Self.recordListState(
+                    allItems: state.records,
+                    visibleItems: state.visibleRecords,
+                    matchingCount: state.filteredRecords.count,
+                    searchQuery: state.displayState.searchQuery,
+                    isExpanded: state.displayState.isExpanded
+                )
+            }
             self?.markFirstEmission("dentistry")
         }))
         cancellables.append(farrierStore.state.subscribe(onEach: { [weak self] state in
-            Task { @MainActor in self?.farrierVisits = state.records }
+            Task { @MainActor in
+                self?.farrierVisits = Self.recordListState(
+                    allItems: state.records,
+                    visibleItems: state.visibleRecords,
+                    matchingCount: state.filteredRecords.count,
+                    searchQuery: state.displayState.searchQuery,
+                    isExpanded: state.displayState.isExpanded
+                )
+            }
             self?.markFirstEmission("farrier")
         }))
 
@@ -70,6 +102,95 @@ final class PreventiveTabViewModel: ObservableObject {
     /// Soft-deletes the record and reloads the list via the store.
     func deleteFarrierVisit(_ recordId: Int64) {
         farrierStore.delete(recordId: recordId)
+    }
+
+    enum SectionID {
+        case vaccinations, dewormings, dentistry, farrier
+    }
+
+    func openSearch(for section: SectionID) {
+        switch section {
+        case .vaccinations: vaccinationStore.openSearch()
+        case .dewormings: dewormingStore.openSearch()
+        case .dentistry: dentistryStore.openSearch()
+        case .farrier: farrierStore.openSearch()
+        }
+    }
+
+    func updateSearch(_ query: String, for section: SectionID) {
+        switch section {
+        case .vaccinations: vaccinationStore.updateSearch(query: query)
+        case .dewormings: dewormingStore.updateSearch(query: query)
+        case .dentistry: dentistryStore.updateSearch(query: query)
+        case .farrier: farrierStore.updateSearch(query: query)
+        }
+    }
+
+    func closeSearch(for section: SectionID) {
+        switch section {
+        case .vaccinations: vaccinationStore.closeSearch()
+        case .dewormings: dewormingStore.closeSearch()
+        case .dentistry: dentistryStore.closeSearch()
+        case .farrier: farrierStore.closeSearch()
+        }
+    }
+
+    func toggleExpanded(for section: SectionID) {
+        switch section {
+        case .vaccinations: vaccinationStore.toggleExpanded()
+        case .dewormings: dewormingStore.toggleExpanded()
+        case .dentistry: dentistryStore.toggleExpanded()
+        case .farrier: farrierStore.toggleExpanded()
+        }
+    }
+
+    func display(for section: SectionID) -> RecordSectionDisplayState {
+        switch section {
+        case .vaccinations:
+            return vaccinations.sectionDisplay(
+                onSearchClick: { [weak self] in self?.openSearch(for: .vaccinations) },
+                onSearchQueryChange: { [weak self] query in self?.updateSearch(query, for: .vaccinations) },
+                onCloseSearch: { [weak self] in self?.closeSearch(for: .vaccinations) },
+                onToggleExpanded: { [weak self] in self?.toggleExpanded(for: .vaccinations) }
+            )
+        case .dewormings:
+            return dewormings.sectionDisplay(
+                onSearchClick: { [weak self] in self?.openSearch(for: .dewormings) },
+                onSearchQueryChange: { [weak self] query in self?.updateSearch(query, for: .dewormings) },
+                onCloseSearch: { [weak self] in self?.closeSearch(for: .dewormings) },
+                onToggleExpanded: { [weak self] in self?.toggleExpanded(for: .dewormings) }
+            )
+        case .dentistry:
+            return dentistryRecords.sectionDisplay(
+                onSearchClick: { [weak self] in self?.openSearch(for: .dentistry) },
+                onSearchQueryChange: { [weak self] query in self?.updateSearch(query, for: .dentistry) },
+                onCloseSearch: { [weak self] in self?.closeSearch(for: .dentistry) },
+                onToggleExpanded: { [weak self] in self?.toggleExpanded(for: .dentistry) }
+            )
+        case .farrier:
+            return farrierVisits.sectionDisplay(
+                onSearchClick: { [weak self] in self?.openSearch(for: .farrier) },
+                onSearchQueryChange: { [weak self] query in self?.updateSearch(query, for: .farrier) },
+                onCloseSearch: { [weak self] in self?.closeSearch(for: .farrier) },
+                onToggleExpanded: { [weak self] in self?.toggleExpanded(for: .farrier) }
+            )
+        }
+    }
+
+    private static func recordListState<Item>(
+        allItems: [Item],
+        visibleItems: [Item],
+        matchingCount: Int,
+        searchQuery: String?,
+        isExpanded: Bool
+    ) -> RecordListState<Item> {
+        RecordListState(
+            allItems: allItems,
+            visibleItems: visibleItems,
+            matchingCount: matchingCount,
+            searchQuery: searchQuery,
+            isExpanded: isExpanded
+        )
     }
 
     private func markFirstEmission(_ key: String) {

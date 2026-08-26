@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.DeleteReproductionEventUseCase
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReproductionEventsByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class ReproductionEventListViewModel(
      */
     fun onEditClick(recordId: Long) = navigateTo(Route.AddEditReproductionEvent(patientId, recordId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses any error surfaced by the screen.
      */
@@ -95,6 +118,27 @@ class ReproductionEventListViewModel(
  */
 data class ReproductionEventListUiState(
     val records: List<ReproductionEvent> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Reproduction events matching the current search query. */
+    val filteredRecords: List<ReproductionEvent>
+        get() =
+            records.filterBySearch(displayState.searchQuery) { record ->
+                listOfNotNull(
+                    record.eventType,
+                    record.date.toString(),
+                    record.details,
+                    record.initialExamFindings,
+                    record.stallionName,
+                    record.breedingType,
+                    record.vetName,
+                    record.notes,
+                ).joinToString(" ")
+            }
+
+    /** Reproduction events shown after applying search and the collapsed-list limit. */
+    val visibleRecords: List<ReproductionEvent>
+        get() = filteredRecords.visibleForListDisplay(displayState)
+}

@@ -31,6 +31,26 @@ class DentistryListStore(
         viewModel.onDeleteClick(recordId)
     }
 
+    /** Opens the inline search field. */
+    fun openSearch() {
+        viewModel.onSearchClick()
+    }
+
+    /** Updates the inline search query. */
+    fun updateSearch(query: String) {
+        viewModel.onSearchQueryChange(query)
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun closeSearch() {
+        viewModel.onCloseSearch()
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun toggleExpanded() {
+        viewModel.onToggleExpanded()
+    }
+
     /** Clears the current error message. */
     fun dismissError() {
         viewModel.onDismissError()

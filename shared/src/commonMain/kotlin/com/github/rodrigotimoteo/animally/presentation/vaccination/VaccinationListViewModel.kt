@@ -5,6 +5,9 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import com.github.rodrigotimoteo.animally.domain.vaccination.usecase.DeleteVaccinationUseCase
 import com.github.rodrigotimoteo.animally.domain.vaccination.usecase.GetVaccinationsByPatientUseCase
+import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayState
+import com.github.rodrigotimoteo.animally.presentation.common.list.filterBySearch
+import com.github.rodrigotimoteo.animally.presentation.common.list.visibleForListDisplay
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -78,6 +81,26 @@ class VaccinationListViewModel(
      */
     fun onEditClick(vaccinationId: Long) = navigateTo(Route.AddEditVaccination(patientId, vaccinationId))
 
+    /** Opens the inline search field for this list. */
+    fun onSearchClick() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = "")) }
+    }
+
+    /** Updates the inline search query. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = query)) }
+    }
+
+    /** Closes the inline search field and clears its query. */
+    fun onCloseSearch() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(searchQuery = null)) }
+    }
+
+    /** Toggles whether all matching records are shown. */
+    fun onToggleExpanded() {
+        _uiState.update { it.copy(displayState = it.displayState.copy(isExpanded = !it.displayState.isExpanded)) }
+    }
+
     /**
      * Dismisses the current error message.
      */
@@ -95,6 +118,26 @@ class VaccinationListViewModel(
  */
 data class VaccinationListUiState(
     val vaccinations: List<Vaccination> = emptyList(),
+    val displayState: ListDisplayState = ListDisplayState(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Vaccinations matching the current search query. */
+    val filteredVaccinations: List<Vaccination>
+        get() =
+            vaccinations.filterBySearch(displayState.searchQuery) { vaccination ->
+                listOfNotNull(
+                    vaccination.vaccineName,
+                    vaccination.dateAdministered.toString(),
+                    vaccination.nextDueDate?.toString(),
+                    vaccination.vetName,
+                    vaccination.batchNumber,
+                    vaccination.site,
+                    vaccination.notes,
+                ).joinToString(" ")
+            }
+
+    /** Vaccinations shown after applying search and the collapsed-list limit. */
+    val visibleVaccinations: List<Vaccination>
+        get() = filteredVaccinations.visibleForListDisplay(displayState)
+}
