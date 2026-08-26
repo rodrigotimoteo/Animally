@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.presentation.gestation
 
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.gestation.usecase.CalculateGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.DeleteGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
@@ -31,7 +32,8 @@ import kotlin.time.Instant
 class GestationListViewModelTest {
     private val gestationRepositoryMock: IGestationRepository = mock()
 
-    private val getGestationsByPatientUseCase = GetGestationsByPatientUseCase(gestationRepositoryMock)
+    private val getGestationsByPatientUseCase =
+        GetGestationsByPatientUseCase(gestationRepositoryMock, CalculateGestationUseCase())
 
     private val deleteGestationUseCase = DeleteGestationUseCase(gestationRepositoryMock, FakeSearchRepository())
 
@@ -73,7 +75,14 @@ class GestationListViewModelTest {
 
             advanceUntilIdle()
 
-            assertEquals(gestations, vm.uiState.value.records)
+            val expected =
+                gestations
+                    .single()
+            val loaded =
+                vm.uiState.value.records
+                    .single()
+            assertEquals(expected.id, loaded.id)
+            assertEquals(expected.status, loaded.status)
             assertFalse(vm.uiState.value.isLoading)
         }
 

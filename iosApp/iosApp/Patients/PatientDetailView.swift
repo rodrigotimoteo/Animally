@@ -3,6 +3,7 @@ import Shared
 
 struct PatientDetailView: View {
     @StateObject private var viewModel: PatientDetailViewModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: DetailTab = .overview
     @State private var addRecordRoute: RecordEditRoute?
     @State private var recordDetail: RecordDetailNav?
@@ -73,6 +74,12 @@ struct PatientDetailView: View {
             }
             .onAppear {
                 viewModel.load()
+                recordsRefreshToken += 1
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                viewModel.load()
+                recordsRefreshToken += 1
             }
 
             .onChange(of: addRecordRoute) { oldValue, newValue in

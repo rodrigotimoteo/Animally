@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.gestation.usecase
 
+import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
@@ -27,6 +28,7 @@ data class GestationProgress(
 class CalculateGestationUseCase {
     private companion object {
         const val GESTATION_PERIOD_DAYS = 340
+        val RESOLVED_STATUSES = setOf("Completed", "Failed", "Foaled")
     }
 
     /**
@@ -47,4 +49,27 @@ class CalculateGestationUseCase {
             gestationDays = gestationDays,
         )
     }
+
+    /**
+     * Applies the current derived progress to an active gestation for display.
+     *
+     * Completed, failed, and foaled records retain their recorded day count so
+     * historical pregnancies do not appear to keep progressing after they
+     * have ended. This is an in-memory projection; it does not rewrite the
+     * persisted record or create sync churn.
+     */
+    fun withCurrentProgress(
+        gestation: Gestation,
+        today: LocalDate,
+    ): Gestation {
+        if (!gestation.isActive || gestation.status.isResolvedGestationStatus()) return gestation
+
+        val progress = invoke(gestation.breedingDate, today)
+        return gestation.copy(
+            expectedDueDate = progress.expectedDueDate,
+            gestationDays = progress.gestationDays,
+        )
+    }
+
+    private fun String.isResolvedGestationStatus(): Boolean = RESOLVED_STATUSES.any { equals(it, ignoreCase = true) }
 }

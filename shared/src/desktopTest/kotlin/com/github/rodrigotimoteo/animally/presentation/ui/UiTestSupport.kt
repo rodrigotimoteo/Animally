@@ -246,7 +246,7 @@ private fun uiServicesModule(): Module =
         single { GetFarrierVisitsByPatientUseCase(get()) }
         single { GetReproductionEventsByPatientUseCase(get()) }
         single { GetUltrasoundsByPatientUseCase(get()) }
-        single { GetGestationsByPatientUseCase(get()) }
+        single { GetGestationsByPatientUseCase(get(), get()) }
         single { GetReproMedicationsByPatientUseCase(get()) }
         single { GetLabResultsByPatientUseCase(get()) }
         single { GetImagingListByPatientUseCase(get()) }

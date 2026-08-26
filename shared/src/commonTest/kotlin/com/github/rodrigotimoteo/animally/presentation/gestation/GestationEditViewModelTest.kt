@@ -43,7 +43,8 @@ import kotlin.time.Instant
 class GestationEditViewModelTest {
     private val gestationRepositoryMock: IGestationRepository = mock()
 
-    private val getGestationDetailUseCase = GetGestationDetailUseCase(gestationRepositoryMock)
+    private val getGestationDetailUseCase =
+        GetGestationDetailUseCase(gestationRepositoryMock, CalculateGestationUseCase())
 
     private val saveGestationUseCase =
         SaveGestationUseCase(

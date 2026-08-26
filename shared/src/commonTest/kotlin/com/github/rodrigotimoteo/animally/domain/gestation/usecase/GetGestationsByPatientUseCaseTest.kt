@@ -25,7 +25,7 @@ class GetGestationsByPatientUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = GetGestationsByPatientUseCase(gestationRepositoryMock)
+        sut = GetGestationsByPatientUseCase(gestationRepositoryMock, CalculateGestationUseCase())
     }
 
     private fun gestation(
@@ -43,19 +43,37 @@ class GetGestationsByPatientUseCaseTest {
     )
 
     @Test
-    fun `when repository returns gestations then sut returns the same list`() {
+    fun `when repository returns active gestations then sut refreshes derived progress`() {
         val gestations =
             listOf(
                 gestation(id = 1L, breedingDate = LocalDate(2024, 3, 1)),
                 gestation(id = 2L, breedingDate = LocalDate(2024, 2, 1)),
             )
+        val today = LocalDate(2024, 3, 10)
 
         every { gestationRepositoryMock.getByPatient(any()) } returns gestations
 
-        val result = sut(1L)
+        val result = sut(1L, today)
 
-        assertEquals(expected = gestations, actual = result)
+        assertEquals(9, result[0].gestationDays)
+        assertEquals(38, result[1].gestationDays)
+        assertEquals(LocalDate(2025, 2, 4), result[0].expectedDueDate)
         verify(VerifyMode.exactly(1)) { gestationRepositoryMock.getByPatient(any()) }
+    }
+
+    @Test
+    fun `when repository returns resolved gestation then sut preserves recorded progress`() {
+        val completed =
+            gestation(id = 1L, breedingDate = LocalDate(2024, 3, 1)).copy(
+                expectedDueDate = LocalDate(2025, 2, 4),
+                gestationDays = 120,
+                status = "Completed",
+            )
+        every { gestationRepositoryMock.getByPatient(any()) } returns listOf(completed)
+
+        val result = sut(1L, LocalDate(2026, 8, 26))
+
+        assertEquals(completed, result.single())
     }
 
     @Test

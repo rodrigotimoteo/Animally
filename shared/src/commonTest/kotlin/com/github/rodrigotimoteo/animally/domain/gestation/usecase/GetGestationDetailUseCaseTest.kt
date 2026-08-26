@@ -24,7 +24,7 @@ class GetGestationDetailUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = GetGestationDetailUseCase(gestationRepositoryMock)
+        sut = GetGestationDetailUseCase(gestationRepositoryMock, CalculateGestationUseCase())
     }
 
     private fun gestation() =
@@ -40,14 +40,15 @@ class GetGestationDetailUseCaseTest {
         )
 
     @Test
-    fun `when repository returns gestation then sut returns it`() {
+    fun `when repository returns active gestation then sut refreshes derived progress`() {
         val gestation = gestation()
 
         every { gestationRepositoryMock.getById(any()) } returns gestation
 
-        val result = sut(7L)
+        val result = sut(7L, LocalDate(2024, 3, 31))
 
-        assertEquals(expected = gestation, actual = result)
+        assertEquals(30, result?.gestationDays)
+        assertEquals(gestation.expectedDueDate, result?.expectedDueDate)
         verify(VerifyMode.exactly(1)) { gestationRepositoryMock.getById(any()) }
     }
 
@@ -55,7 +56,7 @@ class GetGestationDetailUseCaseTest {
     fun `when repository finds nothing then sut returns null`() {
         every { gestationRepositoryMock.getById(any()) } returns null
 
-        val result = sut(7L)
+        val result = sut(7L, LocalDate(2024, 3, 31))
 
         assertNull(result)
         verify(VerifyMode.exactly(1)) { gestationRepositoryMock.getById(any()) }

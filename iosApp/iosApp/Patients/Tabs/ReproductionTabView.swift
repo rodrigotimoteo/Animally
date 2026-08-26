@@ -34,6 +34,11 @@ struct ReproductionTabView: View {
                 recordList
             }
         }
+        .onAppear {
+            // Recalculate time-based gestation values whenever this tab becomes
+            // visible, including after the app has crossed into a new day.
+            viewModel.reload()
+        }
         .onChange(of: refreshToken) { _, _ in
             viewModel.reload()
         }
