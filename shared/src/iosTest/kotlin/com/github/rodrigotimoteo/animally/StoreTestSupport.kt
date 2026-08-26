@@ -2,12 +2,16 @@ package com.github.rodrigotimoteo.animally
 
 import com.github.rodrigotimoteo.animally.di.database.QueriesModule
 import com.github.rodrigotimoteo.animally.di.database.databaseTestModules
+import com.github.rodrigotimoteo.animally.di.dictationModule
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.di.infra.AppModule
 import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
+import com.github.rodrigotimoteo.animally.di.presentation.cloudLlmModule
+import com.github.rodrigotimoteo.animally.di.settingsModule
 import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionController
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.llm.llmModule
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -37,6 +41,10 @@ object StoreTestSupport {
                     add(AppModule().appModule())
                     add(QueriesModule().provide())
                     add(PresentationModule().provide())
+                    add(cloudLlmModule)
+                    add(llmModule)
+                    add(dictationModule)
+                    add(settingsModule)
                     add(
                         module {
                             single<CoroutineDispatcher>(named(IO_DISPATCHER)) { ioDispatcher }

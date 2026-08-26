@@ -32,6 +32,7 @@ class SaveReproductionEventUseCase(
                 reproductionRepository.insert(reproductionEvent)
             } else {
                 reproductionRepository.update(reproductionEvent)
+                reproductionEvent.id
             }
         val searchableText =
             listOfNotNull(

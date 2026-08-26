@@ -11,8 +11,8 @@ struct AddRecordOption: Identifiable {
     let id: String
     let title: String
     let systemImage: String
-    /// Builds the push destination for a given patient. `nil` means no iOS
-    /// add/edit store + screen exists yet — the option renders disabled.
+    /// Builds the push destination for a given patient. `nil` is reserved for
+    /// record types that are not yet supported by the iOS editor.
     let makeRoute: ((Int64) -> RecordEditRoute)?
 
     var isAvailable: Bool { makeRoute != nil }
@@ -69,8 +69,8 @@ enum AddRecordCatalog {
 }
 
 /// Toolbar "+" menu listing every record type that can be attached to a
-/// patient, grouped by detail-tab section. Options without an iOS add/edit
-/// store render disabled and light up as stores land in the shared module.
+/// patient, grouped by detail-tab section. Unsupported options remain visible
+/// but disabled so the catalog documents the complete record surface.
 struct AddRecordMenu: View {
     let patientId: Int64
     /// Called with the route of a tapped, available option. The owner view

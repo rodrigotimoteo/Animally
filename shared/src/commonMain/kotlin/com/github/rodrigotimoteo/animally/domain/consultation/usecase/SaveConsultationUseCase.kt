@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.domain.consultation.usecase
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -34,13 +35,12 @@ class SaveConsultationUseCase(
                 consultationRepository.update(consultation)
                 consultation.id
             }
-        val searchableText = listOfNotNull(consultation.assessment, consultation.plan).joinToString(" ")
         searchRepository.indexRecord(
             recordType = ISearchRepository.TYPE_CONSULTATION,
             patientId = consultation.patientId,
             recordId = savedId,
             date = consultation.date,
-            searchableText = searchableText,
+            searchableText = SearchableText.consultation(consultation),
         )
         return savedId
     }

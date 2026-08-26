@@ -32,6 +32,7 @@ class SaveDentistryUseCase(
                 dentistryRepository.insert(dentistry)
             } else {
                 dentistryRepository.update(dentistry)
+                dentistry.id
             }
         val searchableText =
             listOfNotNull(

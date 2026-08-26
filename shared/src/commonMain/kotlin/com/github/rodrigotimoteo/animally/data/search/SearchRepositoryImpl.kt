@@ -1,10 +1,24 @@
 package com.github.rodrigotimoteo.animally.data.search
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.anamnese.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.consultation.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.customreminder.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.embryotransfer.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.farrier.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.gestation.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.icsi.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.lameness.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.medication.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.owner.OwnerQueries
+import com.github.rodrigotimoteo.animally.data.patient.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.search.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.substance.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.surgery.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.vaccination.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import kotlinx.datetime.LocalDate
 import org.koin.core.annotation.Provided
@@ -144,16 +158,7 @@ class SearchRepositoryImpl(
             .selectAll()
             .executeAsList()
             .forEach { patient ->
-                val searchableText =
-                    listOfNotNull(
-                        patient.name,
-                        patient.species,
-                        patient.breed,
-                        patient.microchipId,
-                        patient.ueln,
-                        patient.registrationNumber,
-                        patient.stableLocation,
-                    ).joinToString(" ")
+                val searchableText = SearchableText.patient(patient.toDomain())
                 indexRecord(
                     recordType = ISearchRepository.TYPE_PATIENT,
                     patientId = patient.id,
@@ -165,8 +170,10 @@ class SearchRepositoryImpl(
     }
 
     override fun reindexRecords() {
+        reindexAnamneseRows()
         reindexVaccinationRows()
         reindexConsultationRows()
+        reindexMedicationRows()
         reindexDewormingRows()
         reindexDentistryRows()
         reindexFarrierVisitRows()
@@ -182,18 +189,25 @@ class SearchRepositoryImpl(
         reindexImagingRows()
         reindexEmbryoTransferRows()
         reindexIcsiRows()
+        reindexCustomReminderRows()
+    }
+
+    private val reindexAnamneseRows: () -> Unit = {
+        database.anamneseQueries.selectAllRows().executeAsList().forEach {
+            val anamnese = it.toDomain()
+            indexRecord(
+                recordType = RecordType.Anamnese.wireName,
+                patientId = anamnese.patientId,
+                recordId = anamnese.id,
+                date = null,
+                searchableText = SearchableText.anamnese(anamnese),
+            )
+        }
     }
 
     private val reindexConsultationRows: () -> Unit = {
         database.consultationQueries.selectAll().executeAsList().forEach {
-            val searchableText =
-                listOfNotNull(
-                    it.subjective,
-                    it.objective,
-                    it.assessment,
-                    it.plan,
-                    it.vetName,
-                ).joinToString(" ")
+            val searchableText = SearchableText.consultation(it.toDomain())
             indexRecord(
                 recordType = RecordType.Consultation.wireName,
                 patientId = it.patientId,
@@ -206,26 +220,26 @@ class SearchRepositoryImpl(
 
     private val reindexVaccinationRows: () -> Unit = {
         database.vaccinationQueries.selectAll().executeAsList().forEach {
-            // Natural questions ("vaccination", "booster") must hit
-            // vaccination rows, whose raw fields (vaccine name, batch, site)
-            // never contain those generic words. Mirrors the gestation
-            // vocabulary approach below.
-            val vaccinationVocabulary = "vaccination vaccine booster shot"
-            val searchableText =
-                listOfNotNull(
-                    it.vaccineName,
-                    it.batchNumber,
-                    it.vetName,
-                    it.site,
-                    it.notes,
-                    vaccinationVocabulary,
-                ).joinToString(" ")
+            val searchableText = SearchableText.vaccination(it.toDomain())
             indexRecord(
                 recordType = RecordType.Vaccination.wireName,
                 patientId = it.patientId,
                 recordId = it.id,
                 date = it.dateAdministered,
                 searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexMedicationRows: () -> Unit = {
+        database.medicationQueries.selectAll().executeAsList().forEach {
+            val medication = it.toDomain()
+            indexRecord(
+                recordType = RecordType.Medication.wireName,
+                patientId = medication.patientId,
+                recordId = medication.id,
+                date = null,
+                searchableText = SearchableText.medication(medication),
             )
         }
     }
@@ -258,23 +272,7 @@ class SearchRepositoryImpl(
 
     private val reindexFarrierVisitRows: () -> Unit = {
         database.farrierVisitQueries.selectAll().executeAsList().forEach {
-            // Natural questions ("farrier", "visit") must hit farrier rows,
-            // whose raw fields (trim type, farrier name, findings) may not
-            // contain those generic words - a UI-created visit with only a
-            // farrier name + "checkup" was unreachable by any farrier query.
-            // Mirrors the vaccination vocabulary approach. "hoof" is
-            // deliberately NOT added: hoof terms must keep reaching only the
-            // rows whose findings actually mention hooves.
-            val farrierVocabulary = "farrier visit trim shoeing care"
-            val searchableText =
-                listOfNotNull(
-                    it.trimOrShoe,
-                    it.shoeType,
-                    it.findings,
-                    it.farrier,
-                    it.notes,
-                    farrierVocabulary,
-                ).joinToString(" ")
+            val searchableText = SearchableText.farrierVisit(it.toDomain())
             indexRecord(
                 recordType = RecordType.FarrierVisit.wireName,
                 patientId = it.patientId,
@@ -287,21 +285,7 @@ class SearchRepositoryImpl(
 
     private val reindexLamenessRows: () -> Unit = {
         database.lamenessQueries.selectAll().executeAsList().forEach {
-            // Dictation-adjacent FIELD LABELS ("grade", "flexion") are never
-            // part of the stored values ("3", "Positive") — inject them so
-            // "what was the flexion grade" style questions hit lameness rows.
-            val lamenessFieldLabels = "grade flexion"
-            val searchableText =
-                listOfNotNull(
-                    it.gradeAAEP.toString(),
-                    it.limbLocation,
-                    it.flexionTest,
-                    it.diagnosis,
-                    it.treatment,
-                    it.vetName,
-                    it.notes,
-                    lamenessFieldLabels,
-                ).joinToString(" ")
+            val searchableText = SearchableText.lameness(it.toDomain())
             indexRecord(
                 recordType = RecordType.Lameness.wireName,
                 patientId = it.patientId,
@@ -314,21 +298,7 @@ class SearchRepositoryImpl(
 
     private val reindexSurgeryRows: () -> Unit = {
         database.surgeryQueries.selectAll().executeAsList().forEach {
-            // "surgeon" is the FIELD label; its VALUE ("Dr. Mendes") alone
-            // cannot answer "who was the surgeon". Inject the label.
-            val surgeryFieldLabels = "surgeon"
-            val searchableText =
-                listOfNotNull(
-                    it.type,
-                    it.description,
-                    it.outcome,
-                    it.surgeon,
-                    it.anesthesia,
-                    it.analgesia,
-                    it.complications,
-                    it.recoveryNotes,
-                    surgeryFieldLabels,
-                ).joinToString(" ")
+            val searchableText = SearchableText.surgery(it.toDomain())
             indexRecord(
                 recordType = RecordType.Surgery.wireName,
                 patientId = it.patientId,
@@ -341,21 +311,7 @@ class SearchRepositoryImpl(
 
     private val reindexControlledSubstanceRows: () -> Unit = {
         database.substanceQueries.selectAll().executeAsList().forEach {
-            // "witness" is the FIELD label (regulatory queries ask "who
-            // witnessed the sedation"); its VALUE is a nurse name. Inject.
-            val substanceFieldLabels = "witness"
-            val searchableText =
-                listOfNotNull(
-                    it.drugName,
-                    it.dose,
-                    it.unit,
-                    it.route,
-                    it.administeredBy,
-                    it.witness,
-                    it.reason,
-                    it.notes,
-                    substanceFieldLabels,
-                ).joinToString(" ")
+            val searchableText = SearchableText.controlledSubstance(it.toDomain())
             indexRecord(
                 recordType = RecordType.ControlledSubstance.wireName,
                 patientId = it.patientId,
@@ -428,17 +384,7 @@ class SearchRepositoryImpl(
 
     private val reindexGestationRows: () -> Unit = {
         database.gestationQueries.selectAll().executeAsList().forEach {
-            // Natural questions ("is she pregnant?") must hit unresolved
-            // gestations, whose raw fields (status "Active", notes) may not
-            // contain those words. Resolved pregnancies (Completed/Failed,
-            // mirroring GetUpcomingRemindersUseCase) must NOT claim an active
-            // pregnancy, so they keep only their own indexed text.
-            val isResolved =
-                it.status.equals("Completed", ignoreCase = true) ||
-                    it.status.equals("Failed", ignoreCase = true)
-            val pregnancyVocabulary =
-                if (isResolved) null else "pregnant in foal active gestation expected foaling"
-            val searchableText = listOfNotNull(it.status, it.notes, pregnancyVocabulary).joinToString(" ")
+            val searchableText = SearchableText.gestation(it.toDomain())
             indexRecord(
                 recordType = RecordType.Gestation.wireName,
                 patientId = it.patientId,
@@ -504,18 +450,7 @@ class SearchRepositoryImpl(
 
     private val reindexEmbryoTransferRows: () -> Unit = {
         database.embryoTransferQueries.selectAll().executeAsList().forEach {
-            // Raw fields (count as bare number, recipient mare names) never
-            // contain the words "embryo transfer"; natural questions about
-            // embryo transfer / flushes must still hit these rows.
-            val embryoTransferVocabulary = "embryo transfer flush donor recipient"
-            val searchableText =
-                listOfNotNull(
-                    it.embryoCount?.toString(),
-                    it.recipientMares,
-                    it.vetName,
-                    it.notes,
-                    embryoTransferVocabulary,
-                ).joinToString(" ")
+            val searchableText = SearchableText.embryoTransfer(it.toDomain())
             indexRecord(
                 recordType = RecordType.EmbryoTransfer.wireName,
                 patientId = it.patientId,
@@ -528,18 +463,26 @@ class SearchRepositoryImpl(
 
     private val reindexIcsiRows: () -> Unit = {
         database.icsiQueries.selectAll().executeAsList().forEach {
-            val searchableText =
-                listOfNotNull(
-                    it.folliclesRecovered?.toString(),
-                    it.vetName,
-                    it.notes,
-                ).joinToString(" ")
+            val searchableText = SearchableText.icsi(it.toDomain())
             indexRecord(
                 recordType = RecordType.Icsi.wireName,
                 patientId = it.patientId,
                 recordId = it.id,
                 date = it.date,
                 searchableText = searchableText,
+            )
+        }
+    }
+
+    private val reindexCustomReminderRows: () -> Unit = {
+        database.customReminderQueries.selectAllActive().executeAsList().forEach {
+            val reminder = it.toDomain()
+            indexRecord(
+                recordType = RecordType.CustomReminder.wireName,
+                patientId = reminder.patientId,
+                recordId = reminder.id,
+                date = reminder.dueDate,
+                searchableText = SearchableText.customReminder(reminder),
             )
         }
     }
@@ -655,8 +598,14 @@ class SearchRepositoryImpl(
         }
         // Single-pass bulk reindex: the reindex*Rows calls write only the
         // metadata table; rebuild() then does the one FTS build from it.
+        // Clear both tables first so rows for records that were deleted since
+        // the previous healing pass cannot survive as stale search results.
         suppressFtsWrites = true
         try {
+            database.transaction {
+                searchQueries.deleteAllFts().value
+                searchQueries.deleteAllIndex().value
+            }
             reindexOwners()
             reindexPatients()
             reindexRecords()

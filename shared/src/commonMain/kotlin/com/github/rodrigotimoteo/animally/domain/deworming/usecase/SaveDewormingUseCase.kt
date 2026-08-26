@@ -32,6 +32,7 @@ class SaveDewormingUseCase(
                 dewormingRepository.insert(deworming)
             } else {
                 dewormingRepository.update(deworming)
+                deworming.id
             }
         val searchableText =
             listOfNotNull(

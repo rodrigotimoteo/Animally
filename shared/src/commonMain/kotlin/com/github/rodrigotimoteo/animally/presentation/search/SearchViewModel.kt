@@ -160,22 +160,27 @@ data class SearchUiState(
         val SEARCHABLE_TYPES =
             listOf(
                 RecordType.Patient,
+                RecordType.Owner,
                 RecordType.Consultation,
-                RecordType.Medication,
                 RecordType.Vaccination,
                 RecordType.Deworming,
                 RecordType.Dentistry,
                 RecordType.FarrierVisit,
                 RecordType.Lameness,
                 RecordType.Surgery,
+                RecordType.Medication,
                 RecordType.ControlledSubstance,
                 RecordType.Weight,
+                RecordType.Anamnese,
                 RecordType.ReproductionEvent,
                 RecordType.Ultrasound,
                 RecordType.Gestation,
                 RecordType.ReproMedication,
                 RecordType.LabResult,
                 RecordType.Imaging,
+                RecordType.CustomReminder,
+                RecordType.EmbryoTransfer,
+                RecordType.Icsi,
             )
     }
 }

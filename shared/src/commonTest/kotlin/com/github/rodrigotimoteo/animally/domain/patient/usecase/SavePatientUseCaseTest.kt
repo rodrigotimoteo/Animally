@@ -52,7 +52,7 @@ class SavePatientUseCaseTest {
         verify(VerifyMode.exactly(1)) { patientRepositoryMock.insertPatient(any()) }
         verify(VerifyMode.exactly(0)) { patientRepositoryMock.updatePatient(any()) }
         verify(VerifyMode.exactly(1)) {
-            searchRepositoryMock.indexRecord(ISearchRepository.TYPE_PATIENT, 42L, 42L, null, "Midnight")
+            searchRepositoryMock.indexRecord(ISearchRepository.TYPE_PATIENT, 42L, 42L, null, "Midnight Equine")
         }
     }
 
@@ -66,7 +66,7 @@ class SavePatientUseCaseTest {
         verify(VerifyMode.exactly(0)) { patientRepositoryMock.insertPatient(any()) }
         verify(VerifyMode.exactly(1)) { patientRepositoryMock.updatePatient(any()) }
         verify(VerifyMode.exactly(1)) {
-            searchRepositoryMock.indexRecord(ISearchRepository.TYPE_PATIENT, 5L, 5L, null, "Midnight")
+            searchRepositoryMock.indexRecord(ISearchRepository.TYPE_PATIENT, 5L, 5L, null, "Midnight Equine")
         }
     }
 }

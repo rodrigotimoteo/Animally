@@ -216,10 +216,11 @@ internal suspend fun FlowCollector<RagStreamEvent>.emitLatestRecordAnswer(
     scope: String?,
 ): Boolean {
     val latest = latestRecordAnswer(query, results, scope) ?: return false
+    val date = latest.date ?: return false
     val header = "[${latest.recordType} #${latest.recordId}]"
     val sentence =
         "${latest.patientName}'s most recent ${recordTypeNoun(latest.recordType)} on record was on " +
-            formatHumanDateShort(latest.date!!)
+            formatHumanDateShort(date)
     emit(RagStreamEvent.Chunk("$sentence. $header"))
     emit(RagStreamEvent.Sources(listOf(latest)))
     return true

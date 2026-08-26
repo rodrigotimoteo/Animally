@@ -32,6 +32,7 @@ class SaveWeightUseCase(
                 weightRepository.insert(weight)
             } else {
                 weightRepository.update(weight)
+                weight.id
             }
         searchRepository.indexRecord(
             recordType = RecordType.Weight.wireName,

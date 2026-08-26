@@ -56,14 +56,14 @@ class SaveLabResultUseCaseTest {
     }
 
     @Test
-    fun `when id differs from zero then updates and returns rows affected`() {
+    fun `when id differs from zero then updates and returns the persisted id`() {
         val labResult = labResult(id = 5L)
 
         every { labResultRepositoryMock.update(labResult) } returns 1L
 
         val result = sut(labResult)
 
-        assertEquals(expected = 1L, actual = result)
+        assertEquals(expected = 5L, actual = result)
         verify(VerifyMode.exactly(1)) { labResultRepositoryMock.update(labResult) }
         verify(VerifyMode.exactly(0)) { labResultRepositoryMock.insert(any()) }
     }

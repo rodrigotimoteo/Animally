@@ -11,8 +11,9 @@ final class PreventiveTabViewModel: ObservableObject {
 
     @Published var isLoading: Bool = true
 
-    /// Flips once the first store emission arrives; replaces the old fixed-delay hack.
-    private var receivedFirstEmission = false
+    /// Waits for every child store's initial state so an empty first store does
+    /// not hide the loading indicator while another store is still querying.
+    private var receivedStoreKeys = Set<String>()
 
     private var cancellables: [NativeCancellable] = []
 
@@ -29,19 +30,19 @@ final class PreventiveTabViewModel: ObservableObject {
 
         cancellables.append(vaccinationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.vaccinations = state.vaccinations }
-            self?.markFirstEmission()
+            self?.markFirstEmission("vaccinations")
         }))
         cancellables.append(dewormingStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.dewormings = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("dewormings")
         }))
         cancellables.append(dentistryStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.dentistryRecords = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("dentistry")
         }))
         cancellables.append(farrierStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.farrierVisits = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("farrier")
         }))
 
         vaccinationStore.load()
@@ -71,10 +72,9 @@ final class PreventiveTabViewModel: ObservableObject {
         farrierStore.delete(recordId: recordId)
     }
 
-    private func markFirstEmission() {
-        guard !receivedFirstEmission else { return }
-        receivedFirstEmission = true
-        isLoading = false
+    private func markFirstEmission(_ key: String) {
+        receivedStoreKeys.insert(key)
+        isLoading = receivedStoreKeys.count < 4
     }
 
     /// Reloads every store this tab owns; stores re-query Kotlin and republish.

@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -32,23 +33,14 @@ class SaveLamenessUseCase(
                 lamenessRepository.insert(lameness)
             } else {
                 lamenessRepository.update(lameness)
+                lameness.id
             }
-        val searchableText =
-            listOfNotNull(
-                lameness.gradeAAEP.toString(),
-                lameness.limbLocation,
-                lameness.flexionTest,
-                lameness.diagnosis,
-                lameness.treatment,
-                lameness.vetName,
-                lameness.notes,
-            ).joinToString(" ")
         searchRepository.indexRecord(
             recordType = RecordType.Lameness.wireName,
             patientId = lameness.patientId,
             recordId = savedId,
             date = lameness.date,
-            searchableText = searchableText,
+            searchableText = SearchableText.lameness(lameness),
         )
         return savedId
     }

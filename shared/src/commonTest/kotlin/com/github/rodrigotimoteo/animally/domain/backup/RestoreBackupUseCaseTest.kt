@@ -31,7 +31,7 @@ class RestoreBackupUseCaseTest {
                 .isEmpty(),
         )
 
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restoredPatient =
             database.patientQueries
@@ -70,7 +70,7 @@ class RestoreBackupUseCaseTest {
         val json = BackupSerializer.encode(BackupSerializer.decode(exportJson()).copy(schemaVersion = 99))
 
         assertFailsWith<IllegalStateException> {
-            RestoreBackupUseCase(database).invoke(json)
+            restoreBackupUseCase(database).invoke(json)
         }
     }
 
@@ -161,7 +161,7 @@ class RestoreBackupUseCaseTest {
 
         val json = exportJson()
         database.deleteAllBackupRows()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restoredUltrasound =
             database.ultrasoundQueries
@@ -282,7 +282,7 @@ class RestoreBackupUseCaseTest {
             }
             """.trimIndent()
 
-        RestoreBackupUseCase(database).invoke(legacyJson)
+        restoreBackupUseCase(database).invoke(legacyJson)
 
         val restoredUltrasound =
             database.ultrasoundQueries

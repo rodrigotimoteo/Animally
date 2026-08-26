@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.anamnese.usecase
 
 import com.github.rodrigotimoteo.animally.domain.anamnese.IAnamneseRepository
 import com.github.rodrigotimoteo.animally.domain.anamnese.model.Anamnese
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -22,7 +23,7 @@ class SaveAnamneseUseCaseTest {
 
     @BeforeTest
     fun setup() {
-        sut = SaveAnamneseUseCase(anamneseRepositoryMock)
+        sut = SaveAnamneseUseCase(anamneseRepositoryMock, FakeSearchRepository())
     }
 
     private fun newAnamnese() =

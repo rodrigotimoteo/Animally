@@ -122,7 +122,8 @@ enum RecordEditRoute: Hashable, Identifiable {
 /// Push destination for every record editor, shared by the Patients stack
 /// (add/edit from detail), and the Timeline/Search stacks (deep-links).
 @ViewBuilder
-func recordEditDestination(_ route: RecordEditRoute) -> some View {    switch route {
+func recordEditDestination(_ route: RecordEditRoute) -> some View {
+    switch route {
     case .weight(_, let recordId):
         WeightEditView(patientId: route.patientId, weightId: recordId)
     case .vaccination(_, let recordId):
@@ -188,11 +189,13 @@ extension RecordEditRoute {
         case "Deworming": self = .deworming(patientId: patientId, recordId: recordId)
         case "Dentistry": self = .dentistry(patientId: patientId, recordId: recordId)
         case "FarrierVisit": self = .farrierVisit(patientId: patientId, recordId: recordId)
+        case "Anamnese": self = .anamnese(patientId: patientId, recordId: recordId)
         case "Lameness": self = .lameness(patientId: patientId, recordId: recordId)
         case "Surgery": self = .surgery(patientId: patientId, recordId: recordId)
         case "Medication": self = .medication(patientId: patientId, recordId: recordId)
         case "ControlledSubstance": self = .substance(patientId: patientId, recordId: recordId)
         case "LabResult": self = .labResult(patientId: patientId, recordId: recordId)
+        case "CustomReminder": self = .customReminder(patientId: patientId, recordId: recordId)
         case "Imaging": self = .imaging(patientId: patientId, recordId: recordId)
         case "ReproductionEvent": self = .reproductionEvent(patientId: patientId, recordId: recordId)
         case "Ultrasound": self = .ultrasound(patientId: patientId, recordId: recordId)

@@ -49,7 +49,7 @@ class PatientDetailScreenTest {
         patientId: Long,
     ): PatientDetailViewModel {
         val patientRepository = PatientRepositoryImpl(database)
-        val ownerRepository = OwnerRepositoryImpl(database.ownerQueries)
+        val ownerRepository = OwnerRepositoryImpl(database.ownerQueries, database)
         return PatientDetailViewModel(
             patientId = patientId,
             getPatientDetailUseCase = GetPatientDetailUseCase(patientRepository),

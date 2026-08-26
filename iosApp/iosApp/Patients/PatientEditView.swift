@@ -104,8 +104,8 @@ struct PatientEditView: View {
             }
             .pickerStyle(.menu)
 
-            RecordFormStyle.dateField("Date of Birth", value: form.dateOfBirth ?? "") {
-                viewModel.onDateOfBirthChange($0)
+            RecordFormStyle.optionalDateField("Date of Birth", value: form.dateOfBirth) {
+                viewModel.onDateOfBirthChange($0 ?? "")
             }
         } header: {
             sectionHeader("Basic Information")

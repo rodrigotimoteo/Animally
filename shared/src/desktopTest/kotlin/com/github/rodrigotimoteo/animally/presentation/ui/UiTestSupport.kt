@@ -11,10 +11,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.anamnese.AnamneseRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.consultation.ConsultationRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.customreminder.CustomReminderRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.dentistry.DentistryRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.gestation.GestationRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.icsi.IcsiRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.labresult.LabResultRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.lameness.LamenessRepositoryImpl
@@ -36,11 +39,20 @@ import com.github.rodrigotimoteo.animally.domain.anamnese.IAnamneseRepository
 import com.github.rodrigotimoteo.animally.domain.backup.ExportBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.backup.RestoreBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
+import com.github.rodrigotimoteo.animally.domain.consultation.usecase.DeleteConsultationUseCase
 import com.github.rodrigotimoteo.animally.domain.consultation.usecase.GetConsultationsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderRepository
+import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.DeleteCustomReminderUseCase
+import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.GetCustomRemindersByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
+import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.DeleteDentistryUseCase
 import com.github.rodrigotimoteo.animally.domain.dentistry.usecase.GetDentistryListByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
+import com.github.rodrigotimoteo.animally.domain.deworming.usecase.DeleteDewormingUseCase
 import com.github.rodrigotimoteo.animally.domain.deworming.usecase.GetDewormingsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.embryotransfer.IEmbryoTransferRepository
+import com.github.rodrigotimoteo.animally.domain.embryotransfer.usecase.DeleteEmbryoTransferUseCase
+import com.github.rodrigotimoteo.animally.domain.embryotransfer.usecase.GetEmbryoTransfersByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.export.CsvExporter
 import com.github.rodrigotimoteo.animally.domain.export.ExportBasicRecordsUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportClinicalRecordsUseCase
@@ -48,16 +60,25 @@ import com.github.rodrigotimoteo.animally.domain.export.ExportCsvUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportReproductiveRecordsUseCase
 import com.github.rodrigotimoteo.animally.domain.export.pdf.ExportPatientReportUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
+import com.github.rodrigotimoteo.animally.domain.farrier.usecase.DeleteFarrierVisitUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.GetFarrierVisitsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
+import com.github.rodrigotimoteo.animally.domain.gestation.usecase.DeleteGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.icsi.IIcsiRepository
+import com.github.rodrigotimoteo.animally.domain.icsi.usecase.DeleteIcsiUseCase
+import com.github.rodrigotimoteo.animally.domain.icsi.usecase.GetIcsiByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
+import com.github.rodrigotimoteo.animally.domain.imaging.usecase.DeleteImagingUseCase
 import com.github.rodrigotimoteo.animally.domain.imaging.usecase.GetImagingListByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
+import com.github.rodrigotimoteo.animally.domain.labresult.usecase.DeleteLabResultUseCase
 import com.github.rodrigotimoteo.animally.domain.labresult.usecase.GetLabResultsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
+import com.github.rodrigotimoteo.animally.domain.lameness.usecase.DeleteLamenessUseCase
 import com.github.rodrigotimoteo.animally.domain.lameness.usecase.GetLamenessListByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepository
+import com.github.rodrigotimoteo.animally.domain.medication.usecase.DeleteMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.GetMedicationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionController
 import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionControllerImpl
@@ -74,32 +95,43 @@ import com.github.rodrigotimoteo.animally.domain.patient.usecase.GetPatientListU
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetDentistryRemindersUseCase
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetVaccinationRemindersUseCase
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
+import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.DeleteReproductionEventUseCase
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReproductionEventsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
+import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.DeleteReproMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.repromedication.usecase.GetReproMedicationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.settings.usecase.WipeAllDataUseCase
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
+import com.github.rodrigotimoteo.animally.domain.substance.usecase.DeleteControlledSubstanceUseCase
 import com.github.rodrigotimoteo.animally.domain.substance.usecase.GetControlledSubstancesByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
+import com.github.rodrigotimoteo.animally.domain.surgery.usecase.DeleteSurgeryUseCase
 import com.github.rodrigotimoteo.animally.domain.surgery.usecase.GetSurgeriesByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.sync.SyncEngine
 import com.github.rodrigotimoteo.animally.domain.sync.SyncMetadataRepository
 import com.github.rodrigotimoteo.animally.domain.sync.SyncUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
+import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.DeleteUltrasoundUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.GetUltrasoundsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
+import com.github.rodrigotimoteo.animally.domain.vaccination.usecase.DeleteVaccinationUseCase
 import com.github.rodrigotimoteo.animally.domain.vaccination.usecase.GetVaccinationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
+import com.github.rodrigotimoteo.animally.domain.weight.usecase.DeleteWeightUseCase
 import com.github.rodrigotimoteo.animally.domain.weight.usecase.GetWeightsByPatientUseCase
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsViewModel
+import com.github.rodrigotimoteo.animally.presentation.settings.CloudLlmSettingsStore
+import com.github.rodrigotimoteo.animally.presentation.settings.DesktopCloudLlmSettingsStore
 import com.github.rodrigotimoteo.animally.presentation.settings.DesktopThemePreferenceStore
 import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.SyncViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.ThemePreferenceStore
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -166,10 +198,16 @@ private fun uiServicesModule(): Module =
         single<AnimallyNavigator> { AnimallyNavigator() }
         single<CoroutineDispatcher>(named(IO_DISPATCHER)) { uiTestIoDispatcher() }
         single<ThemePreferenceStore> { DesktopThemePreferenceStore() }
+        single<CloudLlmSettingsStore> { DesktopCloudLlmSettingsStore() }
+        single<CloudModelCatalog> { CloudModelCatalog(HttpClient()) }
 
         single<IPatientRepository> { PatientRepositoryImpl(get()) }
-        single<IOwnerRepository> { OwnerRepositoryImpl(get<AnimallyDatabase>().ownerQueries) }
+        single<IOwnerRepository> {
+            val database = get<AnimallyDatabase>()
+            OwnerRepositoryImpl(database.ownerQueries, database)
+        }
         single<IAnamneseRepository> { AnamneseRepositoryImpl(get()) }
+        single<ICustomReminderRepository> { CustomReminderRepositoryImpl(get()) }
         single<IWeightRepository> { WeightRepositoryImpl(get()) }
         single<IVaccinationRepository> { VaccinationRepositoryImpl(get()) }
         single<IConsultationRepository> { ConsultationRepositoryImpl(get()) }
@@ -186,6 +224,8 @@ private fun uiServicesModule(): Module =
         single<IReproMedicationRepository> { ReproMedicationRepositoryImpl(get()) }
         single<ILabResultRepository> { LabResultRepositoryImpl(get()) }
         single<IImagingRepository> { ImagingRepositoryImpl(get()) }
+        single<IEmbryoTransferRepository> { EmbryoTransferRepositoryImpl(get()) }
+        single<IIcsiRepository> { IcsiRepositoryImpl(get()) }
         single<ISearchRepository> { SearchRepositoryImpl(get(), get<AnimallyDatabase>().ownerQueries) }
 
         single { GetPatientListUseCase(get()) }
@@ -193,7 +233,7 @@ private fun uiServicesModule(): Module =
         single { DeletePatientUseCase(get(), get()) }
         single { GetOwnerListUseCase(get()) }
         single { GetOwnerDetailUseCase(get()) }
-        single { DeleteOwnerUseCase(get(), get()) }
+        single { DeleteOwnerUseCase(get(), get(), get()) }
         single { GetWeightsByPatientUseCase(get()) }
         single { GetVaccinationsByPatientUseCase(get()) }
         single { GetConsultationsByPatientUseCase(get()) }
@@ -210,6 +250,28 @@ private fun uiServicesModule(): Module =
         single { GetReproMedicationsByPatientUseCase(get()) }
         single { GetLabResultsByPatientUseCase(get()) }
         single { GetImagingListByPatientUseCase(get()) }
+        single { GetCustomRemindersByPatientUseCase(get()) }
+        single { GetEmbryoTransfersByPatientUseCase(get()) }
+        single { GetIcsiByPatientUseCase(get()) }
+        single { DeleteConsultationUseCase(get(), get()) }
+        single { DeleteCustomReminderUseCase(get(), get()) }
+        single { DeleteDentistryUseCase(get(), get()) }
+        single { DeleteDewormingUseCase(get(), get()) }
+        single { DeleteEmbryoTransferUseCase(get(), get()) }
+        single { DeleteFarrierVisitUseCase(get(), get()) }
+        single { DeleteGestationUseCase(get(), get()) }
+        single { DeleteIcsiUseCase(get(), get()) }
+        single { DeleteImagingUseCase(get(), get()) }
+        single { DeleteLabResultUseCase(get(), get()) }
+        single { DeleteLamenessUseCase(get(), get()) }
+        single { DeleteMedicationUseCase(get(), get()) }
+        single { DeleteReproductionEventUseCase(get(), get()) }
+        single { DeleteReproMedicationUseCase(get(), get()) }
+        single { DeleteControlledSubstanceUseCase(get(), get()) }
+        single { DeleteSurgeryUseCase(get(), get()) }
+        single { DeleteUltrasoundUseCase(get(), get()) }
+        single { DeleteWeightUseCase(get(), get()) }
+        single { DeleteVaccinationUseCase(get(), get()) }
 
         single { CsvExporter() }
         single { ExportBasicRecordsUseCase(get(), get(), get(), get(), get(), get()) }
@@ -218,7 +280,7 @@ private fun uiServicesModule(): Module =
         single { ExportCsvUseCase(get(), get(), get(), get(), get()) }
         single { ExportPatientReportUseCase(get(), get(), get(), get()) }
         single { ExportBackupUseCase(get()) }
-        single { RestoreBackupUseCase(get()) }
+        single { RestoreBackupUseCase(get(), get()) }
         single { WipeAllDataUseCase(get(), get()) }
         single { GetVaccinationRemindersUseCase(get(), get()) }
         single { GetDentistryRemindersUseCase(get(), get()) }
@@ -247,7 +309,7 @@ private class FakeSyncMetadataRepository : SyncMetadataRepository {
 
 private fun uiViewModelModule(): List<Module> =
     module {
-        viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
+        viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
         viewModel {
             ReminderSettingsViewModel(get(), get(), get(named(IO_DISPATCHER)), get())
         }
@@ -356,7 +418,7 @@ internal fun AnimallyDatabase.seedWeight(
 }
 
 internal fun AnimallyDatabase.seedOwner(name: String = "Alice Brown"): Owner {
-    val repository = OwnerRepositoryImpl(ownerQueries)
+    val repository = OwnerRepositoryImpl(ownerQueries, this)
     val id =
         repository.insertOwner(
             Owner(

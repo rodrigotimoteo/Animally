@@ -3,10 +3,13 @@ package com.github.rodrigotimoteo.animally.data.patient
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.anamnese.AnamneseQueries
 import com.github.rodrigotimoteo.animally.data.consultation.ConsultationQueries
+import com.github.rodrigotimoteo.animally.data.customreminder.CustomReminderQueries
 import com.github.rodrigotimoteo.animally.data.dentistry.DentistryQueries
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingQueries
+import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferQueries
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitQueries
 import com.github.rodrigotimoteo.animally.data.gestation.GestationQueries
+import com.github.rodrigotimoteo.animally.data.icsi.IcsiQueries
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingQueries
 import com.github.rodrigotimoteo.animally.data.labresult.LabResultQueries
 import com.github.rodrigotimoteo.animally.data.lameness.LamenessQueries
@@ -35,11 +38,14 @@ class PatientRepositoryImpl(
     private val patientQueries: PatientQueries = database.patientQueries
     private val anamneseQueries: AnamneseQueries = database.anamneseQueries
     private val consultationQueries: ConsultationQueries = database.consultationQueries
+    private val customReminderQueries: CustomReminderQueries = database.customReminderQueries
     private val dentistryQueries: DentistryQueries = database.dentistryQueries
     private val dewormingQueries: DewormingQueries = database.dewormingQueries
+    private val embryoTransferQueries: EmbryoTransferQueries = database.embryoTransferQueries
     private val farrierVisitQueries: FarrierVisitQueries = database.farrierVisitQueries
     private val gestationQueries: GestationQueries = database.gestationQueries
     private val imagingQueries: ImagingQueries = database.imagingQueries
+    private val icsiQueries: IcsiQueries = database.icsiQueries
     private val labResultQueries: LabResultQueries = database.labResultQueries
     private val lamenessQueries: LamenessQueries = database.lamenessQueries
     private val medicationQueries: MedicationQueries = database.medicationQueries
@@ -132,11 +138,14 @@ class PatientRepositoryImpl(
     override fun countActiveRecords(patientId: Long): Long =
         anamneseQueries.countActiveByPatient(patientId).executeAsOne() +
             consultationQueries.countActiveByPatient(patientId).executeAsOne() +
+            customReminderQueries.countActiveByPatient(patientId).executeAsOne() +
             dentistryQueries.countActiveByPatient(patientId).executeAsOne() +
             dewormingQueries.countActiveByPatient(patientId).executeAsOne() +
+            embryoTransferQueries.countActiveByPatient(patientId).executeAsOne() +
             farrierVisitQueries.countActiveByPatient(patientId).executeAsOne() +
             gestationQueries.countActiveByPatient(patientId).executeAsOne() +
             imagingQueries.countActiveByPatient(patientId).executeAsOne() +
+            icsiQueries.countActiveByPatient(patientId).executeAsOne() +
             labResultQueries.countActiveByPatient(patientId).executeAsOne() +
             lamenessQueries.countActiveByPatient(patientId).executeAsOne() +
             medicationQueries.countActiveByPatient(patientId).executeAsOne() +

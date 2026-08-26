@@ -13,8 +13,9 @@ final class ReproductionTabViewModel: ObservableObject {
 
     @Published var isLoading: Bool = true
 
-    /// Flips once the first store emission arrives; replaces the old fixed-delay hack.
-    private var receivedFirstEmission = false
+    /// Waits for every child store's initial state so an empty first store does
+    /// not hide the loading indicator while another store is still querying.
+    private var receivedStoreKeys = Set<String>()
 
     private var cancellables: [NativeCancellable] = []
 
@@ -35,27 +36,27 @@ final class ReproductionTabViewModel: ObservableObject {
 
         cancellables.append(reproStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.reproductionEvents = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("reproduction")
         }))
         cancellables.append(ultrasoundStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.ultrasounds = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("ultrasound")
         }))
         cancellables.append(gestationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.gestations = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("gestation")
         }))
         cancellables.append(reproMedStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.reproMedications = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("reproMedications")
         }))
         cancellables.append(embryoTransferStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.embryoTransfers = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("embryoTransfers")
         }))
         cancellables.append(icsiStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.icsiRecords = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("icsi")
         }))
 
         reproStore.load()
@@ -97,10 +98,9 @@ final class ReproductionTabViewModel: ObservableObject {
         icsiStore.delete(recordId: recordId)
     }
 
-    private func markFirstEmission() {
-        guard !receivedFirstEmission else { return }
-        receivedFirstEmission = true
-        isLoading = false
+    private func markFirstEmission(_ key: String) {
+        receivedStoreKeys.insert(key)
+        isLoading = receivedStoreKeys.count < 6
     }
 
     /// Reloads every store this tab owns; stores re-query Kotlin and republish.

@@ -55,7 +55,7 @@ class BackupRoundTripReproCycleTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.reproductionQueries
@@ -115,7 +115,7 @@ class BackupRoundTripReproCycleTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.gestationQueries

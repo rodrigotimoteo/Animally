@@ -35,7 +35,7 @@ class BackupRoundTripIdentityTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.ownerQueries
@@ -78,7 +78,7 @@ class BackupRoundTripIdentityTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val patients =
             database.patientQueries
@@ -129,7 +129,7 @@ class BackupRoundTripIdentityTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.anamneseQueries
@@ -178,7 +178,7 @@ class BackupRoundTripIdentityTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.consultationQueries

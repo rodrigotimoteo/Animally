@@ -214,4 +214,27 @@ class CloudRagLlmEngineTest {
         assertNull(engine.appendSseDelta("", cumulative))
         assertEquals("Hello world", cumulative.toString())
     }
+
+    @Test
+    fun `accepts a bare non-streaming chat completion body`() {
+        val engine = engine()
+        val cumulative = StringBuilder()
+        val body = """{"choices":[{"message":{"role":"assistant","content":"A complete answer."}}]}"""
+
+        assertEquals("A complete answer.", engine.appendSseDelta(body, cumulative))
+        assertEquals("A complete answer.", cumulative.toString())
+        assertTrue(engine.isTerminalSseFrame(body))
+        assertNull(validateStreamEnd(sawDone = true, finishReason = null, contentLength = cumulative.length))
+    }
+
+    @Test
+    fun `accepts legacy text completion content`() {
+        val engine = engine()
+        val cumulative = StringBuilder()
+        val body = """{"choices":[{"text":"Legacy answer"}]}"""
+
+        assertEquals("Legacy answer", engine.appendSseDelta(body, cumulative))
+        assertEquals("Legacy answer", cumulative.toString())
+        assertTrue(engine.isTerminalSseFrame(body))
+    }
 }

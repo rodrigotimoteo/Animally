@@ -54,7 +54,7 @@ class BackupRoundTripCareMiscTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.farrierVisitQueries
@@ -103,7 +103,7 @@ class BackupRoundTripCareMiscTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.customReminderQueries
@@ -145,7 +145,7 @@ class BackupRoundTripCareMiscTest {
         }
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.weightQueries

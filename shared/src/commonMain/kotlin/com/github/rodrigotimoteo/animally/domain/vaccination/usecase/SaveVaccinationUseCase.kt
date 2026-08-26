@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.vaccination.usecase
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import org.koin.core.annotation.Provided
@@ -37,21 +38,14 @@ class SaveVaccinationUseCase(
                 vaccinationRepository.insert(toSave)
             } else {
                 vaccinationRepository.update(toSave)
+                toSave.id
             }
-        val searchableText =
-            listOfNotNull(
-                toSave.vaccineName,
-                toSave.batchNumber,
-                toSave.vetName,
-                toSave.site,
-                toSave.notes,
-            ).joinToString(" ")
         searchRepository.indexRecord(
             recordType = RecordType.Vaccination.wireName,
             patientId = toSave.patientId,
             recordId = savedId,
             date = toSave.dateAdministered,
-            searchableText = searchableText,
+            searchableText = SearchableText.vaccination(toSave),
         )
         return savedId
     }

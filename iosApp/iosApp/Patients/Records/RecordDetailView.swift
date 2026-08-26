@@ -160,6 +160,14 @@ private struct IdLoadedRecordDetailView: View {
         .navigationDestination(item: $editRoute) { route in
             recordEditDestination(route)
         }
+        .onChange(of: editRoute) { oldValue, newValue in
+            // The editor can be backed by a different Koin view-model
+            // instance than this read-only observer. Reload when it is
+            // dismissed so an edited record never shows stale values.
+            if oldValue != nil, newValue == nil {
+                observer.reload()
+            }
+        }
     }
 }
 
@@ -175,21 +183,37 @@ final class RecordDetailObserver: ObservableObject {
     @Published private(set) var editRouteDescriptor: RecordEditRouteDescriptor?
 
     private var cancellable: NativeCancellable?
-    private let handle: RecordDetailHandle
+    private let key: RecordDetailKey
+    private var handle: RecordDetailHandle?
+    private var generation = 0
 
     init(key: RecordDetailKey) {
-        let handle = RecordDetailOpener.shared.openDetail(
+        self.key = key
+        reload()
+    }
+
+    /// Reopens the backing Kotlin store after an edit destination is popped.
+    /// Each reload gets a generation so a queued callback from the previous
+    /// store cannot overwrite the freshly loaded state.
+    func reload() {
+        generation += 1
+        let currentGeneration = generation
+        cancellable?.cancel()
+        handle?.dispose()
+
+        let nextHandle = RecordDetailOpener.shared.openDetail(
             recordTypeWireName: key.displayType,
             recordId: key.recordId,
             patientId: KotlinLong(longLong: key.patientId)
         )
-        self.handle = handle
-        title = handle.title
-        editRouteDescriptor = handle.editRoute
-        apply(handle.state.current)
-        cancellable = handle.state.subscribe(onEach: { [weak self] state in
+        handle = nextHandle
+        title = nextHandle.title
+        editRouteDescriptor = nextHandle.editRoute
+        apply(nextHandle.state.current)
+        cancellable = nextHandle.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
-                self?.apply(state)
+                guard let self, self.generation == currentGeneration else { return }
+                self.apply(state)
             }
         })
     }
@@ -205,6 +229,6 @@ final class RecordDetailObserver: ObservableObject {
 
     deinit {
         cancellable?.cancel()
-        handle.dispose()
+        handle?.dispose()
     }
 }

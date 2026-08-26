@@ -57,8 +57,13 @@ class AnamneseViewModel(
                             ),
                         )
                     }
-                }.onFailure {
-                    updateForm(AnamneseFormState())
+                }.onFailure { error ->
+                    updateForm(
+                        AnamneseFormState(
+                            id = anamneseId,
+                            errorMessage = error.message ?: "Failed to load anamnese",
+                        ),
+                    )
                 }
         }
     }
@@ -67,21 +72,21 @@ class AnamneseViewModel(
      * Updates the [AnamneseFormState.generalHistory].
      */
     fun onGeneralHistoryChange(value: String) {
-        formState.value?.let { updateForm(it.copy(generalHistory = value)) }
+        formState.value?.let { updateForm(it.copy(generalHistory = value, errorMessage = null)) }
     }
 
     /**
      * Updates the [AnamneseFormState.chronicConditions].
      */
     fun onChronicConditionsChange(value: String) {
-        formState.value?.let { updateForm(it.copy(chronicConditions = value)) }
+        formState.value?.let { updateForm(it.copy(chronicConditions = value, errorMessage = null)) }
     }
 
     /**
      * Updates the [AnamneseFormState.allergies].
      */
     fun onAllergiesChange(value: String) {
-        formState.value?.let { updateForm(it.copy(allergies = value)) }
+        formState.value?.let { updateForm(it.copy(allergies = value, errorMessage = null)) }
     }
 
     /**
@@ -106,10 +111,22 @@ class AnamneseViewModel(
                 .onSuccess {
                     formState.value?.let { updateForm(it.copy(isSaving = false)) }
                     emitSaved()
-                }.onFailure {
-                    formState.value?.let { updateForm(it.copy(isSaving = false)) }
+                }.onFailure { error ->
+                    formState.value?.let {
+                        updateForm(
+                            it.copy(
+                                isSaving = false,
+                                errorMessage = error.message ?: "Failed to save anamnese",
+                            ),
+                        )
+                    }
                 }
         }
+    }
+
+    /** Dismisses the current load/save error without changing the form values. */
+    override fun onDismissError() {
+        formState.value?.let { updateForm(it.copy(errorMessage = null)) }
     }
 }
 
@@ -121,6 +138,7 @@ class AnamneseViewModel(
  * @param chronicConditions Free-form chronic conditions.
  * @param allergies Free-form allergies.
  * @param createdAt The original creation timestamp, preserved when editing.
+ * @param errorMessage The latest load/save error, or `null` when none.
  * @param isLoading Whether the form is still loading the existing record.
  * @param isSaving Whether a save is currently in progress.
  */
@@ -130,6 +148,7 @@ data class AnamneseFormState(
     val chronicConditions: String = "",
     val allergies: String = "",
     val createdAt: Instant? = null,
+    val errorMessage: String? = null,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
 ) {

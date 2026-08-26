@@ -32,6 +32,7 @@ class SaveLabResultUseCase(
                 labResultRepository.insert(labResult)
             } else {
                 labResultRepository.update(labResult)
+                labResult.id
             }
         val searchableText =
             listOfNotNull(

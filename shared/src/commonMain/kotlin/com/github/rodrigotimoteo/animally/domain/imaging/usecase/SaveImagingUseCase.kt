@@ -32,6 +32,7 @@ class SaveImagingUseCase(
                 imagingRepository.insert(imaging)
             } else {
                 imagingRepository.update(imaging)
+                imaging.id
             }
         val searchableText =
             listOfNotNull(

@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.di.infra
 import android.content.Context
 import com.github.rodrigotimoteo.animally.di.AndroidDatabaseModule
 import com.github.rodrigotimoteo.animally.di.database.QueriesModule
+import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule
 import com.github.rodrigotimoteo.animally.di.navigation.navigationEntryModule
 import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
 import com.github.rodrigotimoteo.animally.di.presentation.cloudLlmModule
@@ -10,6 +11,8 @@ import com.github.rodrigotimoteo.animally.domain.notification.ensureReminderChan
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
+import com.github.rodrigotimoteo.animally.di.dispatchers.module as dispatchersModule
+import com.github.rodrigotimoteo.animally.di.infra.module as appModule
 
 /**
  * Application context captured during [initKoin]. Used by platform services
@@ -23,13 +26,19 @@ actual fun initKoin(context: Any?): KoinApplication =
         ensureReminderChannel(appContext)
         androidContext(appContext)
         modules(
-            navigationEntryModule,
-            AndroidDatabaseModule().provide(),
-            QueriesModule().provide(),
-            PresentationModule().provide(),
-            cloudLlmModule,
-            com.github.rodrigotimoteo.animally.llm.llmModule,
-            com.github.rodrigotimoteo.animally.di.dictationModule,
-            com.github.rodrigotimoteo.animally.di.settingsModule,
+            buildList {
+                add(navigationEntryModule)
+                // Generated annotation bindings contain the repositories, use cases and
+                // parameterless view models used by the Android application shell.
+                add(AppModule().appModule())
+                add(DispatchersModule().dispatchersModule())
+                add(AndroidDatabaseModule().provide())
+                add(QueriesModule().provide())
+                add(PresentationModule().provide())
+                add(cloudLlmModule)
+                add(com.github.rodrigotimoteo.animally.llm.llmModule)
+                add(com.github.rodrigotimoteo.animally.di.dictationModule)
+                add(com.github.rodrigotimoteo.animally.di.settingsModule)
+            },
         )
     }

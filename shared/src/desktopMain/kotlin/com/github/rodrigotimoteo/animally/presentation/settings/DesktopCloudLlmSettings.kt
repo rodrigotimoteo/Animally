@@ -17,6 +17,9 @@ class DesktopFileSecureStore : SecureStore {
         val dir = Path.of(System.getProperty("user.home"), DIR_NAME)
         Files.createDirectories(dir)
         val path = dir.resolve(FILE_NAME)
+        if (Files.notExists(path)) {
+            Files.createFile(path)
+        }
         Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"))
         path
     }

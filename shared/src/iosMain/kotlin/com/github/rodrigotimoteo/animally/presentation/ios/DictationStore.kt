@@ -4,6 +4,9 @@ package com.github.rodrigotimoteo.animally.presentation.ios
 
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
+import com.github.rodrigotimoteo.animally.domain.dictation.InsertSuggestionsUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.InsertionResult
+import com.github.rodrigotimoteo.animally.domain.dictation.SuggestedInsertion
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationSuggestionUi
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationUiState
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationViewModel
@@ -35,6 +38,7 @@ data class DictationStoreState(
 @ObjCName("DictationStore")
 class DictationStore(
     private val viewModel: DictationViewModel,
+    private val insertSuggestionsUseCase: InsertSuggestionsUseCase,
 ) {
     /** Observable state of the dictation review screen. */
     val state: NativeFlow<DictationStoreState> =
@@ -74,5 +78,50 @@ class DictationStore(
     /** Marks the suggestion at index as rejected by the user. */
     fun reject(index: Long) {
         viewModel.reject(index.toInt())
+    }
+
+    /**
+     * Persists the suggestions currently marked as accepted.
+     *
+     * [patientIds] is ordered exactly like the accepted suggestions in the
+     * current review state. The Swift review screen owns disambiguation, so
+     * the bridge accepts the resolved ids explicitly instead of guessing from
+     * a spoken name. A non-null return value describes a validation or partial
+     * insertion failure; callers must keep the review visible in that case.
+     */
+    fun saveAccepted(patientIds: List<Long>): String? {
+        val accepted =
+            viewModel.uiState.value.suggestions
+                .filter { it.decision == true }
+        return when {
+            accepted.isEmpty() -> "Select at least one record to save."
+            accepted.size != patientIds.size || patientIds.any { it <= 0L } ->
+                "Choose a patient for every accepted record before saving."
+            else -> {
+                val insertions =
+                    accepted.mapIndexed { index, suggestion ->
+                        SuggestedInsertion(
+                            record = suggestion.record,
+                            patientId = patientIds[index],
+                            // The explicit Accept action is the user's acknowledgement
+                            // for flagged-but-saveable suggestions.
+                            acknowledgedFlags = true,
+                        )
+                    }
+                val outcomes = insertSuggestionsUseCase(insertions)
+                val failures = outcomes.filterIsInstance<InsertionResult.Failed>()
+                if (failures.isEmpty()) {
+                    null
+                } else {
+                    val insertedCount = outcomes.count { it is InsertionResult.Inserted }
+                    val failureSummary = failures.joinToString("; ") { it.message }
+                    if (insertedCount == 0) {
+                        "No records were saved: $failureSummary"
+                    } else {
+                        "Saved $insertedCount record(s), but ${failures.size} could not be saved: $failureSummary"
+                    }
+                }
+            }
+        }
     }
 }

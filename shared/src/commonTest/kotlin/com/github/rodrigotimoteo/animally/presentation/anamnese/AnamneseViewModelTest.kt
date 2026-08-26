@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.anamnese.IAnamneseRepository
 import com.github.rodrigotimoteo.animally.domain.anamnese.model.Anamnese
 import com.github.rodrigotimoteo.animally.domain.anamnese.usecase.GetAnamneseByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.anamnese.usecase.SaveAnamneseUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -36,7 +37,7 @@ class AnamneseViewModelTest {
 
     private val getAnamneseByPatientUseCase = GetAnamneseByPatientUseCase(anamneseRepositoryMock)
 
-    private val saveAnamneseUseCase = SaveAnamneseUseCase(anamneseRepositoryMock)
+    private val saveAnamneseUseCase = SaveAnamneseUseCase(anamneseRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 
@@ -150,7 +151,7 @@ class AnamneseViewModelTest {
         }
 
     @Test
-    fun `load failure resets form to blank without error`() =
+    fun `load failure keeps an actionable error`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { anamneseRepositoryMock.getByPatient(1L) } throws RuntimeException("boom")
@@ -158,11 +159,14 @@ class AnamneseViewModelTest {
 
             advanceUntilIdle()
 
-            assertEquals(AnamneseFormState(), vm.formState.value)
+            assertEquals(
+                AnamneseFormState(errorMessage = "boom"),
+                vm.formState.value,
+            )
         }
 
     @Test
-    fun `save failure resets isSaving without error and does not navigate and emits no Saved effect`() =
+    fun `save failure resets isSaving with an error and does not navigate and emits no Saved effect`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { anamneseRepositoryMock.getByPatient(1L) } returns null
@@ -181,7 +185,7 @@ class AnamneseViewModelTest {
 
             val form = assertNotNull(vm.formState.value)
             assertFalse(form.isSaving)
-            assertEquals(AnamneseFormState(generalHistory = "History"), form)
+            assertEquals("db down", form.errorMessage)
             assertEquals(emptyList(), receivedEffects.toList())
             effectsJob.cancel()
         }

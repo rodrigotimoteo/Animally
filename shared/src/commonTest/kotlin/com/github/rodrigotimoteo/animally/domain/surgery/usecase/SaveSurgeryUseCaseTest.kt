@@ -51,7 +51,7 @@ class SaveSurgeryUseCaseTest {
 
         val result = sut(newSurgery(id = 7L))
 
-        assertEquals(1L, result)
+        assertEquals(7L, result)
         verify(VerifyMode.exactly(0)) { surgeryRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(1)) { surgeryRepositoryMock.update(any()) }
     }

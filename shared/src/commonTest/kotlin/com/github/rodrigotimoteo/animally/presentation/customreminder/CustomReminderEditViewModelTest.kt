@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomRemi
 import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.GetCustomReminderDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.SaveCustomReminderUseCase
 import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import dev.mokkery.answering.returns
@@ -38,7 +39,8 @@ class CustomReminderEditViewModelTest {
 
     private val getCustomReminderDetailUseCase = GetCustomReminderDetailUseCase(customReminderRepositoryMock)
 
-    private val saveCustomReminderUseCase = SaveCustomReminderUseCase(customReminderRepositoryMock, reminderSchedulerMock)
+    private val saveCustomReminderUseCase =
+        SaveCustomReminderUseCase(customReminderRepositoryMock, reminderSchedulerMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

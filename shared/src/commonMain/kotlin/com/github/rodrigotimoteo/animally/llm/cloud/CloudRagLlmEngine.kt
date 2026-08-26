@@ -163,9 +163,7 @@ class CloudRagLlmEngine(
                 ?.let(::decodeChunk)
                 ?.choices
                 ?.firstOrNull()
-                ?.delta
-                ?.content
-                ?.textContent()
+                ?.visibleContent()
                 .orEmpty()
         val visibleDelta = delta.takeUnless(String::isEmpty)?.let(thinkingFilter::append).orEmpty()
         visibleDelta.takeIf(String::isNotEmpty)?.let(cumulative::append)
@@ -185,20 +183,7 @@ class CloudRagLlmEngine(
             eventName(normalized) in TERMINAL_EVENT_NAMES -> true
             payload?.equals(SSE_DONE_SENTINEL, ignoreCase = true) == true -> true
             payload == null || !payload.startsWith("{") -> false
-            else -> {
-                val chunk = decodeChunk(payload)
-                if (chunk == null) {
-                    false
-                } else {
-                    chunk.cost != null ||
-                        chunk.done?.isTrueFlag() == true ||
-                        chunk.status?.lowercase() in TERMINAL_STATUS_NAMES ||
-                        chunk.event?.lowercase() in TERMINAL_EVENT_NAMES ||
-                        chunk.type?.lowercase() in TERMINAL_EVENT_NAMES ||
-                        chunk.finishReason != null ||
-                        chunk.choices.firstOrNull()?.finishReason != null
-                }
-            }
+            else -> decodeChunk(payload)?.isTerminal(isBareJsonBody = normalized.startsWith("{")) == true
         }
     }
 
@@ -215,12 +200,28 @@ class CloudRagLlmEngine(
             json.decodeFromString<ChatCompletionChunk>(payload)
         }.getOrNull()
 
-    private fun dataPayload(line: String): String? =
-        line
-            .trimStart()
-            .takeIf { it.startsWith(SSE_DATA_PREFIX, ignoreCase = true) }
-            ?.substringAfter(':')
-            ?.trim()
+    private fun dataPayload(line: String): String? {
+        val normalized = line.trimStart()
+        return when {
+            normalized.startsWith(SSE_DATA_PREFIX, ignoreCase = true) -> normalized.substringAfter(':').trim()
+            // Some OpenAI-compatible gateways ignore `stream: true` and return
+            // one ordinary chat-completion JSON body. Treat it as a one-frame
+            // stream instead of reporting a misleading EOF interruption.
+            normalized.startsWith("{") && normalized.endsWith("}") -> normalized
+            normalized.equals(SSE_DONE_SENTINEL, ignoreCase = true) -> normalized
+            else -> null
+        }
+    }
+
+    private fun ChunkChoice.visibleContent(): String {
+        val candidates =
+            listOfNotNull(
+                delta?.content,
+                message?.content,
+                text,
+            ).map { element -> element.textContent() }
+        return candidates.firstOrNull(String::isNotEmpty).orEmpty()
+    }
 
     /** Converts string or structured text content into one provider-neutral string. */
     private fun JsonElement.textContent(): String =
@@ -269,12 +270,6 @@ class CloudRagLlmEngine(
             is JsonArray -> null
         }
 
-    private fun JsonElement.isTrueFlag(): Boolean =
-        when (this) {
-            is JsonPrimitive -> contentOrNull.equals("true", ignoreCase = true)
-            else -> false
-        }
-
     private fun eventName(line: String): String? =
         line
             .takeIf { it.startsWith(SSE_EVENT_PREFIX, ignoreCase = true) }
@@ -291,22 +286,6 @@ class CloudRagLlmEngine(
         const val SSE_DONE_SENTINEL = "[DONE]"
         const val STREAM_ERROR_MESSAGE = "Cloud LLM stream reported an error"
         const val MAX_ERROR_DETAIL_CHARS = 240
-        val TERMINAL_EVENT_NAMES =
-            setOf(
-                "done",
-                "complete",
-                "completed",
-                "finish",
-                "finished",
-                "end",
-                "message_stop",
-                "message_end",
-                "response.completed",
-                "response.done",
-                "completion",
-                "stream_end",
-            )
-        val TERMINAL_STATUS_NAMES = setOf("complete", "completed", "done", "finished")
         val THINKING_CONTENT_TYPES =
             setOf(
                 "analysis",
@@ -323,6 +302,43 @@ class CloudRagLlmEngine(
             )
     }
 }
+
+private val TERMINAL_EVENT_NAMES =
+    setOf(
+        "done",
+        "complete",
+        "completed",
+        "finish",
+        "finished",
+        "end",
+        "message_stop",
+        "message_end",
+        "response.completed",
+        "response.done",
+        "completion",
+        "stream_end",
+    )
+
+private val TERMINAL_STATUS_NAMES = setOf("complete", "completed", "done", "finished")
+
+private fun ChatCompletionChunk.isTerminal(isBareJsonBody: Boolean): Boolean {
+    val choice = choices.firstOrNull()
+    return cost != null ||
+        choice?.message != null ||
+        (isBareJsonBody && choice?.text != null) ||
+        done?.isTrueFlag() == true ||
+        status?.lowercase() in TERMINAL_STATUS_NAMES ||
+        event?.lowercase() in TERMINAL_EVENT_NAMES ||
+        type?.lowercase() in TERMINAL_EVENT_NAMES ||
+        finishReason != null ||
+        choice?.finishReason != null
+}
+
+private fun JsonElement.isTrueFlag(): Boolean =
+    when (this) {
+        is JsonPrimitive -> contentOrNull.equals("true", ignoreCase = true)
+        else -> false
+    }
 
 /**
  * Removes common inline reasoning markers without leaking tags split across
@@ -548,8 +564,17 @@ internal data class ChatCompletionChunk(
 @Serializable
 internal data class ChunkChoice(
     val delta: Delta? = null,
+    /** Non-streaming-compatible gateways put the completed answer here. */
+    val message: CompletionMessage? = null,
+    /** Legacy text-completion gateways sometimes use `choices[].text`. */
+    val text: JsonElement? = null,
     /** Terminal marker (`stop`, `length`, ...); absent on every non-final chunk. */
     @SerialName("finish_reason") val finishReason: String? = null,
+)
+
+@Serializable
+internal data class CompletionMessage(
+    val content: JsonElement? = null,
 )
 
 @Serializable

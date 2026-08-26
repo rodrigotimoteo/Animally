@@ -4,22 +4,24 @@ import Shared
 struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
     @State private var path = NavigationPath()
+    /// Keep text-entry state local to SwiftUI. A round-trip through the
+    /// Kotlin StateFlow on every keystroke can lag behind UIKit and drop the
+    /// tail of a fast query; the view model remains the search source of truth
+    /// after each complete local edit.
+    @State private var searchText = ""
 
     var body: some View {
         NavigationStack(path: $path) {
             Group {
-                if viewModel.state.query.isEmpty && viewModel.state.results.isEmpty {
+                if searchText.isEmpty && viewModel.state.results.isEmpty {
                     emptySearchView
-                } else if viewModel.state.results.isEmpty && !viewModel.state.query.isEmpty {
+                } else if viewModel.state.results.isEmpty && !searchText.isEmpty {
                     noResultsView
                 } else {
                     resultsList
                 }
             }
-            .searchable(text: Binding(
-                get: { viewModel.state.query },
-                set: { viewModel.setQuery(query: $0) }
-            ), prompt: "Search patients, records, and more")
+            .searchable(text: $searchText, prompt: "Search patients, records, and more")
             .navigationTitle("Search")
             .overlay(alignment: .top) {
                 if let errorMessage = viewModel.state.errorMessage {
@@ -27,9 +29,15 @@ struct SearchView: View {
                 }
             }
             .safeAreaInset(edge: .top) {
-                if !viewModel.state.query.isEmpty {
+                if !searchText.isEmpty {
                     filterChips
                 }
+            }
+            .onAppear {
+                searchText = viewModel.state.query
+            }
+            .onChange(of: searchText) { _, newValue in
+                viewModel.setQuery(query: newValue)
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
@@ -60,20 +68,22 @@ struct SearchView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Array(viewModel.state.recordTypeOptions), id: \.first) { option in
-                    let recordType = String(option.first!)
-                    let label = String(option.second!)
-                    let isSelected = viewModel.state.recordTypes.contains(recordType)
+                    if let rawRecordType = option.first, let rawLabel = option.second {
+                        let recordType = String(rawRecordType)
+                        let label = String(rawLabel)
+                        let isSelected = viewModel.state.recordTypes.contains(recordType)
 
-                    Button {
-                        viewModel.toggleRecordType(recordType: recordType)
-                    } label: {
-                        Text(label)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(isSelected ? Theme.forestGreen : Theme.surfaceElevated)
-                            .foregroundStyle(isSelected ? .white : Theme.textPrimary)
-                            .clipShape(Capsule())
+                        Button {
+                            viewModel.toggleRecordType(recordType: recordType)
+                        } label: {
+                            Text(label)
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(isSelected ? Theme.forestGreen : Theme.surfaceElevated)
+                                .foregroundStyle(isSelected ? .white : Theme.textPrimary)
+                                .clipShape(Capsule())
+                        }
                     }
                 }
             }
@@ -91,12 +101,12 @@ struct SearchView: View {
                         // Owner hits navigate to the owner; patientId mirrors
                         // the owner id for these rows.
                         NavigationLink(value: Route.ownerDetail(result.patientId)) {
-                            SearchResultRow(result: result)
+                            SearchResultRow(result: result, showsDisclosureIndicator: false)
                         }
                         .buttonStyle(.plain)
                     } else if result.recordType == "PATIENT" {
                         NavigationLink(value: Route.patientDetail(result.patientId)) {
-                            SearchResultRow(result: result)
+                            SearchResultRow(result: result, showsDisclosureIndicator: false)
                         }
                         .buttonStyle(.plain)
                     } else {
@@ -184,6 +194,7 @@ struct SearchView: View {
 
 struct SearchResultRow: View {
     let result: SearchResult
+    var showsDisclosureIndicator = true
 
     var body: some View {
         HStack(spacing: 12) {
@@ -213,13 +224,15 @@ struct SearchResultRow: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.textTertiary)
+            if showsDisclosureIndicator {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textTertiary)
+            }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Result for \(result.patientName)")
+        .accessibilityLabel("Result for \(result.patientName), \(result.recordType): \(result.snippet)")
     }
 
     private func iconForRecordType(_ type: String) -> String {

@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import kotlinx.datetime.LocalDate
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
@@ -46,13 +47,14 @@ class SaveGestationUseCase(
                 gestationRepository.insert(updatedGestation)
             } else {
                 gestationRepository.update(updatedGestation)
+                updatedGestation.id
             }
         searchRepository.indexRecord(
             recordType = RecordType.Gestation.wireName,
             patientId = updatedGestation.patientId,
             recordId = savedId,
             date = updatedGestation.breedingDate,
-            searchableText = listOfNotNull(updatedGestation.status, updatedGestation.notes).joinToString(" "),
+            searchableText = SearchableText.gestation(updatedGestation),
         )
         return savedId
     }

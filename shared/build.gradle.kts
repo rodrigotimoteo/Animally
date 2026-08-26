@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.Exec
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -26,6 +27,81 @@ kotlin {
         iosTarget.binaries.all {
             linkerOpts("-U", "_OBJC_CLASS_\$_UIViewLayoutRegion")
         }
+
+        // Kotlin/Native test executables are independent of the iosApp target, so they
+        // cannot link the Swift implementations of these Objective-C shims. Compile the
+        // inert test doubles into a target-specific archive and force-load it only into
+        // the test binary. This keeps the native shared test gate runnable without changing
+        // the production framework or app link.
+        val iosTestStubSources =
+            listOf(
+                rootProject.file("shared/src/iosTest/objc/AnimallySyncShimStub.m"),
+                rootProject.file("shared/src/iosTest/objc/FmLlmShimStub.m"),
+            )
+        val iosTestStubIncludeDir = rootProject.file("shared/src/nativeInterop/cinterop")
+        val iosTestStubBuildDir =
+            layout.buildDirectory
+                .dir("iosTestStubs/${iosTarget.name}")
+                .get()
+                .asFile
+        val iosTestStubObjectFiles =
+            iosTestStubSources.map { source ->
+                iosTestStubBuildDir.resolve("${source.nameWithoutExtension}.o")
+            }
+        val iosTestStubCompileTasks =
+            iosTestStubSources.zip(iosTestStubObjectFiles).map { (source, objectFile) ->
+                tasks.register<Exec>(
+                    "compile${iosTarget.name.replaceFirstChar { it.uppercase() }}${source.nameWithoutExtension}IosTestStub",
+                ) {
+                    inputs.file(source)
+                    inputs.dir(iosTestStubIncludeDir)
+                    outputs.file(objectFile)
+                    doFirst { objectFile.parentFile.mkdirs() }
+                    commandLine(
+                        "xcrun",
+                        "--sdk",
+                        if (iosTarget.name == "iosSimulatorArm64") "iphonesimulator" else "iphoneos",
+                        "clang",
+                        "-target",
+                        if (iosTarget.name == "iosSimulatorArm64") {
+                            "arm64-apple-ios15.0-simulator"
+                        } else {
+                            "arm64-apple-ios15.0"
+                        },
+                        "-fblocks",
+                        "-I${iosTestStubIncludeDir.absolutePath}",
+                        "-c",
+                        source.absolutePath,
+                        "-o",
+                        objectFile.absolutePath,
+                    )
+                }
+            }
+        val iosTestStubArchive = iosTestStubBuildDir.resolve("libAnimallyIosTestStubs.a")
+        val iosTestStubArchiveTask =
+            tasks.register<Exec>("build${iosTarget.name.replaceFirstChar { it.uppercase() }}IosTestStubs") {
+                dependsOn(iosTestStubCompileTasks)
+                inputs.files(iosTestStubSources)
+                outputs.file(iosTestStubArchive)
+                doFirst { iosTestStubArchive.parentFile.mkdirs() }
+                commandLine(
+                    listOf(
+                        "xcrun",
+                        "--sdk",
+                        if (iosTarget.name == "iosSimulatorArm64") "iphonesimulator" else "iphoneos",
+                        "libtool",
+                        "-static",
+                        "-o",
+                        iosTestStubArchive.absolutePath,
+                    ) + iosTestStubObjectFiles.map { it.absolutePath },
+                )
+            }
+        val iosDebugTestBinary = iosTarget.binaries.getTest("DEBUG")
+        iosDebugTestBinary.linkerOpts("-force_load", iosTestStubArchive.absolutePath)
+        tasks.named(iosDebugTestBinary.linkTaskName).configure {
+            dependsOn(iosTestStubArchiveTask)
+        }
+
         iosTarget.compilations.getByName("main") {
             cinterops {
                 // Header-only cinterop binding to the Swift @objc shim (FmLlmShim).

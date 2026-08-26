@@ -15,8 +15,9 @@ final class MedicalTabViewModel: ObservableObject {
 
     @Published var isLoading: Bool = true
 
-    /// Flips once the first store emission arrives; replaces the old fixed-delay hack.
-    private var receivedFirstEmission = false
+    /// Waits for every child store's initial state so an empty first store does
+    /// not hide the loading indicator while another store is still querying.
+    private var receivedStoreKeys = Set<String>()
 
     private var cancellables: [NativeCancellable] = []
 
@@ -37,27 +38,27 @@ final class MedicalTabViewModel: ObservableObject {
 
         cancellables.append(consultationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.consultations = state.consultations }
-            self?.markFirstEmission()
+            self?.markFirstEmission("consultations")
         }))
         cancellables.append(lamenessStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.lamenessRecords = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("lameness")
         }))
         cancellables.append(surgeryStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.surgeries = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("surgeries")
         }))
         cancellables.append(medicationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.medications = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("medications")
         }))
         cancellables.append(substanceStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.substances = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("substances")
         }))
         cancellables.append(weightStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.weights = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("weights")
         }))
 
         // Load all stores
@@ -100,10 +101,9 @@ final class MedicalTabViewModel: ObservableObject {
         weightStore.delete(recordId: recordId)
     }
 
-    private func markFirstEmission() {
-        guard !receivedFirstEmission else { return }
-        receivedFirstEmission = true
-        isLoading = false
+    private func markFirstEmission(_ key: String) {
+        receivedStoreKeys.insert(key)
+        isLoading = receivedStoreKeys.count < 6
     }
 
     /// Reloads every store this tab owns; stores re-query Kotlin and republish.

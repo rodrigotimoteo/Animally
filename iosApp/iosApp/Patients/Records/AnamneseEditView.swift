@@ -36,6 +36,13 @@ struct AnamneseEditView: View {
                 .disabled(viewModel.state.form?.isSaving == true)
             }
         }
+        .overlay(alignment: .top) {
+            if let errorMessage = viewModel.state.form?.errorMessage {
+                RecordFormStyle.errorBanner(message: errorMessage) {
+                    viewModel.dismissError()
+                }
+            }
+        }
         .onAppear {
             viewModel.onSaved = { dismiss() }
         }
@@ -90,7 +97,7 @@ final class AnamneseEditViewModel: RecordFormViewModel<AnamneseEditStoreState> {
             initial: store.state.current,
             subscribe: { store.state.subscribe(onEach: $0) },
             isSaving: { $0.form?.isSaving == true },
-            hasError: { _ in false }
+            hasError: { $0.form?.errorMessage != nil }
         )
     }
 
@@ -100,4 +107,5 @@ final class AnamneseEditViewModel: RecordFormViewModel<AnamneseEditStoreState> {
     func onChronicConditionsChange(_ value: String) { store.onChronicConditionsChange(value: value) }
     func onAllergiesChange(_ value: String) { store.onAllergiesChange(value: value) }
     func save() { store.save() }
+    func dismissError() { store.dismissError() }
 }

@@ -4,6 +4,9 @@ import Shared
 struct PatientListView: View {
     @StateObject private var viewModel = PatientListViewModel()
     @State private var showSettings = false
+    @State private var showDeleteConfirmation = false
+    @State private var pendingPatientId: Int64?
+    @State private var pendingPatientName = ""
 
     var body: some View {
         Group {
@@ -53,7 +56,9 @@ struct PatientListView: View {
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
-                        viewModel.delete(patientId: patient.id)
+                        pendingPatientId = patient.id
+                        pendingPatientName = patient.name
+                        showDeleteConfirmation = true
                     } label: {
                         Label("Delete", systemImage: "trash")
                     }
@@ -61,6 +66,20 @@ struct PatientListView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .confirmationDialog(
+            "Delete \(pendingPatientName)?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                guard let pendingPatientId else { return }
+                viewModel.delete(patientId: pendingPatientId)
+                self.pendingPatientId = nil
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The patient will be removed from the active list. Existing history is kept.")
+        }
     }
 
     private var loadingView: some View {

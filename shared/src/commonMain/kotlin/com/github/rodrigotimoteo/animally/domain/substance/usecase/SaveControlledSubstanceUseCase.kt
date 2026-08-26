@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.substance.usecase
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
 import org.koin.core.annotation.Provided
@@ -32,24 +33,14 @@ class SaveControlledSubstanceUseCase(
                 substanceRepository.insert(controlledSubstance)
             } else {
                 substanceRepository.update(controlledSubstance)
+                controlledSubstance.id
             }
-        val searchableText =
-            listOfNotNull(
-                controlledSubstance.drugName,
-                controlledSubstance.dose,
-                controlledSubstance.unit,
-                controlledSubstance.route,
-                controlledSubstance.administeredBy,
-                controlledSubstance.witness,
-                controlledSubstance.reason,
-                controlledSubstance.notes,
-            ).joinToString(" ")
         searchRepository.indexRecord(
             recordType = RecordType.ControlledSubstance.wireName,
             patientId = controlledSubstance.patientId,
             recordId = savedId,
             date = controlledSubstance.date,
-            searchableText = searchableText,
+            searchableText = SearchableText.controlledSubstance(controlledSubstance),
         )
         return savedId
     }

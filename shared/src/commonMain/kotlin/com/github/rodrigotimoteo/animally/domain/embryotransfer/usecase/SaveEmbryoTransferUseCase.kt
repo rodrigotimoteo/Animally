@@ -1,7 +1,10 @@
 package com.github.rodrigotimoteo.animally.domain.embryotransfer.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.embryotransfer.IEmbryoTransferRepository
 import com.github.rodrigotimoteo.animally.domain.embryotransfer.model.EmbryoTransfer
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -13,15 +16,26 @@ import org.koin.core.annotation.Single
 @Single
 class SaveEmbryoTransferUseCase(
     @Provided private val repository: IEmbryoTransferRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Persists the given [record] and returns the generated identifier for new records.
      */
-    operator fun invoke(record: EmbryoTransfer): Long =
-        if (record.id == 0L) {
-            repository.insert(record)
-        } else {
-            repository.update(record)
-            record.id
-        }
+    operator fun invoke(record: EmbryoTransfer): Long {
+        val savedId =
+            if (record.id == 0L) {
+                repository.insert(record)
+            } else {
+                repository.update(record)
+                record.id
+            }
+        searchRepository.indexRecord(
+            recordType = RecordType.EmbryoTransfer.wireName,
+            patientId = record.patientId,
+            recordId = savedId,
+            date = record.date,
+            searchableText = SearchableText.embryoTransfer(record),
+        )
+        return savedId
+    }
 }

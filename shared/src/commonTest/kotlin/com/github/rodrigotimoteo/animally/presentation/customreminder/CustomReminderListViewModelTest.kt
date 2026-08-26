@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderR
 import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomReminder
 import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.DeleteCustomReminderUseCase
 import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.GetCustomRemindersByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
 import dev.mokkery.answering.returns
@@ -35,7 +36,8 @@ class CustomReminderListViewModelTest {
 
     private val getCustomRemindersByPatientUseCase = GetCustomRemindersByPatientUseCase(customReminderRepositoryMock)
 
-    private val deleteCustomReminderUseCase = DeleteCustomReminderUseCase(customReminderRepositoryMock)
+    private val deleteCustomReminderUseCase =
+        DeleteCustomReminderUseCase(customReminderRepositoryMock, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 

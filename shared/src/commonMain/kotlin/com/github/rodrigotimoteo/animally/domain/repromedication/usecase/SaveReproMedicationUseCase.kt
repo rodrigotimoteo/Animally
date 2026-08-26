@@ -32,6 +32,7 @@ class SaveReproMedicationUseCase(
                 reproMedicationRepository.insert(reproMedication)
             } else {
                 reproMedicationRepository.update(reproMedication)
+                reproMedication.id
             }
         val searchableText =
             listOfNotNull(

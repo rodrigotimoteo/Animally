@@ -148,7 +148,7 @@ class SettingsViewModelTest {
         SettingsViewModel(
             exportCsvUseCase = exportCsvUseCase,
             exportBackupUseCase = ExportBackupUseCase(database),
-            restoreBackupUseCase = RestoreBackupUseCase(database),
+            restoreBackupUseCase = RestoreBackupUseCase(database, searchRepository),
             exportReportUseCase =
                 ExportPatientReportUseCase(
                     patientRepositoryMock,

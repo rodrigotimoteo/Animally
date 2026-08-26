@@ -101,6 +101,6 @@ object IosSettingsStores {
     /** Returns a store exposing the voice-dictation review flow. */
     fun dictationStore(): DictationStore {
         val viewModel: DictationViewModel = IosAppBridge.koin.get()
-        return DictationStore(viewModel)
+        return DictationStore(viewModel, IosAppBridge.koin.get())
     }
 }

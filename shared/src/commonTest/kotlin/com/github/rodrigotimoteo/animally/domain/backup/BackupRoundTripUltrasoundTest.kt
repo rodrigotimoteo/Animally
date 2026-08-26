@@ -68,7 +68,7 @@ class BackupRoundTripUltrasoundTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restoredUltrasound =
             database.ultrasoundQueries
@@ -143,7 +143,7 @@ class BackupRoundTripUltrasoundTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.reproMedicationQueries

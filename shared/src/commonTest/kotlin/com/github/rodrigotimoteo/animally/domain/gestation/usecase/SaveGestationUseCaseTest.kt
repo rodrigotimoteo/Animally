@@ -69,7 +69,7 @@ class SaveGestationUseCaseTest {
 
         val result = sut(newGestation(id = 5L), today)
 
-        assertEquals(1L, result)
+        assertEquals(5L, result)
         verify(VerifyMode.exactly(0)) { gestationRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(1)) { gestationRepositoryMock.update(any()) }
         assertEquals(breedingDate.plus(DatePeriod(days = 340)), captured.single().expectedDueDate)

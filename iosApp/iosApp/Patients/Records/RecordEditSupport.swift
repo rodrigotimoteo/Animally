@@ -104,6 +104,49 @@ enum RecordFormStyle {
         .textCase(nil)
     }
 
+    /// Optional date control that does not invent today's date for an empty
+    /// value. A missing date is explicit and can be set or cleared without
+    /// writing a value back to the Kotlin form accidentally.
+    static func optionalDateField(
+        _ title: String,
+        value: String?,
+        onChange: @escaping (String?) -> Void
+    ) -> some View {
+        HStack {
+            if let value, let parsedDate = isoDateFormatter.date(from: value) {
+                DatePicker(
+                    title,
+                    selection: Binding(
+                        get: { parsedDate },
+                        set: { onChange(isoDateFormatter.string(from: $0)) }
+                    ),
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.compact)
+
+                Button {
+                    onChange(nil)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Clear \(title)")
+            } else {
+                Text(title)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer()
+                Text("Not set")
+                    .foregroundStyle(Theme.textSecondary)
+                Button("Set") {
+                    onChange(isoDateFormatter.string(from: Date()))
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .textCase(nil)
+    }
+
     static func textField(_ placeholder: String, value: String?, onChange: @escaping (String) -> Void) -> some View {
         TextField(placeholder, text: Binding(
             get: { value ?? "" },

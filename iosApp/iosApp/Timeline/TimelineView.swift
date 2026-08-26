@@ -77,17 +77,17 @@ private struct TimelineContent: View {
             viewModel.load()
         }
         .navigationDestination(for: Route.self) { route in
-                switch route {
-                case .patientDetail(let id):
-                    PatientDetailView(patientId: id)
-                case .patientEdit(let id):
-                    PatientEditView(patientId: id)
-                case .ownerDetail(let id):
-                    OwnerDetailView(ownerId: id)
-                case .ownerEdit(let id):
-                    OwnerEditView(ownerId: id)
-                }
+            switch route {
+            case .patientDetail(let id):
+                PatientDetailView(patientId: id)
+            case .patientEdit(let id):
+                PatientEditView(patientId: id)
+            case .ownerDetail(let id):
+                OwnerDetailView(ownerId: id)
+            case .ownerEdit(let id):
+                OwnerEditView(ownerId: id)
             }
+        }
         .navigationDestination(for: RecordEditRoute.self) { route in
             recordEditDestination(route)
         }
@@ -98,13 +98,13 @@ private struct TimelineContent: View {
                 recordId: key.recordId
             )
         }
-        }
+    }
 
     private var timelineList: some View {
         List {
             ForEach(viewModel.state.groups, id: \.date) { group in
                 Section {
-                    ForEach(group.entries, id: \.recordId) { entry in
+                    ForEach(Array(group.entries.enumerated()), id: \.offset) { _, entry in
                         Button {
                             // Open the read-only record detail with the patient
                             // page underneath so Back returns to it.
@@ -223,7 +223,7 @@ struct TimelineEntryRow: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Timeline entry: \(entry.title)")
+        .accessibilityLabel("Timeline entry: \(entry.title), \(entry.subtitle)\(showPatientName ? ", \(entry.patientName)" : "")")
     }
 
     private func iconForRecordType(_ type: String) -> String {
@@ -242,6 +242,12 @@ struct TimelineEntryRow: View {
             return "figure.walk"
         case "Dentistry":
             return "mouth.fill"
+        case "Custom Reminder":
+            return "bell.badge.fill"
+        case "Embryo Transfer":
+            return "arrow.triangle.branch"
+        case "Icsi":
+            return "scope"
         default:
             return "doc.text.fill"
         }

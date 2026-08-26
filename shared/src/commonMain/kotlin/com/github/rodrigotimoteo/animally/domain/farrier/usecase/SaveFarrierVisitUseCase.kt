@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -32,21 +33,14 @@ class SaveFarrierVisitUseCase(
                 farrierVisitRepository.insert(farrierVisit)
             } else {
                 farrierVisitRepository.update(farrierVisit)
+                farrierVisit.id
             }
-        val searchableText =
-            listOfNotNull(
-                farrierVisit.trimOrShoe,
-                farrierVisit.shoeType,
-                farrierVisit.findings,
-                farrierVisit.farrier,
-                farrierVisit.notes,
-            ).joinToString(" ")
         searchRepository.indexRecord(
             recordType = RecordType.FarrierVisit.wireName,
             patientId = farrierVisit.patientId,
             recordId = savedId,
             date = farrierVisit.date,
-            searchableText = searchableText,
+            searchableText = SearchableText.farrierVisit(farrierVisit),
         )
         return savedId
     }

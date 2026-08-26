@@ -32,6 +32,7 @@ class SaveUltrasoundUseCase(
                 ultrasoundRepository.insert(ultrasound)
             } else {
                 ultrasoundRepository.update(ultrasound)
+                ultrasound.id
             }
         val searchableText =
             listOfNotNull(

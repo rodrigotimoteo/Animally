@@ -144,7 +144,7 @@ class ExportBackupUseCaseTest {
                 .isEmpty(),
         )
 
-        RestoreBackupUseCase(database).invoke(requireNotNull(json))
+        restoreBackupUseCase(database).invoke(requireNotNull(json))
 
         val restored =
             database.patientQueries

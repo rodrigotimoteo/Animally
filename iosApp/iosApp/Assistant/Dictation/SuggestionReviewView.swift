@@ -37,6 +37,10 @@ final class DictationReviewViewModel: ObservableObject {
         store.reject(index: Int64(index))
     }
 
+    func saveAccepted(patientIds: [Int64]) -> String? {
+        store.saveAccepted(patientIds: patientIds.map { KotlinLong(longLong: $0) })
+    }
+
     deinit {
         cancellable?.cancel()
     }
@@ -105,6 +109,7 @@ struct SuggestionReviewView: View {
     /// Chosen patient per suggestion index after disambiguation.
     @Binding var disambiguatedPatients: [Int: Patient]
     let onFinished: () -> Void
+    @State private var saveError: String?
 
     private var suggestions: [DictationSuggestionUi] {
         viewModel.state.suggestions
@@ -112,18 +117,22 @@ struct SuggestionReviewView: View {
 
     private var validIndices: [Int] {
         suggestions.enumerated()
-            .filter { !$0.element.isQuarantined && $0.element.decision != false }
+            .filter { isSaveable($0.offset, suggestion: $0.element) && $0.element.decision != false }
             .map(\.offset)
     }
 
     private var quarantinedIndices: [Int] {
         suggestions.enumerated()
-            .filter { $0.element.isQuarantined && $0.element.decision != false }
+            .filter { !isSaveable($0.offset, suggestion: $0.element) && $0.element.decision != false }
             .map(\.offset)
     }
 
     private var acceptedCount: Int {
         suggestions.enumerated().filter { $0.element.decision == true }.count
+    }
+
+    private func isSaveable(_ index: Int, suggestion: DictationSuggestionUi) -> Bool {
+        !suggestion.isQuarantined || disambiguatedPatients[index] != nil
     }
 
     var body: some View {
@@ -301,25 +310,43 @@ struct SuggestionReviewView: View {
             }
 
             Button {
-                for index in suggestions.indices where suggestions[index].decision == true {
-                    viewModel.accept(index: index)
+                let acceptedPatientIds = suggestions.enumerated().compactMap { index, suggestion -> Int64? in
+                    guard suggestion.decision == true else { return nil }
+                    return disambiguatedPatients[index]?.id ?? suggestion.resolvedPatientId
                 }
-                onFinished()
+                guard acceptedPatientIds.count == acceptedCount else {
+                    saveError = "Choose a patient for every accepted record before saving."
+                    return
+                }
+                saveError = viewModel.saveAccepted(patientIds: acceptedPatientIds)
+                if saveError == nil {
+                    onFinished()
+                }
             } label: {
-                Text(acceptedCount > 0 ? "Save \(acceptedCount) record\(acceptedCount == 1 ? "" : "s")" : "Done")
+                Text(saveError == nil
+                    ? (acceptedCount > 0 ? "Save \(acceptedCount) record\(acceptedCount == 1 ? "" : "s")" : "Done")
+                    : "Save attempt finished")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(acceptedCount > 0 ? Theme.forestGreen : Theme.textTertiary)
+                    .background(acceptedCount > 0 && saveError == nil ? Theme.forestGreen : Theme.textTertiary)
                     .clipShape(Capsule())
             }
-            .disabled(acceptedCount == 0)
+            .disabled(acceptedCount == 0 || saveError != nil)
             .accessibilityIdentifier("dictation_confirm")
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
         .background(.bar)
+        .alert("Some records were not saved", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(saveError ?? "Try again after reviewing the suggestions.")
+        }
         .sheet(item: $disambiguationTarget) { target in
             PatientDisambiguationSheet(
                 spokenName: suggestions[target.index].record.patientName ?? "",

@@ -47,12 +47,12 @@ class SaveDewormingUseCaseTest {
     }
 
     @Test
-    fun `when id is non-zero then sut updates and returns rows affected`() {
+    fun `when id is non-zero then sut updates and returns the persisted id`() {
         every { dewormingRepositoryMock.update(any()) } returns 1L
 
         val result = sut(newDeworming(id = 5L))
 
-        assertEquals(1L, result)
+        assertEquals(5L, result)
         verify(VerifyMode.exactly(0)) { dewormingRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(1)) { dewormingRepositoryMock.update(any()) }
     }

@@ -158,10 +158,42 @@ class PatientRepositoryImplTest {
             createdAt = Instant.fromEpochMilliseconds(0L),
             updatedAt = Instant.fromEpochMilliseconds(0L),
         )
+        database.customReminderQueries.insert(
+            patientId = id,
+            title = "Call owner",
+            dueDate = LocalDate(2024, 2, 1),
+            linkedRecordType = null,
+            linkedRecordId = null,
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(0L),
+            updatedAt = Instant.fromEpochMilliseconds(0L),
+        )
+        database.embryoTransferQueries.insert(
+            patientId = id,
+            date = LocalDate(2024, 3, 1),
+            embryoCount = 1,
+            recipientMares = null,
+            vetName = null,
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(0L),
+            updatedAt = Instant.fromEpochMilliseconds(0L),
+        )
+        database.icsiQueries.insert(
+            patientId = id,
+            date = LocalDate(2024, 4, 1),
+            folliclesRecovered = 3,
+            vetName = null,
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(0L),
+            updatedAt = Instant.fromEpochMilliseconds(0L),
+        )
 
         val result = sut.countActiveRecords(id)
 
-        assertEquals(2L, result)
+        assertEquals(5L, result)
         assertTrue(result > 0)
     }
 

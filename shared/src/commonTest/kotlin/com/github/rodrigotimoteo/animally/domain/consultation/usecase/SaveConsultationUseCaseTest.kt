@@ -59,7 +59,7 @@ class SaveConsultationUseCaseTest {
                 7L,
                 42L,
                 LocalDate(2024, 4, 1),
-                "Assessment Plan",
+                "Subjective Objective Assessment Plan",
             )
         }
     }
@@ -79,7 +79,7 @@ class SaveConsultationUseCaseTest {
                 7L,
                 5L,
                 LocalDate(2024, 4, 1),
-                "Assessment Plan",
+                "Subjective Objective Assessment Plan",
             )
         }
     }

@@ -53,7 +53,7 @@ class BackupRoundTripPreventiveTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.vaccinationQueries
@@ -105,7 +105,7 @@ class BackupRoundTripPreventiveTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.dewormingQueries
@@ -143,7 +143,7 @@ class BackupRoundTripPreventiveTest {
         )
 
         val json = exportAndWipe()
-        RestoreBackupUseCase(database).invoke(json)
+        restoreBackupUseCase(database).invoke(json)
 
         val restored =
             database.dentistryQueries

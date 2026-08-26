@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.domain.customreminder.usecase
 import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderRepository
 import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomReminder
 import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
+import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.matcher.any
@@ -26,7 +27,7 @@ class SaveCustomReminderUseCaseTest {
     @BeforeTest
     fun setup() {
         every { reminderSchedulerMock.schedule(any()) } returns Unit
-        sut = SaveCustomReminderUseCase(customReminderRepositoryMock, reminderSchedulerMock)
+        sut = SaveCustomReminderUseCase(customReminderRepositoryMock, reminderSchedulerMock, FakeSearchRepository())
     }
 
     private fun newReminder(id: Long) =
@@ -60,7 +61,7 @@ class SaveCustomReminderUseCaseTest {
 
         val result = sut(newReminder(id = 5L))
 
-        assertEquals(1L, result)
+        assertEquals(5L, result)
         verify(VerifyMode.exactly(1)) { customReminderRepositoryMock.update(any()) }
         verify(VerifyMode.exactly(1)) {
             reminderSchedulerMock.schedule(

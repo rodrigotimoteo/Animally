@@ -49,47 +49,48 @@ struct PatientDetailView: View {
 
         base
             .navigationTitle(viewModel.state.patient?.name ?? "Patient")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: Route.patientEdit(viewModel.state.patient?.id)) {
-                    Image(systemName: "pencil")
-                        .accessibilityLabel("Edit patient")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(value: Route.patientEdit(viewModel.state.patient?.id)) {
+                        Image(systemName: "pencil")
+                            .accessibilityLabel("Edit patient")
+                    }
+                    .disabled(viewModel.state.patient == nil)
                 }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                if let patientId = viewModel.state.patient?.id {
-                    AddRecordMenu(patientId: patientId) { route in
-                        addRecordRoute = route
+                ToolbarItem(placement: .topBarTrailing) {
+                    if let patientId = viewModel.state.patient?.id {
+                        AddRecordMenu(patientId: patientId) { route in
+                            addRecordRoute = route
+                        }
                     }
                 }
             }
-        }
-        .overlay(alignment: .top) {
-            if let errorMessage = viewModel.state.errorMessage {
-                errorBanner(message: errorMessage)
+            .overlay(alignment: .top) {
+                if let errorMessage = viewModel.state.errorMessage {
+                    errorBanner(message: errorMessage)
+                }
             }
-        }
-        .onAppear {
-            viewModel.load()
-        }
-
-        .onChange(of: addRecordRoute) { oldValue, newValue in
-            // Returning from a record editor: force the visible tab to reload
-            // so freshly saved records appear without switching tabs.
-            if oldValue != nil, newValue == nil {
-                recordsRefreshToken += 1
+            .onAppear {
                 viewModel.load()
             }
-        }
-        .navigationDestination(item: $addRecordRoute) { route in
-            recordEditDestination(route)
-        }
-        .navigationDestination(item: $recordDetail) { nav in
-            // The detail view owns the Edit push itself, so saving an edit
-            // pops back to the refreshed read-only detail instead of the tab.
-            RecordDetailView(nav: nav)
-        }
+
+            .onChange(of: addRecordRoute) { oldValue, newValue in
+                // Returning from a record editor: force the visible tab to reload
+                // so freshly saved records appear without switching tabs.
+                if oldValue != nil, newValue == nil {
+                    recordsRefreshToken += 1
+                    viewModel.load()
+                }
+            }
+            .navigationDestination(item: $addRecordRoute) { route in
+                recordEditDestination(route)
+            }
+            .navigationDestination(item: $recordDetail) { nav in
+                // The detail view owns the Edit push itself, so saving an edit
+                // pops back to the refreshed read-only detail instead of the tab.
+                RecordDetailView(nav: nav)
+            }
     }
 
     /// Friendly nav-bar titles per record display type.
@@ -121,6 +122,7 @@ struct PatientDetailView: View {
                 OverviewTab(patient: patient, ownerName: viewModel.state.ownerName) {
                     selectedTab = .reproduction
                 }
+                .id(recordsRefreshToken)
             case .medical:
                 MedicalTabView(
                     patientId: patient.id,

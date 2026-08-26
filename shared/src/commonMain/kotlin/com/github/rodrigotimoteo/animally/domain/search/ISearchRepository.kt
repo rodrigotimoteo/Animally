@@ -118,7 +118,15 @@ interface ISearchRepository {
          * were unreachable by any natural farrier question), and query
          * sanitization gained the short-prefix guard (alphabetic tokens
          * under 3 chars match exactly instead of star-joining).
+         *
+         * v10: anamnese and custom-reminder rows are indexed, embryo/ICSI
+         * vocabulary is shared with save-time indexing, and patient search
+         * includes the complete identity fields plus notes.
+         *
+         * v11: medication rows are included in full healing, and healing starts
+         * from an empty derived index so rows for records deleted since the
+         * previous healing pass cannot remain searchable.
          */
-        const val SEARCH_INDEX_VERSION = "9"
+        const val SEARCH_INDEX_VERSION = "11"
     }
 }

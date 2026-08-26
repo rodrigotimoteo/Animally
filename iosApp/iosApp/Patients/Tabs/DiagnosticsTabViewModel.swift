@@ -9,8 +9,9 @@ final class DiagnosticsTabViewModel: ObservableObject {
 
     @Published var isLoading: Bool = true
 
-    /// Flips once the first store emission arrives; replaces the old fixed-delay hack.
-    private var receivedFirstEmission = false
+    /// Waits for every child store's initial state so an empty first store does
+    /// not hide the loading indicator while another store is still querying.
+    private var receivedStoreKeys = Set<String>()
 
     private var cancellables: [NativeCancellable] = []
 
@@ -23,11 +24,11 @@ final class DiagnosticsTabViewModel: ObservableObject {
 
         cancellables.append(labStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.labResults = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("labResults")
         }))
         cancellables.append(imagingStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in self?.imagingRecords = state.records }
-            self?.markFirstEmission()
+            self?.markFirstEmission("imaging")
         }))
 
         labStore.load()
@@ -45,10 +46,9 @@ final class DiagnosticsTabViewModel: ObservableObject {
         imagingStore.delete(recordId: recordId)
     }
 
-    private func markFirstEmission() {
-        guard !receivedFirstEmission else { return }
-        receivedFirstEmission = true
-        isLoading = false
+    private func markFirstEmission(_ key: String) {
+        receivedStoreKeys.insert(key)
+        isLoading = receivedStoreKeys.count < 2
     }
 
     /// Reloads every store this tab owns; stores re-query Kotlin and republish.

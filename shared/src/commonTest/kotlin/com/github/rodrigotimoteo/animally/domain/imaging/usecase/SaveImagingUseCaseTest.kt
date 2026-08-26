@@ -56,14 +56,14 @@ class SaveImagingUseCaseTest {
     }
 
     @Test
-    fun `when id differs from zero then updates and returns rows affected`() {
+    fun `when id differs from zero then updates and returns the persisted id`() {
         val imaging = imaging(id = 5L)
 
         every { imagingRepositoryMock.update(imaging) } returns 1L
 
         val result = sut(imaging)
 
-        assertEquals(expected = 1L, actual = result)
+        assertEquals(expected = 5L, actual = result)
         verify(VerifyMode.exactly(1)) { imagingRepositoryMock.update(imaging) }
         verify(VerifyMode.exactly(0)) { imagingRepositoryMock.insert(any()) }
     }

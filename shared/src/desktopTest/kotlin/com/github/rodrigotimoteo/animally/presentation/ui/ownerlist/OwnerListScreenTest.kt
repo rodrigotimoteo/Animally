@@ -11,6 +11,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.owner.OwnerRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.patient.PatientRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.search.SearchRepositoryImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.DeleteOwnerUseCase
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.GetOwnerListUseCase
@@ -33,11 +34,16 @@ class OwnerListScreenTest {
     }
 
     private fun createViewModel(database: AnimallyDatabase): OwnerListViewModel {
-        val ownerRepository = OwnerRepositoryImpl(database.ownerQueries)
+        val ownerRepository = OwnerRepositoryImpl(database.ownerQueries, database)
         val patientRepository = PatientRepositoryImpl(database)
         return OwnerListViewModel(
             getOwnerListUseCase = GetOwnerListUseCase(ownerRepository),
-            deleteOwnerUseCase = DeleteOwnerUseCase(ownerRepository, patientRepository),
+            deleteOwnerUseCase =
+                DeleteOwnerUseCase(
+                    ownerRepository,
+                    patientRepository,
+                    SearchRepositoryImpl(database, database.ownerQueries),
+                ),
             animallyNavigator = AnimallyNavigator(),
             ioDispatcher = uiTestIoDispatcher(),
         )

@@ -1,6 +1,8 @@
 package com.github.rodrigotimoteo.animally.domain.customreminder.usecase
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderRepository
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -13,10 +15,12 @@ import kotlin.time.Clock
  * re-save with the same id replaces it.
  *
  * @param customReminderRepository Repository instance for accessing custom reminder data.
+ * @param searchRepository Repository instance for the global search index.
  */
 @Single
 class DeleteCustomReminderUseCase(
     @Provided private val customReminderRepository: ICustomReminderRepository,
+    @Provided private val searchRepository: ISearchRepository,
 ) {
     /**
      * Marks the custom reminder identified by [id] as inactive.
@@ -24,5 +28,11 @@ class DeleteCustomReminderUseCase(
      * @param id the identifier of the custom reminder to deactivate.
      * @return the number of rows affected.
      */
-    operator fun invoke(id: Long): Long = customReminderRepository.setInactive(id, Clock.System.now())
+    operator fun invoke(id: Long): Long {
+        val rows = customReminderRepository.setInactive(id, Clock.System.now())
+        if (rows > 0L) {
+            searchRepository.deleteRecord(RecordType.CustomReminder.wireName, id)
+        }
+        return rows
+    }
 }

@@ -2,10 +2,13 @@ package com.github.rodrigotimoteo.animally.domain.timeline.usecase
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.consultation.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.customreminder.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.dentistry.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.deworming.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.embryotransfer.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.farrier.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.gestation.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.icsi.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.imaging.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.labresult.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.lameness.mapper.toDomain
@@ -201,6 +204,16 @@ class GetTimelineUseCase(
             { database.reproMedicationQueries.selectAll().executeAsList() },
             { it.patientId },
         ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.embryoTransferQueries.selectByPatient(pid).executeAsList() },
+            { database.embryoTransferQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.icsiQueries.selectByPatient(pid).executeAsList() },
+            { database.icsiQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
     }
 
     /** Controlled substances, consultations, vaccinations. */
@@ -218,6 +231,11 @@ class GetTimelineUseCase(
         add(
             { pid -> database.vaccinationQueries.selectByPatient(pid).executeAsList() },
             { database.vaccinationQueries.selectAll().executeAsList() },
+            { it.patientId },
+        ) { row, name -> row.toDomain().toTimelineEntry(name) }
+        add(
+            { pid -> database.customReminderQueries.selectByPatient(pid).executeAsList() },
+            { database.customReminderQueries.selectAllActive().executeAsList() },
             { it.patientId },
         ) { row, name -> row.toDomain().toTimelineEntry(name) }
     }

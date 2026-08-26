@@ -66,7 +66,7 @@ abstract class BaseAddEditViewModel<F>(
     /**
      * Dismisses any error surfaced by the screen.
      */
-    fun onDismissError() {
+    open fun onDismissError() {
         // no-op by default; overridden when the form exposes errors
     }
 }

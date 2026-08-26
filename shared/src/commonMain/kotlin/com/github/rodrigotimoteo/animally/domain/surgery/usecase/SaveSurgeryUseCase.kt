@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.surgery.usecase
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
 import org.koin.core.annotation.Provided
@@ -32,24 +33,14 @@ class SaveSurgeryUseCase(
                 surgeryRepository.insert(surgery)
             } else {
                 surgeryRepository.update(surgery)
+                surgery.id
             }
-        val searchableText =
-            listOfNotNull(
-                surgery.type,
-                surgery.description,
-                surgery.outcome,
-                surgery.surgeon,
-                surgery.anesthesia,
-                surgery.analgesia,
-                surgery.complications,
-                surgery.recoveryNotes,
-            ).joinToString(" ")
         searchRepository.indexRecord(
             recordType = RecordType.Surgery.wireName,
             patientId = surgery.patientId,
             recordId = savedId,
             date = surgery.date,
-            searchableText = searchableText,
+            searchableText = SearchableText.surgery(surgery),
         )
         return savedId
     }

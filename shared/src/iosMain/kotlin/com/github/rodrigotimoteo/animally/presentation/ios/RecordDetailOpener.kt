@@ -5,6 +5,7 @@ package com.github.rodrigotimoteo.animally.presentation.ios
 import com.github.rodrigotimoteo.animally.bridge.NativeCancellable
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
 import com.github.rodrigotimoteo.animally.di.infra.IosEditStores
+import com.github.rodrigotimoteo.animally.di.infra.IosEditStoresCare
 import com.github.rodrigotimoteo.animally.di.infra.IosEditStoresFiles
 import com.github.rodrigotimoteo.animally.di.infra.IosEditStoresMedical
 import com.github.rodrigotimoteo.animally.di.infra.IosEditStoresRepro
@@ -73,17 +74,15 @@ private fun parseRecordType(raw: String): RecordType? =
         }
 
 /**
- * Nav-bar title. Preserves the historical Swift normalization exactly: only
- * multi-word underscore wire names ("LAB_RESULT") resolve to their display
- * name; every other input passes through unchanged.
+ * Nav-bar title. Wire names are normalized to their human-readable display
+ * names, while display names and unknown strings are preserved as supplied.
  */
 private fun titleFor(
     raw: String,
     type: RecordType?,
 ): String {
     val resolved = type ?: return raw
-    val isUnderscoreWireName = '_' in resolved.wireName && resolved.wireName.equals(raw, ignoreCase = true)
-    return if (isUnderscoreWireName) resolved.displayName else raw
+    return if (resolved.wireName.equals(raw, ignoreCase = true)) resolved.displayName else raw
 }
 
 /** Edit-route descriptor for types that have an iOS editor; null otherwise. */
@@ -112,10 +111,10 @@ private fun editRouteFor(
         RecordType.ReproMedication,
         RecordType.EmbryoTransfer,
         RecordType.Icsi,
-        -> RecordEditRouteDescriptor(typeName = type.name, patientId = pid, recordId = recordId)
-
         RecordType.Anamnese,
         RecordType.CustomReminder,
+        -> RecordEditRouteDescriptor(typeName = type.name, patientId = pid, recordId = recordId)
+
         RecordType.Owner,
         RecordType.Patient,
         -> null
@@ -226,8 +225,8 @@ object RecordDetailOpener {
             RecordType.EmbryoTransfer -> reproGroup(ReproKind.EmbryoTransfer, patientId, recordId, scope)
             RecordType.Icsi -> reproGroup(ReproKind.Icsi, patientId, recordId, scope)
 
-            RecordType.Anamnese,
-            RecordType.CustomReminder,
+            RecordType.Anamnese -> specialGroup(SpecialKind.Anamnese, patientId, recordId, scope)
+            RecordType.CustomReminder -> specialGroup(SpecialKind.CustomReminder, patientId, recordId, scope)
             RecordType.Owner,
             RecordType.Patient,
             -> null
@@ -248,6 +247,9 @@ object RecordDetailOpener {
         EmbryoTransfer,
         Icsi,
     }
+
+    /** Record types with dedicated stores but no list section in the current iOS tabs. */
+    private enum class SpecialKind { Anamnese, CustomReminder }
 
     private fun basicGroup(
         kind: BasicKind,
@@ -399,6 +401,29 @@ object RecordDetailOpener {
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::icsiRows) },
+                )
+        }
+
+    private fun specialGroup(
+        kind: SpecialKind,
+        patientId: Long,
+        recordId: Long,
+        scope: CoroutineScope,
+    ): DetailBinding =
+        when (kind) {
+            SpecialKind.Anamnese ->
+                bind(
+                    IosEditStoresMedical.anamneseEditStore(patientId, recordId).state,
+                    scope,
+                    isLoadingOf = { it.form?.isLoading == true },
+                    rowsOf = { it.form?.let(::anamneseRows) },
+                )
+            SpecialKind.CustomReminder ->
+                bind(
+                    IosEditStoresCare.customReminderEditStore(patientId, recordId).state,
+                    scope,
+                    isLoadingOf = { it.form?.isLoading == true },
+                    rowsOf = { it.form?.let(::customReminderRows) },
                 )
         }
 }

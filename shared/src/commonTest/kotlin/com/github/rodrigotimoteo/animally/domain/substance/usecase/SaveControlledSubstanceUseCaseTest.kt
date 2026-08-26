@@ -53,7 +53,7 @@ class SaveControlledSubstanceUseCaseTest {
 
         val result = sut(newControlledSubstance(id = 7L))
 
-        assertEquals(1L, result)
+        assertEquals(7L, result)
         verify(VerifyMode.exactly(0)) { substanceRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(1)) { substanceRepositoryMock.update(any()) }
     }

@@ -140,4 +140,16 @@ class SearchRepositoryImplTest {
         assertEquals("Daylight", results.single().snippet)
         assertTrue(sut.search("midni*", null, null, null).isEmpty())
     }
+
+    @Test
+    fun `when healing index then stale records are removed`() {
+        val patientId = insertPatient("Midnight")
+        sut.indexRecord(ISearchRepository.TYPE_PATIENT, patientId, patientId, null, "Midnight")
+        sut.indexRecord(ISearchRepository.TYPE_MEDICATION, patientId, 999L, null, "StaleDrug")
+
+        sut.reindexIfNeeded("test-version")
+
+        assertTrue(sut.search("stale*", null, null, null).isEmpty())
+        assertEquals(1, sut.search("midni*", null, null, null).size)
+    }
 }

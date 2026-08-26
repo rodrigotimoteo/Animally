@@ -52,7 +52,7 @@ class SaveLamenessUseCaseTest {
 
         val result = sut(newLameness(id = 7L))
 
-        assertEquals(1L, result)
+        assertEquals(7L, result)
         verify(VerifyMode.exactly(0)) { lamenessRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(1)) { lamenessRepositoryMock.update(any()) }
     }

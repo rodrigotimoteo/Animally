@@ -273,4 +273,56 @@ class GetTimelineUseCaseTest {
         assertEquals("Charlie", entries[1].patientName)
         assertEquals(setOf("Tetanus", "Influenza"), entries.map { it.subtitle }.toSet())
     }
+
+    @Test
+    fun `when reproductive and custom reminder records exist then they appear in the timeline`() {
+        val patientId = seedPatient("Charlie")
+        database.embryoTransferQueries.insertWithId(
+            id = 41L,
+            patientId = patientId,
+            date = LocalDate(2024, 8, 1),
+            embryoCount = 2,
+            recipientMares = "Mare A, Mare B",
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = epoch,
+            updatedAt = epoch,
+        )
+        database.icsiQueries.insertWithId(
+            id = 51L,
+            patientId = patientId,
+            date = LocalDate(2024, 7, 15),
+            folliclesRecovered = 5,
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = epoch,
+            updatedAt = epoch,
+        )
+        database.customReminderQueries.insertWithId(
+            id = 61L,
+            patientId = patientId,
+            title = "Call owner",
+            dueDate = LocalDate(2024, 9, 1),
+            linkedRecordType = null,
+            linkedRecordId = null,
+            notes = "Discuss embryo recipients",
+            isActive = true,
+            createdAt = epoch,
+            updatedAt = epoch,
+        )
+
+        val entries = sut(patientId).groups.flatMap { it.entries }
+
+        assertEquals(
+            listOf("Custom Reminder", "Embryo Transfer", "ICSI"),
+            entries.map { it.title },
+        )
+        assertEquals(
+            listOf("Call owner", "2 embryos", "5 follicles recovered"),
+            entries.map { it.subtitle },
+        )
+        assertEquals(listOf(LocalDate(2024, 9, 1), LocalDate(2024, 8, 1), LocalDate(2024, 7, 15)), entries.map { it.date })
+    }
 }
