@@ -67,9 +67,13 @@ enum SpeechTranscriberService {
     /// Locale dictated sessions are captured in.
     static let dictationLocale = Locale(identifier: "pt-PT")
 
+    /// User-facing explanation when neither native speech pipeline can start.
+    static let unavailableMessage =
+        "Speech recognition is unavailable right now. Check Speech Recognition permissions and make sure a supported language is downloaded."
+
     /// Resolves the best usable dictation engine for this device.
     @MainActor
-    static func resolve() async -> ResolvedDictationEngine {
+    static func resolve() async -> ResolvedDictationEngine? {
         if DictationTestConfiguration.isEnabled {
             return ResolvedDictationEngine(
                 transcriber: MockSpeechTranscriber(),
@@ -160,21 +164,24 @@ enum SpeechTranscriberService {
     /// the preferred locale when recognized, else en-US, else whatever the
     /// system lists first.
     @MainActor
-    private static func legacyEngine() -> ResolvedDictationEngine {
+    private static func legacyEngine() -> ResolvedDictationEngine? {
         let supportedIdentifiers = SFSpeechRecognizer.supportedLocales().map(\.identifier)
         let preferred = dictationLocale.identifier
-        let identifier: String
-        if supportedIdentifiers.contains(preferred) {
-            identifier = preferred
-        } else if supportedIdentifiers.contains("en-US") {
-            identifier = "en-US"
-        } else {
-            identifier = supportedIdentifiers.first ?? "en-US"
+        let candidates =
+            [preferred, "en-US"] + supportedIdentifiers.filter { $0 != preferred && $0 != "en-US" }
+        for identifier in candidates {
+            guard
+                let recognizer = SFSpeechRecognizer(locale: Locale(identifier: identifier)),
+                recognizer.isAvailable
+            else {
+                continue
+            }
+            return ResolvedDictationEngine(
+                transcriber: DictationTranscriber(localeIdentifier: identifier),
+                localeIdentifier: identifier
+            )
         }
-        return ResolvedDictationEngine(
-            transcriber: DictationTranscriber(localeIdentifier: identifier),
-            localeIdentifier: identifier
-        )
+        return nil
     }
 }
 

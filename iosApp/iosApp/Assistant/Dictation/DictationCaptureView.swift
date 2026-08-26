@@ -25,7 +25,8 @@ struct DictationCaptureView: View {
     @State private var errorMessage: String?
     @State private var fallbackLocaleHint: String?
     @State private var disambiguatedPatients: [Int: Patient] = [:]
-    @State private var enginesReady = false
+    @State private var isPreparingEngine = true
+    @State private var engineUnavailableMessage: String?
     @State private var operationTask: Task<Void, Never>?
 
     @State private var transcriber: (any SpeechTranscribing)?
@@ -100,13 +101,19 @@ struct DictationCaptureView: View {
                     .background(Theme.forestGreen)
                     .clipShape(Capsule())
             }
-            .disabled(!enginesReady)
+            .disabled(isPreparingEngine)
             .accessibilityIdentifier("dictation_start")
 
-            if !enginesReady {
+            if isPreparingEngine {
                 ProgressView("Preparing dictation…")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
+            } else if let engineUnavailableMessage {
+                Label(engineUnavailableMessage, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 28)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -222,19 +229,16 @@ struct DictationCaptureView: View {
     // MARK: Actions
 
     private func prepareEngines() async {
+        isPreparingEngine = true
         extractor = DictationExtractorFactory.make()
         let resolved = await SpeechTranscriberService.resolve()
         guard !Task.isCancelled else { return }
-        transcriber = resolved.transcriber
-        fallbackLocaleHint =
-            resolved.usesFallbackLocale
-            ? "Dictating in \(resolved.localeDisplayName)"
-            : nil
-        enginesReady = true
+        applyResolvedEngine(resolved)
+        isPreparingEngine = false
     }
 
     private func startRecording() {
-        guard enginesReady else {
+        guard !isPreparingEngine else {
             errorMessage = "Dictation is still preparing. Try again in a moment."
             return
         }
@@ -245,8 +249,16 @@ struct DictationCaptureView: View {
                 errorMessage = permissionError.localizedDescription
                 return
             }
+            // Availability can change after permission is granted or after
+            // speech assets finish installing, so always resolve once more at
+            // the point of use instead of trusting a stale preflight result.
+            isPreparingEngine = true
+            let resolved = await SpeechTranscriberService.resolve()
+            guard !Task.isCancelled else { return }
+            applyResolvedEngine(resolved)
+            isPreparingEngine = false
             guard let transcriber else {
-                errorMessage = "Speech engine is not ready yet."
+                errorMessage = engineUnavailableMessage ?? SpeechTranscriberService.unavailableMessage
                 return
             }
             transcriber.partialHandler = { partial in
@@ -262,6 +274,15 @@ struct DictationCaptureView: View {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    private func applyResolvedEngine(_ resolved: ResolvedDictationEngine?) {
+        transcriber = resolved?.transcriber
+        fallbackLocaleHint =
+            resolved?.usesFallbackLocale == true
+            ? "Dictating in \(resolved?.localeDisplayName ?? "")"
+            : nil
+        engineUnavailableMessage = resolved == nil ? SpeechTranscriberService.unavailableMessage : nil
     }
 
     private func stopRecording() {

@@ -1,6 +1,20 @@
 import SwiftUI
 import Shared
 
+private struct AnimallySystemColorSchemeKey: EnvironmentKey {
+    static let defaultValue: ColorScheme = .light
+}
+
+extension EnvironmentValues {
+    /// The system appearance inherited before Animally applies a manual
+    /// light/dark override. Sheets use this to escape a cached presentation
+    /// color scheme when the user switches back to System.
+    var animallySystemColorScheme: ColorScheme {
+        get { self[AnimallySystemColorSchemeKey.self] }
+        set { self[AnimallySystemColorSchemeKey.self] = newValue }
+    }
+}
+
 enum Theme {
     /// Semantic brand color. SwiftUI resolves `accentColor` from the nearest
     /// `.tint`, so existing screens automatically follow the selected accent.

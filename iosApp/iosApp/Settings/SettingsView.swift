@@ -4,6 +4,7 @@ import Shared
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.animallySystemColorScheme) private var systemColorScheme
     @EnvironmentObject private var theme: ThemeViewModel
     @State private var showModelPicker = false
     @State private var showWipeConfirmation = false
@@ -48,7 +49,10 @@ struct SettingsView: View {
                 }
             }
         }
-        .preferredColorScheme(theme.preferredColorScheme)
+        // A presented sheet can retain the color scheme it had at presentation
+        // time. Explicitly supplying the inherited system scheme when the
+        // preference is System lets Dark → System update the sheet immediately.
+        .preferredColorScheme(theme.preferredColorScheme ?? systemColorScheme)
         .tint(selectedAccentColor)
     }
 
