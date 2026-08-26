@@ -3,11 +3,13 @@ package com.github.rodrigotimoteo.animally.di.database
 import com.github.rodrigotimoteo.animally.bridge.ObjCHidden
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.anamnese.AnamneseQueries
+import com.github.rodrigotimoteo.animally.data.assistant.AssistantChatHistoryQueries
 import com.github.rodrigotimoteo.animally.data.common.CommonQueries
 import com.github.rodrigotimoteo.animally.data.consultation.ConsultationQueries
 import com.github.rodrigotimoteo.animally.data.customreminder.CustomReminderQueries
 import com.github.rodrigotimoteo.animally.data.dentistry.DentistryQueries
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingQueries
+import com.github.rodrigotimoteo.animally.data.dictation.DictationCaptureQueries
 import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferQueries
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitQueries
 import com.github.rodrigotimoteo.animally.data.follicle.FollicleQueries
@@ -36,10 +38,12 @@ internal class QueriesModule {
     fun provide() =
         module {
             single<AnamneseQueries> { get<AnimallyDatabase>().anamneseQueries }
+            single<AssistantChatHistoryQueries> { get<AnimallyDatabase>().assistantChatHistoryQueries }
             single<ConsultationQueries> { get<AnimallyDatabase>().consultationQueries }
             single<CustomReminderQueries> { get<AnimallyDatabase>().customReminderQueries }
             single<DentistryQueries> { get<AnimallyDatabase>().dentistryQueries }
             single<DewormingQueries> { get<AnimallyDatabase>().dewormingQueries }
+            single<DictationCaptureQueries> { get<AnimallyDatabase>().dictationCaptureQueries }
             single<EmbryoTransferQueries> { get<AnimallyDatabase>().embryoTransferQueries }
             single<FollicleQueries> { get<AnimallyDatabase>().follicleQueries }
             single<IcsiQueries> { get<AnimallyDatabase>().icsiQueries }

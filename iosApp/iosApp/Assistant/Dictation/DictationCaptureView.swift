@@ -18,7 +18,7 @@ struct DictationCaptureView: View {
         case reviewing
     }
 
-    @StateObject private var reviewViewModel: DictationReviewViewModel
+    @ObservedObject var reviewViewModel: DictationReviewViewModel
     @State private var phase: Phase = .idle
     @State private var liveTranscript = ""
     @State private var editableTranscript = ""
@@ -32,9 +32,12 @@ struct DictationCaptureView: View {
     @State private var transcriber: (any SpeechTranscribing)?
     @State private var extractor: (any DictationExtracting)?
 
-    init(onFinished: @escaping () -> Void) {
+    init(
+        viewModel: DictationReviewViewModel,
+        onFinished: @escaping () -> Void
+    ) {
+        self.reviewViewModel = viewModel
         self.onFinished = onFinished
-        _reviewViewModel = StateObject(wrappedValue: DictationReviewViewModel(store: IosSettingsStores.shared.dictationStore()))
     }
 
     var body: some View {
@@ -296,6 +299,13 @@ struct DictationCaptureView: View {
             }
             do {
                 let transcript = try await transcriber.finish()
+                // Persist before extraction or review. A failed extractor or
+                // later cancellation must never discard the original note.
+                reviewViewModel.saveCapture(
+                    transcript: transcript,
+                    audioPath: transcriber.recordingFilePath,
+                    durationMillis: transcriber.recordingDurationMillis
+                )
                 guard !transcript.isEmpty else {
                     phase = .idle
                     errorMessage = "Nothing was captured. Try again."
@@ -305,6 +315,13 @@ struct DictationCaptureView: View {
             } catch is CancellationError {
                 return
             } catch {
+                // `finish()` tears down the pipeline even when recognition
+                // fails. Keep any partial transcript and completed audio.
+                reviewViewModel.saveCapture(
+                    transcript: liveTranscript,
+                    audioPath: transcriber.recordingFilePath,
+                    durationMillis: transcriber.recordingDurationMillis
+                )
                 errorMessage = error.localizedDescription
                 phase = .recording
             }

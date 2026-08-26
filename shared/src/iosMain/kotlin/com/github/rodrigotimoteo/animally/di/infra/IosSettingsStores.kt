@@ -2,6 +2,7 @@
 
 package com.github.rodrigotimoteo.animally.di.infra
 
+import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule.Companion.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.presentation.assistant.AssistantViewModel
 import com.github.rodrigotimoteo.animally.presentation.coggins.CogginsViewModel
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationViewModel
@@ -18,7 +19,9 @@ import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewMode
 import com.github.rodrigotimoteo.animally.presentation.settings.createPlatformThemePreferenceStore
 import com.github.rodrigotimoteo.animally.presentation.settings.isReadyForCloudRouting
 import com.github.rodrigotimoteo.animally.presentation.timeline.TimelineViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.core.parameter.parametersOf
+import org.koin.core.qualifier.named
 import kotlin.experimental.ExperimentalObjCName
 import kotlin.native.ObjCName
 
@@ -72,6 +75,9 @@ object IosSettingsStores {
             AssistantViewModel(
                 generateRagResponse = IosAppBridge.koin.get(),
                 llmEngine = IosAppBridge.koin.get(),
+                getRecentAssistantChatHistory = IosAppBridge.koin.get(),
+                saveAssistantChatTurn = IosAppBridge.koin.get(),
+                ioDispatcher = IosAppBridge.koin.get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 engineSourceEvents = routingEngine.sourceEvents,
                 isCloudReady = { cloudSettings.isReadyForCloudRouting() },
             )

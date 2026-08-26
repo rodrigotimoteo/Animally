@@ -2,6 +2,9 @@ package com.github.rodrigotimoteo.animally.presentation.assistant
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantChatTurn
+import com.github.rodrigotimoteo.animally.domain.assistant.usecase.GetRecentAssistantChatHistoryUseCase
+import com.github.rodrigotimoteo.animally.domain.assistant.usecase.SaveAssistantChatTurnUseCase
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.llm.AssistantStrings
 import com.github.rodrigotimoteo.animally.llm.GenerateRagResponseUseCase
@@ -11,6 +14,8 @@ import com.github.rodrigotimoteo.animally.llm.RagHistoryEntry
 import com.github.rodrigotimoteo.animally.llm.RagStreamEvent
 import com.github.rodrigotimoteo.animally.llm.assistantStrings
 import com.github.rodrigotimoteo.animally.llm.cloud.EngineSource
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.time.Clock
 
 /**
  * One turn of the assistant conversation.
@@ -53,6 +60,8 @@ data class AssistantUiState(
     val messages: List<AssistantChatMessage> = emptyList(),
     val isGenerating: Boolean = false,
     val error: String? = null,
+    val isHistoryLoading: Boolean = true,
+    val historyError: String? = null,
 )
 
 /** Transform applied to one chat message when updating state immutably. */
@@ -69,6 +78,9 @@ private typealias MessageTransform = (AssistantChatMessage) -> AssistantChatMess
 class AssistantViewModel(
     private val generateRagResponse: GenerateRagResponseUseCase,
     private val llmEngine: LlmEngine,
+    private val getRecentAssistantChatHistory: GetRecentAssistantChatHistoryUseCase,
+    private val saveAssistantChatTurn: SaveAssistantChatTurnUseCase,
+    private val ioDispatcher: CoroutineDispatcher,
     private val strings: AssistantStrings = assistantStrings(),
     engineSourceEvents: Flow<EngineSource> = emptyFlow(),
     private val isCloudReady: () -> Boolean = { false },
@@ -97,12 +109,40 @@ class AssistantViewModel(
                     // routing decision to newly created views, and a replay before
                     // the next question would otherwise create a blank bubble.
                     _uiState.update { state ->
-                        if (state.messages.lastOrNull()?.role == AssistantChatMessageRole.ASSISTANT) {
+                        if (state.isGenerating &&
+                            state.messages.lastOrNull()?.role == AssistantChatMessageRole.ASSISTANT
+                        ) {
                             state.copy(messages = state.messages.upsertLast { it.copy(source = source) })
                         } else {
                             state
                         }
                     }
+                }
+            }
+        }
+        loadHistory()
+    }
+
+    private fun loadHistory() {
+        viewModelScope.launch {
+            try {
+                val history = withContext(ioDispatcher) { getRecentAssistantChatHistory() }
+                _uiState.update { state ->
+                    state.copy(
+                        messages =
+                            if (state.messages.isEmpty()) history.flatMap { it.toMessages() } else state.messages,
+                        isHistoryLoading = false,
+                        historyError = null,
+                    )
+                }
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (t: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        isHistoryLoading = false,
+                        historyError = t.message ?: "Could not load assistant history.",
+                    )
                 }
             }
         }
@@ -132,7 +172,7 @@ class AssistantViewModel(
      */
     fun ask(question: String) {
         val trimmed = question.trim()
-        if (trimmed.isEmpty() || _uiState.value.isGenerating) return
+        if (trimmed.isEmpty() || _uiState.value.isGenerating || _uiState.value.isHistoryLoading) return
 
         val history = _uiState.value.messages.toRagHistory()
         currentTurnSource = EngineSource.ON_DEVICE
@@ -172,15 +212,20 @@ class AssistantViewModel(
                     val patched = current.messages.upsertLast { it.copy(text = text) }
                     current.copy(messages = patched, error = message)
                 }
-            } finally {
-                _uiState.update { it.copy(isGenerating = false) }
+            }
+            persistLatestTurn(trimmed)
+            _uiState.update { state ->
+                state.copy(
+                    messages = state.messages.trimToHistoryLimit(),
+                    isGenerating = false,
+                )
             }
         }
     }
 
     /** Clears the current error message. */
     fun dismissError() {
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(error = null, historyError = null) }
     }
 
     private fun applyEvent(
@@ -272,5 +317,56 @@ class AssistantViewModel(
             }
         }
         return entries
+    }
+
+    private suspend fun persistLatestTurn(question: String) {
+        val state = _uiState.value
+        val assistant = state.messages.lastOrNull()
+        if (assistant?.role != AssistantChatMessageRole.ASSISTANT || assistant.text.isBlank()) return
+
+        try {
+            withContext(ioDispatcher) {
+                saveAssistantChatTurn(
+                    AssistantChatTurn(
+                        question = question,
+                        answer = assistant.text,
+                        source = assistant.source.name,
+                        interrupted = assistant.interrupted,
+                        createdAt = Clock.System.now(),
+                    ),
+                )
+            }
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (t: Throwable) {
+            _uiState.update {
+                it.copy(historyError = t.message ?: "Could not save assistant history.")
+            }
+        }
+    }
+
+    private fun List<AssistantChatMessage>.trimToHistoryLimit(): List<AssistantChatMessage> {
+        val maxMessages = SaveAssistantChatTurnUseCase.MAX_HISTORY_TURNS * 2
+        if (size <= maxMessages) return this
+        val tail = takeLast(maxMessages)
+        return tail.dropWhile { it.role == AssistantChatMessageRole.ASSISTANT }
+    }
+
+    private fun AssistantChatTurn.toMessages(): List<AssistantChatMessage> {
+        val engineSource =
+            runCatching { EngineSource.valueOf(source) }
+                .getOrDefault(EngineSource.ON_DEVICE)
+        return listOf(
+            AssistantChatMessage(
+                role = AssistantChatMessageRole.USER,
+                text = question,
+            ),
+            AssistantChatMessage(
+                role = AssistantChatMessageRole.ASSISTANT,
+                text = answer,
+                interrupted = interrupted,
+                source = engineSource,
+            ),
+        )
     }
 }

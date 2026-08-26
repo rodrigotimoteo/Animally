@@ -1,10 +1,13 @@
 package com.github.rodrigotimoteo.animally.di
 
+import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule.Companion.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.dictation.InsertSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.core.module.dsl.viewModel
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 /**
@@ -17,5 +20,14 @@ val dictationModule =
         single { ValidateSuggestionsUseCase() }
         single { ResolvePatientUseCase(get()) }
         single { InsertSuggestionsUseCase(get(), get(), get()) }
-        viewModel { DictationViewModel(get(), get()) }
+        viewModel {
+            DictationViewModel(
+                validateSuggestionsUseCase = get(),
+                resolvePatientUseCase = get(),
+                getDictationCapturesUseCase = get(),
+                saveDictationCaptureUseCase = get(),
+                deleteDictationCaptureUseCase = get(),
+                ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+            )
+        }
     }

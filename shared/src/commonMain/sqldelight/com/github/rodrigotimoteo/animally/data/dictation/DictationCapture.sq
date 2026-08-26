@@ -1,0 +1,28 @@
+-- Each completed dictation is independent of assistant-chat retention. The
+-- audio itself stays in app-private platform storage; this table stores its
+-- searchable transcript and metadata.
+insert:
+INSERT INTO DictationCapture (id, transcript, audioPath, durationMillis, capturedAt)
+VALUES (NULL, ?, ?, ?, ?);
+
+selectAll:
+SELECT *
+FROM DictationCapture
+ORDER BY capturedAt DESC, id DESC;
+
+selectById:
+SELECT * FROM DictationCapture WHERE id = ?;
+
+deleteById:
+DELETE FROM DictationCapture WHERE id = ?;
+
+deleteAll:
+DELETE FROM DictationCapture;
+
+-- Backup support
+selectAllRows:
+SELECT * FROM DictationCapture ORDER BY capturedAt, id;
+
+insertWithId:
+INSERT INTO DictationCapture (id, transcript, audioPath, durationMillis, capturedAt)
+VALUES (?, ?, ?, ?, ?);

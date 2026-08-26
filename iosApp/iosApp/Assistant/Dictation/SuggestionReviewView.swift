@@ -24,6 +24,30 @@ final class DictationReviewViewModel: ObservableObject {
         store.setTranscript(value: value)
     }
 
+    func reloadCaptures() {
+        store.reloadCaptures()
+    }
+
+    func setCaptureSearchQuery(_ value: String) {
+        store.setCaptureSearchQuery(value: value)
+    }
+
+    func saveCapture(
+        transcript: String,
+        audioPath: String?,
+        durationMillis: Int64?
+    ) {
+        store.saveCapture(
+            transcript: transcript,
+            audioPath: audioPath,
+            durationMillis: durationMillis.map { KotlinLong(longLong: $0) }
+        )
+    }
+
+    func deleteCapture(id: Int64) {
+        store.deleteCapture(id: id)
+    }
+
     /// Decodes + validates the session JSON and resolves patient names.
     func validate(sessionJson: String) {
         store.validate(sessionJson: sessionJson)

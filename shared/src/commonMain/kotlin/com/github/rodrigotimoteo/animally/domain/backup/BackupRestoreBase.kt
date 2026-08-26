@@ -1,11 +1,28 @@
 package com.github.rodrigotimoteo.animally.domain.backup
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.storage.FileStorage
+
+/** Returns app-owned audio paths referenced by the current dictation rows. */
+internal fun AnimallyDatabase.dictationAudioPaths(): Set<String> =
+    dictationCaptureQueries
+        .selectAll()
+        .executeAsList()
+        .mapNotNull { it.audioPath }
+        .toSet()
+
+/** Best-effort cleanup for app-owned dictation audio files. */
+internal fun Iterable<String>.deleteDictationAudioFiles() {
+    forEach { path ->
+        runCatching { FileStorage.delete(path) }
+    }
+}
 
 /**
  * Clears every persisted table so the restore can start from an empty state.
  */
 internal fun AnimallyDatabase.deleteAllBackupRows() {
+    assistantChatHistoryQueries.deleteAll()
     anamneseQueries.deleteAll()
     consultationQueries.deleteAll()
     dentistryQueries.deleteAll()
@@ -29,6 +46,32 @@ internal fun AnimallyDatabase.deleteAllBackupRows() {
     embryoTransferQueries.deleteAll()
     icsiQueries.deleteAll()
     customReminderQueries.deleteAll()
+    dictationCaptureQueries.deleteAll()
+}
+
+internal fun AnimallyDatabase.insertAssistantChatHistory(payload: BackupPayload) {
+    payload.assistantChatHistory.forEach { row ->
+        assistantChatHistoryQueries.insertWithId(
+            id = row.id,
+            question = row.question,
+            answer = row.answer,
+            source = row.source,
+            interrupted = row.interrupted,
+            createdAt = row.createdAt,
+        )
+    }
+}
+
+internal fun AnimallyDatabase.insertDictationCaptures(payload: BackupPayload) {
+    payload.dictationCaptures.forEach { row ->
+        dictationCaptureQueries.insertWithId(
+            id = row.id,
+            transcript = row.transcript,
+            audioPath = row.audioPath,
+            durationMillis = row.durationMillis,
+            capturedAt = row.capturedAt,
+        )
+    }
 }
 
 internal fun AnimallyDatabase.insertOwners(payload: BackupPayload) {

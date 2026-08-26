@@ -31,6 +31,7 @@ class RestoreBackupUseCase(
      */
     operator fun invoke(jsonContent: String) {
         val payload = BackupSerializer.decode(jsonContent)
+        val existingAudioPaths = database.dictationAudioPaths()
         database.transaction {
             database.deleteAllBackupRows()
             // FTS rows are derived data. Clearing both tables while the source
@@ -61,7 +62,11 @@ class RestoreBackupUseCase(
             database.insertEmbryoTransfers(payload)
             database.insertIcsi(payload)
             database.insertCustomReminders(payload)
+            database.insertAssistantChatHistory(payload)
+            database.insertDictationCaptures(payload)
         }
+        val restoredAudioPaths = payload.dictationCaptures.mapNotNull { it.audioPath }.toSet()
+        (existingAudioPaths - restoredAudioPaths).deleteDictationAudioFiles()
         searchRepository.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
     }
 }

@@ -75,6 +75,48 @@ class RestoreBackupUseCaseTest {
     }
 
     @Test
+    fun `restore round-trips local assistant and dictation archives`() {
+        database.assistantChatHistoryQueries.insertWithId(
+            id = 41L,
+            question = "How is Charlie doing?",
+            answer = "Charlie has a recent consultation.",
+            source = "CLOUD",
+            interrupted = true,
+            createdAt = Instant.fromEpochMilliseconds(4_100L),
+        )
+        database.dictationCaptureQueries.insertWithId(
+            id = 42L,
+            transcript = "Registar o peso do Charlie.",
+            audioPath = "/private/app/dictations/charlie.caf",
+            durationMillis = 4_250L,
+            capturedAt = Instant.fromEpochMilliseconds(4_200L),
+        )
+
+        val json = exportJson()
+        database.deleteAllBackupRows()
+        restoreBackupUseCase(database).invoke(json)
+
+        val chat =
+            database.assistantChatHistoryQueries
+                .selectAllRows()
+                .executeAsList()
+                .single()
+        assertEquals(41L, chat.id)
+        assertEquals("How is Charlie doing?", chat.question)
+        assertEquals(true, chat.interrupted)
+
+        val dictation =
+            database.dictationCaptureQueries
+                .selectAllRows()
+                .executeAsList()
+                .single()
+        assertEquals(42L, dictation.id)
+        assertEquals("Registar o peso do Charlie.", dictation.transcript)
+        assertEquals("/private/app/dictations/charlie.caf", dictation.audioPath)
+        assertEquals(4_250L, dictation.durationMillis)
+    }
+
+    @Test
     fun `restore round-trips migration-7 ultrasound fields and child rows`() {
         seedPatientOnly()
         database.ultrasoundQueries.insertWithId(

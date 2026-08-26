@@ -16,6 +16,13 @@ protocol SpeechTranscribing: AnyObject {
     /// Called when the engine fails mid-recording.
     var failureHandler: ((String) -> Void)? { get set }
 
+    /// Absolute path of the completed CAF recording, when the audio writer
+    /// was available. Aborted recordings return `nil`.
+    var recordingFilePath: String? { get }
+
+    /// Duration of the completed recording in milliseconds, when measurable.
+    var recordingDurationMillis: Int64? { get }
+
     /// Prepares the session, starts the audio pipeline and begins emitting
     /// partials. Throws when the engine cannot start (permissions are checked
     /// by the caller beforehand).
@@ -28,6 +35,85 @@ protocol SpeechTranscribing: AnyObject {
     /// Aborts recognition and releases the microphone without producing a
     /// final transcript.
     func cancel() async
+}
+
+private struct DictationAudioFileResult {
+    let path: String
+    let durationMillis: Int64?
+}
+
+/// Thread-safe PCM writer used by the audio tap. Speech recognition remains
+/// the source of truth for transcription; this writer is a best-effort copy
+/// of the same microphone buffers for later review.
+private final class DictationAudioFileWriter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var file: AVAudioFile?
+    private var path: String?
+    private var sampleRate: Double = 0
+    private var frameCount: AVAudioFramePosition = 0
+
+    func start(format: AVAudioFormat) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard
+            let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        else {
+            return
+        }
+        let directory = documents.appendingPathComponent("dictations", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            let url = directory.appendingPathComponent("\(UUID().uuidString).caf")
+            file = try AVAudioFile(forWriting: url, settings: format.settings)
+            path = url.path
+            sampleRate = format.sampleRate
+            frameCount = 0
+        } catch {
+            file = nil
+            path = nil
+        }
+    }
+
+    func append(_ buffer: AVAudioPCMBuffer) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let file else { return }
+        do {
+            try file.write(from: buffer)
+            frameCount += AVAudioFramePosition(buffer.frameLength)
+        } catch {
+            // A speech session should still work when the optional archive
+            // writer cannot accept a buffer.
+        }
+    }
+
+    func close() -> DictationAudioFileResult? {
+        lock.lock()
+        let filePath = path
+        let frames = frameCount
+        let rate = sampleRate
+        file = nil
+        path = nil
+        frameCount = 0
+        sampleRate = 0
+        lock.unlock()
+
+        guard let filePath, FileManager.default.fileExists(atPath: filePath) else {
+            return nil
+        }
+        let duration = rate > 0 ? Int64((Double(frames) / rate * 1000).rounded()) : nil
+        return DictationAudioFileResult(path: filePath, durationMillis: duration)
+    }
+
+    func discard() {
+        guard let result = close() else { return }
+        try? FileManager.default.removeItem(atPath: result.path)
+    }
 }
 
 /// A ready-to-use transcriber together with the locale it recognizes in.
@@ -206,6 +292,11 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
 
     private var confirmedText = ""
     private(set) var finalText = ""
+    private var audioWriter: DictationAudioFileWriter?
+    private var keepCompletedRecording = false
+
+    private(set) var recordingFilePath: String?
+    private(set) var recordingDurationMillis: Int64?
 
     var partialHandler: ((String) -> Void)?
     var failureHandler: ((String) -> Void)?
@@ -215,6 +306,10 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
     }
 
     func start() async throws {
+        recordingFilePath = nil
+        recordingDurationMillis = nil
+        keepCompletedRecording = false
+        audioWriter = DictationAudioFileWriter()
         let transcriber = SpeechTranscriber(
             locale: locale,
             transcriptionOptions: [],
@@ -268,16 +363,25 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [continuation] buffer, _ in
+        audioWriter?.start(format: format)
+        let audioWriter = self.audioWriter
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [continuation, audioWriter] buffer, _ in
+            audioWriter?.append(buffer)
             if let pcmBuffer = buffer as? AVAudioPCMBuffer {
                 continuation?.yield(pcmBuffer)
             }
         }
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            teardownAudioPipeline()
+            throw error
+        }
     }
 
     func finish() async throws -> String {
+        keepCompletedRecording = true
         defer { teardownAudioPipeline() }
         bufferStream?.finish()
         try await analyzer?.finalizeAndFinishThroughEndOfInput()
@@ -312,6 +416,16 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         bufferStream = nil
         analyzer = nil
         transcriber = nil
+        if keepCompletedRecording {
+            if let result = audioWriter?.close() {
+                recordingFilePath = result.path
+                recordingDurationMillis = result.durationMillis
+            }
+        } else {
+            audioWriter?.discard()
+        }
+        audioWriter = nil
+        keepCompletedRecording = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
@@ -332,6 +446,11 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
 
     private var latestTranscript = ""
     private(set) var finalText = ""
+    private var audioWriter: DictationAudioFileWriter?
+    private var keepCompletedRecording = false
+
+    private(set) var recordingFilePath: String?
+    private(set) var recordingDurationMillis: Int64?
 
     var partialHandler: ((String) -> Void)?
     var failureHandler: ((String) -> Void)?
@@ -342,6 +461,10 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
     }
 
     func start() async throws {
+        recordingFilePath = nil
+        recordingDurationMillis = nil
+        keepCompletedRecording = false
+        audioWriter = DictationAudioFileWriter()
         configureAudioSession()
 
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
@@ -356,12 +479,20 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [request] buffer, _ in
+        audioWriter?.start(format: format)
+        let audioWriter = self.audioWriter
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [request, audioWriter] buffer, _ in
+            audioWriter?.append(buffer)
             request.append(buffer)
         }
 
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            teardownAudioPipeline()
+            throw error
+        }
 
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             // SFSpeechRecognizer does not guarantee which queue invokes this
@@ -387,6 +518,7 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
     }
 
     func finish() async throws -> String {
+        keepCompletedRecording = true
         defer { teardownAudioPipeline() }
         request?.endAudio()
         engine.stop()
@@ -425,6 +557,16 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
         engine.stop()
         request = nil
         task = nil
+        if keepCompletedRecording {
+            if let result = audioWriter?.close() {
+                recordingFilePath = result.path
+                recordingDurationMillis = result.durationMillis
+            }
+        } else {
+            audioWriter?.discard()
+        }
+        audioWriter = nil
+        keepCompletedRecording = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
@@ -438,6 +580,9 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
 final class MockSpeechTranscriber: SpeechTranscribing {
     private let transcript: String
     private var isRecording = false
+
+    let recordingFilePath: String? = nil
+    let recordingDurationMillis: Int64? = nil
 
     var partialHandler: ((String) -> Void)?
     var failureHandler: ((String) -> Void)?

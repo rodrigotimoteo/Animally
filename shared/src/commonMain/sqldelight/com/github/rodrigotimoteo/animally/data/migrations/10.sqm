@@ -1,0 +1,23 @@
+import com.github.rodrigotimoteo.animally.data.adapters.InstantAdapter;
+import kotlin.Boolean;
+import kotlin.time.Instant;
+
+-- Local assistant history and dictation archive. These tables intentionally
+-- do not participate in CloudKit record synchronization: chat and raw audio
+-- are sensitive device-local working data.
+CREATE TABLE AssistantChatHistory (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    source TEXT NOT NULL,
+    interrupted INTEGER AS Boolean NOT NULL DEFAULT 0,
+    createdAt INTEGER AS Instant NOT NULL
+);
+
+CREATE TABLE DictationCapture (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    transcript TEXT NOT NULL,
+    audioPath TEXT,
+    durationMillis INTEGER,
+    capturedAt INTEGER AS Instant NOT NULL
+);

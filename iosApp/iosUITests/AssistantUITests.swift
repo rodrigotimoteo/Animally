@@ -161,6 +161,22 @@ final class AssistantUITests: AnimallyTestCase {
         XCTAssertTrue(accept.isEnabled, "The resolved suggestion should be acceptable")
         accept.tap()
         XCTAssertTrue(app.buttons["Save 1 record"].waitForExistence(timeout: 5), "Save control did not become available")
+
+        // Saving the structured record must not discard the original dictation
+        // note. Confirm the review, open the archive, and verify that the
+        // transcript is available independently of the record insertion.
+        app.buttons["Save 1 record"].tap()
+        let history = app.buttons["assistant_dictation_history"]
+        XCTAssertTrue(history.waitForExistence(timeout: 10), "Dictation history entry point missing")
+        history.tap()
+
+        XCTAssertTrue(app.staticTexts["Dictation history"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.staticTexts[
+                "Registar o peso do Thunder e uma desparasitação. Depois fazer uma ecografia à Fantasma Inexistente."
+            ].waitForExistence(timeout: 10),
+            "Completed dictation transcript was not retained"
+        )
     }
 }
 

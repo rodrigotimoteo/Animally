@@ -5,10 +5,12 @@ import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.adapters.InstantAdapter
 import com.github.rodrigotimoteo.animally.data.adapters.LocalDateAdapter
 import com.github.rodrigotimoteo.animally.data.migrations.Anamnese
+import com.github.rodrigotimoteo.animally.data.migrations.AssistantChatHistory
 import com.github.rodrigotimoteo.animally.data.migrations.Consultation
 import com.github.rodrigotimoteo.animally.data.migrations.CustomReminder
 import com.github.rodrigotimoteo.animally.data.migrations.Dentistry
 import com.github.rodrigotimoteo.animally.data.migrations.Deworming
+import com.github.rodrigotimoteo.animally.data.migrations.DictationCapture
 import com.github.rodrigotimoteo.animally.data.migrations.EmbryoTransfer
 import com.github.rodrigotimoteo.animally.data.migrations.FarrierVisit
 import com.github.rodrigotimoteo.animally.data.migrations.Follicle
@@ -51,6 +53,10 @@ object AnimallyDatabaseFactory {
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,
                 ),
+            AssistantChatHistoryAdapter =
+                AssistantChatHistory.Adapter(
+                    createdAtAdapter = InstantAdapter,
+                ),
             ConsultationAdapter =
                 Consultation.Adapter(
                     dateAdapter = LocalDateAdapter,
@@ -77,6 +83,10 @@ object AnimallyDatabaseFactory {
                     nextDueDateAdapter = LocalDateAdapter,
                     createdAtAdapter = InstantAdapter,
                     updatedAtAdapter = InstantAdapter,
+                ),
+            DictationCaptureAdapter =
+                DictationCapture.Adapter(
+                    capturedAtAdapter = InstantAdapter,
                 ),
             FarrierVisitAdapter =
                 FarrierVisit.Adapter(

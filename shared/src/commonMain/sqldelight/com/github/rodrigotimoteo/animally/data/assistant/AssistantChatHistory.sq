@@ -1,0 +1,31 @@
+-- Persisted assistant conversation history. Retention is enforced by the
+-- SaveAssistantChatTurnUseCase after each completed turn.
+insert:
+INSERT INTO AssistantChatHistory (id, question, answer, source, interrupted, createdAt)
+VALUES (NULL, ?, ?, ?, ?, ?);
+
+selectRecent:
+SELECT *
+FROM AssistantChatHistory
+ORDER BY createdAt DESC, id DESC
+LIMIT ?;
+
+deleteOlderThan:
+DELETE FROM AssistantChatHistory
+WHERE id NOT IN (
+    SELECT id
+    FROM AssistantChatHistory
+    ORDER BY createdAt DESC, id DESC
+    LIMIT ?
+);
+
+deleteAll:
+DELETE FROM AssistantChatHistory;
+
+-- Backup support
+selectAllRows:
+SELECT * FROM AssistantChatHistory ORDER BY createdAt, id;
+
+insertWithId:
+INSERT INTO AssistantChatHistory (id, question, answer, source, interrupted, createdAt)
+VALUES (?, ?, ?, ?, ?, ?);

@@ -48,5 +48,28 @@ actual object FileStorage {
         return requireNotNull(fileUrl.path) { "Failed to resolve attachment path" }
     }
 
+    actual fun delete(path: String): Boolean {
+        val fileManager = NSFileManager.defaultManager
+        val documentsPath = documentsDirectoryPath() ?: return false
+        val allowedRoots =
+            listOf(
+                "$documentsPath/$ATTACHMENTS_DIR/",
+                "$documentsPath/$DICTATIONS_DIR/",
+            )
+        if (path.contains("/../") || path.endsWith("/..") || allowedRoots.none(path::startsWith)) return false
+        return fileManager.removeItemAtPath(path, error = null)
+    }
+
+    private fun documentsDirectoryPath(): String? =
+        NSFileManager.defaultManager
+            .URLForDirectory(
+                directory = NSDocumentDirectory,
+                inDomain = NSUserDomainMask,
+                appropriateForURL = null,
+                create = true,
+                error = null,
+            )?.path
+
     private const val ATTACHMENTS_DIR = "attachments"
+    private const val DICTATIONS_DIR = "dictations"
 }

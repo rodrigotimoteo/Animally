@@ -1,17 +1,28 @@
 package com.github.rodrigotimoteo.animally.presentation.dictation
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.dto.DictatedSessionDto
+import com.github.rodrigotimoteo.animally.domain.dictation.model.DictationCapture
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecord
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.DeleteDictationCaptureUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.GetDictationCapturesUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.SaveDictationCaptureUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.PatientResolution
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
 
 /**
  * Review state of one dictated suggestion.
@@ -34,12 +45,31 @@ data class DictationSuggestionUi(
  * @property transcript Raw transcript text as captured from speech.
  * @property suggestions Validated suggestions awaiting accept/reject.
  * @property error Decode failure message, or `null` when the last session JSON parsed.
+ * @property captures Previously completed dictations, newest first.
+ * @property captureSearchQuery Text used to filter the dictation archive.
+ * @property isCapturesLoading Whether the archive is reading from persistence.
+ * @property captureError Persistence error for the archive, if any.
  */
 data class DictationUiState(
     val transcript: String = "",
     val suggestions: List<DictationSuggestionUi> = emptyList(),
     val error: String? = null,
-)
+    val captures: List<DictationCapture> = emptyList(),
+    val captureSearchQuery: String = "",
+    val isCapturesLoading: Boolean = false,
+    val captureError: String? = null,
+) {
+    /** Captures matching [captureSearchQuery], preserving newest-first order. */
+    val filteredCaptures: List<DictationCapture>
+        get() {
+            val query = captureSearchQuery.trim()
+            return if (query.isEmpty()) {
+                captures
+            } else {
+                captures.filter { it.transcript.contains(query, ignoreCase = true) }
+            }
+        }
+}
 
 /**
  * View model for the voice-dictation review flow.
@@ -50,12 +80,21 @@ data class DictationUiState(
  *
  * @param validateSuggestionsUseCase Validates raw dictated records.
  * @param resolvePatientUseCase Resolves spoken patient names to patients.
+ * @param getDictationCapturesUseCase Loads the local dictation archive.
+ * @param saveDictationCaptureUseCase Persists a completed capture.
+ * @param deleteDictationCaptureUseCase Removes a capture and its audio file.
+ * @param ioDispatcher Dispatcher for database and file work.
  */
 class DictationViewModel(
     private val validateSuggestionsUseCase: ValidateSuggestionsUseCase,
     private val resolvePatientUseCase: ResolvePatientUseCase,
+    private val getDictationCapturesUseCase: GetDictationCapturesUseCase,
+    private val saveDictationCaptureUseCase: SaveDictationCaptureUseCase,
+    private val deleteDictationCaptureUseCase: DeleteDictationCaptureUseCase,
+    private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DictationUiState())
+    private var captureOperation: Job? = null
 
     /** The current dictation review state. */
     val uiState: StateFlow<DictationUiState> = _uiState.asStateFlow()
@@ -65,9 +104,62 @@ class DictationViewModel(
             ignoreUnknownKeys = true
         }
 
+    init {
+        reloadCaptures()
+    }
+
     /** Updates the raw transcript text. */
     fun setTranscript(value: String) {
         _uiState.update { it.copy(transcript = value) }
+    }
+
+    /** Updates the archive filter without touching the current review. */
+    fun setCaptureSearchQuery(value: String) {
+        _uiState.update { it.copy(captureSearchQuery = value) }
+    }
+
+    /** Refreshes the persisted dictation archive. */
+    fun reloadCaptures() {
+        runCaptureOperation {
+            getDictationCapturesUseCase()
+        }
+    }
+
+    /**
+     * Saves the completed capture immediately after recording stops.
+     *
+     * A transcript is allowed to be blank when the audio file exists: this
+     * keeps the original recording available for manual checking even when
+     * speech recognition or structured extraction failed.
+     */
+    fun saveCapture(
+        transcript: String,
+        audioPath: String?,
+        durationMillis: Long?,
+    ) {
+        val normalizedTranscript = transcript.trim()
+        val normalizedAudioPath = audioPath?.trim()?.takeIf { it.isNotEmpty() }
+        if (normalizedTranscript.isEmpty() && normalizedAudioPath == null) return
+
+        runCaptureOperation {
+            saveDictationCaptureUseCase(
+                DictationCapture(
+                    transcript = normalizedTranscript,
+                    audioPath = normalizedAudioPath,
+                    durationMillis = durationMillis?.takeIf { it >= 0L },
+                    capturedAt = Clock.System.now(),
+                ),
+            )
+            getDictationCapturesUseCase()
+        }
+    }
+
+    /** Deletes one archive entry and best-effort removes its audio artifact. */
+    fun deleteCapture(id: Long) {
+        runCaptureOperation {
+            deleteDictationCaptureUseCase(id)
+            getDictationCapturesUseCase()
+        }
     }
 
     /**
@@ -119,5 +211,32 @@ class DictationViewModel(
             if (index !in state.suggestions.indices) return@update state
             state.copy(suggestions = state.suggestions.mapIndexed { i, s -> if (i == index) transform(s) else s })
         }
+    }
+
+    private fun runCaptureOperation(operation: suspend () -> List<DictationCapture>) {
+        captureOperation?.cancel()
+        captureOperation =
+            viewModelScope.launch {
+                _uiState.update { it.copy(isCapturesLoading = true, captureError = null) }
+                try {
+                    val captures = withContext(ioDispatcher) { operation() }
+                    _uiState.update {
+                        it.copy(
+                            captures = captures,
+                            isCapturesLoading = false,
+                            captureError = null,
+                        )
+                    }
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (t: Throwable) {
+                    _uiState.update {
+                        it.copy(
+                            isCapturesLoading = false,
+                            captureError = t.message ?: "Could not update dictation history.",
+                        )
+                    }
+                }
+            }
     }
 }

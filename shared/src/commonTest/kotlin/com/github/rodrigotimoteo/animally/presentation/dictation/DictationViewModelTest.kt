@@ -1,7 +1,11 @@
 package com.github.rodrigotimoteo.animally.presentation.dictation
 
+import com.github.rodrigotimoteo.animally.domain.dictation.IDictationCaptureRepository
 import com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.DeleteDictationCaptureUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.GetDictationCapturesUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.SaveDictationCaptureUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
 import dev.mokkery.MockMode
@@ -22,9 +26,11 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class DictationViewModelTest {
     private val patientRepositoryMock: IPatientRepository = mock(MockMode.autoUnit)
+    private val dictationCaptureRepositoryMock: IDictationCaptureRepository = mock(MockMode.autoUnit)
 
     init {
         every { patientRepositoryMock.getPatientList() } returns emptyList()
+        every { dictationCaptureRepositoryMock.getAll() } returns emptyList()
     }
 
     @AfterTest
@@ -36,6 +42,10 @@ class DictationViewModelTest {
         DictationViewModel(
             validateSuggestionsUseCase = ValidateSuggestionsUseCase(),
             resolvePatientUseCase = ResolvePatientUseCase(patientRepositoryMock),
+            getDictationCapturesUseCase = GetDictationCapturesUseCase(dictationCaptureRepositoryMock),
+            saveDictationCaptureUseCase = SaveDictationCaptureUseCase(dictationCaptureRepositoryMock),
+            deleteDictationCaptureUseCase = DeleteDictationCaptureUseCase(dictationCaptureRepositoryMock),
+            ioDispatcher = Dispatchers.Unconfined,
         )
 
     /**

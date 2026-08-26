@@ -78,6 +78,8 @@ class ExportBackupUseCase(
             embryoTransfers = database.embryoTransferRows(),
             icsi = database.icsiRows(),
             customReminders = database.customReminderRows(),
+            assistantChatHistory = database.assistantChatHistoryRows(),
+            dictationCaptures = database.dictationCaptureRows(),
         )
 
     private fun dateStamp(): String = Clock.System.todayIn(TimeZone.currentSystemDefault()).toString()

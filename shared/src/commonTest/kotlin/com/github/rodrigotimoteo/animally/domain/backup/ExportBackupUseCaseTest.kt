@@ -61,6 +61,19 @@ class ExportBackupUseCaseTest {
             createdAt = Instant.fromEpochMilliseconds(0L),
             updatedAt = Instant.fromEpochMilliseconds(0L),
         )
+        database.assistantChatHistoryQueries.insert(
+            question = "How is Charlie doing?",
+            answer = "Charlie has a recent consultation.",
+            source = "CLOUD",
+            interrupted = false,
+            createdAt = Instant.fromEpochMilliseconds(1L),
+        )
+        database.dictationCaptureQueries.insert(
+            transcript = "Registar o peso do Charlie.",
+            audioPath = "/private/app/dictations/charlie.caf",
+            durationMillis = 4_250L,
+            capturedAt = Instant.fromEpochMilliseconds(2L),
+        )
 
         var writtenFileName: String? = null
         var writtenContent: String? = null
@@ -84,6 +97,11 @@ class ExportBackupUseCaseTest {
         assertEquals("Charlie", payload.patients.single().name)
         assertEquals(1, payload.consultations.size)
         assertEquals("Suspected tendonitis", payload.consultations.single().assessment)
+        assertEquals(1, payload.assistantChatHistory.size)
+        assertEquals("How is Charlie doing?", payload.assistantChatHistory.single().question)
+        assertEquals(1, payload.dictationCaptures.size)
+        assertEquals("/private/app/dictations/charlie.caf", payload.dictationCaptures.single().audioPath)
+        assertEquals(4_250L, payload.dictationCaptures.single().durationMillis)
         assertEquals(requireNotNull(writtenFileName), result.fileName)
         assertTrue(result.fileName.startsWith("backup_"))
         assertTrue(result.fileName.endsWith(".json"))

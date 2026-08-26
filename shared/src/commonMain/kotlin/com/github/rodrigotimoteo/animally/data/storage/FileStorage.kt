@@ -16,6 +16,13 @@ expect object FileStorage {
         fileName: String,
         bytes: ByteArray,
     ): String
+
+    /**
+     * Deletes an app-owned file at [path]. Returns `true` when a file was
+     * removed. Implementations must reject paths outside their private file
+     * area.
+     */
+    fun delete(path: String): Boolean
 }
 
 /**

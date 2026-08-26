@@ -83,4 +83,8 @@ data class BackupPayload(
     val embryoTransfers: List<EmbryoTransferDto> = emptyList(),
     val icsi: List<IcsiDto> = emptyList(),
     val customReminders: List<CustomReminderDto> = emptyList(),
+    // Local assistant and dictation metadata. Raw audio remains an app-private
+    // file and is not embedded in JSON backups.
+    val assistantChatHistory: List<AssistantChatHistoryDto> = emptyList(),
+    val dictationCaptures: List<DictationCaptureDto> = emptyList(),
 )

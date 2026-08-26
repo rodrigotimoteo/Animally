@@ -3,8 +3,11 @@ import Shared
 
 struct AssistantView: View {
     @StateObject private var viewModel = AssistantViewModel()
+    @StateObject private var dictationViewModel =
+        DictationReviewViewModel(store: IosSettingsStores.shared.dictationStore())
     @State private var draft: String = ""
     @State private var showDictation = false
+    @State private var showDictationArchive = false
     @State private var path = NavigationPath()
     @FocusState private var inputFocused: Bool
 
@@ -38,8 +41,19 @@ struct AssistantView: View {
             }
             .navigationTitle("Assistant")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showDictationArchive = true
+                    } label: {
+                        Image(systemName: "waveform.badge.mic")
+                    }
+                    .accessibilityLabel("Dictation history")
+                    .accessibilityIdentifier("assistant_dictation_history")
+                }
+            }
             .overlay(alignment: .top) {
-                if let errorMessage = viewModel.state.error {
+                if let errorMessage = viewModel.state.error ?? viewModel.state.historyError {
                     errorBanner(message: errorMessage)
                 }
             }
@@ -47,7 +61,13 @@ struct AssistantView: View {
                 viewModel.refreshAvailability()
             }
             .sheet(isPresented: $showDictation) {
-                DictationCaptureView(onFinished: { showDictation = false })
+                DictationCaptureView(
+                    viewModel: dictationViewModel,
+                    onFinished: { showDictation = false }
+                )
+            }
+            .sheet(isPresented: $showDictationArchive) {
+                DictationArchiveView(viewModel: dictationViewModel)
             }
         }
     }
@@ -65,7 +85,10 @@ struct AssistantView: View {
 
     private var chatContent: some View {
         VStack(spacing: 0) {
-            if viewModel.state.messages.isEmpty {
+            if viewModel.state.isHistoryLoading {
+                ProgressView("Loading conversation…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.state.messages.isEmpty {
                 emptyChatView
             } else {
                 transcript
@@ -217,7 +240,7 @@ struct AssistantView: View {
                     .background(Theme.forestGreen.opacity(0.12))
                     .clipShape(Circle())
             }
-            .disabled(viewModel.state.isGenerating)
+            .disabled(viewModel.state.isGenerating || viewModel.state.isHistoryLoading)
             .accessibilityLabel("Dictate records")
             .accessibilityIdentifier("assistant_dictate")
 
@@ -229,7 +252,7 @@ struct AssistantView: View {
                 .padding(.vertical, 10)
                 .background(Theme.surfaceElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
-                .disabled(viewModel.state.isGenerating)
+                .disabled(viewModel.state.isGenerating || viewModel.state.isHistoryLoading)
                 .accessibilityIdentifier("assistant_input")
 
             Button {
@@ -256,7 +279,9 @@ struct AssistantView: View {
     }
 
     private var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.state.isGenerating
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !viewModel.state.isGenerating &&
+            !viewModel.state.isHistoryLoading
     }
 
     private func sendDraft() {

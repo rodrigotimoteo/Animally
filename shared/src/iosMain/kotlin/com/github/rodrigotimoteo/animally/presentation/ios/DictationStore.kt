@@ -22,12 +22,30 @@ import kotlin.native.ObjCName
  * @property transcript Raw transcript text as captured from speech.
  * @property suggestions Validated suggestions awaiting accept/reject.
  * @property error Decode failure message, or `null` when the last session JSON parsed.
+ * @property captures Dictation archive entries matching [captureSearchQuery].
+ * @property captureSearchQuery Text used to filter the archive.
+ * @property isCapturesLoading Whether archive persistence is being read or updated.
+ * @property captureError Persistence error for the archive, if any.
  */
 @ObjCName("DictationStoreState")
 data class DictationStoreState(
     val transcript: String = "",
     val suggestions: List<DictationSuggestionUi> = emptyList(),
     val error: String? = null,
+    val captures: List<DictationCaptureItem> = emptyList(),
+    val captureSearchQuery: String = "",
+    val isCapturesLoading: Boolean = false,
+    val captureError: String? = null,
+)
+
+/** Small Objective-C-friendly projection used by the Swift archive screen. */
+@ObjCName("DictationCaptureItem")
+data class DictationCaptureItem(
+    val id: Long,
+    val transcript: String,
+    val audioPath: String?,
+    val durationMillis: Long?,
+    val capturedAtMillis: Long,
 )
 
 /**
@@ -56,11 +74,48 @@ class DictationStore(
             transcript = ui.transcript,
             suggestions = ui.suggestions,
             error = ui.error,
+            captures =
+                ui.filteredCaptures.map { capture ->
+                    DictationCaptureItem(
+                        id = capture.id,
+                        transcript = capture.transcript,
+                        audioPath = capture.audioPath,
+                        durationMillis = capture.durationMillis,
+                        capturedAtMillis = capture.capturedAt.toEpochMilliseconds(),
+                    )
+                },
+            captureSearchQuery = ui.captureSearchQuery,
+            isCapturesLoading = ui.isCapturesLoading,
+            captureError = ui.captureError,
         )
 
     /** Updates the raw transcript text. */
     fun setTranscript(value: String) {
         viewModel.setTranscript(value)
+    }
+
+    /** Refreshes the persisted dictation archive. */
+    fun reloadCaptures() {
+        viewModel.reloadCaptures()
+    }
+
+    /** Filters archive entries by their transcript. */
+    fun setCaptureSearchQuery(value: String) {
+        viewModel.setCaptureSearchQuery(value)
+    }
+
+    /** Stores a completed transcript and its optional original audio path. */
+    fun saveCapture(
+        transcript: String,
+        audioPath: String?,
+        durationMillis: Long?,
+    ) {
+        viewModel.saveCapture(transcript, audioPath, durationMillis)
+    }
+
+    /** Removes one archive entry and its app-owned audio file. */
+    fun deleteCapture(id: Long) {
+        viewModel.deleteCapture(id)
     }
 
     /**

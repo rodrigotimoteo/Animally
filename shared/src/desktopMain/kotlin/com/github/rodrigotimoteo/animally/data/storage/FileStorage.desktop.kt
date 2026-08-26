@@ -18,7 +18,19 @@ actual object FileStorage {
         return file.absolutePath
     }
 
+    actual fun delete(path: String): Boolean {
+        val target = File(path).canonicalFile
+        val allowedDirectories =
+            listOf(
+                File(storageRoot(), ATTACHMENTS_DIR).canonicalFile,
+                File(storageRoot(), DICTATIONS_DIR).canonicalFile,
+            )
+        if (allowedDirectories.none { target.parentFile == it }) return false
+        return target.delete()
+    }
+
     private fun storageRoot(): File = File(System.getProperty("java.io.tmpdir"), "animally")
 
     private const val ATTACHMENTS_DIR = "attachments"
+    private const val DICTATIONS_DIR = "dictations"
 }

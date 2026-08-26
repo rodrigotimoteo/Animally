@@ -2,6 +2,8 @@ package com.github.rodrigotimoteo.animally.domain.settings.usecase
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.domain.backup.deleteAllBackupRows
+import com.github.rodrigotimoteo.animally.domain.backup.deleteDictationAudioFiles
+import com.github.rodrigotimoteo.animally.domain.backup.dictationAudioPaths
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
@@ -27,14 +29,16 @@ class WipeAllDataUseCase(
      * Deletes every row from every data table and clears the search index.
      *
      * @throws Exception when any delete fails; the transaction rolls back and
-     *  the database keeps its prior contents.
+     *  the database and its audio files keep their prior contents.
      */
     operator fun invoke() {
+        val audioPaths = database.dictationAudioPaths()
         database.transaction {
             database.deleteAllBackupRows()
             database.searchFtsQueries.deleteAllIndex()
             database.searchFtsQueries.deleteAllFts()
         }
+        audioPaths.deleteDictationAudioFiles()
         // Re-seed from the emptied metadata table so the index provably
         // matches the empty database.
         searchRepository.rebuild()
