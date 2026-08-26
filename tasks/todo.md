@@ -6,4 +6,6 @@
 - [x] Add deterministic simulator dictation coverage and document device-only limits
 - [x] Improve assistant reliability, output normalization, and human tone
 - [x] Run focused tests, broad checks, and iOS simulator smoke tests
-- [ ] Build/install on Daniela's iPhone, commit the completed change, and confirm a clean worktree
+- [x] Build the final device binary and commit the completed change
+- [ ] Reinstall and launch on Daniela's iPhone once its CoreDevice tunnel is available
+- [x] Confirm a clean worktree

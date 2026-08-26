@@ -51,7 +51,9 @@ presentation and platform-integration layer.
 - [x] Shared tests and static analysis pass after each cross-platform foundation.
 - [x] iOS simulator build and UI smoke tests pass after the UX/dictation slices.
 - [ ] Final device build installs and launches on Daniela's iPhone.
-- [ ] Working tree is clean after the requested commit.
+- [x] Final device build succeeds; the final reinstall/launch is blocked while
+  Daniela's iPhone CoreDevice tunnel is unavailable.
+- [x] Working tree is clean after the requested commit.
 
 ## Risks and mitigations
 
