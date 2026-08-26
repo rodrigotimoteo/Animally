@@ -84,9 +84,12 @@ struct ImagingEditView: View {
                 .lineLimit(3...8)
                 .textCase(nil)
 
-                ImageAttachmentField(title: "Imaging Study", imagePath: form.imageUris) {
-                    viewModel.onImageUrisChange($0)
-                }
+                ImageAttachmentField(
+                    title: "Imaging Study",
+                    imagePath: form.imageUris,
+                    onFilesPicked: viewModel.onFilesPicked,
+                    onRemove: viewModel.removeImageUri,
+                )
             } header: {
                 RecordFormStyle.sectionHeader("Findings & Images")
             }
@@ -123,6 +126,8 @@ final class ImagingEditViewModel: RecordFormViewModel<ImagingEditStoreState> {
     func onDateChange(_ value: String) { store.onDateChange(value: value) }
     func onFindingsChange(_ value: String) { store.onFindingsChange(value: value) }
     func onImageUrisChange(_ value: String) { store.onImageUrisChange(value: value) }
+    func onFilesPicked(_ files: [PickedFile]) { store.onFilesPicked(files: files) }
+    func removeImageUri(_ uri: String) { store.removeImageUri(uri: uri) }
     func onVetNameChange(_ value: String) { store.onVetNameChange(value: value) }
     func onNotesChange(_ value: String) { store.onNotesChange(value: value) }
     func save() { store.save() }

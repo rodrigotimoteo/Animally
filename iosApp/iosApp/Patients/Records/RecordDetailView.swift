@@ -123,11 +123,21 @@ private struct IdLoadedRecordDetailView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let fields = observer.fields {
+            } else if observer.fields != nil || !observer.attachments.isEmpty {
                 List {
-                    Section {
-                        ForEach(fields) { field in
-                            FieldCell(field: field)
+                    if let fields = observer.fields, !fields.isEmpty {
+                        Section {
+                            ForEach(fields) { field in
+                                FieldCell(field: field)
+                            }
+                        }
+                    }
+
+                    if !observer.attachments.isEmpty {
+                        Section {
+                            RecordDetailAttachmentGallery(attachments: observer.attachments)
+                        } header: {
+                            Label("Images", systemImage: "photo.on.rectangle.angled")
                         }
                     }
                 }
@@ -178,6 +188,7 @@ private struct IdLoadedRecordDetailView: View {
 @MainActor
 final class RecordDetailObserver: ObservableObject {
     @Published private(set) var fields: [RecordDetailNav.FieldRow]?
+    @Published private(set) var attachments: [RecordDetailAttachment] = []
     @Published private(set) var isLoading = true
     @Published private(set) var title: String?
     @Published private(set) var editRouteDescriptor: RecordEditRouteDescriptor?
@@ -224,6 +235,7 @@ final class RecordDetailObserver: ObservableObject {
             rows = nil
         }
         fields = rows
+        attachments = state.attachments
         isLoading = state.isLoading
     }
 

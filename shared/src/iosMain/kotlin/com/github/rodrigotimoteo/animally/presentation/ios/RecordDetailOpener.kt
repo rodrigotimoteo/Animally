@@ -23,11 +23,14 @@ import kotlin.native.ObjCName
  *
  * @property rows The ready-to-render field rows, or `null` while loading or
  *   when the record does not exist.
+ * @property attachments The images attached to the record, decoded from the
+ *   typed form state on the Kotlin side.
  * @property isLoading Whether the underlying form is still loading.
  */
 @ObjCName("RecordDetailState")
 data class RecordDetailState(
     val rows: List<RecordDetailRow>? = null,
+    val attachments: List<RecordDetailAttachment> = emptyList(),
     val isLoading: Boolean = false,
 )
 
@@ -122,7 +125,7 @@ private fun editRouteFor(
 }
 
 private fun notFoundFlow(scope: CoroutineScope): NativeFlow<RecordDetailState> =
-    NativeFlow(MutableStateFlow(RecordDetailState(rows = null, isLoading = false)), scope)
+    NativeFlow(MutableStateFlow(RecordDetailState(rows = null, attachments = emptyList(), isLoading = false)), scope)
 
 /**
  * Re-emits the typed store state as a [RecordDetailState] flow: decodes the
@@ -133,9 +136,10 @@ private fun <S : Any> bind(
     scope: CoroutineScope,
     isLoadingOf: (S) -> Boolean,
     rowsOf: (S) -> List<RecordDetailRow>?,
+    attachmentsOf: (S) -> List<RecordDetailAttachment> = { emptyList() },
 ): DetailBinding {
-    val mapped = MutableStateFlow(decode(source.current, isLoadingOf, rowsOf))
-    val subscription = source.subscribe { mapped.value = decode(it, isLoadingOf, rowsOf) }
+    val mapped = MutableStateFlow(decode(source.current, isLoadingOf, rowsOf, attachmentsOf))
+    val subscription = source.subscribe { mapped.value = decode(it, isLoadingOf, rowsOf, attachmentsOf) }
     return DetailBinding(NativeFlow(mapped, scope), listOf(subscription))
 }
 
@@ -143,7 +147,13 @@ private fun <S : Any> decode(
     state: S,
     isLoadingOf: (S) -> Boolean,
     rowsOf: (S) -> List<RecordDetailRow>?,
-): RecordDetailState = RecordDetailState(rows = rowsOf(state), isLoading = isLoadingOf(state))
+    attachmentsOf: (S) -> List<RecordDetailAttachment>,
+): RecordDetailState =
+    RecordDetailState(
+        rows = rowsOf(state),
+        attachments = attachmentsOf(state),
+        isLoading = isLoadingOf(state),
+    )
 
 /** A bound store: the unified state flow plus the subscriptions to cancel. */
 private class DetailBinding(
@@ -350,6 +360,7 @@ object RecordDetailOpener {
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::imagingRows) },
+                    attachmentsOf = { it.form?.let { form -> recordDetailAttachments(form.imageUris) }.orEmpty() },
                 )
         }
 
@@ -373,6 +384,7 @@ object RecordDetailOpener {
                     scope,
                     isLoadingOf = { it.form?.isLoading == true },
                     rowsOf = { it.form?.let(::ultrasoundRows) },
+                    attachmentsOf = { it.form?.let { form -> recordDetailAttachments(form.imageUris) }.orEmpty() },
                 )
             ReproKind.Gestation ->
                 bind(

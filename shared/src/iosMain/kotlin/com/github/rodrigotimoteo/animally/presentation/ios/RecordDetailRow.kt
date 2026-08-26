@@ -2,6 +2,7 @@
 
 package com.github.rodrigotimoteo.animally.presentation.ios
 
+import com.github.rodrigotimoteo.animally.data.storage.splitImageUris
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.allocArray
@@ -27,6 +28,18 @@ data class RecordDetailRow(
 )
 
 /**
+ * One image attached to a record detail.
+ *
+ * The path is the persisted app-local path (or a legacy file URL), while the
+ * file name is prepared here so SwiftUI does not need to parse storage data.
+ */
+@ObjCName("RecordDetailAttachment")
+data class RecordDetailAttachment(
+    val path: String,
+    val fileName: String,
+)
+
+/**
  * Maps label/value pairs to [RecordDetailRow]s, dropping pairs whose value is
  * blank — the same filtering the tab views apply to their preview rows.
  */
@@ -34,6 +47,24 @@ internal fun recordDetailRows(pairs: List<Pair<String, String?>>): List<RecordDe
     pairs
         .map { RecordDetailRow(label = it.first, value = it.second ?: "") }
         .filter { it.value.isNotEmpty() }
+
+/**
+ * Decodes the persisted comma-separated image path field for the iOS detail
+ * contract. Empty entries are ignored and each remaining path is kept in its
+ * original order for deterministic gallery paging.
+ */
+internal fun recordDetailAttachments(imageUris: String?): List<RecordDetailAttachment> =
+    splitImageUris(imageUris)
+        .map { path ->
+            RecordDetailAttachment(
+                path = path,
+                fileName =
+                    path
+                        .substringAfterLast('/')
+                        .substringAfterLast('\\')
+                        .ifBlank { "Image" },
+            )
+        }
 
 /**
  * Formats a double with exactly one decimal digit, producing byte-identical
