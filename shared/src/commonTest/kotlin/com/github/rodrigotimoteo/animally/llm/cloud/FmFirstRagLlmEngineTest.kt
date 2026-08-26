@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.llm.cloud
 import app.cash.turbine.testIn
 import app.cash.turbine.turbineScope
 import com.github.rodrigotimoteo.animally.llm.RagLlmEngine
+import com.github.rodrigotimoteo.animally.llm.RagQueryPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
@@ -160,5 +161,27 @@ class FmFirstRagLlmEngineTest {
                 sources.cancel()
                 assertEquals(0, primary.calls)
             }
+        }
+
+    @Test
+    fun `query policy is flexible only when cloud fallback is selected`() =
+        runTest {
+            val cloudSelected =
+                FmFirstRagLlmEngine(
+                    primary = RecordingEngine(emptyList()),
+                    fallback = RecordingEngine(emptyList()),
+                    isFallbackEligible = { true },
+                    isPrimaryAvailable = { false },
+                )
+            assertEquals(RagQueryPolicy.CLOUD, cloudSelected.queryPolicy())
+
+            val foundationModelsSelected =
+                FmFirstRagLlmEngine(
+                    primary = RecordingEngine(emptyList()),
+                    fallback = RecordingEngine(emptyList()),
+                    isFallbackEligible = { true },
+                    isPrimaryAvailable = { true },
+                )
+            assertEquals(RagQueryPolicy.ON_DEVICE, foundationModelsSelected.queryPolicy())
         }
 }

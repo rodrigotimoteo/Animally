@@ -102,13 +102,15 @@ val llmModule =
                     farrierVisitRepository = get(),
                     gestationRepository = get(),
                 )
+            val routedEngine = get<FmFirstRagLlmEngine>()
             GenerateRagResponseUseCase(
                 get(),
-                get<FmFirstRagLlmEngine>(),
+                routedEngine,
                 strings = get(),
                 recordSearch = recordSearch,
                 patientRepository = get(),
                 analysisContextBuilder = analysisContextBuilder,
+                queryPolicyProvider = { routedEngine.queryPolicy() },
             )
         }
     }

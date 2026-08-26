@@ -17,3 +17,31 @@ data class RagConfig(
         val DEFAULT = RagConfig()
     }
 }
+
+/**
+ * Generation policy selected by the engine router before retrieval starts.
+ * Foundation Models stay tightly grounded because their small context/model
+ * budget benefits from deterministic gates; cloud fallback can answer general
+ * questions while still receiving explicit instructions not to invent patient
+ * facts.
+ */
+data class RagQueryPolicy(
+    val allowGeneralQuestions: Boolean,
+    /** Null keeps the caller's configured budget; cloud supplies its own bound. */
+    val maxContextTokens: Int? = null,
+) {
+    companion object {
+        /** Strict policy for Apple Foundation Models and other local engines. */
+        val ON_DEVICE =
+            RagQueryPolicy(
+                allowGeneralQuestions = false,
+            )
+
+        /** Bounded cloud policy; provider limits still vary by selected model. */
+        val CLOUD =
+            RagQueryPolicy(
+                allowGeneralQuestions = true,
+                maxContextTokens = 16_384,
+            )
+    }
+}

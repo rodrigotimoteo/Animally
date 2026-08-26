@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.llm.cloud
 
 import com.github.rodrigotimoteo.animally.llm.RagLlmEngine
+import com.github.rodrigotimoteo.animally.llm.RagQueryPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
@@ -57,6 +58,18 @@ class FmFirstRagLlmEngine(
 
     /** Emits [EngineSource] once per request, before that engine's first chunk. */
     val sourceEvents: SharedFlow<EngineSource> = _sourceEvents
+
+    /**
+     * Reports the policy the next turn should use. The relaxed policy is only
+     * exposed when the same conditions that make [fallback] the selected engine
+     * are already true, so Foundation Models never receive an ungrounded prompt.
+     */
+    suspend fun queryPolicy(): RagQueryPolicy =
+        if (!isPrimaryAvailable() && isFallbackEligible()) {
+            RagQueryPolicy.CLOUD
+        } else {
+            RagQueryPolicy.ON_DEVICE
+        }
 
     /**
      * Non-streaming variant with the same routing semantics. Delegates to

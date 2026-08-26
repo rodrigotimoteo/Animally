@@ -19,7 +19,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * Configuration for the OpenAI-compatible chat-completions endpoint used by
@@ -65,9 +69,9 @@ data class CloudLlmConfig(
  * implementation through that seam.
  *
  * Any transport/HTTP/parse failure surfaces as a flow error; fallback handling is the
- * caller's job ([FmFirstRagLlmEngine]). A stream that ends WITHOUT the `[DONE]`
- * sentinel or a terminal `finish_reason` is treated as interrupted (not silently
- * truncated) so callers see the typed failure instead of a confident half-answer.
+ * caller's job ([FmFirstRagLlmEngine]). A stream that ends without a recognized
+ * terminal frame is treated as interrupted (not silently truncated) so callers see
+ * the typed failure instead of a confident half-answer.
  */
 class CloudRagLlmEngine(
     private val httpClient: HttpClient,
@@ -108,17 +112,27 @@ class CloudRagLlmEngine(
                     }
                     val channel = response.bodyAsChannel()
                     val cumulative = StringBuilder()
+                    val thinkingFilter = ThinkingBlockFilter()
                     while (!channel.isClosedForRead) {
                         val line = channel.readUTF8Line() ?: break
-                        if (appendSseDelta(line, cumulative)?.isNotEmpty() == true) {
+                        parseSseError(line)?.let { message -> error(message) }
+                        if (appendSseDelta(line, cumulative, thinkingFilter)?.isNotEmpty() == true) {
                             emit(cumulative.toString())
                         }
                         if (isTerminalSseFrame(line)) sawDone = true
                         parseFinishReason(line)?.let { finishReason = it }
                     }
+                    thinkingFilter
+                        .finish()
+                        .takeIf(String::isNotEmpty)
+                        ?.let { tail ->
+                            cumulative.append(tail)
+                            emit(cumulative.toString())
+                        }
                     // Terminal-state validation: a connection that closes without
-                    // [DONE] nor a finish_reason dropped the answer mid-flight -
-                    // surface that instead of ending the flow like a complete reply.
+                    // a recognized completion frame or finish_reason dropped the
+                    // answer mid-flight - surface that instead of ending the flow
+                    // like a complete reply.
                     validateStreamEnd(
                         sawDone = sawDone,
                         finishReason = finishReason,
@@ -129,7 +143,7 @@ class CloudRagLlmEngine(
 
     /**
      * Parses one SSE line; returns the content delta it carries, or null for
-     * non-data lines / keep-alive comments / the terminal `[DONE]` sentinel /
+     * non-data lines / keep-alive comments / terminal markers /
      * anything with no visible content (reasoning-only deltas, usage tails,
      * malformed payloads — all inert, never fatal). Internal so contract tests
      * drive the exact production decode path.
@@ -137,25 +151,25 @@ class CloudRagLlmEngine(
     internal fun appendSseDelta(
         line: String,
         cumulative: StringBuilder,
+        thinkingFilter: ThinkingBlockFilter = ThinkingBlockFilter(),
     ): String? {
-        val payload =
-            line
-                .takeIf { it.startsWith(SSE_DATA_PREFIX) }
-                ?.removePrefix(SSE_DATA_PREFIX)
-                ?.trim()
-        if (payload.isNullOrEmpty() || payload == SSE_DONE_SENTINEL) return null
+        val payload = dataPayload(line)
         // Null means "nothing to append": non-data lines, the [DONE] sentinel,
         // malformed payloads, and content-free frames (reasoning-only deltas,
         // usage tails) are all inert. Only a real content delta is appended.
         val delta =
-            decodeChunk(payload)
+            payload
+                ?.takeUnless { it.isEmpty() || it.equals(SSE_DONE_SENTINEL, ignoreCase = true) }
+                ?.let(::decodeChunk)
                 ?.choices
                 ?.firstOrNull()
                 ?.delta
                 ?.content
-                ?: return null
-        cumulative.append(delta)
-        return delta
+                ?.textContent()
+                .orEmpty()
+        val visibleDelta = delta.takeUnless(String::isEmpty)?.let(thinkingFilter::append).orEmpty()
+        visibleDelta.takeIf(String::isNotEmpty)?.let(cumulative::append)
+        return visibleDelta.takeIf(String::isNotEmpty)
     }
 
     /**
@@ -165,27 +179,35 @@ class CloudRagLlmEngine(
      * chunk that should trigger the generic interruption footer.
      */
     internal fun isTerminalSseFrame(line: String): Boolean {
-        val payload = line.removePrefix(SSE_DATA_PREFIX).trim()
+        val normalized = line.trim()
+        val payload = dataPayload(normalized)
         return when {
-            payload == SSE_DONE_SENTINEL -> true
-            !line.startsWith(SSE_DATA_PREFIX) || !payload.startsWith("{") -> false
+            eventName(normalized) in TERMINAL_EVENT_NAMES -> true
+            payload?.equals(SSE_DONE_SENTINEL, ignoreCase = true) == true -> true
+            payload == null || !payload.startsWith("{") -> false
             else -> {
                 val chunk = decodeChunk(payload)
-                chunk?.cost != null || chunk?.choices?.firstOrNull()?.finishReason != null
+                if (chunk == null) {
+                    false
+                } else {
+                    chunk.cost != null ||
+                        chunk.done?.isTrueFlag() == true ||
+                        chunk.status?.lowercase() in TERMINAL_STATUS_NAMES ||
+                        chunk.event?.lowercase() in TERMINAL_EVENT_NAMES ||
+                        chunk.type?.lowercase() in TERMINAL_EVENT_NAMES ||
+                        chunk.finishReason != null ||
+                        chunk.choices.firstOrNull()?.finishReason != null
+                }
             }
         }
     }
 
     /** Extracts `choices[0].finish_reason` from a data line, or null. */
     private fun parseFinishReason(line: String): String? =
-        line
-            .removePrefix(SSE_DATA_PREFIX)
-            .trim()
-            .takeIf { it.startsWith("{") }
+        dataPayload(line)
+            ?.takeIf { it.startsWith("{") }
             ?.let(::decodeChunk)
-            ?.choices
-            ?.firstOrNull()
-            ?.finishReason
+            ?.let { chunk -> chunk.choices.firstOrNull()?.finishReason ?: chunk.finishReason }
 
     /** Tolerant frame decode: malformed payloads yield null instead of throwing. */
     private fun decodeChunk(payload: String): ChatCompletionChunk? =
@@ -193,12 +215,241 @@ class CloudRagLlmEngine(
             json.decodeFromString<ChatCompletionChunk>(payload)
         }.getOrNull()
 
+    private fun dataPayload(line: String): String? =
+        line
+            .trimStart()
+            .takeIf { it.startsWith(SSE_DATA_PREFIX, ignoreCase = true) }
+            ?.substringAfter(':')
+            ?.trim()
+
+    /** Converts string or structured text content into one provider-neutral string. */
+    private fun JsonElement.textContent(): String =
+        when (this) {
+            is JsonPrimitive -> contentOrNull.orEmpty()
+            is JsonArray -> joinToString(separator = "") { element -> element.textContent() }
+            is JsonObject -> {
+                val type = (this["type"] as? JsonPrimitive)?.contentOrNull?.lowercase()
+                if (type in THINKING_CONTENT_TYPES) {
+                    ""
+                } else {
+                    (this["text"] ?: this["content"])?.textContent().orEmpty()
+                }
+            }
+        }
+
+    /** Extracts provider error frames sent inside an otherwise successful SSE response. */
+    private fun parseSseError(line: String): String? {
+        val normalized = line.trim()
+        val payload = dataPayload(normalized)
+        return when {
+            eventName(normalized) == SSE_ERROR_EVENT -> STREAM_ERROR_MESSAGE
+            payload == null || !payload.startsWith("{") -> null
+            else -> {
+                val chunk = decodeChunk(payload)
+                if (chunk?.type?.lowercase() != SSE_ERROR_EVENT && chunk?.error == null) {
+                    null
+                } else {
+                    chunk.error
+                        ?.errorMessage()
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { "$STREAM_ERROR_MESSAGE: ${it.take(MAX_ERROR_DETAIL_CHARS)}" }
+                        ?: STREAM_ERROR_MESSAGE
+                }
+            }
+        }
+    }
+
+    private fun JsonElement.errorMessage(): String? =
+        when (this) {
+            is JsonPrimitive -> contentOrNull
+            is JsonObject ->
+                sequenceOf("message", "detail", "error")
+                    .mapNotNull { key -> this[key]?.errorMessage() }
+                    .firstOrNull()
+            is JsonArray -> null
+        }
+
+    private fun JsonElement.isTrueFlag(): Boolean =
+        when (this) {
+            is JsonPrimitive -> contentOrNull.equals("true", ignoreCase = true)
+            else -> false
+        }
+
+    private fun eventName(line: String): String? =
+        line
+            .takeIf { it.startsWith(SSE_EVENT_PREFIX, ignoreCase = true) }
+            ?.substringAfter(':')
+            ?.trim()
+            ?.lowercase()
+
     private fun String.compactCloudError(): String = replace(Regex("\\s+"), " ").trim().take(MAX_ERROR_DETAIL_CHARS)
 
     private companion object {
         const val SSE_DATA_PREFIX = "data:"
+        const val SSE_EVENT_PREFIX = "event:"
+        const val SSE_ERROR_EVENT = "error"
         const val SSE_DONE_SENTINEL = "[DONE]"
+        const val STREAM_ERROR_MESSAGE = "Cloud LLM stream reported an error"
         const val MAX_ERROR_DETAIL_CHARS = 240
+        val TERMINAL_EVENT_NAMES =
+            setOf(
+                "done",
+                "complete",
+                "completed",
+                "finish",
+                "finished",
+                "end",
+                "message_stop",
+                "message_end",
+                "response.completed",
+                "response.done",
+                "completion",
+                "stream_end",
+            )
+        val TERMINAL_STATUS_NAMES = setOf("complete", "completed", "done", "finished")
+        val THINKING_CONTENT_TYPES =
+            setOf(
+                "analysis",
+                "analysis_content",
+                "reasoning",
+                "reasoning_content",
+                "reasoning_details",
+                "redacted_reasoning",
+                "redacted_thinking",
+                "thinking",
+                "thinking_block",
+                "thought",
+                "thoughts",
+            )
+    }
+}
+
+/**
+ * Removes common inline reasoning markers without leaking tags split across
+ * network chunks. Structured reasoning fields are ignored before this filter;
+ * this handles providers that put the same content inside `<think>...</think>`
+ * (or equivalent) in the normal content field.
+ */
+internal class ThinkingBlockFilter {
+    private var pending = ""
+    private var inThinking = false
+
+    /** Adds one raw content delta and returns only newly visible answer text. */
+    fun append(delta: String): String {
+        if (delta.isEmpty()) return ""
+        pending += delta
+        return drain(final = false)
+    }
+
+    /** Flushes visible text held back while checking for a tag prefix. */
+    fun finish(): String = drain(final = true)
+
+    private fun drain(final: Boolean): String {
+        val visible = StringBuilder()
+        var draining = true
+        while (pending.isNotEmpty() && draining) {
+            val marker = findMarker(pending, activeMarkers())
+            if (marker != null) {
+                if (!inThinking) visible.append(pending, 0, marker.index)
+                pending = pending.drop(marker.index + marker.token.length)
+                if (marker.entersThinking) inThinking = true
+                if (marker.exitsThinking) inThinking = false
+            } else if (inThinking) {
+                pending = if (final) "" else pending.takeLast(markerPrefixLength(pending))
+            } else {
+                val keep = if (final) 0 else markerPrefixLength(pending)
+                if (keep > 0) {
+                    visible.append(pending, 0, pending.length - keep)
+                    pending = pending.takeLast(keep)
+                } else {
+                    visible.append(pending)
+                    pending = ""
+                }
+            }
+            draining = marker != null && pending.isNotEmpty()
+        }
+        return visible.toString()
+    }
+
+    private fun activeMarkers(): List<ThinkingMarker> = if (inThinking) CLOSE_MARKERS + STRIP_MARKERS else ALL_MARKERS
+
+    private fun findMarker(
+        text: String,
+        markers: List<ThinkingMarker>,
+    ): ThinkingMarkerMatch? {
+        val lowered = text.lowercase()
+        return markers
+            .mapNotNull { marker ->
+                lowered.indexOf(marker.token).takeIf { it >= 0 }?.let { index ->
+                    ThinkingMarkerMatch(index, marker.token, marker.entersThinking, marker.exitsThinking)
+                }
+            }.minWithOrNull(compareBy({ it.index }, { -it.token.length }))
+    }
+
+    private fun markerPrefixLength(text: String): Int {
+        val lowered = text.lowercase()
+        return ALL_MARKERS
+            .maxOfOrNull { marker ->
+                (1..minOf(lowered.length, marker.token.length - 1))
+                    .filter { length -> lowered.endsWith(marker.token.take(length)) }
+                    .maxOrNull()
+                    ?: 0
+            } ?: 0
+    }
+
+    private data class ThinkingMarker(
+        val token: String,
+        val entersThinking: Boolean = false,
+        val exitsThinking: Boolean = false,
+    )
+
+    private data class ThinkingMarkerMatch(
+        val index: Int,
+        val token: String,
+        val entersThinking: Boolean,
+        val exitsThinking: Boolean,
+    )
+
+    private companion object {
+        val OPEN_MARKERS =
+            listOf(
+                "<think>",
+                "<thinking>",
+                "<analysis>",
+                "<reasoning>",
+                "<|thinking|>",
+                "<|analysis|>",
+                "<|reasoning|>",
+                "<|begin_of_thought|>",
+                "<|thought|>",
+                "<|channel|>analysis<|message|>",
+                "<|channel|>reasoning<|message|>",
+            ).map { ThinkingMarker(it, entersThinking = true) }
+        val CLOSE_MARKERS =
+            listOf(
+                "</think>",
+                "</thinking>",
+                "</analysis>",
+                "</reasoning>",
+                "<|end_thinking|>",
+                "<|end_thought|>",
+                "<|end_of_thought|>",
+                "<|end_analysis|>",
+                "<|end_reasoning|>",
+                "<|end|>",
+                "<|channel|>final<|message|>",
+                "<|channel|>commentary<|message|>",
+            ).map { ThinkingMarker(it, exitsThinking = true) }
+        val STRIP_MARKERS =
+            listOf(
+                "<|start|>assistant",
+                "<|start|>analysis",
+                "<|start|>final",
+                "<|message|>",
+                "<|channel|>final",
+                "<|channel|>commentary",
+            ).map { ThinkingMarker(it) }
+        val ALL_MARKERS = (OPEN_MARKERS + CLOSE_MARKERS + STRIP_MARKERS).sortedByDescending { it.token.length }
     }
 }
 
@@ -282,6 +533,14 @@ internal data class ChatMessage(
 @Serializable
 internal data class ChatCompletionChunk(
     val choices: List<ChunkChoice> = emptyList(),
+    val event: String? = null,
+    val type: String? = null,
+    val status: String? = null,
+    val done: JsonElement? = null,
+    /** Some compatible APIs put the terminal reason at the top level. */
+    @SerialName("finish_reason") val finishReason: String? = null,
+    /** Some providers send an in-band error frame with HTTP 200. */
+    val error: JsonElement? = null,
     /** OpenCode Go's non-standard terminal usage/cost trailer. */
     val cost: JsonElement? = null,
 )
@@ -295,11 +554,16 @@ internal data class ChunkChoice(
 
 @Serializable
 internal data class Delta(
-    val content: String? = null,
+    /** Chat-completions providers use a string; some compatible APIs use blocks. */
+    val content: JsonElement? = null,
     /**
      * Reasoning models stream hidden chain-of-thought here BEFORE/AFTER content
      * deltas. Never rendered; declared so the shape is documented and greppable
      * (unknown keys are ignored anyway).
      */
-    @SerialName("reasoning_content") val reasoningContent: String? = null,
+    @SerialName("reasoning_content") val reasoningContent: JsonElement? = null,
+    @SerialName("reasoning_details") val reasoningDetails: JsonElement? = null,
+    val reasoning: JsonElement? = null,
+    val thinking: JsonElement? = null,
+    val analysis: JsonElement? = null,
 )

@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.llm.cloud
 
 import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -83,6 +84,13 @@ class CloudRagLlmEngineTest {
 
         assertTrue(engine.isTerminalSseFrame("data: {\"choices\":[],\"cost\":\"0\"}"))
         assertTrue(engine.isTerminalSseFrame("data: [DONE]"))
+        assertTrue(engine.isTerminalSseFrame("event: done"))
+        assertTrue(engine.isTerminalSseFrame("data: {\"type\":\"message_stop\"}"))
+        assertTrue(engine.isTerminalSseFrame("data: {\"done\":true}"))
+        assertTrue(engine.isTerminalSseFrame("data: {\"done\":\"true\"}"))
+        assertTrue(engine.isTerminalSseFrame("data: {\"event\":\"response.done\"}"))
+        assertTrue(engine.isTerminalSseFrame("data: {\"status\":\"completed\"}"))
+        assertTrue(engine.isTerminalSseFrame("data: {\"finish_reason\":\"stop\"}"))
         assertTrue(
             engine.isTerminalSseFrame(
                 "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]} ",
@@ -90,6 +98,65 @@ class CloudRagLlmEngineTest {
         )
         assertTrue(!engine.isTerminalSseFrame("data: {\"choices\":[],\"usage\":{\"total_tokens\":42}}"))
         assertTrue(!engine.isTerminalSseFrame(": keep-alive"))
+    }
+
+    @Test
+    fun `filters structured and inline reasoning including split tags`() {
+        val engine = engine()
+        val cumulative = StringBuilder()
+        val filter = ThinkingBlockFilter()
+
+        assertNull(
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"reasoning_content\":{\"tokens\":[\"private\"]}}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertNull(
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":[{\"type\":\"reasoning_details\",\"text\":\"also private\"}]}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals("", cumulative.toString())
+
+        assertNull(
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"<thi\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertNull(
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"nk>private thought</thi\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals("", cumulative.toString())
+
+        assertEquals(
+            "Visible answer",
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"nk>Visible answer\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals("Visible answer", cumulative.toString())
+
+        assertEquals(
+            " and more",
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":[{\"type\":\"reasoning\",\"text\":\"ignored\"},{\"type\":\"text\",\"text\":\" and more\"}]}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals("Visible answer and more", cumulative.toString())
     }
 
     @Test
@@ -101,7 +168,7 @@ class CloudRagLlmEngineTest {
                     """{"choices":[{"delta":{"reasoning_content":"hmm"},"finish_reason":null}]}""",
                 )
         val reasoningDelta = chunk.choices.first().delta
-        assertEquals("hmm", reasoningDelta?.reasoningContent)
+        assertEquals("hmm", reasoningDelta?.reasoningContent?.jsonPrimitive?.content)
         assertNull(chunk.choices.first().finishReason)
 
         val terminal =

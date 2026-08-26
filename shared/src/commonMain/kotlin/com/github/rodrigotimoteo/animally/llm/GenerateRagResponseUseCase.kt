@@ -38,6 +38,34 @@ fun interface RagLlmEngine {
     ): Flow<String> = generate(prompt, instructions)
 }
 
+/** Whether the strict on-device policy should stop before an ungrounded model call. */
+private fun shouldUseNoResultsFallback(
+    policy: RagQueryPolicy,
+    grounded: Boolean,
+    historyRelevant: Boolean,
+): Boolean = !policy.allowGeneralQuestions && !grounded && !historyRelevant
+
+/** Record or computed-summary grounding used by the Foundation Models gate. */
+private fun hasGrounding(
+    query: String,
+    selectedIndices: List<Int>,
+    results: List<SearchResult>,
+    deterministicSummary: String?,
+): Boolean {
+    val expectedTypes = RecordTypeIntent.expectedRecordTypes(query)
+    return when {
+        deterministicSummary != null -> true
+        selectedIndices.isEmpty() -> false
+        expectedTypes.isNotEmpty() -> selectedIndices.any { results[it].recordType in expectedTypes }
+        else -> true
+    }
+}
+
+private fun hasRelevantHistory(
+    query: String,
+    recentConversation: String,
+): Boolean = recentConversation.isNotEmpty() && RecordTypeIntent.sharesContentToken(query, recentConversation)
+
 /**
  * One prior conversational turn fed back into the prompt for multi-turn
  * context. Both sides are truncated by the use case before prompting.
@@ -71,7 +99,17 @@ class GenerateRagResponseUseCase(
     private val patientRepository: IPatientRepository? = null,
     private val analysisContextBuilder: AnalysisContextBuilder? = null,
     private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
+    private val queryPolicyProvider: suspend () -> RagQueryPolicy = { RagQueryPolicy.ON_DEVICE },
 ) {
+    private data class StreamAnswerRequest(
+        val context: String,
+        val turnStrings: AssistantStrings,
+        val selected: List<String>,
+        val contextResults: List<SearchResult>,
+        val usedDeterministicSummary: Boolean,
+        val allowGeneralQuestions: Boolean,
+    )
+
     /** Rough token estimate: ~4 characters per token (see RAG budget in CONTEXT docs). */
     private companion object {
         const val CHARS_PER_TOKEN = 4.0
@@ -153,6 +191,7 @@ class GenerateRagResponseUseCase(
                 emit(RagStreamEvent.Chunk(it))
                 return@flow
             }
+            val queryPolicy = queryPolicyProvider()
             val enriched = AssistantPrompts.enrichQuery(query)
             if (enriched.length < MIN_QUERY_CHARS) {
                 // One-letter queries fuzzy-match nonsense ("A" hits any name
@@ -191,42 +230,28 @@ class GenerateRagResponseUseCase(
             val selectedIndices =
                 selectWithinBudget(
                     chunks,
+                    maxContextTokens = queryPolicy.maxContextTokens ?: config.maxContextTokens,
                     reservedTokens = reservedTokens,
                 )
-            // Grounding gates, dosage-guard style: the engine is never called
-            // without anything to ground on. Two failure shapes are covered:
-            // (1) retrieval empty or everything budget-filtered out, and
-            // (2) retrieval non-empty but carrying none of the record kind the
-            // question asks about (the OR-retry leg matches the named
-            // patient's identity record only). A deterministic summary counts
-            // as grounding. Prior conversation unlocks the model call ONLY
-            // when it actually carries turns about the same subject -
-            // otherwise the model freeballs an answer from thin context
-            // instead of admitting it has nothing.
-            val historyRelevant =
-                recentConversation.isNotEmpty() &&
-                    RecordTypeIntent.sharesContentToken(query, recentConversation)
-            val expectedTypes = RecordTypeIntent.expectedRecordTypes(query)
-            val grounded =
-                when {
-                    deterministicSummary != null -> true
-                    selectedIndices.isEmpty() -> false
-                    expectedTypes.isNotEmpty() ->
-                        selectedIndices.any { results[it].recordType in expectedTypes }
-                    else -> true
-                }
-            if (!grounded && !historyRelevant) {
+            // Grounding remains strict for Foundation Models; the cloud policy
+            // deliberately allows general questions through with an empty or
+            // unrelated record context.
+            val historyRelevant = hasRelevantHistory(query, recentConversation)
+            val grounded = hasGrounding(query, selectedIndices, results, deterministicSummary)
+            if (shouldUseNoResultsFallback(queryPolicy, grounded, historyRelevant)) {
                 emit(RagStreamEvent.Chunk(turnStrings.noResultsFallback))
                 return@flow
             }
             val selected = selectedIndices.map(chunks::get)
-            val context = buildContext(selected, query, recentConversation, deterministicSummary)
             streamAnswer(
-                context,
-                turnStrings,
-                selected,
-                selectedIndices.map(results::get),
-                usedDeterministicSummary = deterministicSummary != null,
+                StreamAnswerRequest(
+                    context = buildContext(selected, query, recentConversation, deterministicSummary),
+                    turnStrings = turnStrings,
+                    selected = selected,
+                    contextResults = selectedIndices.map(results::get),
+                    usedDeterministicSummary = deterministicSummary != null,
+                    allowGeneralQuestions = queryPolicy.allowGeneralQuestions,
+                ),
             )
         }
 
@@ -237,21 +262,20 @@ class GenerateRagResponseUseCase(
      * [RagStreamEvent.Interrupted] marker carrying the partial text instead
      * of tearing down the whole turn.
      */
-    private suspend fun FlowCollector<RagStreamEvent>.streamAnswer(
-        context: String,
-        turnStrings: AssistantStrings,
-        selected: List<String>,
-        contextResults: List<SearchResult>,
-        usedDeterministicSummary: Boolean,
-    ) {
+    private suspend fun FlowCollector<RagStreamEvent>.streamAnswer(request: StreamAnswerRequest) {
         // Streaming emits cumulative snapshots; sanitize() is idempotent, so
         // re-sanitizing the growing text each step is safe and downstream
         // consumers replace their buffer with each emission.
         var lastEmitted = ""
         try {
             llmEngine
-                .generateStreaming(context, AssistantPrompts.systemPrompt(turnStrings))
-                .collect { text ->
+                .generateStreaming(
+                    request.context,
+                    AssistantPrompts.systemPrompt(
+                        request.turnStrings,
+                        allowGeneralQuestions = request.allowGeneralQuestions,
+                    ),
+                ).collect { text ->
                     lastEmitted = sanitize(text)
                     emit(RagStreamEvent.Chunk(lastEmitted))
                 }
@@ -276,11 +300,11 @@ class GenerateRagResponseUseCase(
         // stale header the model invented ([Giraffe #1], a deleted id)
         // satisfies the eye but maps to no source card, so the guarantee
         // needs the real headers appended anyway.
-        val mappedCitations = citedResults(lastEmitted, contextResults)
-        if (selected.isNotEmpty() && mappedCitations.isEmpty()) {
+        val mappedCitations = citedResults(lastEmitted, request.contextResults)
+        if (request.selected.isNotEmpty() && mappedCitations.isEmpty()) {
             // Top-3 by retrieval rank only: appending every selected header
             // turns a ten-record answer into ten lines of citation noise.
-            val sources = selected.mapNotNull(::sourceHeader).take(MAX_ENFORCED_SOURCES)
+            val sources = request.selected.mapNotNull(::sourceHeader).take(MAX_ENFORCED_SOURCES)
             if (sources.isNotEmpty()) {
                 lastEmitted =
                     listOf(lastEmitted.takeIf(String::isNotBlank), sources.joinToString("\n"))
@@ -298,14 +322,14 @@ class GenerateRagResponseUseCase(
         // tag, not bare "[": a fabricated bracket the model invented
         // ([Giraffe #1]) satisfies the eye but maps to no source card, so it
         // must not block the append either.
-        if (usedDeterministicSummary && mappedCitations.isEmpty() && "[Summary]" !in lastEmitted) {
+        if (request.usedDeterministicSummary && mappedCitations.isEmpty() && "[Summary]" !in lastEmitted) {
             lastEmitted =
                 listOf(lastEmitted.takeIf(String::isNotBlank), "[Summary]")
                     .filterNotNull()
                     .joinToString("\n\n")
             emit(RagStreamEvent.Chunk(lastEmitted))
         }
-        citedResults(lastEmitted, contextResults).takeIf { it.isNotEmpty() }?.let {
+        citedResults(lastEmitted, request.contextResults).takeIf { it.isNotEmpty() }?.let {
             emit(RagStreamEvent.Sources(it))
         }
         // Display split: citations are parsed from the bracketed text FIRST
@@ -424,12 +448,13 @@ class GenerateRagResponseUseCase(
      */
     private fun selectWithinBudget(
         chunks: List<String>,
+        maxContextTokens: Int,
         reservedTokens: Int = 0,
     ): List<Int> {
         val reserve =
             config.systemReserveTokens + config.queryReserveTokens +
                 config.responseReserveTokens + reservedTokens
-        val budget = config.maxContextTokens - reserve
+        val budget = maxContextTokens - reserve
         val selected = mutableListOf<Int>()
         var used = 0
         for ((index, chunk) in chunks.withIndex()) {

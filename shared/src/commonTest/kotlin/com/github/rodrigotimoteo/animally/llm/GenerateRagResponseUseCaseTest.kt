@@ -65,6 +65,7 @@ class GenerateRagResponseUseCaseTest {
         analysisContextBuilder: AnalysisContextBuilder? = null,
         today: LocalDate = LocalDate(2026, 8, 24),
         patientRepository: IPatientRepository? = null,
+        queryPolicyProvider: suspend () -> RagQueryPolicy = { RagQueryPolicy.ON_DEVICE },
     ) = GenerateRagResponseUseCase(
         SearchUseCase(searchRepositoryMock),
         engine,
@@ -74,6 +75,7 @@ class GenerateRagResponseUseCaseTest {
         patientRepository = patientRepository,
         analysisContextBuilder = analysisContextBuilder,
         today = today,
+        queryPolicyProvider = queryPolicyProvider,
     )
 
     private fun result(
@@ -127,6 +129,32 @@ class GenerateRagResponseUseCaseTest {
 
             assertEquals(0, engine.calls, "engine must never run on empty grounding")
             assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+        }
+
+    @Test
+    fun `given cloud policy and empty retrieval when invoked then general question reaches model`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val output =
+                sut(queryPolicyProvider = { RagQueryPolicy.CLOUD })("Why is the sky blue?").answers()
+
+            assertEquals(1, engine.calls, "cloud general questions must not hit the record-only fallback")
+            assertTrue(output.first().contains("pregnant"))
+            assertTrue(engine.lastInstructions.orEmpty().contains("general, educational, or casual questions"))
+            assertTrue(!engine.lastInstructions.orEmpty().contains("ANSWER ONLY FROM THE CONTEXT BELOW"))
+        }
+
+    @Test
+    fun `given cloud policy and dosage question without medication records when invoked then refusal remains`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val output =
+                sut(queryPolicyProvider = { RagQueryPolicy.CLOUD })("How much metronidazole should I give?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, EnAssistantStrings.dosageRefusal), output)
+            assertEquals(0, engine.calls, "cloud flexibility must not bypass the dosage safety gate")
         }
 
     @Test
@@ -302,6 +330,24 @@ class GenerateRagResponseUseCaseTest {
             val prompt = engine.lastPrompt.orEmpty()
             assertTrue(prompt.contains("zzzzzzzzzz"), "capped snippet content must survive")
             assertFalse(prompt.contains("z".repeat(RagConfig.DEFAULT.chunkCharCap + 1)), "snippet must be truncated to chunkCharCap")
+        }
+
+    @Test
+    fun `given cloud policy when invoked then context budget exceeds foundation-model budget`() =
+        runTest {
+            val records =
+                (1..20).map { id ->
+                    result(
+                        recordId = id.toLong(),
+                        snippet = "record $id " + "x".repeat(1190),
+                    )
+                }
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns records
+
+            sut(queryPolicyProvider = { RagQueryPolicy.CLOUD })(QUERY).toList()
+
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains("[VACCINATION #20]"), "cloud context should not stop at the 4096-token budget")
         }
 
     @Test

@@ -135,4 +135,13 @@ class AssistantPromptsTest {
         assertTrue(prompt.contains("NEVER ATTRIBUTE OWNER-LEVEL FACTS TO A PATIENT"))
         assertTrue(prompt.contains("MUST INCLUDE AT LEAST ONE BRACKETED HEADER"), "citation mandate must survive")
     }
+
+    @Test
+    fun `given cloud prompt when built then general questions are allowed without record fabrication`() {
+        val prompt = AssistantPrompts.systemPrompt(allowGeneralQuestions = true)
+
+        assertTrue(prompt.contains("general, educational, or casual questions"))
+        assertTrue(prompt.contains("patient-specific"))
+        assertTrue(!prompt.contains("ANSWER ONLY FROM THE CONTEXT BELOW"))
+    }
 }
