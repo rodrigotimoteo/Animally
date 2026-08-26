@@ -20,6 +20,7 @@ import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelsResult
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
+import com.github.rodrigotimoteo.animally.presentation.theme.AccentColor
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,6 +77,9 @@ class SettingsViewModel(
 
     private val _themeMode = MutableStateFlow(themePreferenceStore.getThemeMode())
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    private val _accentColor = MutableStateFlow(themePreferenceStore.getAccentColor())
+    val accentColor: StateFlow<AccentColor> = _accentColor.asStateFlow()
 
     // Cloud AI settings: composed state backed by the platform store; the API key
     // round-trips through secure storage only (never plaintext preferences).
@@ -218,6 +222,12 @@ class SettingsViewModel(
     fun onThemeModeChange(mode: ThemeMode) {
         themePreferenceStore.setThemeMode(mode)
         _themeMode.value = mode
+    }
+
+    /** Updates the brand accent, persisting it for the next app launch. */
+    fun onAccentColorChange(accent: AccentColor) {
+        themePreferenceStore.setAccentColor(accent)
+        _accentColor.value = accent
     }
 
     /** Toggles cloud AI routing, persisting the choice. */

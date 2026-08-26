@@ -66,6 +66,11 @@ class OwnerListViewModel(
      */
     fun onAddClick() = navigateTo(Route.AddEditOwner())
 
+    /** Updates the list query; matching is kept in the shared presentation layer. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+    }
+
     /**
      * Soft-deletes the owner with the given [ownerId].
      *
@@ -99,6 +104,20 @@ class OwnerListViewModel(
  */
 data class OwnerListUiState(
     val owners: List<Owner> = emptyList(),
+    val searchQuery: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Owners matching every whitespace-delimited query term. */
+    val visibleOwners: List<Owner>
+        get() {
+            val terms = searchQuery.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+            if (terms.isEmpty()) return owners
+            return owners.filter { owner ->
+                val haystack =
+                    listOfNotNull(owner.name, owner.phone, owner.email, owner.address)
+                        .joinToString(" ")
+                terms.all { term -> haystack.contains(term, ignoreCase = true) }
+            }
+        }
+}

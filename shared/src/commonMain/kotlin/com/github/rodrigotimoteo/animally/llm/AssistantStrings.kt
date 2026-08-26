@@ -72,13 +72,14 @@ object EnAssistantStrings : AssistantStrings {
             "treatment, or a date."
 
     override val greetingReply: String =
-        "Hello! Ask me about your patients - treatments, vaccinations, " +
-            "gestations, weights, or any record."
+        "Hello! I’m here to help. Ask me about your patients, treatments, " +
+            "vaccinations, gestations, weights, or any other record."
 
     override val notFoundInRecords: String = "Not found in records."
 
     override val blankReplyFallback: String =
-        "I could not find anything relevant in the records."
+        "I wasn’t able to finish that answer. Try asking again, or narrow it " +
+            "down to a horse, treatment, or date."
 
     override val dosageRefusal: String =
         "I can't advise on dosages. Check the medication record or consult the treating vet."
@@ -112,13 +113,14 @@ object PtAssistantStrings : AssistantStrings {
             "um tratamento ou uma data."
 
     override val greetingReply: String =
-        "Olá! Pergunte-me sobre os seus pacientes - tratamentos, vacinas, " +
-            "gestações, pesos ou qualquer registo."
+        "Olá! Estou aqui para ajudar. Pergunte-me sobre os seus pacientes, " +
+            "tratamentos, vacinas, gestações, pesos ou qualquer registo."
 
     override val notFoundInRecords: String = "Não encontrado nos registos."
 
     override val blankReplyFallback: String =
-        "Não consegui encontrar nada relevante nos registos."
+        "Não consegui terminar essa resposta. Tente novamente ou indique um " +
+            "cavalo, tratamento ou data."
 
     override val dosageRefusal: String =
         "Não posso aconselhar sobre doses. Consulte o registo do medicamento ou o veterinário responsável."
@@ -131,7 +133,7 @@ object PtAssistantStrings : AssistantStrings {
 
     override val followUpWeightTrend: String = "Como evoluiu o peso dela?"
 
-    override val followUpNextFarrier: String = "Quando é a próxima ferradura?"
+    override val followUpNextFarrier: String = "Quando é a próxima visita do ferrador?"
 
     override val followUpDefaultPatients: String = "Quais pacientes tenho?"
 

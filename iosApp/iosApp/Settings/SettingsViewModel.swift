@@ -4,6 +4,7 @@ import Shared
 @MainActor
 final class SettingsViewModel: ObservableObject {
     @Published var themeMode: ThemeMode
+    @Published var accentColor: AccentColor
     @Published var patients: [Patient_]
     @Published var selectedPatientId: Int64?
     @Published var restoreJson: String
@@ -31,6 +32,7 @@ final class SettingsViewModel: ObservableObject {
     init() {
         store = IosSettingsStores.shared.settingsStore()
         themeMode = store.state.current
+        accentColor = store.accentColor
         patients = store.patients as? [Patient_] ?? []
         selectedPatientId = store.selectedPatientId?.int64Value
         restoreJson = store.restoreJson
@@ -86,6 +88,11 @@ final class SettingsViewModel: ObservableObject {
 
     func setThemeMode(mode: ThemeMode) {
         store.setThemeMode(mode: mode)
+    }
+
+    func setAccentColor(_ accent: AccentColor) {
+        store.setAccentColor(accent: accent)
+        accentColor = store.accentColor
     }
 
     func setCloudAiEnabled(_ enabled: Bool) {

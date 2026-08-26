@@ -3,6 +3,10 @@ import Shared
 
 struct OwnerListView: View {
     @StateObject private var viewModel = OwnerListViewModel()
+    @State private var searchText = ""
+    @State private var showDeleteConfirmation = false
+    @State private var pendingOwnerId: Int64?
+    @State private var pendingOwnerName = ""
 
     var body: some View {
         Group {
@@ -31,25 +35,58 @@ struct OwnerListView: View {
         .onAppear {
             viewModel.load()
         }
+        .searchable(text: $searchText, prompt: "Search owners")
+        .onChange(of: searchText) { _, newValue in
+            viewModel.setSearchQuery(newValue)
+        }
     }
 
     private var listView: some View {
         List {
-            ForEach(viewModel.state.owners, id: \.id) { owner in
-                NavigationLink(value: Route.ownerDetail(owner.id)) {
-                    OwnerRowView(owner: owner)
-                }
-                .buttonStyle(.plain)
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) {
-                        viewModel.delete(ownerId: owner.id)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+            if displayedOwners.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else {
+                Section {
+                    ForEach(displayedOwners, id: \.id) { owner in
+                        NavigationLink(value: Route.ownerDetail(owner.id)) {
+                            OwnerRowView(owner: owner)
+                        }
+                        .accessibilityIdentifier("owner_row_\(owner.id)")
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                pendingOwnerId = owner.id
+                                pendingOwnerName = owner.name
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
+                }
+                header: {
+                    Text("\(displayedOwners.count) owner\(displayedOwners.count == 1 ? "" : "s")")
+                        .textCase(nil)
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .refreshable {
+            viewModel.load()
+        }
+        .confirmationDialog(
+            "Delete \(pendingOwnerName)?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                guard let pendingOwnerId else { return }
+                viewModel.delete(ownerId: pendingOwnerId)
+                self.pendingOwnerId = nil
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Owners with linked patients cannot be deleted. Unlink their patients first.")
+        }
     }
 
     private var loadingView: some View {
@@ -74,6 +111,10 @@ struct OwnerListView: View {
             Text("Tap + to add one")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
+            NavigationLink(value: Route.ownerEdit(nil)) {
+                Label("Add your first owner", systemImage: "plus")
+                    .font(.subheadline.weight(.semibold))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -104,6 +145,10 @@ struct OwnerListView: View {
         .padding(.top, 8)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
+
+    private var displayedOwners: [Owner_] {
+        viewModel.state.visibleOwners
+    }
 }
 
 struct OwnerRowView: View {
@@ -131,6 +176,10 @@ struct OwnerRowView: View {
                     Text(email)
                         .font(.subheadline)
                         .foregroundStyle(Theme.textSecondary)
+                } else {
+                    Text("No contact details")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textTertiary)
                 }
             }
 

@@ -28,4 +28,15 @@ final class ThemeUITests: AnimallyTestCase {
             XCTAssertTrue(exists, "Theme option \(option) missing")
         }
     }
+
+    func testAccentPaletteCanBeChanged() throws {
+        let app = TestHelpers.launchApp()
+        openSettings(app)
+
+        let ocean = app.buttons["settings_accent_ocean"].firstMatch
+        XCTAssertTrue(ocean.waitForExistence(timeout: 8), "Ocean accent is missing")
+        ocean.tap()
+
+        XCTAssertEqual(ocean.value as? String, "Selected")
+    }
 }

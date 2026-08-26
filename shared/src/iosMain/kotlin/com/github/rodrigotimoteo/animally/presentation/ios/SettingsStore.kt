@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.bridge.NativeFlow
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmProviderPreset
 import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewModel
+import com.github.rodrigotimoteo.animally.presentation.theme.AccentColor
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import kotlin.experimental.ExperimentalObjCName
 import kotlin.native.ObjCName
@@ -98,6 +99,15 @@ class SettingsStore(
     /** Updates the theme mode, persisting the choice. */
     fun setThemeMode(mode: ThemeMode) {
         viewModel.onThemeModeChange(mode)
+    }
+
+    /** The currently selected accent color. */
+    val accentColor: AccentColor
+        get() = viewModel.accentColor.value
+
+    /** Updates and persists the selected accent color. */
+    fun setAccentColor(accent: AccentColor) {
+        viewModel.onAccentColorChange(accent)
     }
 
     /** True when cloud AI routing is enabled. */

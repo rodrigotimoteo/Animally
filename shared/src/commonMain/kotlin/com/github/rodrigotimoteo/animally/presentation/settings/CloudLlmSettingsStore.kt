@@ -1,5 +1,7 @@
 package com.github.rodrigotimoteo.animally.presentation.settings
 
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmProviderPreset
+
 /**
  * User-facing cloud LLM settings. Non-secret fields (enabled flag, model, base URL)
  * live in platform preferences; the API key goes through [SecureStore] and is only
@@ -29,6 +31,20 @@ interface CloudLlmSettingsStore {
     fun presetId(): String
 
     fun setPresetId(id: String)
+}
+
+/**
+ * True when the current settings can be used for a cloud fallback request.
+ * Local runtimes deliberately do not require an API key; hosted providers do.
+ * Keeping this check beside the settings contract prevents platform bridges
+ * from silently drifting away from the routing rules.
+ */
+fun CloudLlmSettingsStore.isReadyForCloudRouting(): Boolean {
+    val provider = CloudLlmProviderPreset.fromId(presetId())
+    return isEnabled() &&
+        (!provider.requiresApiKey || !apiKey().isNullOrBlank()) &&
+        model().isNotBlank() &&
+        baseUrl().isNotBlank()
 }
 
 /** Preference key for the cloud toggle. */

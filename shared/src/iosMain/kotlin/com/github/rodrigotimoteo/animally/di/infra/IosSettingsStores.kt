@@ -16,6 +16,7 @@ import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettings
 import com.github.rodrigotimoteo.animally.presentation.search.SearchViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.SettingsViewModel
 import com.github.rodrigotimoteo.animally.presentation.settings.createPlatformThemePreferenceStore
+import com.github.rodrigotimoteo.animally.presentation.settings.isReadyForCloudRouting
 import com.github.rodrigotimoteo.animally.presentation.timeline.TimelineViewModel
 import org.koin.core.parameter.parametersOf
 import kotlin.experimental.ExperimentalObjCName
@@ -72,7 +73,7 @@ object IosSettingsStores {
                 generateRagResponse = IosAppBridge.koin.get(),
                 llmEngine = IosAppBridge.koin.get(),
                 engineSourceEvents = routingEngine.sourceEvents,
-                isCloudReady = { cloudSettings.isEnabled() && !cloudSettings.apiKey().isNullOrBlank() },
+                isCloudReady = { cloudSettings.isReadyForCloudRouting() },
             )
         return AssistantStore(viewModel)
     }

@@ -113,6 +113,20 @@ class PatientListViewModelTest {
         }
 
     @Test
+    fun `search query filters patients by name and metadata`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val secondPatient = patient.copy(id = 2L, name = "Luna", stableLocation = "North barn")
+            every { patientRepositoryMock.getPatientList() } returns listOf(patient, secondPatient)
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onSearchQueryChange("north barn")
+
+            assertEquals(listOf(secondPatient), vm.uiState.value.visiblePatients)
+        }
+
+    @Test
     fun `delete success reloads patients`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))

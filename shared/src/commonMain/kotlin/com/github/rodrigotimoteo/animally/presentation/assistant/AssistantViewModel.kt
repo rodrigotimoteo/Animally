@@ -93,8 +93,15 @@ class AssistantViewModel(
                 if (source == EngineSource.CLOUD) {
                     // Patch any assistant turn already on screen so a late event
                     // still badges it (ordering across flows is not guaranteed).
+                    // Do not create a message here: sourceEvents replays the last
+                    // routing decision to newly created views, and a replay before
+                    // the next question would otherwise create a blank bubble.
                     _uiState.update { state ->
-                        state.copy(messages = state.messages.upsertLast { it.copy(source = source) })
+                        if (state.messages.lastOrNull()?.role == AssistantChatMessageRole.ASSISTANT) {
+                            state.copy(messages = state.messages.upsertLast { it.copy(source = source) })
+                        } else {
+                            state
+                        }
                     }
                 }
             }
@@ -141,12 +148,18 @@ class AssistantViewModel(
             var reply = ""
             try {
                 generateRagResponse(trimmed, history).collect { event ->
-                    if (event is RagStreamEvent.Chunk) reply = event.text
+                    reply =
+                        when (event) {
+                            is RagStreamEvent.Chunk -> event.text
+                            is RagStreamEvent.Interrupted -> event.partialText
+                            is RagStreamEvent.Sources -> reply
+                        }
                     _uiState.update { current -> applyEvent(current, event, strings) }
                 }
                 if (reply.isBlank()) {
                     _uiState.update { current -> applyBlank(current, strings.blankReplyFallback) }
                 }
+                _uiState.update { current -> ensureFollowUps(current, strings) }
             } catch (ce: kotlinx.coroutines.CancellationException) {
                 throw ce
             } catch (t: Exception) {
@@ -199,6 +212,19 @@ class AssistantViewModel(
     ): AssistantUiState {
         val patched = state.messages.upsertLast { it.copy(text = text) }
         return state.copy(messages = patched)
+    }
+
+    /** Gives deterministic exploration prompts to short/fallback answers too. */
+    private fun ensureFollowUps(
+        state: AssistantUiState,
+        i18n: AssistantStrings,
+    ): AssistantUiState {
+        val last = state.messages.lastOrNull()
+        if (last?.role != AssistantChatMessageRole.ASSISTANT || last.interrupted || last.followUps.isNotEmpty()) {
+            return state
+        }
+        val followUps = FollowUpSuggestions.forCitations(emptyList(), i18n)
+        return state.copy(messages = state.messages.dropLast(1) + last.copy(followUps = followUps))
     }
 
     /**

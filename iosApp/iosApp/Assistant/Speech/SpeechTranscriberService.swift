@@ -70,6 +70,12 @@ enum SpeechTranscriberService {
     /// Resolves the best usable dictation engine for this device.
     @MainActor
     static func resolve() async -> ResolvedDictationEngine {
+        if DictationTestConfiguration.isEnabled {
+            return ResolvedDictationEngine(
+                transcriber: MockSpeechTranscriber(),
+                localeIdentifier: dictationLocale.identifier
+            )
+        }
         if #available(iOS 26.0, *) {
             if let engine = await analyzerEngine(for: dictationLocale, allowDownload: true) {
                 return engine
@@ -223,9 +229,15 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         self.bufferStream = continuation
 
         // Pump microphone buffers into the analyzer until the stream ends.
-        pumpTask = Task { [analyzer] in
-            let mapped = stream.map { Speech.AnalyzerInput(buffer: $0) }
-            try? await analyzer.start(inputSequence: mapped)
+        pumpTask = Task { [weak self, analyzer] in
+            do {
+                let mapped = stream.map { Speech.AnalyzerInput(buffer: $0) }
+                try await analyzer.start(inputSequence: mapped)
+            } catch is CancellationError {
+                // Expected when the user cancels or finishes the recording.
+            } catch {
+                self?.failureHandler?(error.localizedDescription)
+            }
         }
 
         resultsTask = Task { [weak self] in
@@ -271,12 +283,13 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
     }
 
     func cancel() async {
-        teardownAudioPipeline()
-        await analyzer?.cancelAndFinishNow()
+        let analyzer = self.analyzer
         resultsTask?.cancel()
-        resultsTask = nil
         pumpTask?.cancel()
+        await analyzer?.cancelAndFinishNow()
+        resultsTask = nil
         pumpTask = nil
+        teardownAudioPipeline()
     }
 
     private func configureAudioSession() {
@@ -344,7 +357,10 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
         try engine.start()
 
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            MainActor.assumeIsolated {
+            // SFSpeechRecognizer does not guarantee which queue invokes this
+            // callback. Hop explicitly to the actor instead of assuming the
+            // callback is already on the main actor.
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 if let result {
                     let text = result.bestTranscription.formattedString
@@ -406,6 +422,39 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
     }
 }
 
+// MARK: - Deterministic UI-test transcriber
+
+/// Microphone-free transcriber used only when the UI test launch argument is
+/// present. It exercises the real capture/review/extraction/save orchestration
+/// without depending on simulator audio routing or speech assets.
+@MainActor
+final class MockSpeechTranscriber: SpeechTranscribing {
+    private let transcript: String
+    private var isRecording = false
+
+    var partialHandler: ((String) -> Void)?
+    var failureHandler: ((String) -> Void)?
+
+    init(transcript: String = "Registar o peso do Thunder e uma desparasitação. Depois fazer uma ecografia à Fantasma Inexistente.") {
+        self.transcript = transcript
+    }
+
+    func start() async throws {
+        isRecording = true
+        partialHandler?(transcript)
+    }
+
+    func finish() async throws -> String {
+        guard isRecording else { return "" }
+        isRecording = false
+        return transcript
+    }
+
+    func cancel() async {
+        isRecording = false
+    }
+}
+
 enum DictationTranscriberError: LocalizedError {
     case recognizerUnavailable
     case microphoneDenied
@@ -428,6 +477,9 @@ enum SpeechAuthService {
     /// Returns `nil` when both granted, otherwise a descriptive error.
     @MainActor
     static func requestAuthorization() async -> Error? {
+        if DictationTestConfiguration.isEnabled {
+            return nil
+        }
         let micGranted =
             if #available(iOS 17.0, *) {
                 await AVAudioApplication.requestRecordPermission()

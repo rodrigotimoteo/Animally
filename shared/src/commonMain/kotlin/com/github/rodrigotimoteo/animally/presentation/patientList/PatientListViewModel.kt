@@ -71,6 +71,11 @@ class PatientListViewModel(
      */
     fun onSearchClick() = navigateTo(Route.Search)
 
+    /** Updates the list query; matching is kept in the shared presentation layer. */
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+    }
+
     /**
      * Soft-deletes the patient with the given [patientId].
      *
@@ -104,6 +109,27 @@ class PatientListViewModel(
  */
 data class PatientListUiState(
     val patients: List<Patient> = emptyList(),
+    val searchQuery: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    /** Patients matching every whitespace-delimited query term. */
+    val visiblePatients: List<Patient>
+        get() {
+            val terms = searchQuery.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+            if (terms.isEmpty()) return patients
+            return patients.filter { patient ->
+                val haystack =
+                    listOfNotNull(
+                        patient.name,
+                        patient.species,
+                        patient.breed,
+                        patient.microchipId,
+                        patient.ueln,
+                        patient.registrationNumber,
+                        patient.stableLocation,
+                    ).joinToString(" ")
+                terms.all { term -> haystack.contains(term, ignoreCase = true) }
+            }
+        }
+}

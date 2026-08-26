@@ -1,53 +1,68 @@
-# Implementation Plan: Cloud assistant flexibility and stream normalization
+# Implementation Plan: iOS-first product polish
 
 ## Overview
 
-Make cloud-backed assistant turns feel natural for general and casual questions while keeping Apple Foundation Models on the existing strict, record-grounded path. Harden the cloud SSE parser so common reasoning fields and inline thinking blocks never reach the UI, including when tags are split across streamed chunks.
+Add a persisted accent-colour choice, improve the Patients and Owners workflows,
+make dictation genuinely testable without microphone or Apple Intelligence
+dependencies, and harden the assistant's cloud/local behavior and conversational
+presentation. Shared Kotlin remains the home for persistence, domain rules,
+view-model state, and assistant/dictation decisions; Swift remains the iOS
+presentation and platform-integration layer.
 
-## Architecture Decisions
+## Architecture decisions
 
-- Resolve a query policy before retrieval: Foundation Models keep the 4096-token, record-grounded policy; a cloud fallback receives a larger context budget and may answer general questions when the records do not contain the answer.
-- Keep safety-critical dosage handling and deterministic patient-record answers unchanged for both engines.
-- Normalize reasoning at the cloud transport boundary. Ignore structured reasoning fields and strip common inline thinking tags with state carried across chunks.
-- Treat explicit protocol completion markers as authoritative. A bare EOF without a completion signal remains an interruption so a genuinely dropped stream is not silently presented as complete.
+- Store theme mode and accent choice through the shared `ThemePreferenceStore`
+  contract, with platform implementations persisting the values locally.
+- Keep accent-to-colour mapping in the presentation layer; no database or
+  record-domain logic belongs in SwiftUI.
+- Use injectable dictation protocols and a deterministic fixture path for
+  simulator/CI coverage; reserve microphone/SpeechAnalyzer validation for a
+  connected real device.
+- Improve assistant behavior at the shared RAG/stream boundary: preserve
+  grounding and dosage safety, normalize provider output, and use concise,
+  warm language in the UI.
 
-## Task List
+## Task list
 
-### Phase 1: Stream contract
+### Phase 1: Foundation
 
-- [x] Add stateful filtering for structured and inline reasoning output.
-- [x] Recognize standard and provider-specific terminal frames and cover split-tag cases with focused tests.
+- [x] Add an `AccentColor` preference and persist it on Android, desktop, and iOS.
+- [x] Expose the preference through the shared settings view model/store and
+  apply it to the iOS tint and Compose theme.
 
-### Phase 2: Cloud query policy
+### Phase 2: iOS UX
 
-- [x] Add an explicit strict/on-device versus flexible/cloud policy seam.
-- [x] Relax only ungrounded-question gating and context limits for cloud fallback turns.
-- [x] Add a cloud-specific system-prompt branch that distinguishes general answers from patient-record facts.
+- [x] Add a clear accent picker and preview to Settings.
+- [x] Improve Patients and Owners list/detail hierarchy, empty/loading/error
+  states, search/discoverability, and destructive-action confirmation without
+  moving data logic into SwiftUI.
 
-### Checkpoint: Core behavior
+### Phase 3: Dictation and assistant
 
-- [x] Focused parser and RAG tests pass.
-- [x] Existing Foundation Models guardrail tests remain unchanged and pass.
+- [x] Add a deterministic simulator dictation route that exercises transcript,
+  extraction, review, validation, disambiguation, and save states.
+- [x] Add focused assistant regression coverage for cloud responses, thinking
+  block removal, truncation/error states, and human-readable fallback copy.
+- [x] Polish assistant feedback and response presentation while retaining
+  source transparency and retry behavior.
 
-### Phase 3: iOS verification
+### Checkpoints
 
-- [x] Compile the iOS simulator target.
-- [x] Run focused simulator UI coverage for assistant/settings behavior.
+- [x] Shared tests and static analysis pass after each cross-platform foundation.
+- [x] iOS simulator build and UI smoke tests pass after the UX/dictation slices.
+- [ ] Final device build installs and launches on Daniela's iPhone.
+- [ ] Working tree is clean after the requested commit.
 
-### Checkpoint: Complete
-
-- [x] Static analysis passes.
-- [x] Working tree is clean after the requested commit.
-
-## Risks and Mitigations
+## Risks and mitigations
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Providers use different reasoning encodings | Reasoning leaks into the answer | Handle structured fields, common XML-like tags, and split tags; keep parser tolerant of unknown fields |
-| Cloud context limits vary by model | Request can exceed a provider limit | Use a bounded cloud budget rather than the unbounded model maximum |
-| Relaxing grounding could allow invented patient facts | High | Keep the cloud prompt explicit about record claims, retain citations when records are used, and keep dosage safety gates |
-| EOF is ambiguous at the HTTP layer | Dropped answers could look complete | Require a terminal marker; surface the interruption and provider error |
+| Accent preference only applies to part of the app | Confusing visual inconsistency | Route tint and shared theme colors through one preference and test persistence/defaults |
+| Simulator has no reliable live speech input | Dictation coverage is false confidence | Test the deterministic extractor/review path separately and report live speech as device-only |
+| Assistant polish weakens safety or grounding | Incorrect clinical guidance | Keep dosage refusal, record citations, and cloud/on-device policy tests unchanged |
+| SwiftUI changes duplicate Kotlin state | Stale or divergent behavior | Swift calls stores and renders published state; shared Kotlin owns decisions |
 
-## Open Questions
+## Open questions
 
-- An authenticated live provider request is still useful for confirming the exact terminal frame used by the selected OpenCode Go model; no API key is stored in the repository.
+- The exact cloud provider/model used in production can still change, so live
+  provider testing should remain an optional smoke test with a temporary key.

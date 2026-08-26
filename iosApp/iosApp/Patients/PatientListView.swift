@@ -7,6 +7,7 @@ struct PatientListView: View {
     @State private var showDeleteConfirmation = false
     @State private var pendingPatientId: Int64?
     @State private var pendingPatientName = ""
+    @State private var searchText = ""
 
     var body: some View {
         Group {
@@ -46,26 +47,44 @@ struct PatientListView: View {
         .onAppear {
             viewModel.load()
         }
+        .searchable(text: $searchText, prompt: "Search patients")
+        .onChange(of: searchText) { _, newValue in
+            viewModel.setSearchQuery(newValue)
+        }
     }
 
     private var listView: some View {
         List {
-            ForEach(viewModel.state.patients, id: \.id) { patient in
-                NavigationLink(value: Route.patientDetail(patient.id)) {
-                    PatientRowView(patient: patient)
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) {
-                        pendingPatientId = patient.id
-                        pendingPatientName = patient.name
-                        showDeleteConfirmation = true
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+            if displayedPatients.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else {
+                Section {
+                    ForEach(displayedPatients, id: \.id) { patient in
+                        NavigationLink(value: Route.patientDetail(patient.id)) {
+                            PatientRowView(patient: patient)
+                        }
+                        .accessibilityIdentifier("patient_row_\(patient.id)")
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                pendingPatientId = patient.id
+                                pendingPatientName = patient.name
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
+                }
+                header: {
+                    Text("\(displayedPatients.count) patient\(displayedPatients.count == 1 ? "" : "s")")
+                        .textCase(nil)
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .refreshable {
+            viewModel.load()
+        }
         .confirmationDialog(
             "Delete \(pendingPatientName)?",
             isPresented: $showDeleteConfirmation,
@@ -104,6 +123,10 @@ struct PatientListView: View {
             Text("Tap + to add one")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
+            NavigationLink(value: Route.patientEdit(nil)) {
+                Label("Add your first patient", systemImage: "plus")
+                    .font(.subheadline.weight(.semibold))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -134,6 +157,10 @@ struct PatientListView: View {
         .padding(.top, 8)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
+
+    private var displayedPatients: [Patient_] {
+        viewModel.state.visiblePatients
+    }
 }
 
 struct PatientRowView: View {
@@ -154,7 +181,7 @@ struct PatientRowView: View {
                     .foregroundStyle(Theme.textPrimary)
 
                 if let breed = patient.breed, !breed.isEmpty {
-                    Text(breed)
+                    Text("\(breed) · \(patient.species)")
                         .font(.subheadline)
                         .foregroundStyle(Theme.textSecondary)
                 } else if let microchipId = patient.microchipId, !microchipId.isEmpty {
@@ -165,6 +192,11 @@ struct PatientRowView: View {
                     Text(patient.species)
                         .font(.subheadline)
                         .foregroundStyle(Theme.textSecondary)
+                }
+                if let stableLocation = patient.stableLocation, !stableLocation.isEmpty {
+                    Label(stableLocation, systemImage: "mappin.and.ellipse")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textTertiary)
                 }
             }
 

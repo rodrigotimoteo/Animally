@@ -160,6 +160,61 @@ class CloudRagLlmEngineTest {
     }
 
     @Test
+    fun `filters chat template analysis blocks including split start markers`() {
+        val engine = engine()
+        val cumulative = StringBuilder()
+        val filter = ThinkingBlockFilter()
+
+        assertNull(
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"<|start|>ana\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertNull(
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"lysisprivate reasoning<|end_of_analysis|>\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals(
+            "Visible after analysis",
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Visible after analysis\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals("Visible after analysis", cumulative.toString())
+    }
+
+    @Test
+    fun `filters uppercase inline reasoning markers`() {
+        val engine = engine()
+        val cumulative = StringBuilder()
+        val filter = ThinkingBlockFilter()
+
+        assertNull(
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"[THINK]private\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals(
+            "Visible after thinking",
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"[/THINK]Visible after thinking\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals("Visible after thinking", cumulative.toString())
+    }
+
+    @Test
     fun `snake_case wire fields decode into typed chunk fields`() {
         val chunk =
             Json

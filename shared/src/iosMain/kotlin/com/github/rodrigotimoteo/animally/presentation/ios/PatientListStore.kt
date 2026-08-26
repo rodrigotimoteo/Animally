@@ -26,6 +26,11 @@ class PatientListStore(
         viewModel.loadPatients()
     }
 
+    /** Updates the shared list filter. */
+    fun setSearchQuery(query: String) {
+        viewModel.onSearchQueryChange(query)
+    }
+
     /** Soft-deletes the patient with the given [patientId]. */
     fun deletePatient(patientId: Long) {
         viewModel.onDeleteClick(patientId)

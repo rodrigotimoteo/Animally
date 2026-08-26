@@ -26,6 +26,11 @@ class OwnerListStore(
         viewModel.loadOwners()
     }
 
+    /** Updates the shared list filter. */
+    fun setSearchQuery(query: String) {
+        viewModel.onSearchQueryChange(query)
+    }
+
     /** Soft-deletes the owner with the given [ownerId]. */
     fun deleteOwner(ownerId: Long) {
         viewModel.onDeleteClick(ownerId)

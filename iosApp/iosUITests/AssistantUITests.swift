@@ -120,6 +120,48 @@ final class AssistantUITests: AnimallyTestCase {
         let keyboardExpectation = expectation(for: keyboardGone, evaluatedWith: app.keyboards)
         wait(for: [keyboardExpectation], timeout: 10)
     }
+
+    /// Exercises the complete native dictation orchestration without relying
+    /// on simulator microphone routing, speech assets, or Foundation Models.
+    /// The launch argument swaps only the two native edges for deterministic
+    /// fakes; Kotlin validation, patient resolution, review and save controls
+    /// remain the real production path.
+    func testDictationFlowCanBeExercisedDeterministically() throws {
+        let app = TestHelpers.launchApp(arguments: ["-animally-ui-test-dictation"])
+        openAssistant(app)
+
+        let dictate = app.buttons["assistant_dictate"]
+        XCTAssertTrue(dictate.waitForExistence(timeout: 10), "Dictation entry point missing")
+        dictate.tap()
+
+        let start = app.buttons["dictation_start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "Dictation sheet did not open")
+        XCTAssertTrue(start.waitForExistence(timeout: 10) && start.isEnabled, "Dictation engine did not become ready")
+        start.tap()
+
+        let stop = app.buttons["dictation_stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 10), "Recording state did not appear")
+        let liveTranscript = app.descendants(matching: .any)
+            .matching(identifier: "dictation_live_transcript").firstMatch
+        XCTAssertTrue(liveTranscript.waitForExistence(timeout: 5))
+        stop.tap()
+
+        let editor = app.textViews["dictation_transcript_editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "Transcript review did not appear")
+        XCTAssertFalse((editor.value as? String ?? "").isEmpty, "Mock transcript was not delivered")
+
+        app.buttons["dictation_extract"].tap()
+        let review = app.descendants(matching: .any)
+            .matching(identifier: "dictation_review").firstMatch
+        XCTAssertTrue(review.waitForExistence(timeout: 15), "Suggestion review did not appear")
+        XCTAssertTrue(app.staticTexts["Needs attention"].waitForExistence(timeout: 5))
+
+        let accept = app.buttons["dictation_accept_0"]
+        XCTAssertTrue(accept.waitForExistence(timeout: 5), "Suggestion decisions did not appear")
+        XCTAssertTrue(accept.isEnabled, "The resolved suggestion should be acceptable")
+        accept.tap()
+        XCTAssertTrue(app.buttons["Save 1 record"].waitForExistence(timeout: 5), "Save control did not become available")
+    }
 }
 
 /// Real-FM behavioral coverage.

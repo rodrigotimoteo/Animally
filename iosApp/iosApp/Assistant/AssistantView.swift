@@ -124,7 +124,7 @@ struct AssistantView: View {
     }
 
     private var typingIndicator: some View {
-        HStack {
+        HStack(alignment: .center, spacing: 8) {
             HStack(spacing: 5) {
                 ForEach(0..<3, id: \.self) { dot in
                     Circle()
@@ -143,24 +143,59 @@ struct AssistantView: View {
             .padding(.vertical, 12)
             .background(Theme.surfaceElevated)
             .clipShape(ChatBubbleShape(isUser: false))
+            Text("Thinking…")
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
             Spacer()
         }
         .accessibilityLabel("Assistant is thinking")
     }
 
     private var emptyChatView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             Image(systemName: "sparkles")
                 .font(.system(size: 64))
                 .foregroundStyle(Theme.forestGreen.opacity(0.6))
-            Text("Ask about your patients")
+            Text("What would you like to know?")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
-            Text("Ask anything about your records — history, treatments, reminders, and more")
+            Text("I can look through your records and help you find the important details.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Try asking")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textTertiary)
+                ForEach([
+                    "Which patients do I have?",
+                    "Any recent treatments?",
+                    "What happened this month?",
+                ], id: \.self) { suggestion in
+                    Button {
+                        draft = suggestion
+                        inputFocused = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption.weight(.semibold))
+                            Text(suggestion)
+                                .font(.subheadline)
+                            Spacer()
+                        }
+                        .foregroundStyle(Theme.forestGreen)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Theme.forestGreen.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("assistant_prompt_\(suggestion)")
+                }
+            }
+            .frame(maxWidth: 360)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -305,6 +340,19 @@ struct AssistantView: View {
                     .background(Theme.forestGreen)
                     .clipShape(Capsule())
             }
+
+            Button {
+                showDictation = true
+            } label: {
+                Label("Dictate records", systemImage: "mic.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.forestGreen)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Theme.forestGreen.opacity(0.10))
+                    .clipShape(Capsule())
+            }
+            .accessibilityIdentifier("assistant_dictate")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()

@@ -41,6 +41,7 @@ struct ContentView: View {
                 .tag(Tab.assistant)
         }
         .preferredColorScheme(theme.preferredColorScheme)
+        .tint(theme.accentColor)
         // Sheets capture color scheme at presentation; republishing via the
         // environment lets SettingsView apply live scheme changes itself.
         .environmentObject(theme)

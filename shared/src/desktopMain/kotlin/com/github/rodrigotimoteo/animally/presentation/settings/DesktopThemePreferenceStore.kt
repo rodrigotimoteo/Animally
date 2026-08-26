@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.settings
 
+import com.github.rodrigotimoteo.animally.presentation.theme.AccentColor
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import java.util.prefs.Preferences
 
@@ -18,6 +19,12 @@ class DesktopThemePreferenceStore : ThemePreferenceStore {
 
     override fun setThemeMode(mode: ThemeMode) {
         prefs.putInt(THEME_MODE_PREF_KEY, mode.ordinal)
+    }
+
+    override fun getAccentColor(): AccentColor = AccentColor.fromId(prefs.get(THEME_ACCENT_COLOR_PREF_KEY, null))
+
+    override fun setAccentColor(accent: AccentColor) {
+        prefs.put(THEME_ACCENT_COLOR_PREF_KEY, accent.id)
     }
 
     private companion object {

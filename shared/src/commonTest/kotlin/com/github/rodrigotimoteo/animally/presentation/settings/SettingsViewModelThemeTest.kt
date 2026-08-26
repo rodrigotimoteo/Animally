@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.settings
 
+import com.github.rodrigotimoteo.animally.presentation.theme.AccentColor
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -43,6 +44,17 @@ class SettingsViewModelThemeTest {
     }
 
     @Test
+    fun `default accent is FOREST when store is empty`() {
+        assertEquals(AccentColor.FOREST, store.getAccentColor())
+    }
+
+    @Test
+    fun `setAccentColor persists the chosen stable id`() {
+        store.setAccentColor(AccentColor.PLUM)
+        assertEquals(AccentColor.PLUM, store.getAccentColor())
+    }
+
+    @Test
     fun `ThemeMode entries have correct labels`() {
         assertEquals("Light", ThemeMode.LIGHT.label)
         assertEquals("Dark", ThemeMode.DARK.label)
@@ -55,10 +67,17 @@ class SettingsViewModelThemeTest {
  */
 private class FakeThemePreferenceStore : ThemePreferenceStore {
     private var storedMode: ThemeMode = ThemeMode.SYSTEM
+    private var storedAccent: AccentColor = AccentColor.FOREST
 
     override fun getThemeMode(): ThemeMode = storedMode
 
     override fun setThemeMode(mode: ThemeMode) {
         storedMode = mode
+    }
+
+    override fun getAccentColor(): AccentColor = storedAccent
+
+    override fun setAccentColor(accent: AccentColor) {
+        storedAccent = accent
     }
 }

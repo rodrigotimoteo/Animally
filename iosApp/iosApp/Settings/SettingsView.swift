@@ -49,6 +49,7 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(theme.preferredColorScheme)
+        .tint(selectedAccentColor)
     }
 
     private var themeModes: [ThemeMode] {
@@ -57,6 +58,17 @@ struct SettingsView: View {
         for i in 0..<Int(values.size) {
             if let mode = values.get(index: Int32(i)) {
                 result.append(mode)
+            }
+        }
+        return result
+    }
+
+    private var accentColors: [AccentColor] {
+        let values = AccentColor.values()
+        var result: [AccentColor] = []
+        for i in 0..<Int(values.size) {
+            if let accent = values.get(index: Int32(i)) {
+                result.append(accent)
             }
         }
         return result
@@ -73,8 +85,43 @@ struct SettingsView: View {
             .onChange(of: viewModel.themeMode) { _, newValue in
                 viewModel.setThemeMode(mode: newValue)
             }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: 12)], spacing: 12) {
+                ForEach(accentColors, id: \.self) { accent in
+                    Button {
+                        viewModel.setAccentColor(accent)
+                    } label: {
+                        VStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .fill(Theme.color(for: accent))
+                                    .frame(width: 34, height: 34)
+                                if viewModel.accentColor == accent {
+                                    Image(systemName: "checkmark")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                            Text(accent.label)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Theme.textPrimary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Accent \(accent.label)")
+                    .accessibilityValue(viewModel.accentColor == accent ? "Selected" : "")
+                    .accessibilityIdentifier("settings_accent_\(accent.id)")
+                }
+            }
+            .padding(.vertical, 4)
         } header: {
             sectionHeader("Appearance")
+        } footer: {
+            Text("Choose a color that feels right. It updates the app immediately and is saved for next time.")
         }
     }
 
@@ -97,6 +144,10 @@ struct SettingsView: View {
                         Text(preset.displayName).tag(preset)
                     }
                 }
+                // Picker menus can retain the first tint they receive while a
+                // sheet remains open; keep the provider control tied directly to
+                // the currently selected accent as well as the surrounding list.
+                .tint(selectedAccentColor)
                 .accessibilityIdentifier("settings_cloud_provider")
 
                 SecureField("API Key", text: Binding(
@@ -225,7 +276,7 @@ struct SettingsView: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Theme.forestGreen)
+                    .background(selectedAccentColor)
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
@@ -334,8 +385,12 @@ struct SettingsView: View {
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Theme.forestGreen)
+            .foregroundStyle(selectedAccentColor)
             .textCase(nil)
+    }
+
+    private var selectedAccentColor: Color {
+        Theme.color(for: viewModel.accentColor)
     }
 }
 

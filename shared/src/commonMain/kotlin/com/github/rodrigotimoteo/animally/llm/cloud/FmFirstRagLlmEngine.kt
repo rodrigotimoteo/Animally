@@ -54,7 +54,7 @@ class FmFirstRagLlmEngine(
     private val isFallbackEligible: () -> Boolean = { true },
     private val isPrimaryAvailable: suspend () -> Boolean = { true },
 ) : RagLlmEngine {
-    private val _sourceEvents = MutableSharedFlow<EngineSource>(extraBufferCapacity = 16)
+    private val _sourceEvents = MutableSharedFlow<EngineSource>(replay = 1, extraBufferCapacity = 16)
 
     /** Emits [EngineSource] once per request, before that engine's first chunk. */
     val sourceEvents: SharedFlow<EngineSource> = _sourceEvents

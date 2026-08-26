@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.theme
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
@@ -134,3 +135,136 @@ val warningColorLight: Color = WarningAmber
 
 /** Semantic warning color for dark theme. */
 val warningColorDark: Color = WarningAmberDark
+
+/** Primary colors for a selectable brand accent. */
+internal data class AccentPalette(
+    val primary: Color,
+    val onPrimary: Color,
+    val primaryContainer: Color,
+    val onPrimaryContainer: Color,
+    val inversePrimary: Color,
+)
+
+private val oceanDarkAccentPalette =
+    AccentPalette(
+        primary = Color(0xFF8CCBEE),
+        onPrimary = Color(0xFF00344D),
+        primaryContainer = Color(0xFF145B83),
+        onPrimaryContainer = Color(0xFFD0EEFF),
+        inversePrimary = Color(0xFF1769AA),
+    )
+
+private val oceanLightAccentPalette =
+    AccentPalette(
+        primary = Color(0xFF1769AA),
+        onPrimary = OnForestGreen,
+        primaryContainer = Color(0xFFA9D8F5),
+        onPrimaryContainer = Color(0xFF00344D),
+        inversePrimary = Color(0xFF5C9BC7),
+    )
+
+private val plumDarkAccentPalette =
+    AccentPalette(
+        primary = Color(0xFFEAB3E1),
+        onPrimary = Color(0xFF4D1448),
+        primaryContainer = Color(0xFF71366A),
+        onPrimaryContainer = Color(0xFFFFD7F6),
+        inversePrimary = Color(0xFF9B5B91),
+    )
+
+private val plumLightAccentPalette =
+    AccentPalette(
+        primary = Color(0xFF7A3E72),
+        onPrimary = OnForestGreen,
+        primaryContainer = Color(0xFFE9B6DE),
+        onPrimaryContainer = Color(0xFF330B2F),
+        inversePrimary = Color(0xFFA15A95),
+    )
+
+private val terracottaDarkAccentPalette =
+    AccentPalette(
+        primary = Color(0xFFFFB59D),
+        onPrimary = Color(0xFF541F10),
+        primaryContainer = Color(0xFF7B3523),
+        onPrimaryContainer = Color(0xFFFFDBD0),
+        inversePrimary = Color(0xFFB9684F),
+    )
+
+private val terracottaLightAccentPalette =
+    AccentPalette(
+        primary = Color(0xFF9B4D32),
+        onPrimary = OnForestGreen,
+        primaryContainer = Color(0xFFFFB59D),
+        onPrimaryContainer = Color(0xFF3B0B00),
+        inversePrimary = Color(0xFFC8785D),
+    )
+
+private val slateDarkAccentPalette =
+    AccentPalette(
+        primary = Color(0xFFB6C8E5),
+        onPrimary = Color(0xFF1F3047),
+        primaryContainer = Color(0xFF3A4D68),
+        onPrimaryContainer = Color(0xFFD8E2FF),
+        inversePrimary = Color(0xFF7890B0),
+    )
+
+private val slateLightAccentPalette =
+    AccentPalette(
+        primary = Color(0xFF4E6078),
+        onPrimary = OnForestGreen,
+        primaryContainer = Color(0xFFB8C9E3),
+        onPrimaryContainer = Color(0xFF0A1B30),
+        inversePrimary = Color(0xFF7B91B0),
+    )
+
+/**
+ * Applies only the brand-facing Material roles, preserving dynamic/system
+ * surfaces and semantic error colors supplied by the base scheme.
+ */
+internal fun ColorScheme.withAccent(
+    accent: AccentColor,
+    darkTheme: Boolean,
+): ColorScheme {
+    val palette = accentPalette(accent, darkTheme)
+    return copy(
+        primary = palette.primary,
+        onPrimary = palette.onPrimary,
+        primaryContainer = palette.primaryContainer,
+        onPrimaryContainer = palette.onPrimaryContainer,
+        inversePrimary = palette.inversePrimary,
+        surfaceTint = palette.primary,
+    )
+}
+
+private fun accentPalette(
+    accent: AccentColor,
+    darkTheme: Boolean,
+): AccentPalette =
+    when (accent) {
+        AccentColor.FOREST ->
+            if (darkTheme) {
+                AccentPalette(
+                    primary = ForestGreenLight,
+                    onPrimary = ForestGreenDark,
+                    primaryContainer = ForestGreen,
+                    onPrimaryContainer = OnForestGreenDark,
+                    inversePrimary = ForestGreen,
+                )
+            } else {
+                AccentPalette(
+                    primary = ForestGreen,
+                    onPrimary = OnForestGreen,
+                    primaryContainer = ForestGreenLight,
+                    onPrimaryContainer = OnForestGreen,
+                    inversePrimary = ForestGreenLight,
+                )
+            }
+        AccentColor.OCEAN ->
+            if (darkTheme) oceanDarkAccentPalette else oceanLightAccentPalette
+        AccentColor.PLUM ->
+            if (darkTheme) plumDarkAccentPalette else plumLightAccentPalette
+        AccentColor.TERRACOTTA ->
+            if (darkTheme) terracottaDarkAccentPalette else terracottaLightAccentPalette
+        AccentColor.SLATE ->
+            if (darkTheme) slateDarkAccentPalette else slateLightAccentPalette
+    }

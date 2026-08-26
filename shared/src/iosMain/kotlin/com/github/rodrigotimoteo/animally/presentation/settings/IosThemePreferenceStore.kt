@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.settings
 
+import com.github.rodrigotimoteo.animally.presentation.theme.AccentColor
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import platform.Foundation.NSUserDefaults
 
@@ -18,6 +19,12 @@ class IosThemePreferenceStore : ThemePreferenceStore {
 
     override fun setThemeMode(mode: ThemeMode) {
         defaults.setInteger(mode.ordinal.toLong(), forKey = THEME_MODE_PREF_KEY)
+    }
+
+    override fun getAccentColor(): AccentColor = AccentColor.fromId(defaults.stringForKey(THEME_ACCENT_COLOR_PREF_KEY))
+
+    override fun setAccentColor(accent: AccentColor) {
+        defaults.setObject(accent.id, forKey = THEME_ACCENT_COLOR_PREF_KEY)
     }
 
     private companion object {

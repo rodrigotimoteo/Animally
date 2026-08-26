@@ -32,14 +32,14 @@ extension MockDictationExtractor {
       "records": [
         {
           "recordType": "weight",
-          "patientName": "Cometa",
+          "patientName": "Thunder",
           "date": "2026-08-20",
           "weightKg": 512.0,
           "notes": "peso antes da dose"
         },
         {
           "recordType": "deworming",
-          "patientName": "Cometa",
+          "patientName": "Thunder",
           "date": "1999-13-45",
           "drugName": "Ivermectina Comprimido Palatável para Equinos de Grande Porte Formulação Estendida",
           "notes": "dose única administrada pela manhã"

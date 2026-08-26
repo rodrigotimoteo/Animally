@@ -11,7 +11,6 @@ struct iOSApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .tint(Theme.forestGreen)
         }
     }
 }

@@ -13,7 +13,8 @@ import org.koin.compose.viewmodel.koinViewModel
 @Preview
 fun AnimallyApp(viewModel: SettingsViewModel = koinViewModel()) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-    AnimallyTheme(themeMode = themeMode) {
+    val accentColor by viewModel.accentColor.collectAsStateWithLifecycle()
+    AnimallyTheme(themeMode = themeMode, accentColor = accentColor) {
         AnimallyNavHost()
     }
 }

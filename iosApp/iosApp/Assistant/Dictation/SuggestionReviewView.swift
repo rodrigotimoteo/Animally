@@ -131,6 +131,10 @@ struct SuggestionReviewView: View {
         suggestions.enumerated().filter { $0.element.decision == true }.count
     }
 
+    private var hasPendingDecisions: Bool {
+        suggestions.contains { $0.decision == nil }
+    }
+
     private func isSaveable(_ index: Int, suggestion: DictationSuggestionUi) -> Bool {
         !suggestion.isQuarantined || disambiguatedPatients[index] != nil
     }
@@ -145,6 +149,15 @@ struct SuggestionReviewView: View {
                     )
                     .foregroundStyle(Theme.amber)
                 }
+            }
+
+            if suggestions.isEmpty && viewModel.state.error == nil {
+                ContentUnavailableView(
+                    "No records found",
+                    systemImage: "doc.questionmark",
+                    description: Text("Try mentioning a horse, a date, and the record you want to add.")
+                )
+                .listRowBackground(Color.clear)
             }
 
             if !validIndices.isEmpty {
@@ -284,7 +297,9 @@ struct SuggestionReviewView: View {
                     .foregroundStyle(suggestions[index].decision == true ? Theme.forestGreen : Theme.textTertiary)
             }
             .buttonStyle(.plain)
+            .disabled(!isSaveable(index, suggestion: suggestions[index]))
             .accessibilityLabel("Accept suggestion")
+            .accessibilityIdentifier("dictation_accept_\(index)")
         }
     }
 
@@ -310,6 +325,10 @@ struct SuggestionReviewView: View {
             }
 
             Button {
+                if acceptedCount == 0 {
+                    onFinished()
+                    return
+                }
                 let acceptedPatientIds = suggestions.enumerated().compactMap { index, suggestion -> Int64? in
                     guard suggestion.decision == true else { return nil }
                     return disambiguatedPatients[index]?.id ?? suggestion.resolvedPatientId
@@ -333,7 +352,7 @@ struct SuggestionReviewView: View {
                     .background(acceptedCount > 0 && saveError == nil ? Theme.forestGreen : Theme.textTertiary)
                     .clipShape(Capsule())
             }
-            .disabled(acceptedCount == 0 || saveError != nil)
+            .disabled(saveError != nil || (acceptedCount == 0 && hasPendingDecisions))
             .accessibilityIdentifier("dictation_confirm")
         }
         .padding(.horizontal)

@@ -102,6 +102,20 @@ class OwnerListViewModelTest {
         }
 
     @Test
+    fun `search query filters owners by contact details`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val secondOwner = owner.copy(id = 2L, name = "Bruno", phone = "+351 910 000 000")
+            every { ownerRepositoryMock.getOwnerList() } returns listOf(owner, secondOwner)
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            vm.onSearchQueryChange("910 000")
+
+            assertEquals(listOf(secondOwner), vm.uiState.value.visibleOwners)
+        }
+
+    @Test
     fun `delete success reloads owners`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))

@@ -1,8 +1,9 @@
-# Task checklist: cloud assistant flexibility and stream normalization
+# Task checklist: iOS-first product polish
 
-- [x] Inspect current guardrails and cloud stream contract
-- [x] Add regression tests for thinking-field/tag filtering and terminal frames
-- [x] Implement stateful cloud stream normalization
-- [x] Implement strict/on-device and flexible/cloud query policies
-- [x] Verify Kotlin tests, iOS compilation, simulator UI, lint, and detekt
-- [x] Commit the completed change and confirm a clean worktree
+- [x] Audit current theme/settings, Patients/Owners, dictation, and assistant paths
+- [x] Add persisted accent-colour selection and wire all theme consumers
+- [x] Improve iOS Patients and Owners list/detail UX
+- [x] Add deterministic simulator dictation coverage and document device-only limits
+- [x] Improve assistant reliability, output normalization, and human tone
+- [x] Run focused tests, broad checks, and iOS simulator smoke tests
+- [ ] Build/install on Daniela's iPhone, commit the completed change, and confirm a clean worktree

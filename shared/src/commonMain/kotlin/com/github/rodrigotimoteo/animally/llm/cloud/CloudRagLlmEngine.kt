@@ -400,7 +400,7 @@ internal class ThinkingBlockFilter {
         val lowered = text.lowercase()
         return markers
             .mapNotNull { marker ->
-                lowered.indexOf(marker.token).takeIf { it >= 0 }?.let { index ->
+                lowered.indexOf(marker.token.lowercase()).takeIf { it >= 0 }?.let { index ->
                     ThinkingMarkerMatch(index, marker.token, marker.entersThinking, marker.exitsThinking)
                 }
             }.minWithOrNull(compareBy({ it.index }, { -it.token.length }))
@@ -411,7 +411,7 @@ internal class ThinkingBlockFilter {
         return ALL_MARKERS
             .maxOfOrNull { marker ->
                 (1..minOf(lowered.length, marker.token.length - 1))
-                    .filter { length -> lowered.endsWith(marker.token.take(length)) }
+                    .filter { length -> lowered.endsWith(marker.token.lowercase().take(length)) }
                     .maxOrNull()
                     ?: 0
             } ?: 0
@@ -441,9 +441,17 @@ internal class ThinkingBlockFilter {
                 "<|analysis|>",
                 "<|reasoning|>",
                 "<|begin_of_thought|>",
+                "<|begin_of_analysis|>",
+                "<|start|>analysis",
+                "<|start|>reasoning",
+                "<|start|>thinking",
                 "<|thought|>",
+                "[THINK]",
+                "[THOUGHT]",
                 "<|channel|>analysis<|message|>",
                 "<|channel|>reasoning<|message|>",
+                "<|channel|>analysis",
+                "<|channel|>reasoning",
             ).map { ThinkingMarker(it, entersThinking = true) }
         val CLOSE_MARKERS =
             listOf(
@@ -454,6 +462,9 @@ internal class ThinkingBlockFilter {
                 "<|end_thinking|>",
                 "<|end_thought|>",
                 "<|end_of_thought|>",
+                "<|end_of_analysis|>",
+                "[/THINK]",
+                "[/THOUGHT]",
                 "<|end_analysis|>",
                 "<|end_reasoning|>",
                 "<|end|>",
@@ -463,7 +474,6 @@ internal class ThinkingBlockFilter {
         val STRIP_MARKERS =
             listOf(
                 "<|start|>assistant",
-                "<|start|>analysis",
                 "<|start|>final",
                 "<|message|>",
                 "<|channel|>final",
@@ -525,7 +535,9 @@ internal fun applyCloudLlmRequest(
     prompt: String,
     instructions: String,
 ) {
-    builder.headers.append(HttpHeaders.Authorization, "Bearer ${config.apiKey}")
+    if (config.apiKey.isNotBlank()) {
+        builder.headers.append(HttpHeaders.Authorization, "Bearer ${config.apiKey}")
+    }
     builder.contentType(ContentType.Application.Json)
     builder.accept(ContentType.Text.EventStream)
     builder.timeout {

@@ -4,8 +4,9 @@ import XCTest
 enum TestHelpers {
     /// Launches the app and waits for the patient list.
     @discardableResult
-    static func launchApp() -> XCUIApplication {
+    static func launchApp(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
+        app.launchArguments += arguments
         app.launch()
         XCTAssertTrue(app.staticTexts["Patients"].waitForExistence(timeout: 15))
         return app

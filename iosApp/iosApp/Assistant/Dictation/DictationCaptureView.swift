@@ -25,6 +25,8 @@ struct DictationCaptureView: View {
     @State private var errorMessage: String?
     @State private var fallbackLocaleHint: String?
     @State private var disambiguatedPatients: [Int: Patient] = [:]
+    @State private var enginesReady = false
+    @State private var operationTask: Task<Void, Never>?
 
     @State private var transcriber: (any SpeechTranscribing)?
     @State private var extractor: (any DictationExtracting)?
@@ -52,6 +54,7 @@ struct DictationCaptureView: View {
                         disambiguatedPatients: $disambiguatedPatients,
                         onFinished: onFinished
                     )
+                    .accessibilityIdentifier("dictation_review")
                 }
             }
             .navigationTitle("Dictate records")
@@ -69,6 +72,11 @@ struct DictationCaptureView: View {
             }
         }
         .interactiveDismissDisabled(phase == .recording || phase == .reviewingTranscript || phase == .transcribing)
+        .onDisappear {
+            operationTask?.cancel()
+            operationTask = nil
+            Task { await transcriber?.cancel() }
+        }
     }
 
     // MARK: Idle
@@ -92,7 +100,14 @@ struct DictationCaptureView: View {
                     .background(Theme.forestGreen)
                     .clipShape(Capsule())
             }
+            .disabled(!enginesReady)
             .accessibilityIdentifier("dictation_start")
+
+            if !enginesReady {
+                ProgressView("Preparing dictation…")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
@@ -164,8 +179,12 @@ struct DictationCaptureView: View {
                 .accessibilityIdentifier("dictation_transcript_editor")
 
             Button {
+                errorMessage = nil
                 phase = .transcribing
-                Task { await runExtraction(transcript: editableTranscript) }
+                operationTask?.cancel()
+                operationTask = Task {
+                    await runExtraction(transcript: editableTranscript)
+                }
             } label: {
                 Label("Extract", systemImage: "sparkles")
                     .font(.headline)
@@ -205,16 +224,23 @@ struct DictationCaptureView: View {
     private func prepareEngines() async {
         extractor = DictationExtractorFactory.make()
         let resolved = await SpeechTranscriberService.resolve()
+        guard !Task.isCancelled else { return }
         transcriber = resolved.transcriber
         fallbackLocaleHint =
             resolved.usesFallbackLocale
             ? "Dictating in \(resolved.localeDisplayName)"
             : nil
+        enginesReady = true
     }
 
     private func startRecording() {
+        guard enginesReady else {
+            errorMessage = "Dictation is still preparing. Try again in a moment."
+            return
+        }
         errorMessage = nil
-        Task {
+        operationTask?.cancel()
+        operationTask = Task {
             if let permissionError = await SpeechAuthService.requestAuthorization() {
                 errorMessage = permissionError.localizedDescription
                 return
@@ -240,7 +266,8 @@ struct DictationCaptureView: View {
 
     private func stopRecording() {
         phase = .reviewingTranscript
-        Task {
+        operationTask?.cancel()
+        operationTask = Task {
             defer { try? AVAudioSession.sharedInstance().setActive(false) }
             guard let transcriber else {
                 phase = .idle
@@ -254,6 +281,8 @@ struct DictationCaptureView: View {
                     return
                 }
                 editableTranscript = transcript
+            } catch is CancellationError {
+                return
             } catch {
                 errorMessage = error.localizedDescription
                 phase = .recording
@@ -270,18 +299,26 @@ struct DictationCaptureView: View {
         reviewViewModel.setTranscript(transcript)
         do {
             let sessionJson = try await extractor.extract(transcript: transcript, onUpdate: nil)
+            try Task.checkCancellation()
             reviewViewModel.validate(sessionJson: sessionJson)
             phase = .reviewing
+        } catch is CancellationError {
+            return
+        } catch let error as DictationExtractorError {
+            errorMessage = error.localizedDescription
+            // Keep the editable transcript visible when structured extraction
+            // is unavailable or fails, so the user can copy it or retry.
+            phase = .reviewingTranscript
         } catch {
             errorMessage = "Could not read the dictation: \(error.localizedDescription)"
-            phase = .idle
+            phase = .reviewingTranscript
         }
     }
 
     private func cancelAndDismiss() {
-        if phase == .recording {
-            Task { await transcriber?.cancel() }
-        }
+        operationTask?.cancel()
+        operationTask = nil
+        Task { await transcriber?.cancel() }
         onFinished()
     }
 

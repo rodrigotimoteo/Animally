@@ -35,6 +35,7 @@ import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationReposit
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
+import com.github.rodrigotimoteo.animally.presentation.theme.AccentColor
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import dev.mokkery.answering.returns
 import dev.mokkery.every
@@ -258,6 +259,17 @@ class SettingsViewModelTest {
         assertEquals(ThemeMode.DARK, vm.themeMode.value)
         assertEquals(ThemeMode.DARK, themePreferenceStore.getThemeMode())
     }
+
+    @Test
+    fun `accent color change persists and notifies observers`() {
+        every { patientRepositoryMock.getPatientList() } returns emptyList()
+        val vm = createViewModel()
+
+        vm.onAccentColorChange(AccentColor.OCEAN)
+
+        assertEquals(AccentColor.OCEAN, vm.accentColor.value)
+        assertEquals(AccentColor.OCEAN, themePreferenceStore.getAccentColor())
+    }
 }
 
 /**
@@ -265,11 +277,18 @@ class SettingsViewModelTest {
  */
 private class SettingsFakeThemePreferenceStore : ThemePreferenceStore {
     private var storedMode: ThemeMode = ThemeMode.SYSTEM
+    private var storedAccent: AccentColor = AccentColor.FOREST
 
     override fun getThemeMode(): ThemeMode = storedMode
 
     override fun setThemeMode(mode: ThemeMode) {
         storedMode = mode
+    }
+
+    override fun getAccentColor(): AccentColor = storedAccent
+
+    override fun setAccentColor(accent: AccentColor) {
+        storedAccent = accent
     }
 }
 

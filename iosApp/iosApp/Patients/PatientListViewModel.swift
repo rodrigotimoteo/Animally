@@ -22,6 +22,10 @@ final class PatientListViewModel: ObservableObject {
         store.load()
     }
 
+    func setSearchQuery(_ query: String) {
+        store.setSearchQuery(query: query)
+    }
+
     func delete(patientId: Int64) {
         store.deletePatient(patientId: patientId)
     }

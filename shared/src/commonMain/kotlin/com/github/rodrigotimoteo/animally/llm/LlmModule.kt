@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudRagLlmEngine
 import com.github.rodrigotimoteo.animally.llm.cloud.FmFirstRagLlmEngine
 import com.github.rodrigotimoteo.animally.presentation.settings.CloudLlmSettingsStore
+import com.github.rodrigotimoteo.animally.presentation.settings.isReadyForCloudRouting
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -67,15 +68,16 @@ val llmModule =
             )
         }
         // Routing: on-device Foundation Models first; the cloud engine answers only
-        // when the user enabled it, stored a key, AND the primary is unavailable or
-        // fails/times out. The wrapper announces which engine served each request so
-        // the assistant UI can badge cloud answers.
+        // when the user enabled it, the selected provider is configured, AND the
+        // primary is unavailable or fails/times out. Local runtimes intentionally do
+        // not require an API key; hosted providers do. The wrapper announces which
+        // engine served each request so the assistant UI can badge cloud answers.
         single<FmFirstRagLlmEngine> {
             val settings = get<CloudLlmSettingsStore>()
             FmFirstRagLlmEngine(
                 primary = LlmEngineRagAdapter(get<LlmEngine>()),
                 fallback = get<CloudRagLlmEngine>(),
-                isFallbackEligible = { settings.isEnabled() && !settings.apiKey().isNullOrBlank() },
+                isFallbackEligible = { settings.isReadyForCloudRouting() },
                 isPrimaryAvailable = { get<LlmEngine>().availability() is LlmAvailability.Available },
             )
         }

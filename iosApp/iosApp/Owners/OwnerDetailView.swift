@@ -22,23 +22,27 @@ struct OwnerDetailView: View {
         .navigationTitle(viewModel.state.owner?.name ?? "Owner")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: Route.ownerEdit(viewModel.state.owner?.id)) {
-                    Image(systemName: "pencil")
-                        .accessibilityLabel("Edit owner")
+            if let owner = viewModel.state.owner {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(value: Route.ownerEdit(owner.id)) {
+                        Image(systemName: "pencil")
+                            .accessibilityLabel("Edit owner")
+                    }
                 }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showLinkPatientSheet = true
-                } label: {
-                    Image(systemName: "plus")
-                        .accessibilityLabel("Link existing patient")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showLinkPatientSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .accessibilityLabel("Link existing patient")
+                    }
                 }
             }
         }
         .sheet(isPresented: $showLinkPatientSheet) {
-            LinkPatientSheet(ownerId: viewModel.state.owner?.id ?? 0)
+            if let ownerId = viewModel.state.owner?.id {
+                LinkPatientSheet(ownerId: ownerId)
+            }
         }
         .onChange(of: showLinkPatientSheet) { _, isPresented in
             // Refresh the patient list after the sheet closes (linked or cancelled).
@@ -65,6 +69,9 @@ struct OwnerDetailView: View {
             }
             .padding()
         }
+        .refreshable {
+            viewModel.load()
+        }
     }
 
     private var ownerHeader: some View {
@@ -75,9 +82,17 @@ struct OwnerDetailView: View {
             Text(viewModel.state.owner?.name ?? "")
                 .font(.largeTitle.weight(.bold))
                 .foregroundStyle(Theme.textPrimary)
+            Label(
+                "\(viewModel.state.patients.count) linked patient\(viewModel.state.patients.count == 1 ? "" : "s")",
+                systemImage: "pawprint.fill"
+            )
+            .font(.caption.weight(.medium))
+            .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(.vertical, 22)
+        .background(Theme.forestGreen.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func contactSection(owner: Owner_) -> some View {
@@ -93,9 +108,15 @@ struct OwnerDetailView: View {
     private var patientsSection: some View {
         Section {
             if viewModel.state.patients.isEmpty {
-                Text("No patients linked")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textTertiary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("No patients linked yet")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.textSecondary)
+                    Text("Use + to link an existing patient to this owner.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 ForEach(viewModel.state.patients, id: \.id) { patient in
                     NavigationLink(value: Route.patientDetail(patient.id)) {
@@ -126,7 +147,7 @@ struct OwnerDetailView: View {
                 }
             }
         } header: {
-            sectionHeader("Patients")
+            sectionHeader("Patients (\(viewModel.state.patients.count))")
         }
     }
 

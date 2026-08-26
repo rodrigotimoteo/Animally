@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.github.rodrigotimoteo.animally.di.infra.appContext
+import com.github.rodrigotimoteo.animally.presentation.theme.AccentColor
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 
 /**
@@ -26,6 +27,12 @@ class AndroidThemePreferenceStore(
 
     override fun setThemeMode(mode: ThemeMode) {
         prefs.edit { putInt(THEME_MODE_PREF_KEY, mode.ordinal) }
+    }
+
+    override fun getAccentColor(): AccentColor = AccentColor.fromId(prefs.getString(THEME_ACCENT_COLOR_PREF_KEY, null))
+
+    override fun setAccentColor(accent: AccentColor) {
+        prefs.edit { putString(THEME_ACCENT_COLOR_PREF_KEY, accent.id) }
     }
 
     private companion object {

@@ -9,24 +9,26 @@ import androidx.compose.runtime.Composable
  *
  * Resolves the color scheme from three inputs:
  * 1. [themeMode] — user preference (light/dark/system).
- * 2. [dynamicColor] — when `true` on Android 12+, Material You palette from the wallpaper.
- * 3. Static curated palette (forest green / amber / sage) as the default and iOS fallback.
+ * 2. [accentColor] — the user's selected brand accent.
+ * 3. [dynamicColor] — optional Material You colors for the remaining surfaces.
  *
  * Typography uses the system default font family with `sp` sizing so accessibility font-scale
  * is respected.
  *
  * @param themeMode The persisted user preference for light/dark/system.
+ * @param accentColor The persisted brand accent.
  * @param dynamicColor Whether to attempt Material You dynamic color (Android 12+ only).
  * @param content The composable tree rendered inside the theme.
  */
 @Composable
 fun AnimallyTheme(
     themeMode: ThemeMode,
+    accentColor: AccentColor = AccentColor.FOREST,
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = shouldUseDarkTheme(themeMode)
-    val colorScheme = resolveColorScheme(darkTheme, dynamicColor)
+    val colorScheme = resolveColorScheme(darkTheme, accentColor, dynamicColor)
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -46,8 +48,13 @@ private fun shouldUseDarkTheme(themeMode: ThemeMode): Boolean =
 @Composable
 private fun resolveColorScheme(
     darkTheme: Boolean,
+    accentColor: AccentColor,
     dynamicColor: Boolean,
-) = when {
-    dynamicColor -> dynamicColorScheme(darkTheme)
-    else -> null
-} ?: if (darkTheme) animallyDarkColorScheme else animallyLightColorScheme
+): androidx.compose.material3.ColorScheme {
+    val baseScheme =
+        when {
+            dynamicColor -> dynamicColorScheme(darkTheme)
+            else -> null
+        } ?: if (darkTheme) animallyDarkColorScheme else animallyLightColorScheme
+    return baseScheme.withAccent(accentColor, darkTheme)
+}

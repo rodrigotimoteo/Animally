@@ -22,6 +22,10 @@ final class OwnerListViewModel: ObservableObject {
         store.load()
     }
 
+    func setSearchQuery(_ query: String) {
+        store.setSearchQuery(query: query)
+    }
+
     func delete(ownerId: Int64) {
         store.deleteOwner(ownerId: ownerId)
     }
