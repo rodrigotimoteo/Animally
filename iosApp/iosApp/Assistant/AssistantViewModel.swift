@@ -3,7 +3,7 @@ import Shared
 
 @MainActor
 final class AssistantViewModel: ObservableObject {
-    @Published var state: AssistantUiState
+    @Published var state: AssistantStoreState
 
     private let store: AssistantStore
     private var cancellable: NativeCancellable?
@@ -24,6 +24,10 @@ final class AssistantViewModel: ObservableObject {
 
     func refreshAvailability() {
         store.refreshAvailability()
+    }
+
+    func refreshHistory() {
+        store.refreshHistory()
     }
 
     func dismissError() {

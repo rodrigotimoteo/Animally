@@ -2,12 +2,14 @@ import SwiftUI
 import Shared
 
 struct AssistantView: View {
+    @EnvironmentObject private var theme: ThemeViewModel
     @StateObject private var viewModel = AssistantViewModel()
     @StateObject private var dictationViewModel =
         DictationReviewViewModel(store: IosSettingsStores.shared.dictationStore())
     @State private var draft: String = ""
     @State private var showDictation = false
     @State private var showDictationArchive = false
+    @State private var showChatHistory = false
     @State private var path = NavigationPath()
     @FocusState private var inputFocused: Bool
 
@@ -42,7 +44,15 @@ struct AssistantView: View {
             .navigationTitle("Assistant")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        showChatHistory = true
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                    }
+                    .accessibilityLabel("Chat history")
+                    .accessibilityIdentifier("assistant_chat_history_button")
+
                     Button {
                         showDictationArchive = true
                     } label: {
@@ -65,9 +75,28 @@ struct AssistantView: View {
                     viewModel: dictationViewModel,
                     onFinished: { showDictation = false }
                 )
+                .tint(theme.accentColor)
             }
             .sheet(isPresented: $showDictationArchive) {
                 DictationArchiveView(viewModel: dictationViewModel)
+                    .tint(theme.accentColor)
+            }
+            .sheet(isPresented: $showChatHistory) {
+                AssistantHistoryView(
+                    turns: viewModel.state.history,
+                    isLoading: viewModel.state.isHistoryLoading,
+                    onUseQuestion: { question in
+                        draft = question
+                        showChatHistory = false
+                        inputFocused = true
+                    }
+                )
+                .tint(theme.accentColor)
+                .onAppear {
+                    if !viewModel.state.isHistoryLoading {
+                        viewModel.refreshHistory()
+                    }
+                }
             }
         }
     }

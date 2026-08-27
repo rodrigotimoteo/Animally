@@ -51,6 +51,56 @@ final class AssistantUITests: AnimallyTestCase {
         XCTAssertTrue(reply.waitForExistence(timeout: 180), "Assistant reply never appeared")
     }
 
+    func testChatHistoryCanBeOpened() throws {
+        let app = TestHelpers.launchApp()
+        openAssistant(app)
+
+        let history = app.buttons["assistant_chat_history_button"]
+        XCTAssertTrue(history.waitForExistence(timeout: 10), "Chat history entry point missing")
+        history.tap()
+
+        XCTAssertTrue(app.staticTexts["Chat history"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.buttons["assistant_history_done"].waitForExistence(timeout: 10),
+            "Chat history sheet did not expose a close action"
+        )
+        app.buttons["assistant_history_done"].tap()
+        XCTAssertTrue(app.textFields["assistant_input"].waitForExistence(timeout: 10))
+    }
+
+    func testDictationSheetCanBeReopenedWithTheSameAccent() throws {
+        let app = TestHelpers.launchApp(arguments: ["-animally-ui-test-dictation"])
+        selectPlumAccent(app)
+        openAssistant(app)
+
+        let dictate = app.buttons["assistant_dictate"]
+        XCTAssertTrue(dictate.waitForExistence(timeout: 10), "Dictation entry point missing")
+        dictate.tap()
+
+        let firstStart = app.buttons["dictation_start"]
+        XCTAssertTrue(firstStart.waitForExistence(timeout: 10), "Dictation sheet did not open")
+        XCTAssertTrue(firstStart.isEnabled, "Dictation engine did not become ready")
+        let firstColor = sampledColor(from: firstStart.screenshot())
+        firstStart.tap()
+
+        XCTAssertTrue(app.buttons["dictation_stop"].waitForExistence(timeout: 10))
+        let cancel = app.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5), "Dictation cancel action missing")
+        cancel.tap()
+        XCTAssertTrue(dictate.waitForExistence(timeout: 10), "Dictation sheet did not dismiss")
+
+        dictate.tap()
+        let secondStart = app.buttons["dictation_start"]
+        XCTAssertTrue(secondStart.waitForExistence(timeout: 10), "Dictation sheet did not reopen")
+        XCTAssertTrue(secondStart.isEnabled, "Reopened dictation engine did not become ready")
+        let secondColor = sampledColor(from: secondStart.screenshot())
+
+        let channelDifference = zip(firstColor, secondColor)
+            .map { abs(Int($0.0) - Int($0.1)) }
+            .reduce(0, +)
+        XCTAssertLessThan(channelDifference, 32, "Dictation accent changed after sheet re-entry")
+    }
+
     /// Polls until the reply label stops growing across consecutive reads so
     /// streaming has settled before the label is asserted on. Returns the
     /// settled label (or the last read when the deadline expires).
@@ -177,6 +227,38 @@ final class AssistantUITests: AnimallyTestCase {
             ].waitForExistence(timeout: 10),
             "Completed dictation transcript was not retained"
         )
+    }
+
+    private func selectPlumAccent(_ app: XCUIApplication) {
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings entry point missing")
+        settings.tap()
+
+        let plum = app.buttons["settings_accent_plum"].firstMatch
+        XCTAssertTrue(plum.waitForExistence(timeout: 10), "Plum accent is missing")
+        plum.tap()
+
+        let done = app.buttons["Done"].firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "Settings close action missing")
+        done.tap()
+        XCTAssertTrue(app.staticTexts["Patients"].waitForExistence(timeout: 10))
+    }
+
+    private func sampledColor(from screenshot: XCUIScreenshot) -> [UInt8] {
+        guard
+            let image = screenshot.image.cgImage,
+            let data = image.dataProvider?.data,
+            let bytes = CFDataGetBytePtr(data)
+        else {
+            XCTFail("Could not inspect the dictation button screenshot")
+            return []
+        }
+
+        let bytesPerPixel = max(1, image.bitsPerPixel / 8)
+        let x = max(0, min(image.width - 1, image.width / 8))
+        let y = max(0, min(image.height - 1, image.height / 2))
+        let offset = y * image.bytesPerRow + x * bytesPerPixel
+        return (0..<min(bytesPerPixel, 4)).map { bytes[offset + $0] }
     }
 }
 

@@ -58,6 +58,7 @@ data class AssistantUiState(
             com.github.rodrigotimoteo.animally.llm.EngineType.FOUNDATION_MODELS,
         ),
     val messages: List<AssistantChatMessage> = emptyList(),
+    val history: List<AssistantChatTurn> = emptyList(),
     val isGenerating: Boolean = false,
     val error: String? = null,
     val isHistoryLoading: Boolean = true,
@@ -123,7 +124,10 @@ class AssistantViewModel(
         loadHistory()
     }
 
-    private fun loadHistory() {
+    private fun loadHistory(showLoading: Boolean = false) {
+        if (showLoading) {
+            _uiState.update { it.copy(isHistoryLoading = true, historyError = null) }
+        }
         viewModelScope.launch {
             try {
                 val history = withContext(ioDispatcher) { getRecentAssistantChatHistory() }
@@ -131,6 +135,7 @@ class AssistantViewModel(
                     state.copy(
                         messages =
                             if (state.messages.isEmpty()) history.flatMap { it.toMessages() } else state.messages,
+                        history = history,
                         isHistoryLoading = false,
                         historyError = null,
                     )
@@ -146,6 +151,12 @@ class AssistantViewModel(
                 }
             }
         }
+    }
+
+    /** Reloads the persisted turn list without replacing an active transcript. */
+    fun refreshHistory() {
+        if (_uiState.value.isGenerating) return
+        loadHistory(showLoading = true)
     }
 
     /**
@@ -325,15 +336,23 @@ class AssistantViewModel(
         if (assistant?.role != AssistantChatMessageRole.ASSISTANT || assistant.text.isBlank()) return
 
         try {
-            withContext(ioDispatcher) {
-                saveAssistantChatTurn(
-                    AssistantChatTurn(
-                        question = question,
-                        answer = assistant.text,
-                        source = assistant.source.name,
-                        interrupted = assistant.interrupted,
-                        createdAt = Clock.System.now(),
-                    ),
+            val recentHistory =
+                withContext(ioDispatcher) {
+                    saveAssistantChatTurn(
+                        AssistantChatTurn(
+                            question = question,
+                            answer = assistant.text,
+                            source = assistant.source.name,
+                            interrupted = assistant.interrupted,
+                            createdAt = Clock.System.now(),
+                        ),
+                    )
+                    getRecentAssistantChatHistory()
+                }
+            _uiState.update {
+                it.copy(
+                    history = recentHistory,
+                    historyError = null,
                 )
             }
         } catch (ce: CancellationException) {

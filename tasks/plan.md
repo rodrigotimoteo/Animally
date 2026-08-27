@@ -68,3 +68,99 @@ presentation and platform-integration layer.
 
 - The exact cloud provider/model used in production can still change, so live
   provider testing should remain an optional smoke test with a temporary key.
+
+---
+
+# Current implementation slice: dictation theme lifecycle and assistant history
+
+## Overview
+
+Make the dictation sheet retain the selected accent whenever it is opened,
+closed, and opened again, and make the existing local assistant history
+discoverable and useful on iOS. The history remains a Kotlin-owned list of up
+to 15 completed question/answer turns; SwiftUI only renders the iOS projection,
+formats dates, and requests that a saved question be reused in the composer.
+
+## Confirmed findings
+
+- `AssistantViewModel` already persists and hydrates the newest 15 completed
+  turns in shared Kotlin, but `AssistantView` exposes only the current transcript
+  and the separate dictation archive button.
+- The persisted model is turn-based, not session-based. The UI must therefore
+  call this “Chat history” or “Recent chats” and must not imply that separate
+  named conversations can be reopened.
+- `DictationCaptureView` uses `Theme.forestGreen` (`Color.accentColor`) but the
+  sheet does not explicitly receive `ThemeViewModel.accentColor`. That relies
+  on inherited SwiftUI tint propagation and is vulnerable to stale sheet
+  presentation state after a recording attempt and re-entry.
+
+## Architecture decisions
+
+- Add the recent-turn collection to shared assistant state and refresh it after
+  a completed answer is persisted. The Kotlin ViewModel remains responsible for
+  ordering, retention, loading, and error state.
+- Project history to an Objective-C-friendly iOS store state with primitive
+  fields, including epoch milliseconds, following the existing dictation-store
+  bridge pattern. No Swift database or repository access is introduced.
+- Add a clearly separate “Chat history” toolbar action. A list shows the newest
+  turns first, searchable by question/answer; a detail screen shows the complete
+  saved exchange and offers “Use question” to place it back in the composer for
+  editing before sending.
+- Apply the current theme tint explicitly to the assistant’s dictation and
+  history sheets. The persisted accent source remains the shared theme store;
+  Swift only supplies the current presentation color.
+
+## Dependency graph
+
+```text
+AssistantChatHistoryRepository / use cases
+        |
+        v
+AssistantViewModel state + refresh after save
+        |
+        v
+AssistantStore iOS projection (turns + epoch dates)
+        |
+        +--> Chat history list/detail/reuse UI
+        |
+        +--> explicit live tint on assistant sheets
+```
+
+## Acceptance criteria
+
+1. Selecting an accent, opening dictation, starting/cancelling or failing a
+   recording, closing the sheet, and opening it again keeps the selected accent
+   on the sheet controls.
+2. The assistant toolbar exposes a distinct Chat history action without
+   confusing it with Dictation history.
+3. Chat history shows up to the 15 persisted turns newest first, supports local
+   search, exposes the full question and answer on selection, and clearly marks
+   cloud/on-device and partial responses.
+4. “Use question” closes history and fills the assistant composer without
+   sending unexpectedly; the user can edit and submit it normally.
+5. A newly completed answer appears in Chat history without requiring an app
+   restart; persistence failures remain visible through the existing shared
+   history-error state.
+6. Kotlin retention/order behavior remains unchanged, dictation archive behavior
+   remains separate, and no database or domain logic is added to Swift.
+
+## Verification plan
+
+- Focused shared retention test plus a state-level test or compile check for
+  history refresh/projection.
+- `git diff --check`, shared `iosSimulatorArm64Test`, ktlint, and detekt.
+- iOS simulator build, then focused UI coverage for opening Chat history,
+  viewing/reusing a turn when seeded data exists, and reopening dictation after
+  the deterministic start/cancel path.
+- Manual simulator screenshots after changing the accent to verify the first
+  and second dictation presentations have the same current tint. Live microphone
+  recognition remains a physical-device-only limitation.
+
+## Risks and mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Existing data has turns but no conversation/session id | Users could be misled about what can be reopened | Present individual saved exchanges as recent turns, not named sessions |
+| Swift sheet captures an old environment value | Accent appears to revert after re-entry | Bind `.tint` directly to the live `ThemeViewModel` on every sheet presentation |
+| Kotlin collections/types are awkward in Objective-C headers | iOS build failure or fragile Swift access | Use a small `@ObjCName` primitive projection, matching `DictationStore` |
+| A history refresh races with generation | Composer could be disabled or transcript replaced | Preserve live messages on refresh and block only while the shared load is active |

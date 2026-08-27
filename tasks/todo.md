@@ -9,3 +9,11 @@
 - [x] Build the final device binary and commit the completed change
 - [ ] Reinstall and launch on Daniela's iPhone once its CoreDevice tunnel is available
 - [x] Confirm a clean worktree
+
+## Current slice: dictation theme and assistant history UX
+
+- [x] Reproduce and fix the stale accent tint across dictation sheet re-entry
+- [x] Expose Kotlin-owned recent turns through the iOS assistant store
+- [x] Add searchable chat-history list/detail UI with a safe “Use question” action
+- [x] Add/extend focused Kotlin and iOS UI coverage
+- [x] Run verification, review the diff, and commit the slice
