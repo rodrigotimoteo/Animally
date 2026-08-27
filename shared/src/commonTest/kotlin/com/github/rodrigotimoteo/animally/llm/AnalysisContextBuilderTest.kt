@@ -145,6 +145,47 @@ class AnalysisContextBuilderTest {
     }
 
     @Test
+    fun `given multi-part gestation question then neutral capitalized words do not look like patient names`() {
+        repos.patients.patients = listOf(testPatient(1, "Lua"), testPatient(2, "Estrela"))
+        repos.gestations.entries =
+            listOf(
+                testGestation(41, 1, breedingDate = LocalDate(2025, 1, 1), expectedDueDate = LocalDate(2025, 12, 6)),
+                testGestation(42, 2, breedingDate = LocalDate(2025, 2, 1), expectedDueDate = LocalDate(2025, 12, 31)),
+            )
+
+        val summary =
+            builder.build(
+                "Which mares are currently pregnant, how many days along are they, and when are they due?",
+                today,
+            )
+
+        val text = summary.orEmpty()
+        assertTrue(text.contains("Gestation Lua"), text)
+        assertTrue(text.contains("Gestation Estrela"), text)
+    }
+
+    @Test
+    fun `given current gestation facts then progress uses today instead of stored values`() {
+        repos.patients.patients = listOf(testPatient(1, "Lua"))
+        repos.gestations.entries =
+            listOf(
+                testGestation(
+                    id = 41,
+                    patientId = 1,
+                    breedingDate = LocalDate(2025, 1, 1),
+                    expectedDueDate = LocalDate(2000, 1, 1),
+                ).copy(gestationDays = 1),
+            )
+
+        val facts = builder.gestationFacts("What is Lua's current gestation day and due date?", today)
+
+        assertEquals(1, facts?.size)
+        assertEquals(130, facts?.single()?.progress?.gestationDays)
+        assertEquals(LocalDate(2025, 12, 7), facts?.single()?.progress?.expectedDueDate)
+        assertTrue(facts?.single()?.isActive == true)
+    }
+
+    @Test
     fun `given named gestation question then summary excludes other patients`() {
         repos.patients.patients = listOf(testPatient(1, "Thunder"), testPatient(2, "Bella"))
         repos.gestations.entries =

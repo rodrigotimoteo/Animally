@@ -49,4 +49,27 @@ class RecordQuestionIntentTest {
     fun `individual portuguese horse reference is a record question`() {
         assertTrue(RecordQuestionIntent.isRecordQuestion("O meu cavalo está prenhe?", null, null))
     }
+
+    @Test
+    fun `plural they reference does not create an individual patient scope`() {
+        assertFalse(
+            RecordQuestionIntent.hasIndividualPatientReference(
+                "Which mares are currently pregnant, how many days along are they, and when are they due?",
+            ),
+        )
+        assertTrue(RecordQuestionIntent.hasIndividualPatientReference("What did she receive?"))
+    }
+
+    @Test
+    fun `population pregnancy question is a record question without a pronoun`() {
+        assertTrue(RecordQuestionIntent.isRecordQuestion("Which mares are pregnant?", null, null))
+        assertTrue(
+            RecordQuestionIntent.isRecordQuestion(
+                "Which mares are currently pregnant, how many days along are they, and when are they due?",
+                null,
+                null,
+            ),
+        )
+        assertFalse(RecordQuestionIntent.isRecordQuestion("What is pregnancy?", null, null))
+    }
 }

@@ -24,6 +24,7 @@ import platform.CoreFoundation.CFStringRef
 import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.CoreFoundation.kCFStringEncodingUTF8
+import platform.Foundation.NSLock
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
@@ -46,23 +47,29 @@ class IosKeychainSecureStore : SecureStore {
     // Key names are a fixed handful of constants (currently exactly one), so the
     // CFStrings created for them are cached instead of released per call.
     private val keyNameCache = mutableMapOf<String, CFStringRef>()
+    private val keyNameCacheLock = NSLock()
 
     // An unsigned simulator build cannot access the Keychain (errSecMissingEntitlement).
     // Keep a process-local value so settings edits remain usable without ever falling
-    // back to plaintext preferences. A signed app persists through the Keychain.
-    private val sessionFallback = mutableMapOf<String, String>()
+    // back to plaintext preferences. This fallback is shared because the settings
+    // screen and cloud engine may receive different SecureStore instances from DI.
+    // A signed app persists through the Keychain.
+    private companion object {
+        val sessionFallback = mutableMapOf<String, String>()
+        val sessionFallbackLock = NSLock()
+    }
 
     override fun get(key: String): String? {
         val query = query(account = cachedKeyName(key)) { it.setValue(kSecReturnData, kCFBooleanTrue) }
         return memScoped {
             val result = alloc<CFTypeRefVar>()
             if (SecItemCopyMatching(query, result.ptr) != errSecSuccess) {
-                return@memScoped sessionFallback[key]
+                return@memScoped sessionFallbackValue(key)
             }
             val data = result.value as? CFDataRef ?: return@memScoped null
             val length = CFDataGetLength(data).toInt()
             if (length <= 0) {
-                null
+                sessionFallbackValue(key)
             } else {
                 val out = ByteArray(length)
                 memcpy(out.refTo(0), CFDataGetBytePtr(data), length.convert())
@@ -75,7 +82,7 @@ class IosKeychainSecureStore : SecureStore {
         key: String,
         value: String,
     ) {
-        sessionFallback[key] = value
+        setSessionFallbackValue(key, value)
         try {
             memScoped {
                 val bytes = value.encodeToByteArray()
@@ -106,8 +113,38 @@ class IosKeychainSecureStore : SecureStore {
     }
 
     override fun remove(key: String) {
-        sessionFallback.remove(key)
+        removeSessionFallbackValue(key)
         SecItemDelete(query(account = cachedKeyName(key)))
+    }
+
+    private fun sessionFallbackValue(key: String): String? {
+        sessionFallbackLock.lock()
+        return try {
+            sessionFallback[key]
+        } finally {
+            sessionFallbackLock.unlock()
+        }
+    }
+
+    private fun setSessionFallbackValue(
+        key: String,
+        value: String,
+    ) {
+        sessionFallbackLock.lock()
+        try {
+            sessionFallback[key] = value
+        } finally {
+            sessionFallbackLock.unlock()
+        }
+    }
+
+    private fun removeSessionFallbackValue(key: String) {
+        sessionFallbackLock.lock()
+        try {
+            sessionFallback.remove(key)
+        } finally {
+            sessionFallbackLock.unlock()
+        }
     }
 
     /** Builds the standard class+account query dictionary, extended by [configure]. */
@@ -149,9 +186,15 @@ class IosKeychainSecureStore : SecureStore {
         return this
     }
 
-    private fun cachedKeyName(key: String): CFStringRef =
-        keyNameCache.getOrPut(key) {
-            CFStringCreateWithCString(null, key, kCFStringEncodingUTF8)
-                ?: error("Keychain: failed to create key name")
+    private fun cachedKeyName(key: String): CFStringRef {
+        keyNameCacheLock.lock()
+        return try {
+            keyNameCache.getOrPut(key) {
+                CFStringCreateWithCString(null, key, kCFStringEncodingUTF8)
+                    ?: error("Keychain: failed to create key name")
+            }
+        } finally {
+            keyNameCacheLock.unlock()
         }
+    }
 }

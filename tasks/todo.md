@@ -17,3 +17,10 @@
 - [x] Add searchable chat-history list/detail UI with a safe “Use question” action
 - [x] Add/extend focused Kotlin and iOS UI coverage
 - [x] Run verification, review the diff, and commit the slice
+
+## Current slice: synthetic herd fixture and cloud evaluation
+
+- [x] Add a separate fictional schema-v1 demo herd backup without personal data
+- [ ] Validate and restore the fixture through the iOS Settings flow (payload pasted; final button tap was not confirmed by simulator automation)
+- [x] Exercise cloud retrieval, analysis tools, source cards, refusals, and bilingual output (bounded run; the supplied OpenRouter key then returned HTTP 403 key-limit-exceeded)
+- [x] Review failures, run focused checks, and commit the slice

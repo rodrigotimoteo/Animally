@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.CalculateGestationUseCase
+import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GestationProgress
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
@@ -14,6 +15,14 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
+
+/** Database-backed gestation facts projected for a single assistant turn. */
+internal data class GestationFact(
+    val patient: Patient,
+    val gestation: Gestation,
+    val progress: GestationProgress,
+    val isActive: Boolean,
+)
 
 /**
  * Deterministic analysis context for the assistant: Kotlin COMPUTES, the
@@ -70,6 +79,48 @@ class AnalysisContextBuilder(
                 if (AnalysisIntents.wantsOverdue(query)) overdueBlock(careTargets, today)?.let(::add)
             }
         return assemble(blocks)
+    }
+
+    /**
+     * Returns the gestation rows relevant to [query], with live progress for
+     * active pregnancies. A non-null result means the query is about
+     * gestation; an empty list is meaningful and prevents a model from
+     * turning missing pregnancy data into a confident answer.
+     */
+    internal fun gestationFacts(
+        query: String,
+        today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
+    ): List<GestationFact>? {
+        if (!AnalysisIntents.wantsCurrentGestation(query)) return null
+        val patients = patientRepository.getPatientList()
+        val matchedPatients = patientNameMatches(patients, query)
+        val scoped = matchedPatients.singleOrNull()
+        val careTargets =
+            resolveCareTargets(
+                patients = patients,
+                matchedPatients = matchedPatients,
+                scoped = scoped,
+                hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query),
+                hasLikelyName = RecordQuestionIntent.hasLikelyNamedPatientReference(query),
+            )
+        return careTargets
+            .take(MAX_PATIENTS_SCANNED)
+            .flatMap { patient ->
+                gestationRepository.getByPatient(patient.id).map { gestation ->
+                    val active = gestation.isActiveGestation()
+                    GestationFact(
+                        patient = patient,
+                        gestation = gestation,
+                        progress =
+                            if (active) {
+                                calculateGestationUseCase(gestation.breedingDate, today)
+                            } else {
+                                GestationProgress(gestation.expectedDueDate, gestation.gestationDays)
+                            },
+                        isActive = active,
+                    )
+                }
+            }.sortedWith(compareBy({ !it.isActive }, { it.gestation.breedingDate }, { it.patient.name.lowercase() }))
     }
 
     /**
@@ -192,7 +243,7 @@ class AnalysisContextBuilder(
                 .flatMap { patient ->
                     gestationRepository
                         .getByPatient(patient.id)
-                        .filterNot(Gestation::isResolved)
+                        .filter { it.isActiveGestation() }
                         .map { gestation -> gestationLine(patient, gestation, today) }
                 }
         if (lines.isEmpty()) return null
@@ -250,7 +301,7 @@ class AnalysisContextBuilder(
                     add("- OVERDUE ${patient.name}: Farrier visit was due $due.")
                 }
             }
-            gestationRepository.getByPatient(patient.id).filterNot(Gestation::isResolved).forEach { gestation ->
+            gestationRepository.getByPatient(patient.id).filter { it.isActiveGestation() }.forEach { gestation ->
                 val dueDate = calculateGestationUseCase(gestation.breedingDate, today).expectedDueDate
                 dueDate.takeIf { it < today }?.let { due ->
                     add("- OVERDUE ${patient.name}: Expected foaling was due $due.")
@@ -447,6 +498,9 @@ private fun Gestation.isResolved(): Boolean =
         status.equals(RESOLVED_STATUS_FAILED, ignoreCase = true) ||
         status.equals(RESOLVED_STATUS_FOALED, ignoreCase = true)
 
+/** True only for a pregnancy that should still contribute current progress. */
+private fun Gestation.isActiveGestation(): Boolean = isActive && !isResolved()
+
 // Same resolved-status vocabulary as GetUpcomingRemindersUseCase: foaled
 // ("Completed") or failed pregnancies are not active gestations.
 private const val RESOLVED_STATUS_COMPLETED = "Completed"
@@ -490,13 +544,22 @@ object AnalysisIntents {
 
     private val gestationRegex =
         Regex(
-            "\\b(pregnant|gestations?|foaling|in foal|bred|breeding|prenha|prenhe|" +
+            "\\b(pregnant|gestations?|foaling|in foal|bred|breeding|prenha|prenhe|prenhes|" +
                 "prenhez|gravidez|gestação|gestacao|gestações|gestacoes|parição|" +
                 "paricao|parições|paricoes)\\b",
         )
 
     private val overdueRegex =
         Regex("\\b(overdue|due|upcoming|reminders?|atrasad[oa]s?|pendentes?|vencid[oa]s?)\\b")
+
+    private val currentGestationRegex =
+        Regex(
+            "\\b(pregnant|pregnancy|pregnancies|in\\s+foal|days?\\s+along|gestation\\s+day|" +
+                "due\\s+date|expected\\s+foaling|foaling\\s+date|pregnancy\\s+status|" +
+                "current(?:ly)?\\s+(?:pregnan|pregnancy|gestation)|" +
+                "prenha|prenhe|prenhes|prenhez|dia[s]?\\s+de\\s+gestação|dia[s]?\\s+de\\s+gestacao|" +
+                "parto\\s+previsto|data\\s+do\\s+parto|parição|paricao)\\b",
+        )
 
     /**
      * Questions that benefit from the cloud's larger context and native tools
@@ -542,6 +605,9 @@ object AnalysisIntents {
     }
 
     fun wantsGestation(query: String): Boolean = gestationRegex.containsMatchIn(query.lowercase())
+
+    /** True for status/day/due-date questions that need live gestation facts. */
+    fun wantsCurrentGestation(query: String): Boolean = currentGestationRegex.containsMatchIn(query.lowercase())
 
     fun wantsOverdue(query: String): Boolean = overdueRegex.containsMatchIn(query.lowercase())
 

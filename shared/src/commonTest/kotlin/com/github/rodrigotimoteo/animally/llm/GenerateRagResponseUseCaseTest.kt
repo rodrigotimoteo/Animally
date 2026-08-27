@@ -932,6 +932,20 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given deterministic analysis heading echoed by model then internal heading stays out of bubble`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride =
+                "There are four patients. [PATIENT CENSUS] [CARE COUNTS] [GESTATIONS] " +
+                "[OVERDUE CARE (due before 2026-08-24)]."
+
+            val events = sut()("How many patients do I have?").toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals("There are four patients.", final)
+        }
+
+    @Test
     fun `given mid-sentence summary tag when completed then tag removed and sentence intact`() =
         runTest {
             // Defect: "Thunder had [Summary] treatment on 25 Aug 2026." used
@@ -1179,7 +1193,7 @@ class GenerateRagResponseUseCaseTest {
             sut(
                 analysisContextBuilder = repos.builder,
                 today = LocalDate(2025, 5, 11),
-            )("Which mares are pregnant?").chunks()
+            )("How many breeding records are recorded?").chunks()
 
             val prompt = engine.lastPrompt.orEmpty()
             assertTrue(prompt.contains("day 130"), "summary must use the turn's reference date: $prompt")
@@ -1187,6 +1201,121 @@ class GenerateRagResponseUseCaseTest {
                 prompt.contains("expected foaling 2025-12-07"),
                 "summary must recompute the due date: $prompt",
             )
+        }
+
+    @Test
+    fun `given current gestation question then answer uses live facts and source cards without model`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Lua"), testPatient(2, "Estrela"))
+            repos.gestations.entries =
+                listOf(
+                    testGestation(
+                        id = 41,
+                        patientId = 1,
+                        breedingDate = LocalDate(2025, 1, 1),
+                        expectedDueDate = LocalDate(2000, 1, 1),
+                    ).copy(gestationDays = 1),
+                    testGestation(
+                        id = 42,
+                        patientId = 2,
+                        breedingDate = LocalDate(2025, 2, 1),
+                        expectedDueDate = LocalDate(2000, 1, 1),
+                    ).copy(gestationDays = 2),
+                )
+
+            val query = "Which mares are currently pregnant, how many days along are they, and when are they due?"
+            assertTrue(AnalysisIntents.wantsCurrentGestation(query))
+            assertTrue(RecordQuestionIntent.isRecordQuestion(query, null, null))
+            assertEquals(2, repos.builder.gestationFacts(query, LocalDate(2025, 5, 11))?.size)
+
+            val events =
+                sut(
+                    analysisContextBuilder = repos.builder,
+                    patientRepository = repos.patients,
+                    today = LocalDate(2025, 5, 11),
+                )(query)
+                    .toList()
+
+            assertEquals(0, engine.calls, "current gestation facts must never be rewritten by the model")
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(answer.contains("Lua — day 130"), answer)
+            assertTrue(answer.contains("Estrela — day 99"), answer)
+            assertTrue(answer.contains("7 Dec 2025"), answer)
+            assertTrue(answer.contains("7 Jan 2026"), answer)
+            assertFalse(answer.contains("day 1,"), answer)
+            assertFalse(answer.contains("day 2,"), answer)
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(listOf(41L, 42L), sources.sources.map { it.recordId })
+        }
+
+    @Test
+    fun `given failed gestation question then answer does not invent an active pregnancy`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(4, "Brisa"))
+            repos.gestations.entries =
+                listOf(
+                    testGestation(
+                        id = 43,
+                        patientId = 4,
+                        breedingDate = LocalDate(2025, 1, 1),
+                        expectedDueDate = LocalDate(2000, 1, 1),
+                        status = "Failed",
+                    ),
+                )
+
+            val events =
+                sut(
+                    analysisContextBuilder = repos.builder,
+                    patientRepository = repos.patients,
+                    today = LocalDate(2025, 5, 11),
+                )("Is Brisa pregnant?").toList()
+
+            assertEquals(0, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals("I couldn't find an active pregnancy recorded for Brisa.", answer)
+            assertEquals(
+                43L,
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .single()
+                    .recordId,
+            )
+        }
+
+    @Test
+    fun `given portuguese current gestation question then answer mirrors the language`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Lua"))
+            repos.gestations.entries =
+                listOf(
+                    testGestation(
+                        id = 41,
+                        patientId = 1,
+                        breedingDate = LocalDate(2025, 1, 1),
+                        expectedDueDate = LocalDate(2000, 1, 1),
+                    ),
+                )
+
+            val events =
+                sut(
+                    analysisContextBuilder = repos.builder,
+                    patientRepository = repos.patients,
+                    today = LocalDate(2025, 5, 11),
+                )("Que éguas estão prenhes e em que dia de gestação?").toList()
+
+            assertEquals(0, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(answer.contains("Lua tem uma gestação ativa registada"), answer)
+            assertTrue(answer.contains("dia 130"), answer)
+            assertTrue(answer.contains("parto previsto"), answer)
         }
 
     @Test

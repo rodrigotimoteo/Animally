@@ -50,6 +50,11 @@ data class CloudLlmConfig(
     val socketTimeoutMillis: Long = DEFAULT_SOCKET_TIMEOUT_MILLIS,
     val connectTimeoutMillis: Long = DEFAULT_CONNECT_TIMEOUT_MILLIS,
     /**
+     * Overall request deadline. A provider may send keep-alive comments while
+     * queued, so an inactivity timeout alone cannot prevent an endless wait.
+     */
+    val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
+    /**
      * Optional completion budget for local OpenAI-compatible runtimes.
      * Cloud providers choose their own supported limit, so this is omitted there.
      */
@@ -60,6 +65,7 @@ data class CloudLlmConfig(
         const val DEFAULT_MODEL = "gpt-4o-mini"
         const val DEFAULT_SOCKET_TIMEOUT_MILLIS = 120_000L
         const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000L
+        const val DEFAULT_REQUEST_TIMEOUT_MILLIS = 90_000L
 
         /** Default output budget for local OpenAI-compatible runtimes. */
         const val DEFAULT_MAX_TOKENS = 2048
@@ -633,6 +639,7 @@ internal fun applyCloudLlmRequest(
     builder.timeout {
         socketTimeoutMillis = config.socketTimeoutMillis
         connectTimeoutMillis = config.connectTimeoutMillis
+        requestTimeoutMillis = config.requestTimeoutMillis
     }
     builder.setBody(buildChatCompletionRequest(config, prompt, instructions))
 }
@@ -650,6 +657,7 @@ internal fun applyCloudLlmRequest(
     builder.timeout {
         socketTimeoutMillis = config.socketTimeoutMillis
         connectTimeoutMillis = config.connectTimeoutMillis
+        requestTimeoutMillis = config.requestTimeoutMillis
     }
     builder.setBody(request)
 }

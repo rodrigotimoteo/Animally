@@ -374,17 +374,22 @@ class GenerateRagResponseUseCase(
         // Bracketed citation header in the final answer text: [TYPE #id].
         val citationRegex = Regex("\\[([A-Z_]+) #(\\d+)]")
 
-        // Literal non-record citation tags: the computed-facts tag and the
+        // Literal non-record citation tags: the computed-facts tag, the
         // system prompt's FORMAT placeholder ([RECORD_TYPE #ID] - "ID" is
-        // not digits, so citationRegex cannot catch it). Small models echo
-        // both verbatim; neither may reach the bubble.
-        val literalTagRegex = Regex("\\[Summary]|\\[RECORD_TYPE #ID]")
+        // not digits, so citationRegex cannot catch it), and headings from
+        // deterministic analysis context. Small models sometimes echo these
+        // internal labels verbatim; none may reach the user-facing bubble.
+        val literalTagRegex =
+            Regex(
+                """\[(?:Summary|RECORD_TYPE #ID|PATIENT CENSUS|CARE COUNTS|GESTATIONS|OVERDUE CARE[^]]*)]""",
+            )
 
         // Whitespace damage left behind by a stripped citation: doubled
         // spaces, a space before punctuation ("in ." -> "in."), line-leading
         // spaces, and blank-line runs where a standalone citation line sat.
         val multiSpaceRegex = Regex("[ \\t]{2,}")
         val spaceBeforePunctuationRegex = Regex("[ \\t]+([.,;:!?])")
+        val spacedRepeatedPunctuationRegex = Regex("([.!?])([ \\t]+\\1)+")
         val lineLeadingSpaceRegex = Regex("(?m)^[ \\t]+")
         val blankLineRunRegex = Regex("\\n{3,}")
 
@@ -465,6 +470,13 @@ class GenerateRagResponseUseCase(
         val dateRange = RagDateRangeIntent.resolve(query, today)
         val patientScope = resolvePatientScope(query)
         val scopedPatient = patientScope.name
+        val recordQuestion =
+            RecordQuestionIntent.isRecordQuestion(
+                query,
+                scopedPatient,
+                dateRange,
+                patientNameMentioned = patientScope.nameMentioned,
+            )
         val results =
             restrictResults(
                 retrieve(query, enriched, dateRange),
@@ -481,7 +493,12 @@ class GenerateRagResponseUseCase(
             emit(RagStreamEvent.Chunk(turnStrings.dosageRefusal))
             return
         }
-        if (emitDeterministicAnswer(query, results, scopedPatient, dateRange, turnStrings)) return
+        val deterministicHandled =
+            (recordQuestion && emitCurrentGestationAnswer(query, scopedPatient)) ||
+                emitDeterministicAnswer(query, results, scopedPatient, dateRange, turnStrings)
+        if (deterministicHandled) {
+            return
+        }
 
         val deterministicSummary = analysisContextBuilder?.build(query, today)
         val recentConversation = formatHistory(history)
@@ -497,13 +514,6 @@ class GenerateRagResponseUseCase(
         val historyRelevant = hasRelevantHistory(query, recentConversation)
         val grounded = hasGrounding(query, selectedIndices, results, deterministicSummary, dateRange)
         val useTools = shouldUseAnalysisTools(query, toolCallingEngine, toolRegistry)
-        val recordQuestion =
-            RecordQuestionIntent.isRecordQuestion(
-                query,
-                scopedPatient,
-                dateRange,
-                patientNameMentioned = patientScope.nameMentioned,
-            )
         val effectiveAllowGeneralQuestions = !recordQuestion && (queryPolicy.allowGeneralQuestions || useTools)
         val effectiveGrounding = grounded || (recordQuestion && useTools)
         val fallbackPolicy = queryPolicy.copy(allowGeneralQuestions = effectiveAllowGeneralQuestions)
@@ -547,6 +557,16 @@ class GenerateRagResponseUseCase(
         if (emitLatestRecordAnswer(query, results, scopedPatient)) return true
         return RecentActivityIntent.matches(query, dateRange) &&
             emitRecentActivityAnswer(results, dateRange, turnStrings)
+    }
+
+    /** Emits live pregnancy facts before any model can recalculate or invent them. */
+    private suspend fun FlowCollector<RagStreamEvent>.emitCurrentGestationAnswer(
+        query: String,
+        scopedPatient: String?,
+    ): Boolean {
+        val facts = analysisContextBuilder?.gestationFacts(query, today) ?: return false
+        emitGestationAnswer(query, facts, scopedPatient)
+        return true
     }
 
     /**
@@ -1034,6 +1054,7 @@ class GenerateRagResponseUseCase(
                 .replace(citationRegex, "")
                 .replace(literalTagRegex, "")
                 .replace(multiSpaceRegex, " ")
+                .replace(spacedRepeatedPunctuationRegex, "$1")
                 .replace(spaceBeforePunctuationRegex, "$1")
                 .replace(lineLeadingSpaceRegex, "")
                 .replace(blankLineRunRegex, "\n\n")

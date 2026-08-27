@@ -35,12 +35,39 @@ internal object RecordQuestionIntent {
                 "a\\s+minha\\s+(égua|egua|paciente)|este\\s+(horse|patient|cavalo|paciente)|" +
                 "esta\\s+(mare|égua|egua|paciente)|a\\s+égua|a\\s+egua|o\\s+cavalo)\\b",
         )
+
+    /** Singular references used to scope records to one patient. */
+    private val individualPronounRegex =
+        Regex(
+            "\\b(she|he|her|his|ela|ele|dela|dele|" +
+                "my\\s+(horse|patient|mare|gelding)|our\\s+(horse|patient|mare|gelding)|" +
+                "your\\s+(horse|patient|mare|gelding)|the\\s+(horse|patient|mare|gelding)|" +
+                "this\\s+(horse|patient|mare|gelding)|meu\\s+(cavalo|paciente)|" +
+                "minha\\s+(égua|egua|paciente)|o\\s+meu\\s+(cavalo|paciente)|" +
+                "a\\s+minha\\s+(égua|egua|paciente)|este\\s+(horse|patient|cavalo|paciente)|" +
+                "esta\\s+(mare|égua|egua|paciente)|a\\s+égua|a\\s+egua|o\\s+cavalo)\\b",
+        )
     private val recordActionRegex =
         Regex(
             "\\b(given|received|recorded|logged|treated|had|needs?|shows?|has|have|" +
                 "recebeu|receberam|registou|registado|registada|teve|tinham?|precisa|" +
                 "precisam|mostra|mostram|administrad[oa]|realizou|fez|aconteceu|" +
                 "ocorreu|foi)\\b",
+        )
+    private val gestationPopulationReferenceRegex =
+        Regex(
+            "\\b(which|what|how many|are any|are there|do any)\\s+(?:of\\s+)?" +
+                "(?:my|our|your|the)?\\s*(mares?|horses?|patients?)\\b|" +
+                "\\b(quais|que|quantas|quantos|há|ha|existem)\\s+(?:das?\\s+|dos?\\s+)?" +
+                "(?:minhas|nossas|vossas|meus|nossos|as|os)?\\s*(éguas?|cavalos?|pacientes?)\\b|" +
+                "\\b(my|our|your|the)\\s+(mares?|horses?|patients?)\\b|" +
+                "\\b(as\\s+minhas|as\\s+nossas|as\\s+vossas|os\\s+meus|os\\s+nossos)\\s+" +
+                "(éguas?|cavalos?|pacientes?)\\b",
+        )
+    private val gestationStatusReferenceRegex =
+        Regex(
+            "\\b(pregnant|pregnancy|pregnancies|gestation|gestations|in\\s+foal|foaling|" +
+                "prenha|prenhe|prenhes|prenhez|gestação|gestacoes|gestações|parição|parições)\\b",
         )
 
     private val patientNameStopWords =
@@ -164,10 +191,32 @@ internal object RecordQuestionIntent {
             "month",
             "week",
             "year",
+            "current",
+            "currently",
+            "now",
+            "today",
+            "day",
+            "days",
+            "along",
+            "due",
+            "active",
+            "positive",
+            "negative",
+            "viable",
+            "status",
             "este",
-            "esta",
             "neste",
             "nesta",
+            "atualmente",
+            "agora",
+            "dia",
+            "dias",
+            "estão",
+            "estao",
+            "prenha",
+            "prenhe",
+            "prenhes",
+            "prenhez",
             "mês",
             "mes",
             "semana",
@@ -208,11 +257,26 @@ internal object RecordQuestionIntent {
             directRecordReferenceRegex.containsMatchIn(lowered) ||
             (dateRange != null && RecentActivityIntent.matches(query, dateRange)) ||
             hasRecordType &&
-            (hasPatientReference || hasRecordAction)
+            (hasPatientReference || hasRecordAction) ||
+            hasGestationPopulationReference(query)
     }
 
-    /** True for an individual horse/patient reference without requiring its name. */
-    fun hasIndividualPatientReference(query: String): Boolean = patientPronounRegex.containsMatchIn(query.lowercase())
+    /**
+     * True for a singular horse/patient reference without requiring its name.
+     *
+     * They/their remain record-question signals, but are deliberately not
+     * treated as a one-patient scope: in questions such as "which mares ...
+     * are they due?" they refer to a group, and narrowing to an arbitrary
+     * individual would hide authoritative records.
+     */
+    fun hasIndividualPatientReference(query: String): Boolean = individualPronounRegex.find(query.lowercase()) != null
+
+    /** True for a population question that explicitly asks about pregnancy records. */
+    fun hasGestationPopulationReference(query: String): Boolean {
+        val lowered = query.lowercase()
+        return gestationPopulationReferenceRegex.containsMatchIn(lowered) &&
+            gestationStatusReferenceRegex.containsMatchIn(lowered)
+    }
 
     /** True when title-cased query text likely names a patient not in the active list. */
     fun hasLikelyNamedPatientReference(query: String): Boolean =

@@ -81,7 +81,10 @@ SELECT
     i.recordType AS recordType,
     i.recordId AS recordId,
     i.date AS date,
-    COALESCE(snippet(SearchFts, f.searchableText, '', '', '...', 24), '') AS snippetText
+    -- SearchFts has one indexed column, so FTS5 expects its numeric index (0)
+    -- here. Passing the row's text makes SQLite interpret that text as a
+    -- column selector and fails with "column index out of range" on iOS.
+    COALESCE(snippet(SearchFts, 0, '', '', '...', 24), '') AS snippetText
 FROM SearchFts f
 JOIN SearchFtsIndex i ON i.id = f.rowid
 JOIN Patient p ON p.id = i.patientId AND p.isActive = 1

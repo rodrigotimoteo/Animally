@@ -57,9 +57,10 @@ object RecordTypeIntent {
         Regex(
             "\\b(when|date|how recent).{0,40}?\\b(last|latest|most recent|previous|prior)\\b|" +
                 "\\b(last|latest|most recent)\\b.{0,40}?\\b(visit|vaccination|booster|check|appointment|record)\\b|" +
-                "\\b(quando|data).{0,40}?\\b(últim[oa]s?|ultim[oa]s?|" +
-                "mais recente[s]?)\\b|" +
-                "\\b(últim[oa]s?|ultim[oa]s?|mais recente[s]?)\\b.{0,40}?\\b" +
+                "\\b(quando|data).{0,40}?(?<![\\p{L}\\p{N}_])" +
+                "(últim[oa]s?|ultim[oa]s?|mais recente[s]?)(?![\\p{L}\\p{N}_])|" +
+                "(?<![\\p{L}\\p{N}_])(últim[oa]s?|ultim[oa]s?|mais recente[s]?)" +
+                "(?![\\p{L}\\p{N}_]).{0,40}?\\b" +
                 "(visi(?:ta|tas)|vacina(?:ção|cao|ções|coes)?|consulta[s]?|" +
                 "registo[s]?|ferragem|tratamento[s]?)\\b",
         )

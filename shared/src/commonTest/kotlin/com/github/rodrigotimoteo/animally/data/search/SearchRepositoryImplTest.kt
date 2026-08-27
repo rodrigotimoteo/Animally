@@ -68,6 +68,23 @@ class SearchRepositoryImplTest {
     }
 
     @Test
+    fun `when searching snippets then returns the matching snippet`() {
+        val patientId = insertPatient("Midnight")
+        sut.indexRecord(
+            recordType = ISearchRepository.TYPE_PATIENT,
+            patientId = patientId,
+            recordId = patientId,
+            date = null,
+            searchableText = "Midnight Hanoverian horse",
+        )
+
+        val results = sut.searchSnippets("horse", null, null, null)
+
+        assertEquals(1, results.size)
+        assertTrue(results.single().snippet.contains("horse", ignoreCase = true))
+    }
+
+    @Test
     fun `when record deleted then search no longer finds it`() {
         val patientId = insertPatient("Midnight")
         sut.indexRecord(ISearchRepository.TYPE_PATIENT, patientId, patientId, null, "Midnight")

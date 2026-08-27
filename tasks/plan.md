@@ -164,3 +164,104 @@ AssistantStore iOS projection (turns + epoch dates)
 | Swift sheet captures an old environment value | Accent appears to revert after re-entry | Bind `.tint` directly to the live `ThemeViewModel` on every sheet presentation |
 | Kotlin collections/types are awkward in Objective-C headers | iOS build failure or fragile Swift access | Use a small `@ObjCName` primitive projection, matching `DictationStore` |
 | A history refresh races with generation | Composer could be disabled or transcript replaced | Preserve live messages on refresh and block only while the shared load is active |
+
+## Current implementation slice: synthetic equine fixture and cloud assistant validation
+
+### Confirmed requirements
+
+- The real `backup.json` contains personal data and must remain untouched.
+- The existing iOS restore flow accepts a complete schema-v1 backup as pasted JSON,
+  so a separate fixture can populate a development simulator without adding a
+  production-only seed mode or moving persistence logic into Swift.
+- The cloud assistant has four deterministic analysis tools (patient census,
+  weight summary, preventive care, and gestation summary), plus ordinary grounded
+  retrieval and source-card emission. The fixture must exercise all of them.
+- Pregnancy day counts are projected from the breeding date in shared Kotlin, so
+  the fixture's dates should be coherent as of 2026-08-27 while the app remains
+  responsible for live recalculation.
+
+### Architecture decisions
+
+- Add `fixtures/demo-equine-herd.json` as an explicitly synthetic, importable
+  backup payload. Keep assistant and dictation history empty so cloud tests start
+  from a known state.
+- Use fictional owners, horses, identifiers, and clinicians; do not copy names,
+  contact details, or file paths from the personal backup.
+- Cover two active positive gestations, a resolved/negative reproductive path,
+  weight trends, vaccinations, deworming, farrier care, consultations, a lab
+  result, medication, lameness, and reproductive ultrasound/event records. Keep
+  the pregnant horses free of unsupported emergency diagnoses so a groundedness
+  probe can verify the assistant does not transfer facts between patients.
+- Validate the fixture structurally with JSON tooling, restore it through the
+  actual iOS Settings flow, and drive cloud questions through the actual
+  assistant UI. Use the supplied OpenRouter key only transiently; never store it
+  in source, logs, task notes, or simulator artifacts.
+
+### Dependency graph
+
+```text
+Synthetic backup fixture
+        |
+        v
+iOS Settings -> Restore Backup -> shared restore + search index
+        |
+        v
+Assistant retrieval / Kotlin analysis tools
+        |
+        v
+OpenRouter cloud stream -> answer + source cards in Swift UI
+```
+
+### Acceptance criteria
+
+1. The demo fixture is valid schema-v1 JSON, contains four coherent horses and
+   owners, and the restore attempt either succeeds or leaves an explicit
+   simulator-automation limitation recorded.
+2. The restored simulator exposes two active pregnancies with the expected
+   breeding dates/due dates and enough records to answer census, weight, care,
+   gestation, and patient-specific questions.
+3. Cloud smoke/evaluation questions confirm correct counts and dates when the
+   provider accepts requests; source cards map only to returned records,
+   tool-backed analysis is covered by shared tests, and unsupported patient
+   facts are refused rather than invented.
+4. English and Portuguese questions work with the configured cloud model, inline
+   reasoning is not displayed, and normal/partial/error responses remain usable.
+5. The API key is not persisted in the repository or test output, and all code,
+   fixture, and test changes are committed with a clean worktree.
+
+### Verification plan
+
+- Parse the fixture with `jq`, check foreign-key references and expected entity
+  counts with a bounded script, then restore it in the iOS simulator through the
+  real Settings screen.
+- Run the shared iOS simulator tests, Kotlin static analysis, and the iOS native
+  build after any code changes.
+- Configure OpenRouter in the app with the temporary key and a suitable available
+  model; run a small matrix of factual, analysis/tool, citation/card, negative,
+  bilingual, and long/streaming questions. Capture answer text and visible source
+  cards without recording the secret.
+- If a failure appears, first reproduce it against the same fixture and request,
+  then make the smallest Kotlin-side fix and rerun the focused checks.
+
+### Risks and mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Synthetic records look like clinical advice | Test results could be mistaken for real patient history | Label the fixture and test install as demo data; use fictional identities and conservative notes |
+| Fixture violates a schema or relationship | Restore fails or analysis tools see incomplete rows | Build from the backup DTO contract, validate JSON/foreign keys, and restore through the production flow |
+| Cloud model invents a patient fact | Unsafe assistant behavior | Probe absent facts per horse and require the app's deterministic no-results response/source behavior |
+| Model/provider consumes the key or quota unexpectedly | User loses access or secret leaks | Use only a bounded request matrix, no background loops, never write the key to disk or logs, and clear app configuration afterward if possible |
+
+### Evaluation outcome
+
+- The synthetic fixture parses cleanly and was visible in the iOS patient list; the
+  full restore button interaction was left unconfirmed after the simulator text
+  editor captured coordinate taps.
+- Current gestation questions now bypass model arithmetic and returned live day
+  counts, due dates, and matching source cards in the simulator. This prevents a
+  cloud or local model from repeating stale stored progress.
+- The cloud route was selected and displayed its cloud badge, but the supplied
+  OpenRouter key returned HTTP 403 (`Key limit exceeded`) during the analysis
+  probe. Further live requests were intentionally stopped to avoid quota abuse.
+- Shared unit tests cover tool-backed/grounded refusals and Portuguese current
+  gestation output; live provider availability remains an external dependency.
