@@ -170,12 +170,17 @@ class FmFirstRagLlmEngine(
                             // First-emission timeout: FM never answered in time.
                             result == null -> PrimaryOutcome(failure = null, completed = false)
                             result.isSuccess -> {
-                                if (!emittedAny) {
-                                    emittedAny = true
-                                    signal(EngineSource.ON_DEVICE)
+                                val text = result.getOrThrow()
+                                if (text.isBlank()) {
+                                    null
+                                } else {
+                                    if (!emittedAny) {
+                                        emittedAny = true
+                                        signal(EngineSource.ON_DEVICE)
+                                    }
+                                    emit(text)
+                                    null // keep streaming
                                 }
-                                emit(result.getOrThrow())
-                                null // keep streaming
                             }
                             // Channel closed. Normal completion after emissions ends the
                             // loop; anything else (error before/after emissions, or a

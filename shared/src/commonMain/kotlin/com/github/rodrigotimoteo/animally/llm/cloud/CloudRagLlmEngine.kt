@@ -566,8 +566,8 @@ internal class ThinkingBlockFilter {
  * Terminal-state check shared by the stream loop and contract tests. Returns a
  * human-readable failure message when the stream ended abnormally, null when the
  * termination is legitimate ([DONE], or an explicit finish_reason such as `stop`).
- * `length` with zero visible content means the token budget was consumed entirely
- * by reasoning - reported explicitly instead of surfacing as an empty reply.
+ * `length` always means the provider stopped before completing the answer. Partial
+ * visible text is retained by the caller and paired with its retry affordance.
  */
 internal fun validateStreamEnd(
     sawDone: Boolean,
@@ -575,12 +575,11 @@ internal fun validateStreamEnd(
     contentLength: Int,
 ): String? =
     when {
-        sawDone || finishReason != null ->
-            if (finishReason == FINISH_LENGTH && contentLength == 0) {
-                "Cloud model spent its entire token budget on reasoning and returned no answer"
-            } else {
-                null
-            }
+        finishReason == FINISH_LENGTH && contentLength == 0 ->
+            "Cloud model spent its entire token budget on reasoning and returned no answer"
+        finishReason == FINISH_LENGTH ->
+            "Cloud model reached its output limit before completing the answer"
+        sawDone || finishReason != null -> null
         else -> "Cloud LLM stream ended before completion"
     }
 

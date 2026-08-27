@@ -33,3 +33,16 @@
 - [x] Stabilize dictation language switching and add UI coverage
 - [x] Add visible new-chat action without deleting retained history
 - [x] Run checks/builds, install the final device build, and commit
+
+## Current slice: durable audio, LLM safety, and compact iOS UI
+
+- [x] Run parallel Luna audits against the active branch
+- [x] Reproduce and fix dictation audio file/playback lifecycle
+- [x] Add deterministic simulator audio playback/archive coverage
+- [x] Harden blank-output fallback and cloud output-limit handling
+- [x] Keep title-cased educational cloud questions out of patient scoping
+- [x] Enforce record-type payload and patient-id validation in Kotlin
+- [x] Fix compact patient tabs, assistant follow-ups, and record-row wrapping
+- [x] Run focused/full checks and obtain a Luna diff review
+- [x] Commit the verified final slice
+- [ ] Install/launch on Daniela's iPhone when its CoreDevice tunnel is available

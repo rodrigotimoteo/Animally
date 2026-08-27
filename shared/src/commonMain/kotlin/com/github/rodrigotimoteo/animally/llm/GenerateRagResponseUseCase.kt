@@ -468,7 +468,7 @@ class GenerateRagResponseUseCase(
         queryPolicy: RagQueryPolicy,
     ) {
         val dateRange = RagDateRangeIntent.resolve(query, today)
-        val patientScope = resolvePatientScope(query)
+        val patientScope = resolvePatientScope(query, dateRange)
         val scopedPatient = patientScope.name
         val recordQuestion =
             RecordQuestionIntent.isRecordQuestion(
@@ -795,7 +795,10 @@ class GenerateRagResponseUseCase(
         }
 
     /** Resolves a unique patient, or marks the result set unsafe to share. */
-    private fun resolvePatientScope(query: String): PatientScope {
+    private fun resolvePatientScope(
+        query: String,
+        dateRange: RagDateRange?,
+    ): PatientScope {
         val activeNames = patientRepository?.patientNames().orEmpty()
         val tokens = patientScopeTokens(query)
         val matchedNames =
@@ -805,7 +808,12 @@ class GenerateRagResponseUseCase(
             }
         val hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query)
         val hasLikelyName =
-            patientRepository != null && RecordQuestionIntent.hasLikelyNamedPatientReference(query)
+            patientRepository != null &&
+                (
+                    !RecordQuestionIntent.isEducationalQuestion(query) ||
+                        RecordQuestionIntent.isRecordQuestion(query, null, dateRange)
+                ) &&
+                RecordQuestionIntent.hasLikelyNamedPatientReference(query)
         val name =
             when {
                 matchedNames.size == 1 -> matchedNames.single().lowercase()

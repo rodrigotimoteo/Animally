@@ -46,6 +46,13 @@ class RecordQuestionIntentTest {
     }
 
     @Test
+    fun `title-cased clinical explanation is recognized as educational`() {
+        assertTrue(RecordQuestionIntent.isEducationalQuestion("Can you explain Equine Metabolic Syndrome?"))
+        assertTrue(RecordQuestionIntent.isEducationalQuestion("O que é Síndrome Metabólica Equina?"))
+        assertFalse(RecordQuestionIntent.isEducationalQuestion("Is Storm pregnant?"))
+    }
+
+    @Test
     fun `individual portuguese horse reference is a record question`() {
         assertTrue(RecordQuestionIntent.isRecordQuestion("O meu cavalo está prenhe?", null, null))
     }

@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.domain.dictation
 import com.github.rodrigotimoteo.animally.domain.dictation.dto.SuggestedRecordDto
 import com.github.rodrigotimoteo.animally.domain.dictation.dto.toSuggestedRecord
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecord
+import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecordType
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -78,7 +79,7 @@ class ValidateSuggestionsUseCase {
         dto: SuggestedRecordDto,
         today: LocalDate,
     ): SuggestedRecord {
-        if (hasNoPayload(dto)) return base.copy(validation = SuggestedValidationState.Dropped)
+        if (!payloadMatchesType(base, dto)) return base.copy(validation = SuggestedValidationState.Dropped)
 
         val reasons = mutableListOf<String>()
         val date = resolveDate(dto.date, today, reasons)
@@ -100,13 +101,35 @@ class ValidateSuggestionsUseCase {
         )
     }
 
-    private fun hasNoPayload(dto: SuggestedRecordDto): Boolean =
+    private fun payloadMatchesType(
+        record: SuggestedRecord,
+        dto: SuggestedRecordDto,
+    ): Boolean =
+        when (record.recordType) {
+            SuggestedRecordType.Ultrasound -> hasUltrasoundPayload(dto) && hasNoWeightOrDrug(dto)
+            SuggestedRecordType.Weight -> dto.weightKg != null && hasNoUltrasoundOrDrugPayload(dto)
+            SuggestedRecordType.Deworming -> !dto.drugName.isNullOrBlank() && hasNoWeightOrUltrasoundPayload(dto)
+        }
+
+    private fun hasUltrasoundPayload(dto: SuggestedRecordDto): Boolean =
+        dto.ovaryStatus != null ||
+            dto.uterineStatus != null ||
+            dto.follicleSizeMm != null ||
+            !dto.notes.isNullOrBlank()
+
+    private fun hasNoWeightOrDrug(dto: SuggestedRecordDto): Boolean = dto.weightKg == null && dto.drugName == null
+
+    private fun hasNoUltrasoundOrDrugPayload(dto: SuggestedRecordDto): Boolean =
+        dto.ovaryStatus == null &&
+            dto.uterineStatus == null &&
+            dto.follicleSizeMm == null &&
+            dto.drugName == null
+
+    private fun hasNoWeightOrUltrasoundPayload(dto: SuggestedRecordDto): Boolean =
         dto.weightKg == null &&
             dto.ovaryStatus == null &&
             dto.uterineStatus == null &&
-            dto.follicleSizeMm == null &&
-            dto.drugName == null &&
-            dto.notes == null
+            dto.follicleSizeMm == null
 
     private fun resolveDate(
         raw: String?,

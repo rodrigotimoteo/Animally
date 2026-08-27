@@ -49,6 +49,35 @@ class ValidateSuggestionsUseCaseTest {
     }
 
     @Test
+    fun `when weight suggestion has only ultrasound payload then dropped`() {
+        val result =
+            sut(
+                listOf(dto(recordType = "weight", ovaryStatus = "normal", notes = "No weight dictated")),
+                today,
+            )
+
+        assertIs<SuggestedValidationState.Dropped>(result.single().validation)
+    }
+
+    @Test
+    fun `when deworming suggestion has only notes then dropped`() {
+        val result = sut(listOf(dto(recordType = "deworming", notes = "Routine visit")), today)
+
+        assertIs<SuggestedValidationState.Dropped>(result.single().validation)
+    }
+
+    @Test
+    fun `when weight suggestion mixes deworming payload then dropped`() {
+        val result =
+            sut(
+                listOf(dto(recordType = "weight", weightKg = 510.0, drugName = "Ivermectin")),
+                today,
+            )
+
+        assertIs<SuggestedValidationState.Dropped>(result.single().validation)
+    }
+
+    @Test
     fun `when happy path ultrasound then ok`() {
         val result =
             sut(
@@ -64,7 +93,7 @@ class ValidateSuggestionsUseCaseTest {
 
     @Test
     fun `when date unparseable then defaults to today and flagged`() {
-        val result = sut(listOf(dto(date = "15/03/2024", weightKg = 500.0)), today)
+        val result = sut(listOf(dto(recordType = "weight", date = "15/03/2024", weightKg = 500.0)), today)
 
         val record = result.single()
         assertEquals(today, record.date)
@@ -74,7 +103,7 @@ class ValidateSuggestionsUseCaseTest {
 
     @Test
     fun `when valid date then unchanged and ok`() {
-        val result = sut(listOf(dto(date = "2026-08-20", weightKg = 500.0)), today)
+        val result = sut(listOf(dto(recordType = "weight", date = "2026-08-20", weightKg = 500.0)), today)
 
         val record = result.single()
         assertEquals(LocalDate(2026, 8, 20), record.date)
@@ -83,7 +112,7 @@ class ValidateSuggestionsUseCaseTest {
 
     @Test
     fun `when date absent then defaults to today silently`() {
-        val result = sut(listOf(dto(date = null, weightKg = 500.0)), today)
+        val result = sut(listOf(dto(recordType = "weight", date = null, weightKg = 500.0)), today)
 
         val record = result.single()
         assertEquals(today, record.date)
@@ -92,7 +121,7 @@ class ValidateSuggestionsUseCaseTest {
 
     @Test
     fun `when date older than 365 days then flagged and kept`() {
-        val result = sut(listOf(dto(date = "2025-08-23", weightKg = 500.0)), today)
+        val result = sut(listOf(dto(recordType = "weight", date = "2025-08-23", weightKg = 500.0)), today)
 
         val record = result.single()
         assertEquals(LocalDate(2025, 8, 23), record.date)
@@ -102,7 +131,7 @@ class ValidateSuggestionsUseCaseTest {
 
     @Test
     fun `when date in future then flagged and kept`() {
-        val result = sut(listOf(dto(date = "2026-09-01", weightKg = 500.0)), today)
+        val result = sut(listOf(dto(recordType = "weight", date = "2026-09-01", weightKg = 500.0)), today)
 
         val record = result.single()
         assertEquals(LocalDate(2026, 9, 1), record.date)
@@ -175,7 +204,6 @@ class ValidateSuggestionsUseCaseTest {
                 listOf(
                     dto(
                         date = "2024-01-01",
-                        weightKg = 4000.0,
                         follicleSizeMm = 250.0,
                     ),
                 ),
@@ -184,7 +212,7 @@ class ValidateSuggestionsUseCaseTest {
 
         val validation = assertIs<SuggestedValidationState.Flagged>(result.single().validation)
         assertEquals(
-            listOf("date_out_of_range", "weight_implausible", "follicle_size_implausible"),
+            listOf("date_out_of_range", "follicle_size_implausible"),
             validation.reasons,
         )
     }

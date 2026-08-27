@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.di
 import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule.Companion.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.dictation.InsertSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase
+import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
 import com.github.rodrigotimoteo.animally.llm.GenerateDictationSessionUseCase
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationViewModel
@@ -22,7 +23,15 @@ val dictationModule =
     module {
         single { ValidateSuggestionsUseCase() }
         single { ResolvePatientUseCase(get()) }
-        single { InsertSuggestionsUseCase(get(), get(), get()) }
+        single {
+            val patientRepository = get<IPatientRepository>()
+            InsertSuggestionsUseCase(
+                saveUltrasoundUseCase = get(),
+                saveWeightUseCase = get(),
+                saveDewormingUseCase = get(),
+                patientExists = { patientId -> patientRepository.getPatientById(patientId) != null },
+            )
+        }
         viewModel {
             DictationViewModel(
                 validateSuggestionsUseCase = get(),

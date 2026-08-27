@@ -113,16 +113,34 @@ struct PatientDetailView: View {
 
     private func contentTabs(patient: Patient_) -> some View {
         VStack(spacing: 0) {
-            Picker("Detail Tab", selection: $selectedTab) {
-                ForEach(DetailTab.allCases) { tab in
-                    Text(tab.rawValue)
-                        .tag(tab)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Button {
+                            selectedTab = tab
+                        } label: {
+                            Text(tab.rawValue)
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 14)
+                                .frame(minHeight: 36)
+                                .foregroundStyle(selectedTab == tab ? Color.white : Theme.textSecondary)
+                                .background(
+                                    selectedTab == tab
+                                        ? Theme.forestGreen
+                                        : Theme.surfaceElevated
+                                )
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                         .accessibilityLabel(tab.accessibilityName)
+                        .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+                        .accessibilityIdentifier("patient_detail_tab_\(tab.rawValue.lowercased())")
+                    }
                 }
             }
-            .pickerStyle(.segmented)
             .padding(.horizontal)
             .padding(.vertical, 8)
+            .accessibilityIdentifier("patient_detail_tabs")
 
             switch selectedTab {
             case .overview:

@@ -54,6 +54,12 @@ internal object RecordQuestionIntent {
                 "precisam|mostra|mostram|administrad[oa]|realizou|fez|aconteceu|" +
                 "ocorreu|foi)\\b",
         )
+    private val educationalQuestionRegex =
+        Regex(
+            "^(?:what\\s+(?:is|are)|define|(?:can|could)\\s+you\\s+explain|explain|" +
+                "o\\s+que\\s+(?:é|e|são|sao)|(?:podes?|poderia)\\s+explicar|explica|explique)\\b",
+            RegexOption.IGNORE_CASE,
+        )
     private val gestationPopulationReferenceRegex =
         Regex(
             "\\b(which|what|how many|are any|are there|do any)\\s+(?:of\\s+)?" +
@@ -277,6 +283,9 @@ internal object RecordQuestionIntent {
         return gestationPopulationReferenceRegex.containsMatchIn(lowered) &&
             gestationStatusReferenceRegex.containsMatchIn(lowered)
     }
+
+    /** True for definition/explanation prompts whose title case is usually a clinical term, not a patient name. */
+    fun isEducationalQuestion(query: String): Boolean = educationalQuestionRegex.containsMatchIn(query.trim())
 
     /** True when title-cased query text likely names a patient not in the active list. */
     fun hasLikelyNamedPatientReference(query: String): Boolean =

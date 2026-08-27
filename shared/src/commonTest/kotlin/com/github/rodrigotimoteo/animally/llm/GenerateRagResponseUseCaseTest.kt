@@ -162,6 +162,22 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given active patients when asking title-cased educational question then cloud model answers`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Bella")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val output =
+                sut(
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("Can you explain Equine Metabolic Syndrome?").answers()
+
+            assertEquals(1, engine.calls)
+            assertTrue(output.first().contains("pregnant"))
+        }
+
+    @Test
     fun `given current month activity question then only dated rows in current month are returned deterministically`() =
         runTest {
             val inMonth = result(recordId = 1L, snippet = "pregnancy confirmed").copy(date = LocalDate(2026, 8, 3))

@@ -268,6 +268,19 @@ final class AssistantUITests: AnimallyTestCase {
             ].waitForExistence(timeout: 10),
             "Completed dictation transcript was not retained"
         )
+
+        let play = app.buttons.matching(
+            NSPredicate(format: "label == %@", "Play recording")
+        ).firstMatch
+        XCTAssertTrue(play.waitForExistence(timeout: 10), "Saved dictation audio was not playable")
+        XCTAssertTrue(play.isEnabled, "Saved dictation audio play action was disabled")
+        play.tap()
+        XCTAssertTrue(
+            app.buttons["Stop recording playback"].waitForExistence(timeout: 5),
+            "Playback did not enter the playing state"
+        )
+        app.buttons["Stop recording playback"].tap()
+        XCTAssertTrue(app.buttons["Play recording"].waitForExistence(timeout: 5))
     }
 
     private func selectPlumAccent(_ app: XCUIApplication) {

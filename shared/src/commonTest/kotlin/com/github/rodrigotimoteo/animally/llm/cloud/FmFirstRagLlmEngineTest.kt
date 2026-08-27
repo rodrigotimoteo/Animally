@@ -72,6 +72,21 @@ class FmFirstRagLlmEngineTest {
         }
 
     @Test
+    fun `blank primary snapshots are ignored and fall back to cloud`() =
+        runTest {
+            turbineScope {
+                val primary = RecordingEngine(emissions = listOf("", "  \n"))
+                val fallback = RecordingEngine(emissions = listOf("CLOUD"))
+                val engine = FmFirstRagLlmEngine(primary = primary, fallback = fallback)
+                val sources = engine.sourceEvents.testIn(this)
+
+                assertEquals(listOf("CLOUD"), engine.generateStreaming("prompt", "instructions").toList())
+                assertEquals(EngineSource.CLOUD, sources.awaitItem())
+                sources.cancel()
+            }
+        }
+
+    @Test
     fun `primary mid-stream error switches to fallback which restreams the answer`() =
         runTest {
             turbineScope {

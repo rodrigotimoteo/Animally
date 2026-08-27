@@ -309,7 +309,10 @@ class CloudRagLlmEngineTest {
     fun `stream end validation distinguishes clean done from truncation`() {
         assertNull(validateStreamEnd(sawDone = true, finishReason = null, contentLength = 10))
         assertNull(validateStreamEnd(sawDone = false, finishReason = "stop", contentLength = 10))
-        assertNull(validateStreamEnd(sawDone = true, finishReason = "length", contentLength = 42))
+        assertEquals(
+            "Cloud model reached its output limit before completing the answer",
+            validateStreamEnd(sawDone = true, finishReason = "length", contentLength = 42),
+        )
 
         // Connection dropped mid-answer: must surface as an error, not silence.
         assertEquals(

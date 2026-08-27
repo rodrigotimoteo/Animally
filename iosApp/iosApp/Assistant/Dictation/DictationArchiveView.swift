@@ -1,4 +1,3 @@
-import AVFoundation
 import Foundation
 import Shared
 import SwiftUI
@@ -8,9 +7,7 @@ import SwiftUI
 struct DictationArchiveView: View {
     @ObservedObject var viewModel: DictationReviewViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var player: AVAudioPlayer?
-    @State private var playingCaptureId: Int64?
-    @State private var playbackTask: Task<Void, Never>?
+    @StateObject private var playback = DictationAudioPlaybackController()
     @State private var playbackError: String?
 
     private var captures: [DictationCaptureItem] {
@@ -91,7 +88,7 @@ struct DictationArchiveView: View {
                     captureRow(capture)
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
-                                if playingCaptureId == capture.id {
+                                if playback.playingCaptureId == capture.id {
                                     stopPlayback()
                                 }
                                 viewModel.deleteCapture(id: capture.id)
@@ -147,13 +144,17 @@ struct DictationArchiveView: View {
             Button {
                 togglePlayback(capture)
             } label: {
-                Image(systemName: playingCaptureId == capture.id ? "stop.circle.fill" : "play.circle.fill")
+                Image(systemName: playback.playingCaptureId == capture.id ? "stop.circle.fill" : "play.circle.fill")
                     .font(.title2)
                     .foregroundStyle(hasAudio ? Theme.forestGreen : Theme.textTertiary)
             }
             .buttonStyle(.plain)
             .disabled(!hasAudio)
-            .accessibilityLabel(hasAudio ? "Play recording" : "Recording unavailable")
+            .accessibilityLabel(
+                hasAudio
+                    ? (playback.playingCaptureId == capture.id ? "Stop recording playback" : "Play recording")
+                    : "Recording unavailable"
+            )
             .accessibilityIdentifier("dictation_play_\(capture.id)")
         }
         .padding(.vertical, 5)
@@ -182,42 +183,20 @@ struct DictationArchiveView: View {
             return
         }
 
-        if playingCaptureId == capture.id {
+        if playback.playingCaptureId == capture.id {
             stopPlayback()
             return
         }
 
         stopPlayback()
         do {
-            let newPlayer = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: path))
-            newPlayer.prepareToPlay()
-            guard newPlayer.play() else {
-                playbackError = "This recording could not be played."
-                return
-            }
-            player = newPlayer
-            playingCaptureId = capture.id
-            schedulePlaybackEnd(for: capture)
+            try playback.play(path: path, captureId: capture.id)
         } catch {
             playbackError = "This recording could not be opened."
         }
     }
 
-    private func schedulePlaybackEnd(for capture: DictationCaptureItem) {
-        playbackTask?.cancel()
-        guard let durationMillis = capture.durationMillis?.int64Value, durationMillis > 0 else { return }
-        playbackTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(durationMillis) * 1_000_000)
-            guard !Task.isCancelled, playingCaptureId == capture.id else { return }
-            stopPlayback()
-        }
-    }
-
     private func stopPlayback() {
-        playbackTask?.cancel()
-        playbackTask = nil
-        player?.stop()
-        player = nil
-        playingCaptureId = nil
+        playback.stop()
     }
 }

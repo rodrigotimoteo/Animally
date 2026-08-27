@@ -586,22 +586,25 @@ private struct ChatBubble: View {
     /// Deterministic follow-up suggestions; tapping fills the input without
     /// sending so the vet can edit first.
     private var followUpChips: some View {
-        HStack(spacing: 6) {
-            ForEach(followUps, id: \.self) { suggestion in
-                Button {
-                    onFollowUp(suggestion)
-                } label: {
-                    Text(suggestion)
-                        .font(.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Theme.surfaceElevated)
-                        .foregroundStyle(Theme.textSecondary)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().strokeBorder(Theme.textTertiary.opacity(0.35)))
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(followUps, id: \.self) { suggestion in
+                    Button {
+                        onFollowUp(suggestion)
+                    } label: {
+                        Text(suggestion)
+                            .font(.caption)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Theme.surfaceElevated)
+                            .foregroundStyle(Theme.textSecondary)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().strokeBorder(Theme.textTertiary.opacity(0.35)))
+                    }
+                    .accessibilityIdentifier("assistant_followup_chip")
+                    .accessibilityLabel("Suggest: \(suggestion)")
                 }
-                .accessibilityIdentifier("assistant_followup_chip")
-                .accessibilityLabel("Suggest: \(suggestion)")
             }
         }
     }

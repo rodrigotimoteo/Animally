@@ -52,11 +52,13 @@ sealed interface InsertionResult {
  * @param saveUltrasoundUseCase Save path for ultrasound records.
  * @param saveWeightUseCase Save path for weight entries.
  * @param saveDewormingUseCase Save path for deworming records.
+ * @param patientExists Active-patient lookup checked immediately before every insertion.
  */
 class InsertSuggestionsUseCase(
     private val saveUltrasoundUseCase: SaveUltrasoundUseCase,
     private val saveWeightUseCase: SaveWeightUseCase,
     private val saveDewormingUseCase: SaveDewormingUseCase,
+    private val patientExists: (Long) -> Boolean,
 ) {
     /**
      * Inserts every [insertions] entry for its resolved patient.
@@ -87,18 +89,17 @@ class InsertSuggestionsUseCase(
 
     /** Returns a [InsertionResult.Failed] when the record must not be saved, null otherwise. */
     private fun guard(insertion: SuggestedInsertion): InsertionResult.Failed? =
-        when (val validation = insertion.record.validation) {
-            is SuggestedValidationState.Dropped ->
+        when {
+            insertion.patientId <= 0L || !patientExists(insertion.patientId) ->
+                InsertionResult.Failed(insertion.record.recordType, "patient is no longer available")
+
+            insertion.record.validation is SuggestedValidationState.Dropped ->
                 InsertionResult.Failed(insertion.record.recordType, "dropped record cannot be inserted")
 
-            is SuggestedValidationState.Flagged ->
-                if (insertion.acknowledgedFlags) {
-                    null
-                } else {
-                    InsertionResult.Failed(insertion.record.recordType, "flagged record not accepted")
-                }
+            insertion.record.validation is SuggestedValidationState.Flagged && !insertion.acknowledgedFlags ->
+                InsertionResult.Failed(insertion.record.recordType, "flagged record not accepted")
 
-            SuggestedValidationState.Ok -> null
+            else -> null
         }
 
     private fun insertOne(insertion: SuggestedInsertion): Long =

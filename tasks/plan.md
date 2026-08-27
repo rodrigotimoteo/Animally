@@ -351,3 +351,90 @@ OpenRouter cloud stream -> answer + source cards in Swift UI
   language switching, new-chat reset, and the full deterministic dictation
   review/archive flow. The committed device build also built, installed, and
   launched successfully on Daniela's paired iPhone.
+
+## Current implementation slice: durable dictation audio, safer LLM routing, and compact iOS UI
+
+### Behavior that must become true
+
+- A completed dictation with microphone frames produces a validated local audio
+  file, persists its metadata through Kotlin, and can play, stop, finish, and
+  play again after archive re-entry or app relaunch.
+- Playback configures and releases the native audio session explicitly; a stale
+  record-only session must never make an otherwise valid CAF appear broken.
+- Empty/whitespace Foundation Models output is not a successful answer and must
+  fall back to the configured cloud route. A cloud `finish_reason=length` is an
+  interrupted response, even when partial text exists.
+- Cloud general/educational questions remain usable when active patients exist;
+  title-cased veterinary terms must not be mistaken for unknown patient names.
+- Dictation suggestions must match their declared record type and shared Kotlin
+  must re-check patient resolution at the insertion boundary.
+- Patient-detail navigation, assistant follow-ups, and record rows remain usable
+  on compact iPhones and at larger text sizes.
+
+### Behavior that must remain true
+
+- Speech recognition and AVFoundation stay native; extraction, validation,
+  patient resolution, persistence, RAG policy, and safety rules stay in Kotlin.
+- English/Portuguese switching keeps the dictation sheet stable, original
+  transcripts remain available when extraction fails, and cloud models never
+  invent missing patient facts or dosage records.
+- Audio and chat history remain device-local and existing database migrations,
+  backups, record insertion, source cards, themes, and deletion paths continue
+  to work.
+
+### Ordered slices and verification
+
+1. Audio lifecycle: add a native playback controller with explicit session
+   activation/deactivation, validate written CAFs before persisting paths, and
+   make the deterministic transcriber produce test audio. Verify with focused
+   simulator UI playback/archive coverage plus a physical-device record/play
+   pass when Daniela's iPhone reconnects.
+2. LLM routing and safety: add failing tests for blank-primary fallback,
+   output-limit interruption, title-cased educational questions, record-type
+   payload compatibility, and insertion-boundary patient checks; make the
+   smallest Kotlin fixes and rerun focused/shared iOS tests.
+3. Compact UI: make follow-ups horizontally scrollable, replace the cramped
+   five-way segmented patient picker with accessible scrollable controls, and
+   allow clinical rows to wrap. Verify on the current simulator and with
+   focused UI tests/screenshots.
+4. Run ktlint/detekt, the full shared iOS suite, native simulator/device builds,
+   and a separate Luna diff review. Fix confirmed review findings, commit, and
+   install/launch the final build on Daniela's iPhone if available.
+
+### Main failure modes
+
+| Failure mode | Evidence/mitigation |
+| --- | --- |
+| CAF exists but playback is silent/fails | Recording leaves `AVAudioSession` in `.record`; playback owns an explicit `.playback` session and delegate lifecycle |
+| Optional writer persists an empty/corrupt path | Require positive frames and a readable audio file before exposing the path |
+| Small/local model emits blank text | Ignore blank primary snapshots and route to cloud only under the existing opt-in readiness policy |
+| Provider reaches an output limit | Preserve partial text but emit the existing interrupted/retry state |
+| General veterinary term looks like a patient name | Test title-cased educational prompts with active patients and narrow unknown-patient detection |
+| Swift caller supplies an arbitrary patient id | Shared insertion boundary re-resolves or validates every accepted suggestion |
+| Compact UI controls truncate or lose activation | Scroll/wrap controls and retain explicit accessibility labels/identifiers |
+
+### Current limitation
+
+- Daniela's iPhone was paired earlier, but CoreDevice lost the tunnel before the
+  metadata-only `Documents/dictations` inspection. Physical microphone and
+  audible playback remain unverified until the device reconnects; simulator and
+  static evidence cannot prove microphone routing or speaker output.
+
+### Implementation outcome
+
+- Archived recordings now use a dedicated AVFoundation playback controller
+  that temporarily owns a playback audio session, restores the prior session,
+  and follows player delegate completion instead of a duration timer.
+- Audio paths are persisted only for readable, non-empty recordings. The
+  deterministic simulator transcriber now writes a valid CAF, so the complete
+  save/archive/play/stop/play-again path is covered by UI automation.
+- Kotlin now falls back from blank Foundation Models output, reports cloud
+  output-limit responses as interrupted while preserving partial text, keeps
+  educational questions out of accidental patient-name scoping, validates
+  dictation payload types, and rejects invalid patient ids at insertion.
+- Compact iPhone UI now uses scrollable patient tabs and assistant follow-ups,
+  and clinical rows can wrap without squeezing their dates.
+- The shared iOS suite, focused Android cloud tests, ktlint, detekt, native iOS
+  simulator build, and deterministic dictation playback UI test pass. A Luna
+  diff review found no blocking issues; its payload/session concerns were
+  incorporated before the final verification pass.

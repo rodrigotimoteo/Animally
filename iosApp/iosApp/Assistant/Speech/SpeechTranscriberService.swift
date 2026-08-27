@@ -51,6 +51,7 @@ private final class DictationAudioFileWriter: @unchecked Sendable {
     private var path: String?
     private var sampleRate: Double = 0
     private var frameCount: AVAudioFramePosition = 0
+    private var writeFailed = false
 
     func start(format: AVAudioFormat) {
         lock.lock()
@@ -73,6 +74,7 @@ private final class DictationAudioFileWriter: @unchecked Sendable {
             path = url.path
             sampleRate = format.sampleRate
             frameCount = 0
+            writeFailed = false
         } catch {
             file = nil
             path = nil
@@ -87,8 +89,7 @@ private final class DictationAudioFileWriter: @unchecked Sendable {
             try file.write(from: buffer)
             frameCount += AVAudioFramePosition(buffer.frameLength)
         } catch {
-            // A speech session should still work when the optional archive
-            // writer cannot accept a buffer.
+            writeFailed = true
         }
     }
 
@@ -97,16 +98,32 @@ private final class DictationAudioFileWriter: @unchecked Sendable {
         let filePath = path
         let frames = frameCount
         let rate = sampleRate
+        let failed = writeFailed
         file = nil
         path = nil
         frameCount = 0
         sampleRate = 0
+        writeFailed = false
         lock.unlock()
 
-        guard let filePath, FileManager.default.fileExists(atPath: filePath) else {
+        guard
+            let filePath,
+            !failed,
+            frames > 0,
+            FileManager.default.fileExists(atPath: filePath),
+            let readableFile = try? AVAudioFile(forReading: URL(fileURLWithPath: filePath)),
+            readableFile.length > 0
+        else {
+            if let filePath {
+                try? FileManager.default.removeItem(atPath: filePath)
+            }
             return nil
         }
-        let duration = rate > 0 ? Int64((Double(frames) / rate * 1000).rounded()) : nil
+        let readableRate = readableFile.processingFormat.sampleRate
+        let durationRate = readableRate > 0 ? readableRate : rate
+        let duration = durationRate > 0
+            ? Int64((Double(readableFile.length) / durationRate * 1000).rounded())
+            : nil
         return DictationAudioFileResult(path: filePath, durationMillis: duration)
     }
 
@@ -906,8 +923,8 @@ final class MockSpeechTranscriber: SpeechTranscribing {
     private let transcript: String
     private var isRecording = false
 
-    let recordingFilePath: String? = nil
-    let recordingDurationMillis: Int64? = nil
+    private(set) var recordingFilePath: String?
+    private(set) var recordingDurationMillis: Int64?
 
     var partialHandler: ((String) -> Void)?
     var failureHandler: ((String) -> Void)?
@@ -918,17 +935,36 @@ final class MockSpeechTranscriber: SpeechTranscribing {
 
     func start() async throws {
         isRecording = true
+        recordingFilePath = nil
+        recordingDurationMillis = nil
         partialHandler?(transcript)
     }
 
     func finish() async throws -> String {
         guard isRecording else { return "" }
         isRecording = false
+        createDeterministicRecording()
         return transcript
     }
 
     func cancel() async {
         isRecording = false
+    }
+
+    private func createDeterministicRecording() {
+        guard
+            let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1),
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 441_000)
+        else { return }
+        buffer.frameLength = buffer.frameCapacity
+        buffer.floatChannelData?[0].initialize(repeating: 0, count: Int(buffer.frameLength))
+
+        let writer = DictationAudioFileWriter()
+        writer.start(format: format)
+        writer.append(buffer)
+        guard let result = writer.close() else { return }
+        recordingFilePath = result.path
+        recordingDurationMillis = result.durationMillis
     }
 }
 

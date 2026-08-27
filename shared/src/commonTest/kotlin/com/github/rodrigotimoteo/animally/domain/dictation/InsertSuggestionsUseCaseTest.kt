@@ -31,6 +31,7 @@ class InsertSuggestionsUseCaseTest {
             saveUltrasoundUseCase = SaveUltrasoundUseCase(ultrasoundRepository, FakeSearchRepository()),
             saveWeightUseCase = SaveWeightUseCase(weightRepository, FakeSearchRepository()),
             saveDewormingUseCase = SaveDewormingUseCase(dewormingRepository, FakeSearchRepository()),
+            patientExists = { it in setOf(1L, 7L) },
         )
 
     private fun record(
@@ -96,6 +97,15 @@ class InsertSuggestionsUseCaseTest {
         val inserted = assertIs<InsertionResult.Inserted>(result.single())
         assertEquals(SuggestedRecordType.Weight, inserted.recordType)
         assertEquals(7L, weightRepository.inserted.single().patientId)
+    }
+
+    @Test
+    fun `when patient id is not active then rejected before persistence`() {
+        val result = sut(listOf(SuggestedInsertion(record(SuggestedValidationState.Ok), patientId = 999L)))
+
+        val failed = assertIs<InsertionResult.Failed>(result.single())
+        assertEquals("patient is no longer available", failed.message)
+        assertTrue(weightRepository.inserted.isEmpty())
     }
 
     @Test
