@@ -68,6 +68,47 @@ final class AssistantUITests: AnimallyTestCase {
         XCTAssertTrue(app.textFields["assistant_input"].waitForExistence(timeout: 10))
     }
 
+    func testNewChatActionClearsTheVisibleConversation() throws {
+        let app = TestHelpers.launchApp()
+        openAssistant(app)
+        try requireAvailableModel(app)
+
+        let newChat = app.buttons["assistant_new_chat"]
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat entry point missing")
+        let ready = NSPredicate(format: "isEnabled == true")
+        expectation(for: ready, evaluatedWith: newChat)
+        waitForExpectations(timeout: 10)
+
+        newChat.tap()
+        XCTAssertTrue(
+            app.staticTexts["What would you like to know?"].waitForExistence(timeout: 10),
+            "New chat did not return to the blank conversation state"
+        )
+        XCTAssertTrue(app.textFields["assistant_input"].exists)
+    }
+
+    func testChangingDictationLanguageKeepsTheSheetOpen() throws {
+        let app = TestHelpers.launchApp(arguments: ["-animally-ui-test-dictation"])
+        openAssistant(app)
+
+        let dictate = app.buttons["assistant_dictate"]
+        XCTAssertTrue(dictate.waitForExistence(timeout: 10), "Dictation entry point missing")
+        dictate.tap()
+
+        let start = app.buttons["dictation_start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "Dictation sheet did not open")
+        XCTAssertTrue(start.isEnabled, "Dictation engine did not become ready")
+
+        let languagePicker = app.segmentedControls["dictation_language"]
+        XCTAssertTrue(languagePicker.waitForExistence(timeout: 5), "Language picker missing")
+        XCTAssertEqual(languagePicker.buttons.count, 2)
+        languagePicker.buttons.element(boundBy: 1).tap()
+
+        XCTAssertTrue(app.staticTexts["Dictate records"].exists, "Language change dismissed the dictation sheet")
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "Start control disappeared after language change")
+        XCTAssertTrue(start.isEnabled, "Dictation engine did not recover after language change")
+    }
+
     func testDictationSheetCanBeReopenedWithTheSameAccent() throws {
         let app = TestHelpers.launchApp(arguments: ["-animally-ui-test-dictation"])
         selectPlumAccent(app)
@@ -223,7 +264,7 @@ final class AssistantUITests: AnimallyTestCase {
         XCTAssertTrue(app.staticTexts["Dictation history"].waitForExistence(timeout: 10))
         XCTAssertTrue(
             app.staticTexts[
-                "Registar o peso do Thunder e uma desparasitação. Depois fazer uma ecografia à Fantasma Inexistente."
+                "Registar o peso do Lua do Pinhal e uma desparasitação. Depois fazer uma ecografia à Fantasma Inexistente."
             ].waitForExistence(timeout: 10),
             "Completed dictation transcript was not retained"
         )

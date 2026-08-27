@@ -8,12 +8,16 @@ import com.github.rodrigotimoteo.animally.domain.dictation.usecase.GetDictationC
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.SaveDictationCaptureUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
+import com.github.rodrigotimoteo.animally.llm.GenerateDictationSessionUseCase
+import com.github.rodrigotimoteo.animally.llm.RagLlmEngine
 import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.mock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -21,6 +25,7 @@ import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,7 +43,10 @@ class DictationViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(): DictationViewModel =
+    private fun createViewModel(
+        generateDictationSession: GenerateDictationSessionUseCase? = null,
+        isCloudReady: () -> Boolean = { false },
+    ): DictationViewModel =
         DictationViewModel(
             validateSuggestionsUseCase = ValidateSuggestionsUseCase(),
             resolvePatientUseCase = ResolvePatientUseCase(patientRepositoryMock),
@@ -46,6 +54,8 @@ class DictationViewModelTest {
             saveDictationCaptureUseCase = SaveDictationCaptureUseCase(dictationCaptureRepositoryMock),
             deleteDictationCaptureUseCase = DeleteDictationCaptureUseCase(dictationCaptureRepositoryMock),
             ioDispatcher = Dispatchers.Unconfined,
+            generateDictationSession = generateDictationSession,
+            isCloudReady = isCloudReady,
         )
 
     /**
@@ -87,5 +97,42 @@ class DictationViewModelTest {
             val state = vm.uiState.value
             assertTrue(state.suggestions.isEmpty())
             assertEquals(null, state.error)
+        }
+
+    @Test
+    fun `given configured cloud extraction then transcript is delegated to shared use case`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val engine =
+                object : RagLlmEngine {
+                    override fun generate(
+                        prompt: String,
+                        instructions: String,
+                    ): Flow<String> =
+                        flowOf(
+                            """{"records":[{"recordType":"weight","patientName":"Trovao","weightKg":512.0}]}""",
+                        )
+                }
+            val vm =
+                createViewModel(
+                    generateDictationSession = GenerateDictationSessionUseCase(engine),
+                    isCloudReady = { true },
+                )
+
+            val sessionJson = vm.extract("Trovao weighed 512 kilos", "english")
+
+            assertTrue(sessionJson.contains("\"recordType\":\"weight\""))
+            assertTrue(sessionJson.contains("\"weightKg\":512.0"))
+        }
+
+    @Test
+    fun `given cloud extraction is not ready then no model request is made`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(isCloudReady = { false })
+
+            assertFailsWith<IllegalStateException> {
+                vm.extract("Trovao weighed 512 kilos", "english")
+            }
         }
 }

@@ -94,6 +94,15 @@ class DictationStore(
         viewModel.setTranscript(value)
     }
 
+    /** Whether structured extraction is ready through the configured cloud route. */
+    fun canUseCloudExtraction(): Boolean = viewModel.canUseCloudExtraction()
+
+    /** Extracts a transcript through the shared routed LLM pipeline. */
+    suspend fun extract(
+        transcript: String,
+        language: String,
+    ): String = viewModel.extract(transcript, language)
+
     /** Refreshes the persisted dictation archive. */
     fun reloadCaptures() {
         viewModel.reloadCaptures()

@@ -121,10 +121,13 @@ class AssistantViewModel(
                 }
             }
         }
-        loadHistory()
+        loadHistory(populateMessages = true)
     }
 
-    private fun loadHistory(showLoading: Boolean = false) {
+    private fun loadHistory(
+        showLoading: Boolean = false,
+        populateMessages: Boolean = false,
+    ) {
         if (showLoading) {
             _uiState.update { it.copy(isHistoryLoading = true, historyError = null) }
         }
@@ -134,7 +137,11 @@ class AssistantViewModel(
                 _uiState.update { state ->
                     state.copy(
                         messages =
-                            if (state.messages.isEmpty()) history.flatMap { it.toMessages() } else state.messages,
+                            if (populateMessages && state.messages.isEmpty()) {
+                                history.flatMap { it.toMessages() }
+                            } else {
+                                state.messages
+                            },
                         history = history,
                         isHistoryLoading = false,
                         historyError = null,
@@ -157,6 +164,16 @@ class AssistantViewModel(
     fun refreshHistory() {
         if (_uiState.value.isGenerating) return
         loadHistory(showLoading = true)
+    }
+
+    /**
+     * Starts a blank visible conversation without deleting the bounded history
+     * archive. The next request therefore has no previous-turn context, while
+     * the history screen remains available for review and reuse.
+     */
+    fun startNewChat() {
+        if (_uiState.value.isGenerating) return
+        _uiState.update { it.copy(messages = emptyList(), error = null) }
     }
 
     /**

@@ -21,6 +21,8 @@ internal data class GestationFact(
     val patient: Patient,
     val gestation: Gestation,
     val progress: GestationProgress,
+    /** Elapsed days from the recorded breeding date to the turn's reference date. */
+    val elapsedDays: Int,
     val isActive: Boolean,
 )
 
@@ -108,15 +110,17 @@ class AnalysisContextBuilder(
             .flatMap { patient ->
                 gestationRepository.getByPatient(patient.id).map { gestation ->
                     val active = gestation.isActiveGestation()
+                    val currentProgress = calculateGestationUseCase(gestation.breedingDate, today)
                     GestationFact(
                         patient = patient,
                         gestation = gestation,
                         progress =
                             if (active) {
-                                calculateGestationUseCase(gestation.breedingDate, today)
+                                currentProgress
                             } else {
                                 GestationProgress(gestation.expectedDueDate, gestation.gestationDays)
                             },
+                        elapsedDays = currentProgress.gestationDays,
                         isActive = active,
                     )
                 }
@@ -260,7 +264,8 @@ class AnalysisContextBuilder(
         today: LocalDate,
     ): String {
         val progress = calculateGestationUseCase(gestation.breedingDate, today)
-        return "- Gestation ${patient.name}: day ${progress.gestationDays}, " +
+        return "- Gestation ${patient.name}: bred ${formatHumanDate(gestation.breedingDate)}, " +
+            "day ${progress.gestationDays}, " +
             "status ${gestation.status}, expected foaling ${progress.expectedDueDate}."
     }
 
@@ -561,6 +566,14 @@ object AnalysisIntents {
                 "parto\\s+previsto|data\\s+do\\s+parto|parição|paricao)\\b",
         )
 
+    private val breedingTimingRegex =
+        Regex(
+            "\\b(bred|breeding\\s+date|date\\s+(?:was\\s+)?bred|" +
+                "when\\s+was\\s+[^?]+\\s+bred|how\\s+long\\s+ago\\s+[^?]+\\s+bred|" +
+                "coberta|data\\s+da\\s+cobertura|quando\\s+foi\\s+coberta|" +
+                "há\\s+quanto\\s+tempo\\s+[^?]+\\s+coberta)\\b",
+        )
+
     /**
      * Questions that benefit from the cloud's larger context and native tools
      * instead of a single compact summary. This is deliberately conservative:
@@ -606,8 +619,14 @@ object AnalysisIntents {
 
     fun wantsGestation(query: String): Boolean = gestationRegex.containsMatchIn(query.lowercase())
 
-    /** True for status/day/due-date questions that need live gestation facts. */
-    fun wantsCurrentGestation(query: String): Boolean = currentGestationRegex.containsMatchIn(query.lowercase())
+    /** True for status/day/due-date/breeding-timing questions needing live gestation facts. */
+    fun wantsCurrentGestation(query: String): Boolean {
+        val lowered = query.lowercase()
+        return currentGestationRegex.containsMatchIn(lowered) || breedingTimingRegex.containsMatchIn(lowered)
+    }
+
+    /** True when the user asks when a recorded breeding happened or how long ago it was. */
+    fun wantsBreedingTiming(query: String): Boolean = breedingTimingRegex.containsMatchIn(query.lowercase())
 
     fun wantsOverdue(query: String): Boolean = overdueRegex.containsMatchIn(query.lowercase())
 

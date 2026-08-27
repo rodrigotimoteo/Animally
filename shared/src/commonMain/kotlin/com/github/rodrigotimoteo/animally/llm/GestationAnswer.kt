@@ -11,10 +11,12 @@ internal suspend fun FlowCollector<RagStreamEvent>.emitGestationAnswer(
     scopedPatient: String?,
 ): Boolean {
     val portuguese = AssistantPrompts.isPortugueseQuery(query)
+    val asksBreedingTiming = AnalysisIntents.wantsBreedingTiming(query)
     val activeFacts = facts.filter(GestationFact::isActive)
-    val sourceFacts = activeFacts.ifEmpty { facts }.take(MAX_GESTATION_SOURCES)
+    val sourceFacts = (if (asksBreedingTiming) facts else activeFacts.ifEmpty { facts }).take(MAX_GESTATION_SOURCES)
     val answer =
         when {
+            asksBreedingTiming -> breedingTimingAnswer(facts, scopedPatient, portuguese)
             activeFacts.isEmpty() -> noActiveGestationAnswer(facts, scopedPatient, portuguese)
             activeFacts.size == 1 -> singleGestationAnswer(activeFacts.single(), portuguese)
             else -> multipleGestationAnswer(activeFacts, portuguese)
@@ -24,6 +26,51 @@ internal suspend fun FlowCollector<RagStreamEvent>.emitGestationAnswer(
         emit(RagStreamEvent.Sources(sourceFacts.map(::gestationSource)))
     }
     return true
+}
+
+private fun breedingTimingAnswer(
+    facts: List<GestationFact>,
+    scopedPatient: String?,
+    portuguese: Boolean,
+): String {
+    if (facts.isEmpty()) {
+        return if (portuguese) {
+            "Não encontrei um registo de cobrição ou gestação para ${scopedPatient ?: "esse paciente"}."
+        } else {
+            "I couldn't find a recorded breeding or gestation entry for ${scopedPatient ?: "that patient"}."
+        }
+    }
+
+    if (facts.size == 1) {
+        val fact = facts.single()
+        val breedingDate = formatHumanDateShort(fact.gestation.breedingDate)
+        return if (portuguese) {
+            "${fact.patient.name} foi coberta em $breedingDate, há ${fact.elapsedDays} dias. " +
+                "O registo está marcado como ${fact.gestation.status.lowercase()}."
+        } else {
+            "${fact.patient.name} was bred on $breedingDate, ${fact.elapsedDays} days ago. " +
+                "The record is marked ${fact.gestation.status.lowercase()}."
+        }
+    }
+
+    val heading =
+        if (portuguese) {
+            "Encontrei ${facts.size} registos de cobrição:"
+        } else {
+            "I found ${facts.size} recorded breeding entries:"
+        }
+    val lines =
+        facts.take(MAX_GESTATION_SOURCES).joinToString("\n") { fact ->
+            val breedingDate = formatHumanDateShort(fact.gestation.breedingDate)
+            if (portuguese) {
+                "- ${fact.patient.name} — coberta em $breedingDate, há ${fact.elapsedDays} dias " +
+                    "(${fact.gestation.status.lowercase()})."
+            } else {
+                "- ${fact.patient.name} — bred on $breedingDate, ${fact.elapsedDays} days ago " +
+                    "(${fact.gestation.status.lowercase()})."
+            }
+        }
+    return "$heading\n$lines"
 }
 
 private fun singleGestationAnswer(

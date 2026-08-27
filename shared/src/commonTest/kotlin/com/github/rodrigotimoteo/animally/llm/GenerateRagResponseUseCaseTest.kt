@@ -1251,6 +1251,45 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given breeding timing question then answer uses breeding card date without model`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Descarada"))
+            repos.gestations.entries =
+                listOf(
+                    testGestation(
+                        id = 44,
+                        patientId = 1,
+                        breedingDate = LocalDate(2025, 4, 1),
+                        expectedDueDate = LocalDate(2026, 3, 7),
+                    ),
+                )
+
+            val query = "How long ago was Descarada bred?"
+            val events =
+                sut(
+                    analysisContextBuilder = repos.builder,
+                    patientRepository = repos.patients,
+                    today = LocalDate(2025, 5, 11),
+                )(query).toList()
+
+            assertEquals(0, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(answer.contains("bred on 1 Apr 2025"), answer)
+            assertTrue(answer.contains("40 days ago"), answer)
+            assertTrue(answer.contains("active"), answer)
+            assertEquals(
+                listOf(44L),
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .map { it.recordId },
+            )
+        }
+
+    @Test
     fun `given failed gestation question then answer does not invent an active pregnancy`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()

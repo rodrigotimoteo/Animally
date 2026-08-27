@@ -30,6 +30,10 @@ final class AssistantViewModel: ObservableObject {
         store.refreshHistory()
     }
 
+    func startNewChat() {
+        store.startNewChat()
+    }
+
     func dismissError() {
         store.dismissError()
     }

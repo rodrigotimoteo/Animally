@@ -46,6 +46,17 @@ struct AssistantView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
+                        draft = ""
+                        inputFocused = false
+                        viewModel.startNewChat()
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                    }
+                    .disabled(viewModel.state.isGenerating || viewModel.state.isHistoryLoading)
+                    .accessibilityLabel("New chat")
+                    .accessibilityIdentifier("assistant_new_chat")
+
+                    Button {
                         showChatHistory = true
                     } label: {
                         Image(systemName: "clock.arrow.circlepath")

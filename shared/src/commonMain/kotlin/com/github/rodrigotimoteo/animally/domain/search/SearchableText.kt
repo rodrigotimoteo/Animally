@@ -109,10 +109,18 @@ internal object SearchableText {
     fun gestation(gestation: Gestation): String {
         val isResolved =
             gestation.status.equals("Completed", ignoreCase = true) ||
-                gestation.status.equals("Failed", ignoreCase = true)
+                gestation.status.equals("Failed", ignoreCase = true) ||
+                gestation.status.equals("Foaled", ignoreCase = true)
         val pregnancyVocabulary =
             if (isResolved) null else "pregnant in foal active gestation expected foaling"
-        return listOfNotNull(gestation.status, gestation.notes, pregnancyVocabulary).joinToString(" ")
+        val breedingVocabulary = "bred breeding mating covered coverage"
+        return listOfNotNull(
+            gestation.breedingDate.toString(),
+            gestation.status,
+            gestation.notes,
+            pregnancyVocabulary,
+            breedingVocabulary,
+        ).joinToString(" ")
     }
 
     fun anamnese(anamnese: Anamnese): String =

@@ -81,6 +81,10 @@ val llmModule =
                 isPrimaryAvailable = { get<LlmEngine>().availability() is LlmAvailability.Available },
             )
         }
+        // Dictation on iPhone uses this routed engine when Foundation Models
+        // structured generation is unavailable. The extraction use case owns
+        // the JSON contract; the Swift edge only starts the request.
+        single { GenerateDictationSessionUseCase(get<FmFirstRagLlmEngine>()) }
         // Retrieval goes through the repository's RAG snippet variant: chunks
         // carry a 24-token FTS5 window instead of full record text so long
         // consultations cannot eat the context budget. The OR retry bypasses

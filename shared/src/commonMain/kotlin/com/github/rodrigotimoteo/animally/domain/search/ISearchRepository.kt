@@ -139,7 +139,11 @@ interface ISearchRepository {
          *
          * v12: force one clean rebuild before date-scoped assistant activity
          * queries rely on the metadata table as their authoritative row set.
+         *
+         * v13: gestation rows include the recorded breeding date and breeding
+         * vocabulary, and resolved Foaled rows no longer inherit active-pregnancy
+         * search terms.
          */
-        const val SEARCH_INDEX_VERSION = "12"
+        const val SEARCH_INDEX_VERSION = "13"
     }
 }

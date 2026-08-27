@@ -4,7 +4,8 @@ import Foundation
 /// simulator without Apple Intelligence).
 ///
 /// Returns three records that deliberately exercise every review path:
-/// 1. A clean weight entry (validation `Ok`).
+/// 1. A clean weight entry (validation `Ok`) for Lua, which is part of the
+///    committed demo herd.
 /// 2. A deworming entry with an unparseable date (silently becomes today)
 ///    and an over-long drug name (truncated + flagged).
 /// 3. An ultrasound for a patient name that matches nothing (quarantined
@@ -32,14 +33,14 @@ extension MockDictationExtractor {
       "records": [
         {
           "recordType": "weight",
-          "patientName": "Thunder",
+          "patientName": "Lua do Pinhal",
           "date": "2026-08-20",
           "weightKg": 512.0,
           "notes": "peso antes da dose"
         },
         {
           "recordType": "deworming",
-          "patientName": "Thunder",
+          "patientName": "Lua do Pinhal",
           "date": "1999-13-45",
           "drugName": "Ivermectina Comprimido Palatável para Equinos de Grande Porte Formulação Estendida",
           "notes": "dose única administrada pela manhã"

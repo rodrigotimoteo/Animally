@@ -131,7 +131,7 @@ struct DictationCaptureView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: selectedLanguage) {
-            await prepareEngines()
+            await prepareEngines(for: selectedLanguage)
         }
     }
 
@@ -198,6 +198,18 @@ struct DictationCaptureView: View {
                 .padding(.horizontal, 24)
                 .accessibilityIdentifier("dictation_transcript_editor")
 
+            if extractor?.usesCloudModel == true {
+                Label(
+                    "Cloud AI will structure this transcript. Check every suggestion before saving.",
+                    systemImage: "cloud.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+                .accessibilityIdentifier("dictation_cloud_extraction_notice")
+            }
+
             Button {
                 errorMessage = nil
                 phase = .transcribing
@@ -241,13 +253,27 @@ struct DictationCaptureView: View {
 
     // MARK: Actions
 
-    private func prepareEngines() async {
+    private func prepareEngines(for language: DictationLanguage) async {
         isPreparingEngine = true
-        extractor = DictationExtractorFactory.make(language: selectedLanguage)
-        let resolved = await SpeechTranscriberService.resolve(preferredLocale: selectedLanguage.locale)
-        guard !Task.isCancelled else { return }
+        let candidateExtractor = DictationExtractorFactory.make(
+            language: language,
+            cloudExtraction: cloudExtraction
+        )
+        let resolved = await SpeechTranscriberService.resolve(preferredLocale: language.locale)
+        guard !Task.isCancelled, selectedLanguage == language else { return }
+        // Keep the current engine until the new language is ready. This avoids
+        // replacing the sheet's state while the picker is being changed and
+        // prevents a stale resolution from winning a rapid language switch.
+        extractor = candidateExtractor
         applyResolvedEngine(resolved)
         isPreparingEngine = false
+    }
+
+    private var cloudExtraction: CloudDictationExtraction? {
+        guard reviewViewModel.canUseCloudExtraction() else { return nil }
+        return { transcript, language in
+            try await reviewViewModel.extract(transcript: transcript, language: language)
+        }
     }
 
     private func startRecording() {
@@ -266,8 +292,9 @@ struct DictationCaptureView: View {
             // speech assets finish installing, so always resolve once more at
             // the point of use instead of trusting a stale preflight result.
             isPreparingEngine = true
-            let resolved = await SpeechTranscriberService.resolve(preferredLocale: selectedLanguage.locale)
-            guard !Task.isCancelled else { return }
+            let language = selectedLanguage
+            let resolved = await SpeechTranscriberService.resolve(preferredLocale: language.locale)
+            guard !Task.isCancelled, selectedLanguage == language else { return }
             applyResolvedEngine(resolved)
             isPreparingEngine = false
             guard let transcriber else {

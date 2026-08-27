@@ -265,3 +265,89 @@ OpenRouter cloud stream -> answer + source cards in Swift UI
   probe. Further live requests were intentionally stopped to avoid quota abuse.
 - Shared unit tests cover tool-backed/grounded refusals and Portuguese current
   gestation output; live provider availability remains an external dependency.
+
+## Current implementation slice: grounded breeding dates, resilient dictation, and new chats
+
+### Confirmed requirements
+
+- A breeding/gestation record's breeding date is authoritative record data and
+  must answer questions such as "How long ago was this mare bred?" without
+  depending on a small or unreliable model to notice a date in a retrieved card.
+- Switching dictation language must keep the current sheet and transcript flow
+  stable; changing the language only changes the speech/extraction engine
+  configuration while the capture sheet is idle.
+- iPhones without Apple Foundation Models still need a usable extraction path
+  when Cloud AI is configured. The transcript must go through the shared
+  Kotlin cloud boundary, not a second Swift networking implementation.
+- The assistant needs an explicit new-chat action that clears only the visible
+  conversation. Persisted recent-turn history remains available separately.
+
+### Architecture decisions
+
+- Add deterministic breeding-timing facts to the shared gestation projection,
+  including breeding date and elapsed days, and answer that intent before any
+  model call. Keep the existing live gestation-day calculation as the source of
+  truth.
+- Keep native SpeechAnalyzer/SFSpeechRecognizer and local Foundation Models in
+  Swift. Add a Kotlin `GenerateDictationSessionUseCase` over the existing routed
+  cloud engine for structured fallback; decode and normalize the JSON in Kotlin
+  before Swift validation/review.
+- Make language preparation an explicit cancellable idle-state operation and
+  ignore stale engine results after a quick language switch. Swift may show the
+  current source/status, but it must not own extraction or persistence logic.
+- Expose `startNewChat()` through `AssistantStore` and `AssistantViewModel`;
+  it clears in-memory messages only and never deletes the 15-turn database
+  history.
+
+### Acceptance criteria
+
+1. English and Portuguese breeding-timing questions return the stored breeding
+   date and elapsed days from Kotlin with a gestation source card; no cloud or
+   local model can replace those facts.
+2. Changing dictation language while idle does not dismiss/recreate the sheet,
+   clear the transcript, or apply a stale engine for the previous language.
+3. On an iPhone where Foundation Models are unavailable, Extract uses the
+   configured cloud model, accepts common JSON/code-fence wrappers, and routes
+   the result through the existing Kotlin validation/review flow. With no cloud
+   configuration, it fails with an actionable message and preserves the text.
+4. The Assistant toolbar exposes New chat; tapping it clears the visible turn
+   list, leaves Chat history intact, and enables a fresh question immediately.
+5. No API key is added to source, logs, fixtures, or tests; all shared logic
+   remains in Kotlin and the final commit passes the repository hook.
+
+### Verification plan
+
+- Add focused common tests for breeding date/elapsed-day intent, Portuguese
+  output, malformed-wrapper JSON normalization, cloud extraction failures, and
+  new-chat state retention.
+- Run focused desktop tests, `iosSimulatorArm64Test`, detekt, ktlint, and the
+  iOS simulator/device native builds.
+- Add/execute simulator UI coverage for switching dictation language in place,
+  opening a fresh assistant chat, and keeping history accessible afterward.
+- On device, confirm the extraction fallback's status/error path without
+  recording or logging transcript contents beyond the visible review UI.
+
+### Risks and mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| A cloud model wraps JSON in prose or markdown | Extraction appears broken despite valid records | Kotlin extracts the JSON envelope, decodes the DTO, and rejects malformed output before review |
+| Cloud extraction sends clinical transcript text off-device | Privacy surprise | Only use the fallback when Cloud AI is already enabled/configured and show a clear cloud-source notice |
+| Rapid language changes race async speech asset resolution | Wrong-language recognition or stuck loading state | Cancel prior preparation and apply a result only when its language still matches the selection |
+| New chat accidentally clears retained history | User loses useful prior answers | Reset only `messages`; leave the history use case/repository untouched and test both paths |
+
+### Implementation outcome
+
+- Breeding timing is now answered deterministically from the breeding card's
+  stored date, including elapsed days and a matching source card; model output
+  cannot replace those facts.
+- iPhone dictation keeps the sheet stable while switching languages. When Apple
+  Foundation Models are unavailable and Cloud AI is configured, structured
+  extraction uses the shared Kotlin cloud route and remains reviewable before
+  saving; otherwise the transcript is preserved with an actionable message.
+- The assistant now exposes a New chat action that clears only the visible
+  conversation while keeping recent history available.
+- Shared iOS tests, ktlint, and detekt pass. Simulator UI coverage exercises
+  language switching, new-chat reset, and the full deterministic dictation
+  review/archive flow. The committed device build also built, installed, and
+  launched successfully on Daniela's paired iPhone.

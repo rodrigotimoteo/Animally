@@ -912,7 +912,7 @@ final class MockSpeechTranscriber: SpeechTranscribing {
     var partialHandler: ((String) -> Void)?
     var failureHandler: ((String) -> Void)?
 
-    init(transcript: String = "Registar o peso do Thunder e uma desparasitação. Depois fazer uma ecografia à Fantasma Inexistente.") {
+    init(transcript: String = "Registar o peso do Lua do Pinhal e uma desparasitação. Depois fazer uma ecografia à Fantasma Inexistente.") {
         self.transcript = transcript
     }
 

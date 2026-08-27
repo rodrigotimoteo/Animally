@@ -7,7 +7,7 @@
 - [x] Improve assistant reliability, output normalization, and human tone
 - [x] Run focused tests, broad checks, and iOS simulator smoke tests
 - [x] Build the final device binary and commit the completed change
-- [ ] Reinstall and launch on Daniela's iPhone once its CoreDevice tunnel is available
+- [x] Reinstall and launch on Daniela's iPhone once its CoreDevice tunnel is available
 - [x] Confirm a clean worktree
 
 ## Current slice: dictation theme and assistant history UX
@@ -24,3 +24,12 @@
 - [ ] Validate and restore the fixture through the iOS Settings flow (payload pasted; final button tap was not confirmed by simulator automation)
 - [x] Exercise cloud retrieval, analysis tools, source cards, refusals, and bilingual output (bounded run; the supplied OpenRouter key then returned HTTP 403 key-limit-exceeded)
 - [x] Review failures, run focused checks, and commit the slice
+
+## Current slice: breeding dates, iPhone extraction, and new assistant chats
+
+- [x] Reproduce the missing breeding-date answer against the synthetic herd
+- [x] Add deterministic breeding-date/elapsed-day answers and tests
+- [x] Add Kotlin-owned cloud structured-extraction fallback for iPhone
+- [x] Stabilize dictation language switching and add UI coverage
+- [x] Add visible new-chat action without deleting retained history
+- [x] Run checks/builds, install the final device build, and commit

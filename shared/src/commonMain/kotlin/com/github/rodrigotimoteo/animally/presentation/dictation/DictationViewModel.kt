@@ -12,6 +12,7 @@ import com.github.rodrigotimoteo.animally.domain.dictation.usecase.GetDictationC
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.SaveDictationCaptureUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.PatientResolution
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
+import com.github.rodrigotimoteo.animally.llm.GenerateDictationSessionUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
@@ -84,6 +85,9 @@ data class DictationUiState(
  * @param saveDictationCaptureUseCase Persists a completed capture.
  * @param deleteDictationCaptureUseCase Removes a capture and its audio file.
  * @param ioDispatcher Dispatcher for database and file work.
+ * @param generateDictationSession Cloud fallback for structured extraction on
+ *   devices without Apple Intelligence.
+ * @param isCloudReady True when the configured cloud route can accept a request.
  */
 class DictationViewModel(
     private val validateSuggestionsUseCase: ValidateSuggestionsUseCase,
@@ -92,6 +96,8 @@ class DictationViewModel(
     private val saveDictationCaptureUseCase: SaveDictationCaptureUseCase,
     private val deleteDictationCaptureUseCase: DeleteDictationCaptureUseCase,
     private val ioDispatcher: CoroutineDispatcher,
+    private val generateDictationSession: GenerateDictationSessionUseCase? = null,
+    private val isCloudReady: () -> Boolean = { false },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DictationUiState())
     private var captureOperation: Job? = null
@@ -111,6 +117,28 @@ class DictationViewModel(
     /** Updates the raw transcript text. */
     fun setTranscript(value: String) {
         _uiState.update { it.copy(transcript = value) }
+    }
+
+    /** True when the iOS edge can use the configured cloud extractor. */
+    fun canUseCloudExtraction(): Boolean = generateDictationSession != null && isCloudReady()
+
+    /**
+     * Extracts a transcript through the routed Kotlin LLM seam. Native Swift
+     * only supplies speech text and the selected language; JSON decoding and
+     * the cloud readiness policy stay in the shared layer.
+     */
+    suspend fun extract(
+        transcript: String,
+        language: String,
+    ): String {
+        val normalizedTranscript = transcript.trim()
+        require(normalizedTranscript.isNotEmpty()) { "There is no transcript to extract." }
+        val extractor = generateDictationSession
+        check(extractor != null && isCloudReady()) {
+            "Structured extraction needs Apple Intelligence or an enabled Cloud AI model. " +
+                "Enable Cloud AI in Settings and try again."
+        }
+        return extractor(normalizedTranscript, language)
     }
 
     /** Updates the archive filter without touching the current review. */

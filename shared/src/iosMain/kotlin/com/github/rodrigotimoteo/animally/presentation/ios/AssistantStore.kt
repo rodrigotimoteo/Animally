@@ -95,6 +95,11 @@ class AssistantStore(
         viewModel.refreshHistory()
     }
 
+    /** Starts a blank visible conversation while retaining persisted history. */
+    fun startNewChat() {
+        viewModel.startNewChat()
+    }
+
     /** Clears the current error message. */
     fun dismissError() {
         viewModel.dismissError()

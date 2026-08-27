@@ -24,6 +24,14 @@ final class DictationReviewViewModel: ObservableObject {
         store.setTranscript(value: value)
     }
 
+    func canUseCloudExtraction() -> Bool {
+        store.canUseCloudExtraction()
+    }
+
+    func extract(transcript: String, language: String) async throws -> String {
+        try await store.extract(transcript: transcript, language: language)
+    }
+
     func reloadCaptures() {
         store.reloadCaptures()
     }

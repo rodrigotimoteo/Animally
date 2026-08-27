@@ -138,6 +138,7 @@ class AnalysisContextBuilderTest {
         assertTrue(text.contains("GESTATIONS:"), text)
         val line = text.lineSequence().first { it.startsWith("- Gestation") }
         // 2025-01-01 -> 2025-05-11 is exactly 130 days.
+        assertTrue(line.contains("bred 1 Jan 2025"), line)
         assertTrue(line.contains("day 130,"), line)
         assertTrue(line.contains("status Active,"), line)
         assertTrue(line.contains("expected foaling 2025-12-07."), line)
@@ -179,10 +180,33 @@ class AnalysisContextBuilderTest {
 
         val facts = builder.gestationFacts("What is Lua's current gestation day and due date?", today)
 
-        assertEquals(1, facts?.size)
-        assertEquals(130, facts?.single()?.progress?.gestationDays)
-        assertEquals(LocalDate(2025, 12, 7), facts?.single()?.progress?.expectedDueDate)
-        assertTrue(facts?.single()?.isActive == true)
+        val currentFacts = requireNotNull(facts)
+        assertEquals(1, currentFacts.size)
+        assertEquals(130, currentFacts.single().progress.gestationDays)
+        assertEquals(LocalDate(2025, 12, 7), currentFacts.single().progress.expectedDueDate)
+        assertTrue(currentFacts.single().isActive)
+        assertEquals(130, currentFacts.single().elapsedDays)
+    }
+
+    @Test
+    fun `given breeding timing query then current facts include recorded date and elapsed days`() {
+        repos.patients.patients = listOf(testPatient(1, "Lua"))
+        repos.gestations.entries =
+            listOf(
+                testGestation(
+                    id = 41,
+                    patientId = 1,
+                    breedingDate = LocalDate(2025, 1, 1),
+                    expectedDueDate = LocalDate(2025, 12, 6),
+                ),
+            )
+
+        val query = "How long ago was Lua bred?"
+        val facts = builder.gestationFacts(query, today)
+
+        assertTrue(AnalysisIntents.wantsBreedingTiming(query))
+        assertEquals(LocalDate(2025, 1, 1), facts?.single()?.gestation?.breedingDate)
+        assertEquals(130, facts?.single()?.elapsedDays)
     }
 
     @Test

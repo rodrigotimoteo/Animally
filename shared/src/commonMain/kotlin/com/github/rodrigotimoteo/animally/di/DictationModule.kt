@@ -4,7 +4,10 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule.Compa
 import com.github.rodrigotimoteo.animally.domain.dictation.InsertSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
+import com.github.rodrigotimoteo.animally.llm.GenerateDictationSessionUseCase
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationViewModel
+import com.github.rodrigotimoteo.animally.presentation.settings.CloudLlmSettingsStore
+import com.github.rodrigotimoteo.animally.presentation.settings.isReadyForCloudRouting
 import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
@@ -28,6 +31,8 @@ val dictationModule =
                 saveDictationCaptureUseCase = get(),
                 deleteDictationCaptureUseCase = get(),
                 ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
+                generateDictationSession = get<GenerateDictationSessionUseCase>(),
+                isCloudReady = { get<CloudLlmSettingsStore>().isReadyForCloudRouting() },
             )
         }
     }
