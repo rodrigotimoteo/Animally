@@ -9,7 +9,7 @@ class AssistantPromptsTest {
     @Test
     fun `given question with leading filler when enriched then filler tokens dropped`() {
         assertEquals(
-            "last tetanus vaccination Thunder",
+            "tetanus vaccination Thunder",
             AssistantPrompts.enrichQuery("What was the last tetanus vaccination for Thunder?"),
         )
     }
@@ -54,7 +54,7 @@ class AssistantPromptsTest {
         // "farrier" matches the hoof-care synonym group, so its remaining
         // members are appended as extra OR-terms (deliberate recall gain).
         assertEquals(
-            "Thunders* OR last* OR farrier* OR visit* OR shod* OR shoeing* OR shoes* OR trim*",
+            "Thunders* OR farrier* OR visit* OR shod* OR shoeing* OR shoes* OR trim* OR ferrador* OR ferragem* OR casco* OR cascos*",
             AssistantPrompts.toFtsOrQuery("When was Thunder's last farrier visit?"),
         )
     }
@@ -64,7 +64,7 @@ class AssistantPromptsTest {
         // Regression lock: "Thunder's" must become one clean token so the
         // OR-retry leg matches instead of emitting junk "s*" terms.
         assertEquals(
-            "Thunders last farrier visit",
+            "Thunders farrier visit",
             AssistantPrompts.enrichQuery("What was Thunder's last farrier visit?"),
         )
     }
@@ -80,8 +80,8 @@ class AssistantPromptsTest {
     @Test
     fun `given query without synonym matches when toFtsOrQuery then no expansion appended`() {
         assertEquals(
-            "follicle* OR ultrasound*",
-            AssistantPrompts.toFtsOrQuery("follicle ultrasound"),
+            "follicle* OR radiograph*",
+            AssistantPrompts.toFtsOrQuery("follicle radiograph"),
         )
     }
 
@@ -112,6 +112,11 @@ class AssistantPromptsTest {
     fun `given portuguese question when detected then true`() {
         assertTrue(AssistantPrompts.isPortugueseQuery("Quantos pacientes tenho?"))
         assertTrue(AssistantPrompts.isPortugueseQuery("Qual é a gestação da Bella?"))
+    }
+
+    @Test
+    fun `given unaccented portuguese activity question when detected then true`() {
+        assertTrue(AssistantPrompts.isPortugueseQuery("O que aconteceu este mes?"))
     }
 
     @Test

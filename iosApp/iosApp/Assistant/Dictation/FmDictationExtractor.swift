@@ -50,6 +50,12 @@ struct SuggestedRecordPayload {
 /// lives here and emits the DTO JSON itself.
 @available(iOS 26.0, *)
 struct FmDictationExtractor: DictationExtracting {
+    private let language: DictationLanguage
+
+    init(language: DictationLanguage) {
+        self.language = language
+    }
+
     /// Mirrors the availability check used by the assistant chat lane.
     static var isAvailable: Bool {
         guard #available(iOS 26.0, *) else { return false }
@@ -59,20 +65,22 @@ struct FmDictationExtractor: DictationExtracting {
         return false
     }
 
-    private static let instructions = """
-    You transcribe Portuguese (Portugal) veterinary dictations about horses \
-    into structured records. Today's date is \(Self.todayISO). For each record \
-    the speaker mentions, emit one entry with recordType "ultrasound", "weight" \
-    or "deworming". Resolve relative dates ("ontem", "hoje") to ISO yyyy-MM-dd. \
-    Keep patient names exactly as spoken even when unknown. Fill only fields \
-    the transcript expresses; leave everything else null. Never invent values.
-    """
+    private var instructions: String {
+        if language == .portuguese {
+            return """
+            Transforma ditados veterinários em português (Portugal) sobre cavalos em registos estruturados. A data de hoje é \(Self.todayISO). Para cada registo mencionado pelo utilizador, emite uma entrada com recordType "ultrasound", "weight" ou "deworming". Converte datas relativas ("ontem", "hoje") para o formato ISO yyyy-MM-dd. Mantém os nomes dos pacientes exatamente como foram ditados, mesmo que sejam desconhecidos. Preenche apenas os campos expressos no texto e deixa os restantes a null. Nunca inventes valores.
+            """
+        }
+        return """
+        Convert English veterinary dictations about horses into structured records. Today's date is \(Self.todayISO). For each record mentioned by the user, emit one entry with recordType "ultrasound", "weight" or "deworming". Resolve relative dates ("yesterday", "today") to ISO yyyy-MM-dd. Keep patient names exactly as spoken, even when unknown. Fill only fields expressed in the transcript and leave the rest null. Never invent values.
+        """
+    }
 
     func extract(
         transcript: String,
         onUpdate: ((String) -> Void)?
     ) async throws -> String {
-        let session = LanguageModelSession(instructions: Self.instructions)
+        let session = LanguageModelSession(instructions: instructions)
         let prompt = Prompt(transcript)
 
         var lastEncoded = ""

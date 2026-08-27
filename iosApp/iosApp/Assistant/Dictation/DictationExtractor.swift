@@ -23,6 +23,37 @@ protocol DictationExtracting {
     ) async throws -> String
 }
 
+/// Language selected for one dictation session. Speech recognition and
+/// structured extraction receive the same choice so an English transcript is
+/// not sent through Portuguese-only instructions (and vice versa).
+enum DictationLanguage: String, CaseIterable, Identifiable {
+    case english
+    case portuguese
+
+    var id: String { rawValue }
+
+    var localeIdentifier: String {
+        switch self {
+        case .english: return "en-US"
+        case .portuguese: return "pt-PT"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .english: return "English"
+        case .portuguese: return "Português (PT)"
+        }
+    }
+
+    var locale: Locale { Locale(identifier: localeIdentifier) }
+
+    static var deviceDefault: DictationLanguage {
+        let preferred = Locale.preferredLanguages.first?.lowercased() ?? ""
+        return preferred.hasPrefix("pt") ? .portuguese : .english
+    }
+}
+
 /// Explicit opt-in used only by the simulator UI test. Runtime availability
 /// must never silently turn the canned fixture into a production extractor.
 enum DictationTestConfiguration {
@@ -44,12 +75,12 @@ extension DictationExtracting {
 /// an unavailable result when structured extraction cannot run on-device.
 enum DictationExtractorFactory {
     @MainActor
-    static func make() -> any DictationExtracting {
+    static func make(language: DictationLanguage = .deviceDefault) -> any DictationExtracting {
         if DictationTestConfiguration.isEnabled {
             return MockDictationExtractor(latency: 0.1)
         }
         if #available(iOS 26.0, *), FmDictationExtractor.isAvailable {
-            return FmDictationExtractor()
+            return FmDictationExtractor(language: language)
         }
         return UnavailableDictationExtractor()
     }

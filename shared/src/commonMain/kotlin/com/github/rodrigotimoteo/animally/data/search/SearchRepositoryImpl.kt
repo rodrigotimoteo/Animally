@@ -31,6 +31,7 @@ import org.koin.core.annotation.Single
  * ([SearchFtsIndex]) and the FTS index ([SearchFts]) stay consistent.
  * The FTS rowid is kept aligned with the [SearchFtsIndex] id.
  */
+@Suppress("TooManyFunctions") // One adapter owns the cross-record FTS index.
 @Single(binds = [ISearchRepository::class])
 class SearchRepositoryImpl(
     @Provided private val database: AnimallyDatabase,
@@ -127,6 +128,15 @@ class SearchRepositoryImpl(
             }
         return recordHits + ownerHits
     }
+
+    override fun searchByDateRange(
+        from: LocalDate,
+        to: LocalDate,
+    ): List<SearchResult> =
+        searchQueries
+            .searchByDateRange(from, to)
+            .executeAsList()
+            .map { it.toDomain() }
 
     override fun rebuild() {
         database.transaction {

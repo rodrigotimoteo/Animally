@@ -22,6 +22,7 @@ struct DictationCaptureView: View {
     @State private var phase: Phase = .idle
     @State private var liveTranscript = ""
     @State private var editableTranscript = ""
+    @State private var selectedLanguage = DictationLanguage.deviceDefault
     @State private var errorMessage: String?
     @State private var fallbackLocaleHint: String?
     @State private var disambiguatedPatients: [Int: Patient] = [:]
@@ -93,6 +94,15 @@ struct DictationCaptureView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
 
+            Picker("Dictation language", selection: $selectedLanguage) {
+                ForEach(DictationLanguage.allCases) { language in
+                    Text(language.displayName).tag(language)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 24)
+            .accessibilityIdentifier("dictation_language")
+
             Button {
                 startRecording()
             } label: {
@@ -120,7 +130,7 @@ struct DictationCaptureView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task {
+        .task(id: selectedLanguage) {
             await prepareEngines()
         }
     }
@@ -233,8 +243,8 @@ struct DictationCaptureView: View {
 
     private func prepareEngines() async {
         isPreparingEngine = true
-        extractor = DictationExtractorFactory.make()
-        let resolved = await SpeechTranscriberService.resolve()
+        extractor = DictationExtractorFactory.make(language: selectedLanguage)
+        let resolved = await SpeechTranscriberService.resolve(preferredLocale: selectedLanguage.locale)
         guard !Task.isCancelled else { return }
         applyResolvedEngine(resolved)
         isPreparingEngine = false
@@ -256,7 +266,7 @@ struct DictationCaptureView: View {
             // speech assets finish installing, so always resolve once more at
             // the point of use instead of trusting a stale preflight result.
             isPreparingEngine = true
-            let resolved = await SpeechTranscriberService.resolve()
+            let resolved = await SpeechTranscriberService.resolve(preferredLocale: selectedLanguage.locale)
             guard !Task.isCancelled else { return }
             applyResolvedEngine(resolved)
             isPreparingEngine = false
@@ -267,14 +277,21 @@ struct DictationCaptureView: View {
             transcriber.partialHandler = { partial in
                 liveTranscript = partial
             }
-            transcriber.failureHandler = { failure in
+            transcriber.failureHandler = { [weak transcriber] failure in
                 errorMessage = failure
+                if phase == .recording {
+                    phase = .idle
+                    Task { [weak transcriber] in
+                        await transcriber?.cancel()
+                    }
+                }
             }
             do {
                 try await transcriber.start()
                 phase = .recording
             } catch {
                 errorMessage = error.localizedDescription
+                phase = .idle
             }
         }
     }

@@ -52,6 +52,22 @@ private class FakeRagLlmEngine : RagLlmEngine {
         }
 }
 
+private class DateAwareRagRecordSearch(
+    private val rows: List<SearchResult>,
+) : RagRecordSearch {
+    var requestedRange: RagDateRange? = null
+
+    override fun search(ftsQuery: String): List<SearchResult> = emptyList()
+
+    override fun searchByDateRange(
+        from: LocalDate,
+        to: LocalDate,
+    ): List<SearchResult> {
+        requestedRange = RagDateRange(from, to)
+        return rows
+    }
+}
+
 class GenerateRagResponseUseCaseTest {
     private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
     private val patientRepositoryMock: IPatientRepository = mock(MockMode.autoUnit)
@@ -143,6 +159,133 @@ class GenerateRagResponseUseCaseTest {
             assertTrue(output.first().contains("pregnant"))
             assertTrue(engine.lastInstructions.orEmpty().contains("general, educational, or casual questions"))
             assertTrue(!engine.lastInstructions.orEmpty().contains("ANSWER ONLY FROM THE CONTEXT BELOW"))
+        }
+
+    @Test
+    fun `given current month activity question then only dated rows in current month are returned deterministically`() =
+        runTest {
+            val inMonth = result(recordId = 1L, snippet = "pregnancy confirmed").copy(date = LocalDate(2026, 8, 3))
+            val today = result(recordId = 2L, snippet = "weight recorded").copy(date = LocalDate(2026, 8, 24))
+            val outsideMonth = result(recordId = 3L, snippet = "colic").copy(date = LocalDate(2026, 7, 31))
+            val dateSearch = DateAwareRagRecordSearch(listOf(inMonth, today, outsideMonth))
+
+            val events =
+                sut(
+                    recordSearch = dateSearch,
+                    today = LocalDate(2026, 8, 24),
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("What happened this month?").toList()
+
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals(0, engine.calls, "simple activity is already a database projection")
+            assertEquals(RagDateRange(LocalDate(2026, 8, 1), LocalDate(2026, 8, 24)), dateSearch.requestedRange)
+            assertTrue(answer.contains("pregnancy confirmed"), answer)
+            assertTrue(answer.contains("weight recorded"), answer)
+            assertFalse(answer.contains("colic"), "a row outside the requested month must not leak: $answer")
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(listOf(1L, 2L), sources.sources.map { it.recordId })
+        }
+
+    @Test
+    fun `given cloud current month activity with no rows then honest fallback and no model call`() =
+        runTest {
+            val dateSearch = DateAwareRagRecordSearch(emptyList())
+
+            val output =
+                sut(
+                    recordSearch = dateSearch,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("What happened this month?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+            assertEquals(0, engine.calls)
+        }
+
+    @Test
+    fun `given explicit patient question then another patients row is excluded from prompt and sources`() =
+        runTest {
+            val thunder = result(recordId = 11L, patientName = "Thunder", snippet = "pregnancy confirmed")
+            val bella = result(recordId = 12L, patientName = "Bella", snippet = "colic")
+            val search =
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String): List<SearchResult> = listOf(thunder, bella)
+                }
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Bella")
+
+            val events =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                )("What did Thunder receive?").toList()
+
+            assertTrue(engine.lastPrompt.orEmpty().contains("[VACCINATION #11] Thunder"))
+            assertFalse(engine.lastPrompt.orEmpty().contains("[VACCINATION #12] Bella"))
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(listOf(11L), sources.sources.map { it.recordId })
+        }
+
+    @Test
+    fun `given unknown named patient then other patients cannot ground a cloud answer`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Bella")
+            val search =
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String): List<SearchResult> =
+                        listOf(
+                            result(recordId = 11L, patientName = "Thunder"),
+                            result(recordId = 12L, patientName = "Bella"),
+                        )
+                }
+
+            val output =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("Is Storm pregnant?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+            assertEquals(0, engine.calls, "unknown patient names must not borrow another patient's records")
+        }
+
+    @Test
+    fun `given ambiguous patient prefix then records stay out of the cloud context`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Thunderbird")
+            val search =
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String): List<SearchResult> = listOf(result())
+                }
+
+            val output =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("Is Thund pregnant?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+            assertEquals(0, engine.calls, "ambiguous patient prefixes must not select an arbitrary horse")
+        }
+
+    @Test
+    fun `given pregnancy question with only a vaccination row then cloud still refuses to invent gestation`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder")
+            val search =
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String): List<SearchResult> = listOf(result())
+                }
+
+            val output =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("Is Thunder pregnant?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+            assertEquals(0, engine.calls)
         }
 
     @Test
@@ -250,6 +393,33 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given portuguese latest-record date question then deterministic answer is localized`() =
+        runTest {
+            val farrier =
+                result(recordId = 302L, snippet = "Ferragem")
+                    .copy(recordType = "FARRIER_VISIT", date = LocalDate(2026, 8, 22))
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(farrier)
+
+            val events = sut()("Quando foi a última ferragem da Thunder?").toList()
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+
+            assertEquals(0, engine.calls, "Portuguese superlative-date answers are computed, never modeled")
+            assertTrue(answer.contains("visita de ferragem"), "answer must be localized: $answer")
+            assertTrue(answer.contains("22 Aug 2026"), "answer must carry the retrieved date: $answer")
+            val sourceId =
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .single()
+                    .recordId
+            assertEquals(
+                302L,
+                sourceId,
+            )
+        }
+
+    @Test
     fun `given latest-record date question without typed records when invoked then honest fallback and zero engine calls`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result()) // VACCINATION only
@@ -261,7 +431,7 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `given empty retrieval but relevant history when invoked then engine still called`() =
+    fun `given empty retrieval but relevant history then strict record question still falls back`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
@@ -273,10 +443,10 @@ class GenerateRagResponseUseCaseTest {
                     ),
                 )
 
-            val output = sut()("When was his last farrier visit?", history).answers()
+            val output = sut()("When was his last farrier visit?", history).chunks()
 
-            assertEquals(1, engine.calls, "history sharing the subject keeps multi-turn context usable")
-            assertTrue(output.first().contains("pregnant")) // default fake chunk passes through sanitize
+            assertEquals(0, engine.calls, "conversation text must not unlock an unsupported record fact")
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
         }
 
     @Test
@@ -389,7 +559,7 @@ class GenerateRagResponseUseCaseTest {
 
             assertEquals(1, engine.calls)
             assertTrue(engine.lastPrompt.orEmpty().contains("[VACCINATION #123] Thunder"), "context must carry the citable header")
-            assertTrue(engine.lastPrompt.orEmpty().contains("Question: She is pregnant"))
+            assertTrue(engine.lastPrompt.orEmpty().contains("Question: $QUERY"))
             assertEquals(AssistantPrompts.SYSTEM_PROMPT, engine.lastInstructions)
             // Model output passes through sanitize(): no markdown survives.
             // The searching placeholder leads the stream; the model text is
@@ -480,11 +650,11 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `given weak AND leg when OR retry recovers records then patient scoping ranks them first`() =
+    fun `given weak AND leg when OR retry recovers records then patient scoping excludes other patients`() =
         runTest {
-            // Call 1: the AND query - ONE weak hit, on the WRONG patient
-            // (pre-threshold behavior would have returned it unscooped).
-            // Call 2: the OR retry recovering both patients' records.
+            // Call 1: the AND query - ONE weak hit, on the WRONG patient.
+            // Call 2: the OR retry recovering both patients' records. Patient
+            // scope is an exclusion boundary, not only a ranking hint.
             val andLegComet = result(recordId = 201, patientName = "Comet")
             val retryBella = result(recordId = 202, patientName = "Bella")
             val retryComet = result(recordId = 203, patientName = "Comet")
@@ -499,12 +669,8 @@ class GenerateRagResponseUseCaseTest {
 
             val prompt = engine.lastPrompt.orEmpty()
             assertTrue(prompt.contains("[VACCINATION #202] Bella"))
-            val bellaIndex = prompt.indexOf("[VACCINATION #202] Bella")
-            val firstCometIndex = prompt.indexOf("[VACCINATION #201] Comet")
-            assertTrue(
-                bellaIndex in 0 until firstCometIndex,
-                "scoped-patient record recovered by the OR retry must rank ahead of the weak AND-leg hit",
-            )
+            assertFalse(prompt.contains("[VACCINATION #201] Comet"))
+            assertFalse(prompt.contains("[VACCINATION #203] Comet"))
         }
 
     @Test
@@ -902,12 +1068,37 @@ class GenerateRagResponseUseCaseTest {
     @Test
     fun `given weight phrasing when invoked then guardrail does not fire`() =
         runTest {
-            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns
+                listOf(result(snippet = "512 kg recorded").copy(recordType = "WEIGHT"))
 
             val output = sut()("How much does she weigh?").answers()
 
             assertEquals(1, engine.calls, "weight questions are not dosage intents")
             assertTrue(!output.first().contains("dosages"))
+        }
+
+    @Test
+    fun `given requested type outside the requested date then strict fallback wins`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder")
+            val oldVaccination = result(recordId = 401L).copy(date = LocalDate(2026, 7, 31))
+            val currentWeight =
+                result(recordId = 402L, snippet = "512 kg recorded")
+                    .copy(recordType = "WEIGHT", date = LocalDate(2026, 8, 10))
+            val search =
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String): List<SearchResult> = listOf(oldVaccination, currentWeight)
+                }
+
+            val output =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("What vaccination did Thunder receive this month?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+            assertEquals(0, engine.calls, "a different record in the same month must not ground vaccination")
         }
 
     @Test
@@ -1028,7 +1219,7 @@ class GenerateRagResponseUseCaseTest {
         }
 
     private companion object {
-        const val QUERY = "She is pregnant"
+        const val QUERY = "Tell me about the vaccination note"
         const val FALLBACK_TEXT =
             "I couldn't find anything about that in your records. Try asking " +
                 "about a horse by name, a treatment, vaccination, or a date."

@@ -42,6 +42,16 @@ interface ISearchRepository {
     ): List<SearchResult>
 
     /**
+     * Returns every active dated record in the inclusive window. This is used
+     * for date-only assistant questions where FTS terms would be filler and a
+     * relevance search could select an unrelated row.
+     */
+    fun searchByDateRange(
+        from: LocalDate,
+        to: LocalDate,
+    ): List<SearchResult> = emptyList()
+
+    /**
      * Indexes (or replaces) the searchable record identified by [recordType] and [recordId].
      */
     fun indexRecord(
@@ -126,7 +136,10 @@ interface ISearchRepository {
          * v11: medication rows are included in full healing, and healing starts
          * from an empty derived index so rows for records deleted since the
          * previous healing pass cannot remain searchable.
+         *
+         * v12: force one clean rebuild before date-scoped assistant activity
+         * queries rely on the metadata table as their authoritative row set.
          */
-        const val SEARCH_INDEX_VERSION = "11"
+        const val SEARCH_INDEX_VERSION = "12"
     }
 }

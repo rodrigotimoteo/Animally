@@ -124,10 +124,13 @@ struct ResolvedDictationEngine {
     /// e.g. "pt-PT" or a degraded fallback like "en-US".
     let localeIdentifier: String
 
+    /// BCP-47 identifier requested by the user for this capture.
+    let preferredLocaleIdentifier: String
+
     /// True when recognition runs in a language other than the preferred
     /// dictation locale (graceful degradation).
     var usesFallbackLocale: Bool {
-        localeIdentifier != SpeechTranscriberService.dictationLocale.identifier
+        localeIdentifier != preferredLocaleIdentifier
     }
 
     /// Human-readable language name for hints, e.g. "English".
@@ -143,12 +146,15 @@ struct ResolvedDictationEngine {
 /// Factory choosing the best available transcriber engine.
 ///
 /// Preference order, degrading gracefully — dictation is never blocked:
-/// 1. iOS 26 SpeechAnalyzer in the preferred pt-PT locale, downloading its
-///    speech assets first when the platform offers that.
-/// 2. iOS 26 SpeechAnalyzer in the best installed alternative locale
-///    (en-US preferred, then any other supported locale).
-/// 3. Classic `SFSpeechRecognizer` pipeline (`DictationTranscriber`), whose
-///    locale support is broader than the SpeechAnalyzer asset catalog.
+/// 1. iOS 26 SpeechAnalyzer in the selected language, downloading its speech
+///    assets when the platform offers that.
+/// 2. Classic `SFSpeechRecognizer` in the selected language or a matching
+///    regional variant.
+///
+/// The resolver never silently changes an English request into another
+/// language. When SpeechAnalyzer is available, its legacy engine is retained
+/// as a startup/runtime fallback for devices whose microphone route cannot be
+/// converted to the analyzer format.
 enum SpeechTranscriberService {
     /// Locale dictated sessions are captured in.
     static let dictationLocale = Locale(identifier: "pt-PT")
@@ -159,25 +165,36 @@ enum SpeechTranscriberService {
 
     /// Resolves the best usable dictation engine for this device.
     @MainActor
-    static func resolve() async -> ResolvedDictationEngine? {
+    static func resolve(
+        preferredLocale: Locale = dictationLocale
+    ) async -> ResolvedDictationEngine? {
         if DictationTestConfiguration.isEnabled {
             return ResolvedDictationEngine(
                 transcriber: MockSpeechTranscriber(),
-                localeIdentifier: dictationLocale.identifier
+                localeIdentifier: preferredLocale.identifier,
+                preferredLocaleIdentifier: preferredLocale.identifier,
             )
         }
+        let legacy = legacyEngine(for: preferredLocale)
         if #available(iOS 26.0, *) {
-            if let engine = await analyzerEngine(for: dictationLocale, allowDownload: true) {
-                return engine
-            }
-            for candidate in await fallbackAnalyzerLocales()
-            where candidate.identifier != dictationLocale.identifier {
+            for (index, candidate) in await analyzerLocales(for: preferredLocale).enumerated() {
                 if let engine = await analyzerEngine(for: candidate, allowDownload: false) {
-                    return engine
+                    return withLegacyFallback(
+                        analyzer: engine,
+                        legacy: legacy,
+                        preferredLocale: preferredLocale,
+                    )
+                }
+                if index == 0, let engine = await analyzerEngine(for: candidate, allowDownload: true) {
+                    return withLegacyFallback(
+                        analyzer: engine,
+                        legacy: legacy,
+                        preferredLocale: preferredLocale,
+                    )
                 }
             }
         }
-        return legacyEngine()
+        return legacy
     }
 
     /// Builds a SpeechAnalyzer engine for `locale` when its speech assets are
@@ -209,7 +226,8 @@ enum SpeechTranscriberService {
         func engine() -> ResolvedDictationEngine {
             ResolvedDictationEngine(
                 transcriber: SpeechAnalyzerTranscriber(locale: supported),
-                localeIdentifier: supported.identifier
+                localeIdentifier: supported.identifier,
+                preferredLocaleIdentifier: locale.identifier,
             )
         }
 
@@ -248,26 +266,36 @@ enum SpeechTranscriberService {
         }
     }
 
-    /// Alternative SpeechAnalyzer locales to try, best first: en-US, then
-    /// every other supported locale in deterministic order.
+    /// SpeechAnalyzer locales matching the selected language, with the exact
+    /// requested locale first and regional variants as installed fallbacks.
     @available(iOS 26.0, *)
-    private static func fallbackAnalyzerLocales() async -> [Locale] {
-        let englishUS = Locale(identifier: "en-US")
+    private static func analyzerLocales(for preferred: Locale) async -> [Locale] {
+        let languageCode = preferred.language.languageCode?.identifier
+        let exact = preferred.identifier
         let rest = await SpeechTranscriber.supportedLocales
-            .filter { $0 != englishUS }
+            .filter {
+                $0.identifier != exact &&
+                    (languageCode == nil || $0.language.languageCode?.identifier == languageCode)
+            }
             .sorted { $0.identifier < $1.identifier }
-        return [englishUS] + rest
+        return [preferred] + rest
     }
 
     /// Classic `SFSpeechRecognizer` fallback with broader locale coverage:
-    /// the preferred locale when recognized, else en-US, else whatever the
-    /// system lists first.
+    /// the preferred locale when recognized, else a matching regional variant.
     @MainActor
-    private static func legacyEngine() -> ResolvedDictationEngine? {
+    private static func legacyEngine(for preferredLocale: Locale) -> ResolvedDictationEngine? {
         let supportedIdentifiers = SFSpeechRecognizer.supportedLocales().map(\.identifier)
-        let preferred = dictationLocale.identifier
+        let preferred = preferredLocale.identifier
+        let languageCode = preferredLocale.language.languageCode?.identifier
         let candidates =
-            [preferred, "en-US"] + supportedIdentifiers.filter { $0 != preferred && $0 != "en-US" }
+            [preferred] +
+            supportedIdentifiers
+                .filter { identifier -> Bool in
+                    identifier != preferred &&
+                        (languageCode == nil || Locale(identifier: identifier).language.languageCode?.identifier == languageCode)
+                }
+                .sorted()
         for identifier in candidates {
             guard
                 let recognizer = SFSpeechRecognizer(locale: Locale(identifier: identifier)),
@@ -277,10 +305,28 @@ enum SpeechTranscriberService {
             }
             return ResolvedDictationEngine(
                 transcriber: DictationTranscriber(localeIdentifier: identifier),
-                localeIdentifier: identifier
+                localeIdentifier: identifier,
+                preferredLocaleIdentifier: preferred,
             )
         }
         return nil
+    }
+
+    @MainActor
+    private static func withLegacyFallback(
+        analyzer: ResolvedDictationEngine,
+        legacy: ResolvedDictationEngine?,
+        preferredLocale: Locale,
+    ) -> ResolvedDictationEngine {
+        guard let legacy else { return analyzer }
+        return ResolvedDictationEngine(
+            transcriber: ResilientSpeechTranscriber(
+                primary: analyzer.transcriber,
+                fallback: { legacy.transcriber },
+            ),
+            localeIdentifier: analyzer.localeIdentifier,
+            preferredLocaleIdentifier: preferredLocale.identifier,
+        )
     }
 }
 
@@ -301,6 +347,100 @@ private enum SpeechAnalyzerTranscriberError: LocalizedError {
     }
 }
 
+/// Keeps a legacy recognizer ready when the iOS 26 analyzer cannot start or
+/// loses its audio conversion pipeline. The fallback is deliberately scoped
+/// to the same requested language; changing languages is a user choice, not a
+/// hidden recovery side effect.
+@MainActor
+final class ResilientSpeechTranscriber: SpeechTranscribing {
+    private let primary: any SpeechTranscribing
+    private let fallbackFactory: () -> (any SpeechTranscribing)?
+    private var active: (any SpeechTranscribing)?
+    private var isSwitching = false
+    private var hasFinished = false
+
+    var partialHandler: ((String) -> Void)?
+    var failureHandler: ((String) -> Void)?
+
+    var recordingFilePath: String? { active?.recordingFilePath }
+    var recordingDurationMillis: Int64? { active?.recordingDurationMillis }
+
+    init(
+        primary: any SpeechTranscribing,
+        fallback: @escaping () -> (any SpeechTranscribing)?,
+    ) {
+        self.primary = primary
+        self.fallbackFactory = fallback
+    }
+
+    func start() async throws {
+        hasFinished = false
+        isSwitching = false
+        active = primary
+        bindHandlers(to: primary)
+        do {
+            try await primary.start()
+        } catch {
+            await primary.cancel()
+            try await startFallback(orThrow: error)
+        }
+    }
+
+    func finish() async throws -> String {
+        hasFinished = true
+        guard let active else { return "" }
+        return try await active.finish()
+    }
+
+    func cancel() async {
+        hasFinished = true
+        isSwitching = false
+        await active?.cancel()
+    }
+
+    private func bindHandlers(to transcriber: any SpeechTranscribing) {
+        transcriber.partialHandler = { [weak self] text in
+            self?.partialHandler?(text)
+        }
+        transcriber.failureHandler = { [weak self] message in
+            self?.handleFailure(message)
+        }
+    }
+
+    private func handleFailure(_ message: String) {
+        guard isPrimaryActive, !isSwitching, !hasFinished else {
+            failureHandler?(message)
+            return
+        }
+        isSwitching = true
+        Task { @MainActor [weak self] in
+            guard let self, !self.hasFinished else { return }
+            await self.primary.cancel()
+            do {
+                try await self.startFallback(orThrow: nil)
+            } catch {
+                self.failureHandler?(error.localizedDescription)
+            }
+            self.isSwitching = false
+        }
+    }
+
+    private func startFallback(orThrow originalError: Error?) async throws {
+        guard let fallback = fallbackFactory() else {
+            if let originalError { throw originalError }
+            throw DictationTranscriberError.recognizerUnavailable
+        }
+        active = fallback
+        bindHandlers(to: fallback)
+        try await fallback.start()
+    }
+
+    private var isPrimaryActive: Bool {
+        guard let active else { return false }
+        return ObjectIdentifier(active as AnyObject) == ObjectIdentifier(primary as AnyObject)
+    }
+}
+
 /// Converts the hardware microphone format to the format supported by the
 /// active SpeechAnalyzer module. The wrapper is intentionally sendable because
 /// its only cross-thread operation is protected by a lock; the audio tap can
@@ -317,6 +457,7 @@ private final class SpeechAnalyzerAudioConverter: @unchecked Sendable {
         }
         self.converter = converter
         self.analyzerFormat = analyzerFormat
+        converter.primeMethod = .none
     }
 
     func convert(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
@@ -328,8 +469,9 @@ private final class SpeechAnalyzerAudioConverter: @unchecked Sendable {
             throw SpeechAnalyzerTranscriberError.audioConversionFailed
         }
 
-        let outputCapacity = AVAudioFrameCount(
-            ceil(Double(buffer.frameLength) * sampleRateRatio) + 32
+        let outputCapacity = max(
+            AVAudioFrameCount(1),
+            AVAudioFrameCount(ceil(Double(buffer.frameLength) * sampleRateRatio) + 32),
         )
         guard let converted = AVAudioPCMBuffer(
             pcmFormat: analyzerFormat,
@@ -340,7 +482,7 @@ private final class SpeechAnalyzerAudioConverter: @unchecked Sendable {
 
         var conversionError: NSError?
         var hasProvidedInput = false
-        _ = converter.convert(to: converted, error: &conversionError) { _, status in
+        let status = converter.convert(to: converted, error: &conversionError) { _, status in
             guard !hasProvidedInput else {
                 status.pointee = .endOfStream
                 return nil
@@ -349,7 +491,11 @@ private final class SpeechAnalyzerAudioConverter: @unchecked Sendable {
             status.pointee = .haveData
             return buffer
         }
-        guard conversionError == nil, converted.frameLength > 0 else {
+        guard
+            (status == .haveData || status == .inputRanDry),
+            conversionError == nil,
+            converted.frameLength > 0
+        else {
             throw SpeechAnalyzerTranscriberError.audioConversionFailed
         }
         return converted
@@ -394,6 +540,8 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         recordingFilePath = nil
         recordingDurationMillis = nil
         keepCompletedRecording = false
+        confirmedText = ""
+        finalText = ""
         audioWriter = DictationAudioFileWriter()
         let transcriber = SpeechTranscriber(
             locale: locale,
@@ -406,14 +554,25 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         let analyzer = SpeechAnalyzer(modules: [transcriber], options: nil)
         self.analyzer = analyzer
 
-        configureAudioSession()
+        do {
+            try configureAudioSession()
+        } catch {
+            teardownAudioPipeline()
+            throw error
+        }
 
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
+        guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
+            teardownAudioPipeline()
+            throw DictationTranscriberError.microphoneUnavailable
+        }
         guard
-            let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
-                compatibleWith: [transcriber]
-            )
+            let analyzerFormat =
+                await SpeechAnalyzer.bestAvailableAudioFormat(
+                    compatibleWith: [transcriber],
+                    considering: inputFormat,
+                )
         else {
             teardownAudioPipeline()
             throw SpeechAnalyzerTranscriberError.analyzerFormatUnavailable
@@ -478,6 +637,7 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         let audioWriter = self.audioWriter
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) {
             [weak self, continuation, audioWriter, audioConverter] buffer, when in
+            guard buffer.frameLength > 0 else { return }
             audioWriter?.append(buffer)
             do {
                 let converted = try audioConverter.convert(buffer)
@@ -541,10 +701,15 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         teardownAudioPipeline()
     }
 
-    private func configureAudioSession() {
+    private func configureAudioSession() throws {
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker])
-        try? session.setActive(true)
+        try session.setCategory(.record, mode: .measurement, options: [.allowBluetoothHFP])
+        try? session.setPreferredSampleRate(44_100)
+        try? session.setPreferredIOBufferDuration(0.02)
+        try session.setActive(true, options: .notifyOthersOnDeactivation)
+        guard session.isInputAvailable, !session.currentRoute.inputs.isEmpty else {
+            throw DictationTranscriberError.microphoneUnavailable
+        }
     }
 
     private func stopAudioInput() {
@@ -554,6 +719,10 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
 
     private func teardownAudioPipeline() {
         stopAudioInput()
+        pumpTask?.cancel()
+        resultsTask?.cancel()
+        pumpTask = nil
+        resultsTask = nil
         bufferStream?.finish()
         bufferStream = nil
         audioConverter = nil
@@ -607,11 +776,19 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
         recordingFilePath = nil
         recordingDurationMillis = nil
         keepCompletedRecording = false
+        latestTranscript = ""
+        finalText = ""
         audioWriter = DictationAudioFileWriter()
-        configureAudioSession()
+        do {
+            try configureAudioSession()
+        } catch {
+            teardownAudioPipeline()
+            throw error
+        }
 
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
         guard let recognizer, recognizer.isAvailable else {
+            teardownAudioPipeline()
             throw DictationTranscriberError.recognizerUnavailable
         }
         self.recognizer = recognizer
@@ -689,10 +866,15 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
         finishContinuation = nil
     }
 
-    private func configureAudioSession() {
+    private func configureAudioSession() throws {
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker])
-        try? session.setActive(true)
+        try session.setCategory(.record, mode: .measurement, options: [.allowBluetoothHFP])
+        try? session.setPreferredSampleRate(44_100)
+        try? session.setPreferredIOBufferDuration(0.02)
+        try session.setActive(true, options: .notifyOthersOnDeactivation)
+        guard session.isInputAvailable, !session.currentRoute.inputs.isEmpty else {
+            throw DictationTranscriberError.microphoneUnavailable
+        }
     }
 
     private func teardownAudioPipeline() {
@@ -752,12 +934,14 @@ final class MockSpeechTranscriber: SpeechTranscribing {
 
 enum DictationTranscriberError: LocalizedError {
     case recognizerUnavailable
+    case microphoneUnavailable
     case microphoneDenied
     case speechPermissionDenied
 
     var errorDescription: String? {
         switch self {
         case .recognizerUnavailable: return "Speech recognition is not available for this language."
+        case .microphoneUnavailable: return "The microphone is unavailable. Check the audio route and try again."
         case .microphoneDenied: return "Microphone access is denied. Enable it in Settings."
         case .speechPermissionDenied: return "Speech recognition is denied. Enable it in Settings."
         }

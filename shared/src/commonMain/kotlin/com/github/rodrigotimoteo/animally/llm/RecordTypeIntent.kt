@@ -20,25 +20,48 @@ object RecordTypeIntent {
         listOf(
             Regex(
                 "\\b(farrier|farriers|shoe|shoes|shod|shoeing|reshod|" +
-                    "trim|trims|trimmed|trimming|hoof|hoves)\\b",
+                    "trim|trims|trimmed|trimming|hoof|hoves|ferrador|ferragem|" +
+                    "casco|cascos|aparar|aparação|aparacao)\\b",
             ) to setOf("FARRIER_VISIT"),
             Regex(
-                "\\b(dental|dentistry|float|floated|floating|floats|molar|molars|incisor|incisors|quidding)\\b",
+                "\\b(dental|dentistry|float|floated|floating|floats|molar|molars|incisor|incisors|quidding|" +
+                    "dentário|dentaria|dentária|odontologia|dente|dentes|molares|incisivo|" +
+                    "incisivos|flutuação|flutuacao)\\b",
             ) to setOf("DENTISTRY"),
             Regex(
-                "\\b(deworm|dewormed|deworming|wormer|worming|ivermectin|fenbendazole|moxidectin|pyrantel)\\b",
+                "\\b(deworm|dewormed|deworming|wormer|worming|ivermectin|fenbendazole|moxidectin|pyrantel|" +
+                    "desparasitação|desparasitacao|desparasitado|vermifugação|vermifugacao|vermifugado|" +
+                    "vermes|ivermectina|fenbendazol|moxidectina|pirantel)\\b",
             ) to setOf("DEWORMING"),
             Regex(
                 "\\b(vaccination|vaccinations|vaccinated|vaccine|vaccines|" +
-                    "booster|boosters|tetanus|influenza|rabies)\\b",
+                    "booster|boosters|tetanus|influenza|rabies|vacinação|vacinacao|vacina|vacinas|" +
+                    "vacinado|vacinada|reforço|reforco|tétano|tetano|raiva)\\b",
             ) to setOf("VACCINATION"),
+            Regex(
+                "\\b(pregnant|pregnancy|gestation|gestations|foaling|in\\s+foal|bred|breeding|" +
+                    "prenha|prenhe|prenhez|gravidez|gestação|gestacao|gestacoes|gestações|" +
+                    "parição|paricao|parições|paricoes)\\b",
+            ) to setOf("GESTATION"),
+            Regex(
+                "\\b(weight|weights|weigh|weighs|weighed|weighing|kg|peso|pesos|" +
+                    "pesada|pesado|pesagem)\\b",
+            ) to setOf("WEIGHT"),
+            Regex(
+                "\\b(ultrasound|ultrasonography|ecografia|ecografias|ultrassom|ultrassons)\\b",
+            ) to setOf("ULTRASOUND"),
         )
 
     /** "when was his last..." / "most recent farrier visit" / "last ... date" shapes. */
     private val latestDateRegex =
         Regex(
             "\\b(when|date|how recent).{0,40}?\\b(last|latest|most recent|previous|prior)\\b|" +
-                "\\b(last|latest|most recent)\\b.{0,40}?\\b(visit|vaccination|booster|check|appointment|record)\\b",
+                "\\b(last|latest|most recent)\\b.{0,40}?\\b(visit|vaccination|booster|check|appointment|record)\\b|" +
+                "\\b(quando|data).{0,40}?\\b(últim[oa]s?|ultim[oa]s?|" +
+                "mais recente[s]?)\\b|" +
+                "\\b(últim[oa]s?|ultim[oa]s?|mais recente[s]?)\\b.{0,40}?\\b" +
+                "(visi(?:ta|tas)|vacina(?:ção|cao|ções|coes)?|consulta[s]?|" +
+                "registo[s]?|ferragem|tratamento[s]?)\\b",
         )
 
     /**
@@ -142,6 +165,64 @@ object RecordTypeIntent {
             "i",
             "tell",
             "about",
+            "o",
+            "os",
+            "as",
+            "um",
+            "uma",
+            "uns",
+            "umas",
+            "que",
+            "qual",
+            "quais",
+            "foi",
+            "são",
+            "sao",
+            "não",
+            "nao",
+            "há",
+            "ha",
+            "do",
+            "da",
+            "dos",
+            "das",
+            "em",
+            "com",
+            "meu",
+            "minha",
+            "meus",
+            "minhas",
+            "seu",
+            "sua",
+            "seus",
+            "suas",
+            "tenho",
+            "temos",
+            "este",
+            "esta",
+            "neste",
+            "nesta",
+            "mês",
+            "mes",
+            "semana",
+            "ano",
+            "hoje",
+            "ontem",
+            "aconteceu",
+            "ocorreu",
+            "último",
+            "última",
+            "últimos",
+            "últimas",
+            "ultimo",
+            "ultima",
+            "ultimos",
+            "ultimas",
+            "mais",
+            "recente",
+            "recentes",
+            "registo",
+            "registos",
         )
 }
 
@@ -158,7 +239,7 @@ internal fun latestRecordAnswer(
     results: List<SearchResult>,
     scope: String?,
 ): SearchResult? {
-    if (AssistantPrompts.isPortugueseQuery(query) || !RecordTypeIntent.isLatestRecordDateQuery(query)) {
+    if (!RecordTypeIntent.isLatestRecordDateQuery(query)) {
         return null
     }
     val expectedTypes = RecordTypeIntent.expectedRecordTypes(query)
@@ -198,11 +279,27 @@ internal fun recordTypeNoun(recordType: String): String =
                 ?: "record"
     }
 
+/** Human noun for a record type in the Portuguese deterministic answer path. */
+private fun recordTypeNounPortuguese(recordType: String): String =
+    when (recordType) {
+        RecordType.FarrierVisit.wireName -> "visita de ferragem"
+        RecordType.Dentistry.wireName -> "consulta dentária"
+        RecordType.Vaccination.wireName -> "vacinação"
+        RecordType.Deworming.wireName -> "desparasitação"
+        else -> recordTypeNoun(recordType)
+    }
+
+/** Selects the user-facing record noun for the answer language. */
+internal fun recordTypeNoun(
+    recordType: String,
+    portuguese: Boolean,
+): String = if (portuguese) recordTypeNounPortuguese(recordType) else recordTypeNoun(recordType)
+
 /** Renders a date as "14 Mar 2026" (locale-independent, mirrors the RAG chunk format). */
 internal fun formatHumanDateShort(date: kotlinx.datetime.LocalDate): String {
     val months =
         listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    return "${date.day} ${months[date.monthNumber - 1]} ${date.year}"
+    return "${date.day} ${months[date.month.ordinal]} ${date.year}"
 }
 
 /**
@@ -219,8 +316,13 @@ internal suspend fun FlowCollector<RagStreamEvent>.emitLatestRecordAnswer(
     val date = latest.date ?: return false
     val header = "[${latest.recordType} #${latest.recordId}]"
     val sentence =
-        "${latest.patientName}'s most recent ${recordTypeNoun(latest.recordType)} on record was on " +
-            formatHumanDateShort(date)
+        if (AssistantPrompts.isPortugueseQuery(query)) {
+            "O registo mais recente de ${recordTypeNounPortuguese(latest.recordType)} de " +
+                "${latest.patientName} foi em ${formatHumanDateShort(date)}"
+        } else {
+            "${latest.patientName}'s most recent ${recordTypeNoun(latest.recordType)} on record was on " +
+                formatHumanDateShort(date)
+        }
     emit(RagStreamEvent.Chunk("$sentence. $header"))
     emit(RagStreamEvent.Sources(listOf(latest)))
     return true

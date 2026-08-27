@@ -27,6 +27,7 @@ import kotlin.time.Clock
  * predictably. Queries without analysis intent return null and skip the
  * repository scan entirely.
  */
+@Suppress("TooManyFunctions") // One deterministic block per supported record analysis.
 class AnalysisContextBuilder(
     private val patientRepository: IPatientRepository,
     private val weightRepository: IWeightRepository,
@@ -48,41 +49,68 @@ class AnalysisContextBuilder(
     ): String? {
         if (!AnalysisIntents.isAnalysisQuery(query)) return null
         val patients = patientRepository.getPatientList()
-        val scoped = scopedPatient(patients, query)
-        val careTargets = if (scoped != null) listOf(scoped) else patients
+        val matchedPatients = patientNameMatches(patients, query)
+        val scoped = matchedPatients.singleOrNull()
+        val hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query)
+        val hasLikelyName = RecordQuestionIntent.hasLikelyNamedPatientReference(query)
+        val careTargets =
+            resolveCareTargets(
+                patients,
+                matchedPatients,
+                scoped,
+                hasIndividualReference,
+                hasLikelyName,
+            )
         val blocks =
             buildList {
                 if (AnalysisIntents.wantsCensus(query)) add(censusBlock(patients))
                 if (scoped != null && AnalysisIntents.wantsWeight(query)) weightTrendBlock(scoped)?.let(::add)
                 if (AnalysisIntents.wantsCareCounts(query)) careBlock(careTargets)?.let(::add)
-                if (AnalysisIntents.wantsGestation(query)) gestationBlock(patients, today)?.let(::add)
-                if (AnalysisIntents.wantsOverdue(query)) overdueBlock(patients, today)?.let(::add)
+                if (AnalysisIntents.wantsGestation(query)) gestationBlock(careTargets, today)?.let(::add)
+                if (AnalysisIntents.wantsOverdue(query)) overdueBlock(careTargets, today)?.let(::add)
             }
         return assemble(blocks)
     }
 
     /**
-     * The single patient whose name prefix-matches a query token
-     * (case-insensitive, possessives stripped), or null when ambiguous or
-     * unmatched. Mirrors GenerateRagResponseUseCase's scoping so summaries
-     * and retrieval agree on which patient the question is about.
+     * Patients whose names prefix-match a query token (case-insensitive,
+     * possessives stripped). The caller treats multiple matches as ambiguous
+     * so summaries and retrieval agree on which patient the question is about.
      */
-    private fun scopedPatient(
+    private fun patientNameMatches(
         patients: List<Patient>,
         query: String,
-    ): Patient? {
+    ): List<Patient> {
         val tokens =
             query
                 .split(Regex("\\s+"))
-                .map { it.trim('?', ',', '.', '!', ':', ';', '\'').removeSuffix("'s") }
-                .filter { it.length >= MIN_NAME_PREFIX_CHARS }
+                .map {
+                    it
+                        .trim('?', ',', '.', '!', ':', ';', '\'')
+                        .removeSuffix("'s")
+                        .removeSuffix("’s")
+                }.filter { it.length >= MIN_NAME_PREFIX_CHARS && it.lowercase() !in PATIENT_SCOPE_STOP_WORDS }
                 .map(String::lowercase)
                 .toSet()
-        if (tokens.isEmpty()) return null
+        if (tokens.isEmpty()) return emptyList()
         return patients
             .filter { patient -> tokens.any { token -> patient.name.lowercase().startsWith(token) } }
-            .singleOrNull()
     }
+
+    private fun resolveCareTargets(
+        patients: List<Patient>,
+        matchedPatients: List<Patient>,
+        scoped: Patient?,
+        hasIndividualReference: Boolean,
+        hasLikelyName: Boolean,
+    ): List<Patient> =
+        when {
+            scoped != null -> listOf(scoped)
+            matchedPatients.isEmpty() && hasIndividualReference && !hasLikelyName && patients.size == 1 ->
+                listOf(patients.single())
+            matchedPatients.isNotEmpty() || hasIndividualReference || hasLikelyName -> emptyList()
+            else -> patients
+        }
 
     /** Active patient count plus names - answers "how many patients" exactly. */
     private fun censusBlock(patients: List<Patient>): String {
@@ -268,6 +296,133 @@ class AnalysisContextBuilder(
         private const val MAX_OVERDUE_ITEMS = 12
 
         private const val STABLE_WEIGHT_DELTA_KG = 0.5
+
+        private val PATIENT_SCOPE_STOP_WORDS =
+            setOf(
+                "what",
+                "when",
+                "which",
+                "who",
+                "how",
+                "why",
+                "where",
+                "did",
+                "do",
+                "does",
+                "is",
+                "are",
+                "was",
+                "were",
+                "the",
+                "a",
+                "an",
+                "of",
+                "for",
+                "to",
+                "in",
+                "on",
+                "any",
+                "have",
+                "has",
+                "had",
+                "my",
+                "our",
+                "your",
+                "this",
+                "that",
+                "patient",
+                "patients",
+                "horse",
+                "horses",
+                "mare",
+                "mares",
+                "cavalo",
+                "cavalos",
+                "égua",
+                "éguas",
+                "paciente",
+                "pacientes",
+                "o",
+                "os",
+                "as",
+                "um",
+                "uma",
+                "uns",
+                "umas",
+                "que",
+                "foi",
+                "são",
+                "sao",
+                "não",
+                "nao",
+                "há",
+                "ha",
+                "do",
+                "da",
+                "dos",
+                "das",
+                "em",
+                "com",
+                "para",
+                "por",
+                "como",
+                "porque",
+                "porquê",
+                "tenho",
+                "temos",
+                "está",
+                "esta",
+                "é",
+                "e",
+                "aconteceu",
+                "ocorreu",
+                "pregnant",
+                "pregnancy",
+                "gestation",
+                "vaccination",
+                "vaccinations",
+                "vaccine",
+                "farrier",
+                "visit",
+                "visits",
+                "deworming",
+                "weight",
+                "ultrasound",
+                "latest",
+                "last",
+                "previous",
+                "recent",
+                "record",
+                "records",
+                "treatment",
+                "treatments",
+                "month",
+                "week",
+                "year",
+                "este",
+                "esta",
+                "neste",
+                "nesta",
+                "mês",
+                "mes",
+                "semana",
+                "ano",
+                "hoje",
+                "ontem",
+                "quando",
+                "qual",
+                "quais",
+                "quantos",
+                "quantas",
+                "último",
+                "última",
+                "ultimo",
+                "ultima",
+                "recente",
+                "recentes",
+                "registo",
+                "registos",
+            )
     }
 }
 
@@ -282,8 +437,8 @@ private val MONTH_ABBREVIATIONS =
  * the class stays under its detekt function-count threshold.
  */
 private fun formatHumanDate(date: LocalDate): String {
-    val month = MONTH_ABBREVIATIONS[date.monthNumber - 1]
-    return "${date.dayOfMonth} $month ${date.year}"
+    val month = MONTH_ABBREVIATIONS[date.month.ordinal]
+    return "${date.day} $month ${date.year}"
 }
 
 /** True when the pregnancy has ended (foaled or failed): nothing active to report. */
@@ -309,23 +464,36 @@ object AnalysisIntents {
     private val analysisRegex =
         Regex(
             "\\b(how many|how much has|how much have|average|trend|when was the last|which patients|total)\\b|" +
-                "\\b(quantos|quanto|média|tendência|tendencia|" +
+                "\\b(quantos|quantas|quanto|média|media|tendência|tendencia|" +
                 "quando foi a última|quando foi a ultima|quais pacientes)\\b",
         )
 
     private val censusRegex = Regex("\\b(patients|horses|pacientes|cavalos|égua|éguas)\\b")
-    private val weightRegex = Regex("\\b(weight|weights|weigh|weighs|weighing|peso|pesa|pesam)\\b")
+    private val weightRegex =
+        Regex(
+            "\\b(weight|weights|weigh|weighs|weighed|weighing|peso|pesos|pesa|pesam|" +
+                "pesada|pesado|pesagem)\\b",
+        )
 
     private val careRegex =
         Regex(
             "\\b(vaccinations?|vaccines?|boosters?|dewormings?|dewormed|dewormer|farriers?|shod|shoeing|trims?|" +
-                "vacinas?|desparasitações?|ferrageamentos?)\\b",
+                "vacinações?|vacinacoes?|vacinas?|desparasitações?|desparasitacoes?|" +
+                "ferrageamentos?|ferrador|ferragem)\\b",
         )
 
-    private val lastDoneRegex = Regex("\\b(when was the last|quando foi a última|quando foi a ultima)\\b")
+    private val lastDoneRegex =
+        Regex(
+            "\\b(when was the last|quando foi a última|quando foi a ultima|" +
+                "qual foi a última|qual foi a ultima|qual foi o último|qual foi o ultimo)\\b",
+        )
 
     private val gestationRegex =
-        Regex("\\b(pregnant|gestations?|foaling|in foal|bred|breeding|prenha|gestações?|parições?)\\b")
+        Regex(
+            "\\b(pregnant|gestations?|foaling|in foal|bred|breeding|prenha|prenhe|" +
+                "prenhez|gravidez|gestação|gestacao|gestações|gestacoes|parição|" +
+                "paricao|parições|paricoes)\\b",
+        )
 
     private val overdueRegex =
         Regex("\\b(overdue|due|upcoming|reminders?|atrasad[oa]s?|pendentes?|vencid[oa]s?)\\b")

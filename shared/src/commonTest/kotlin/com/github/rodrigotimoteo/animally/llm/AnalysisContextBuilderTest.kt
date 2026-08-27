@@ -145,6 +145,21 @@ class AnalysisContextBuilderTest {
     }
 
     @Test
+    fun `given named gestation question then summary excludes other patients`() {
+        repos.patients.patients = listOf(testPatient(1, "Thunder"), testPatient(2, "Bella"))
+        repos.gestations.entries =
+            listOf(
+                testGestation(41, 1, breedingDate = LocalDate(2025, 1, 1), expectedDueDate = LocalDate(2025, 12, 6)),
+                testGestation(42, 2, breedingDate = LocalDate(2025, 2, 1), expectedDueDate = LocalDate(2025, 12, 31)),
+            )
+
+        val summary = builder.build("Is Thunder pregnant?", today).orEmpty()
+
+        assertTrue(summary.contains("Gestation Thunder"), summary)
+        assertFalse(summary.contains("Gestation Bella"), "named-patient summary leaked another horse: $summary")
+    }
+
+    @Test
     fun `given foaled gestation when built then resolved record is excluded`() {
         repos.patients.patients = listOf(testPatient(1, "Bella"))
         repos.gestations.entries =

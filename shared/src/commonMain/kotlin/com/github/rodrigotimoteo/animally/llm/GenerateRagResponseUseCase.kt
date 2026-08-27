@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
@@ -51,13 +53,45 @@ private fun hasGrounding(
     selectedIndices: List<Int>,
     results: List<SearchResult>,
     deterministicSummary: String?,
+    dateRange: RagDateRange?,
 ): Boolean {
     val expectedTypes = RecordTypeIntent.expectedRecordTypes(query)
     return when {
-        deterministicSummary != null -> true
+        deterministicSummary != null && summarySupportsQueryTypes(deterministicSummary, expectedTypes) -> true
         selectedIndices.isEmpty() -> false
-        expectedTypes.isNotEmpty() -> selectedIndices.any { results[it].recordType in expectedTypes }
-        else -> true
+        else ->
+            selectedIndices.any { index ->
+                val result = results[index]
+                val dateMatches = dateRange == null || result.date?.let(dateRange::contains) == true
+                val typeMatches = expectedTypes.isEmpty() || result.recordType in expectedTypes
+                dateMatches && typeMatches
+            }
+    }
+}
+
+private fun summarySupportsQueryTypes(
+    summary: String,
+    expectedTypes: Set<String>,
+): Boolean = expectedTypes.isEmpty() || expectedTypes.any { summarySupportsRecordType(summary, it) }
+
+/**
+ * A computed summary only grounds the record kind it actually contains. For
+ * example, a care-count summary can mention deworming and farrier rows while
+ * still having no vaccination evidence; it must not unlock a vaccination
+ * answer merely because some summary exists.
+ */
+private fun summarySupportsRecordType(
+    summary: String,
+    recordType: String,
+): Boolean {
+    val lowered = summary.lowercase()
+    return when (recordType) {
+        "VACCINATION" -> "vaccination" in lowered
+        "DEWORMING" -> "deworming" in lowered
+        "FARRIER_VISIT" -> "farrier visit" in lowered
+        "GESTATION" -> "gestations:" in lowered || "gestation " in lowered
+        "WEIGHT" -> "weight " in lowered
+        else -> false
     }
 }
 
@@ -65,6 +99,33 @@ private fun hasRelevantHistory(
     query: String,
     recentConversation: String,
 ): Boolean = recentConversation.isNotEmpty() && RecordTypeIntent.sharesContentToken(query, recentConversation)
+
+private fun canUseHistoryAsGrounding(
+    query: String,
+    recordQuestion: Boolean,
+    dateRange: RagDateRange?,
+    historyRelevant: Boolean,
+): Boolean {
+    if (!historyRelevant || !recordQuestion) return historyRelevant
+    val asksForTypedRecord = RecordTypeIntent.expectedRecordTypes(query).isNotEmpty()
+    val asksForDatedActivity = dateRange != null && RecentActivityIntent.matches(query, dateRange)
+    return !asksForTypedRecord && !asksForDatedActivity
+}
+
+@Suppress("LongParameterList")
+private fun shouldUseHonestFallback(
+    query: String,
+    recordQuestion: Boolean,
+    dateRange: RagDateRange?,
+    historyRelevant: Boolean,
+    policy: RagQueryPolicy,
+    grounded: Boolean,
+): Boolean =
+    shouldUseNoResultsFallback(
+        policy,
+        grounded,
+        canUseHistoryAsGrounding(query, recordQuestion, dateRange, historyRelevant),
+    )
 
 private fun shouldUseAnalysisTools(
     query: String,
@@ -97,6 +158,19 @@ data class RagHistoryEntry(
  */
 fun interface RagRecordSearch {
     fun search(ftsQuery: String): List<SearchResult>
+
+    /** Date-filtered FTS leg; the default keeps existing test seams compatible. */
+    fun search(
+        ftsQuery: String,
+        from: LocalDate?,
+        to: LocalDate?,
+    ): List<SearchResult> = search(ftsQuery)
+
+    /** Full dated-record leg used when a question contains no useful FTS terms. */
+    fun searchByDateRange(
+        from: LocalDate,
+        to: LocalDate,
+    ): List<SearchResult> = emptyList()
 }
 
 @Suppress("TooManyFunctions")
@@ -123,6 +197,12 @@ class GenerateRagResponseUseCase(
         val useTools: Boolean,
     )
 
+    private data class PatientScope(
+        val name: String?,
+        val requiresFilter: Boolean,
+        val nameMentioned: Boolean,
+    )
+
     /** Rough token estimate: ~4 characters per token (see RAG budget in CONTEXT docs). */
     private companion object {
         const val CHARS_PER_TOKEN = 4.0
@@ -140,6 +220,152 @@ class GenerateRagResponseUseCase(
         // Patient-name scoping: tokens shorter than this never count as name
         // prefixes (a single letter would prefix-match unrelated names).
         const val MIN_NAME_PREFIX_CHARS = 2
+
+        private val PATIENT_SCOPE_STOP_WORDS =
+            setOf(
+                "what",
+                "when",
+                "which",
+                "who",
+                "how",
+                "why",
+                "where",
+                "did",
+                "do",
+                "does",
+                "is",
+                "are",
+                "was",
+                "were",
+                "can",
+                "could",
+                "would",
+                "should",
+                "the",
+                "a",
+                "an",
+                "of",
+                "for",
+                "to",
+                "in",
+                "on",
+                "at",
+                "and",
+                "or",
+                "any",
+                "have",
+                "has",
+                "had",
+                "my",
+                "our",
+                "your",
+                "this",
+                "that",
+                "these",
+                "those",
+                "tell",
+                "me",
+                "about",
+                "please",
+                "patient",
+                "patients",
+                "horse",
+                "horses",
+                "mare",
+                "mares",
+                "cavalo",
+                "cavalos",
+                "égua",
+                "éguas",
+                "paciente",
+                "pacientes",
+                "o",
+                "os",
+                "as",
+                "um",
+                "uma",
+                "uns",
+                "umas",
+                "que",
+                "foi",
+                "são",
+                "sao",
+                "não",
+                "nao",
+                "há",
+                "ha",
+                "do",
+                "da",
+                "dos",
+                "das",
+                "em",
+                "com",
+                "para",
+                "por",
+                "como",
+                "porque",
+                "porquê",
+                "tenho",
+                "temos",
+                "está",
+                "esta",
+                "é",
+                "e",
+                "aconteceu",
+                "ocorreu",
+                "pregnant",
+                "pregnancy",
+                "gestation",
+                "vaccination",
+                "vaccinations",
+                "vaccine",
+                "booster",
+                "farrier",
+                "visit",
+                "visits",
+                "deworming",
+                "weight",
+                "ultrasound",
+                "latest",
+                "last",
+                "previous",
+                "recent",
+                "record",
+                "records",
+                "treatment",
+                "treatments",
+                "received",
+                "given",
+                "happened",
+                "occurred",
+                "activity",
+                "month",
+                "week",
+                "year",
+                "este",
+                "esta",
+                "neste",
+                "nesta",
+                "mês",
+                "mes",
+                "semana",
+                "ano",
+                "hoje",
+                "ontem",
+                "quando",
+                "qual",
+                "quais",
+                "quantos",
+                "quantas",
+                "último",
+                "última",
+                "ultimo",
+                "ultima",
+                "recente",
+                "recentes",
+                "registo",
+                "registos",
+            )
 
         // Model sometimes regurgitates prompt scaffolding (--- separators,
         // "Question: ..." echoes). Stripped defensively from every chunk.
@@ -165,6 +391,8 @@ class GenerateRagResponseUseCase(
         // Citation-enforcement fallback caps appended headers: a ten-record
         // answer must not gain ten noise lines when the model cites nothing.
         const val MAX_ENFORCED_SOURCES = 3
+        const val MAX_RECENT_ACTIVITY_ROWS = 12
+        const val MAX_ACTIVITY_DETAIL_CHARS = 180
 
         /** Human-readable month abbreviations for chunk/TODAY dates (locale-independent). */
         val MONTH_ABBREVIATIONS =
@@ -172,8 +400,8 @@ class GenerateRagResponseUseCase(
 
         /** Renders a date as "14 Mar 2026" (locale-independent, model-friendly). */
         fun formatHumanDate(date: LocalDate): String {
-            val month = MONTH_ABBREVIATIONS[date.monthNumber - 1]
-            return "${date.dayOfMonth} $month ${date.year}"
+            val month = MONTH_ABBREVIATIONS[date.month.ordinal]
+            return "${date.day} $month ${date.year}"
         }
     }
 
@@ -217,65 +445,109 @@ class GenerateRagResponseUseCase(
             // Consumers replace their buffer with each chunk, so this
             // placeholder is overwritten by the real answer (or fallback).
             emit(RagStreamEvent.Chunk(turnStrings.searchingPlaceholder))
-            val results = prioritizePatientScope(retrieve(query, enriched), query)
-            // Dosage guardrail: a how-much-drug question answered without any
-            // medication record in context must be refused deterministically -
-            // a small model with no grounding will hallucinate a dose. Checked
-            // BEFORE the history fallback so prior conversation alone can never
-            // unlock dosage advice.
-            if (DosageGuard.isDosageIntent(query) && results.none(::isMedicationRecord)) {
-                emit(RagStreamEvent.Chunk(turnStrings.dosageRefusal))
-                return@flow
-            }
-            // "When was the last <type> visit?" is answered deterministically
-            // from the retrieved record dates instead of streaming through the
-            // model: small models freeball today-ish dates for this shape even
-            // with the right chunks in context (the drifting-answer UI
-            // regression), and the citation guarantee cannot catch a confident
-            // wrong date after the bubble strips citation brackets. The reply
-            // carries the real record header inline so the turn still cites.
-            if (emitLatestRecordAnswer(query, results, scopedPatientName(results, query))) return@flow
-            val deterministicSummary = analysisContextBuilder?.build(query, today)
-            val recentConversation = formatHistory(history)
-            val chunks = results.map { result -> formatChunk(result) }
-            val reservedTokens =
-                estimateTokens(recentConversation) + estimateTokens(deterministicSummary.orEmpty())
-            val selectedIndices =
-                selectWithinBudget(
-                    chunks,
-                    maxContextTokens = queryPolicy.maxContextTokens ?: config.maxContextTokens,
-                    reservedTokens = reservedTokens,
-                )
-            // Grounding remains strict for Foundation Models; the cloud policy
-            // deliberately allows general questions through with an empty or
-            // unrelated record context.
-            val historyRelevant = hasRelevantHistory(query, recentConversation)
-            val grounded = hasGrounding(query, selectedIndices, results, deterministicSummary)
-            val useTools = shouldUseAnalysisTools(query, toolCallingEngine, toolRegistry)
-            val effectiveAllowGeneralQuestions = queryPolicy.allowGeneralQuestions || useTools
-            if (
-                shouldUseNoResultsFallback(
-                    queryPolicy.copy(allowGeneralQuestions = effectiveAllowGeneralQuestions),
-                    grounded,
-                    historyRelevant,
-                )
-            ) {
-                emit(RagStreamEvent.Chunk(turnStrings.noResultsFallback))
-                return@flow
-            }
-            val selected = selectedIndices.map(chunks::get)
-            streamAnswer(
-                StreamAnswerRequest(
-                    context = buildContext(selected, query, recentConversation, deterministicSummary),
-                    turnStrings = turnStrings,
-                    selected = selected,
-                    contextResults = selectedIndices.map(results::get),
-                    usedDeterministicSummary = deterministicSummary != null,
-                    allowGeneralQuestions = effectiveAllowGeneralQuestions,
-                    useTools = useTools,
-                ),
+            emitAnswer(
+                query = query,
+                enriched = enriched,
+                history = history,
+                turnStrings = turnStrings,
+                queryPolicy = queryPolicy,
             )
         }
+
+    @Suppress("LongMethod")
+    private suspend fun FlowCollector<RagStreamEvent>.emitAnswer(
+        query: String,
+        enriched: String,
+        history: List<RagHistoryEntry>,
+        turnStrings: AssistantStrings,
+        queryPolicy: RagQueryPolicy,
+    ) {
+        val dateRange = RagDateRangeIntent.resolve(query, today)
+        val patientScope = resolvePatientScope(query)
+        val scopedPatient = patientScope.name
+        val results =
+            restrictResults(
+                retrieve(query, enriched, dateRange),
+                scopedPatient,
+                dateRange,
+                patientScope.requiresFilter,
+            )
+        // Dosage guardrail: a how-much-drug question answered without any
+        // medication record in context must be refused deterministically -
+        // a small model with no grounding will hallucinate a dose. Checked
+        // BEFORE deterministic/model paths so prior conversation alone can
+        // never unlock dosage advice.
+        if (DosageGuard.isDosageIntent(query) && results.none(::isMedicationRecord)) {
+            emit(RagStreamEvent.Chunk(turnStrings.dosageRefusal))
+            return
+        }
+        if (emitDeterministicAnswer(query, results, scopedPatient, dateRange, turnStrings)) return
+
+        val deterministicSummary = analysisContextBuilder?.build(query, today)
+        val recentConversation = formatHistory(history)
+        val chunks = results.map(::formatChunk)
+        val reservedTokens =
+            estimateTokens(recentConversation) + estimateTokens(deterministicSummary.orEmpty())
+        val selectedIndices =
+            selectWithinBudget(
+                chunks,
+                maxContextTokens = queryPolicy.maxContextTokens ?: config.maxContextTokens,
+                reservedTokens = reservedTokens,
+            )
+        val historyRelevant = hasRelevantHistory(query, recentConversation)
+        val grounded = hasGrounding(query, selectedIndices, results, deterministicSummary, dateRange)
+        val useTools = shouldUseAnalysisTools(query, toolCallingEngine, toolRegistry)
+        val recordQuestion =
+            RecordQuestionIntent.isRecordQuestion(
+                query,
+                scopedPatient,
+                dateRange,
+                patientNameMentioned = patientScope.nameMentioned,
+            )
+        val effectiveAllowGeneralQuestions = !recordQuestion && (queryPolicy.allowGeneralQuestions || useTools)
+        val effectiveGrounding = grounded || (recordQuestion && useTools)
+        val fallbackPolicy = queryPolicy.copy(allowGeneralQuestions = effectiveAllowGeneralQuestions)
+        if (
+            shouldUseHonestFallback(
+                query = query,
+                recordQuestion = recordQuestion,
+                dateRange = dateRange,
+                historyRelevant = historyRelevant,
+                policy = fallbackPolicy,
+                grounded = effectiveGrounding,
+            )
+        ) {
+            emit(RagStreamEvent.Chunk(turnStrings.noResultsFallback))
+            return
+        }
+        val selected = selectedIndices.map(chunks::get)
+        streamAnswer(
+            StreamAnswerRequest(
+                context = buildContext(selected, query, recentConversation, deterministicSummary),
+                turnStrings = turnStrings,
+                selected = selected,
+                contextResults = selectedIndices.map(results::get),
+                usedDeterministicSummary = deterministicSummary != null,
+                allowGeneralQuestions = effectiveAllowGeneralQuestions,
+                useTools = useTools,
+            ),
+        )
+    }
+
+    /** Handles answers that are safer as direct projections of stored data. */
+    private suspend fun FlowCollector<RagStreamEvent>.emitDeterministicAnswer(
+        query: String,
+        results: List<SearchResult>,
+        scopedPatient: String?,
+        dateRange: RagDateRange?,
+        turnStrings: AssistantStrings,
+    ): Boolean {
+        // "When was the last <type> visit?" is answered from the retrieved
+        // record dates so a model cannot drift to a plausible but false date.
+        if (emitLatestRecordAnswer(query, results, scopedPatient)) return true
+        return RecentActivityIntent.matches(query, dateRange) &&
+            emitRecentActivityAnswer(results, dateRange, turnStrings)
+    }
 
     /**
      * Streams the model answer for [context], then applies citation
@@ -410,7 +682,7 @@ class GenerateRagResponseUseCase(
                     val systemPrompt =
                         AssistantPrompts.systemPrompt(
                             request.turnStrings,
-                            allowGeneralQuestions = true,
+                            allowGeneralQuestions = request.allowGeneralQuestions,
                         ) +
                             "\nUse the read-only analysis tools when they improve accuracy. " +
                             "Tool results are authoritative for this app's data. Never invent a source header; " +
@@ -444,9 +716,9 @@ class GenerateRagResponseUseCase(
      * belong to X" would otherwise return nothing, and a single lucky hit used
      * to suppress the recall-fixing retry. Retry hits are deduplicated against
      * the AND leg by record identity and appended after it. The caller applies
-     * patient-scope prioritization to the MERGED list, so scoped-patient
-     * records recovered by the retry rank ahead of same-topic records from
-     * other patients exactly like leg-1 results.
+     * patient/date boundaries to the MERGED list, so a scoped-patient record
+     * recovered by the retry cannot be mixed with rows belonging to another
+     * patient or period.
      *
      * When no [recordSearch] seam is wired, falls back to [SearchUseCase]
      * with full-text snippets.
@@ -454,55 +726,144 @@ class GenerateRagResponseUseCase(
     private fun retrieve(
         query: String,
         enriched: String,
+        dateRange: RagDateRange?,
     ): List<SearchResult> {
-        val seam = recordSearch ?: return searchUseCase(enriched, from = null, to = null, recordTypes = null)
-        val andResults = seam.search(AssistantPrompts.toFtsAndQuery(enriched))
+        val seam =
+            recordSearch
+                ?: return searchUseCase(
+                    enriched,
+                    from = dateRange?.from,
+                    to = dateRange?.to,
+                    recordTypes = null,
+                )
+        val andQuery = AssistantPrompts.toFtsAndQuery(enriched)
+        if (dateRange != null && andQuery.isBlank()) {
+            return seam.searchByDateRange(dateRange.from, dateRange.to)
+        }
+        val andResults = seam.search(andQuery, dateRange?.from, dateRange?.to)
         return RetrievalPolicy.mergeWeakRetry(andResults) {
-            seam.search(AssistantPrompts.toFtsOrQuery(query))
+            seam.search(AssistantPrompts.toFtsOrQuery(query), dateRange?.from, dateRange?.to)
         }
     }
 
     /**
-     * Patient-name scoping: when a query token prefix-matches exactly one
-     * active patient name (case-insensitive, no fuzzy matching), that
-     * patient's records move to the front of the retrieval order so
-     * [selectWithinBudget] keeps them inside the context budget ahead of
-     * same-topic records from other patients. Ambiguous prefixes (two or
-     * more patients) and misses leave the order untouched.
+     * Applies patient and date boundaries after retrieval as a second line of
+     * defence. The database query applies the same date bounds in production,
+     * but keeping this invariant here protects alternate/test search seams.
      */
-    private fun prioritizePatientScope(
+    private fun restrictResults(
         results: List<SearchResult>,
-        query: String,
-    ): List<SearchResult> {
-        val target = scopedPatientName(results, query) ?: return results
-        val (scoped, rest) = results.partition { it.patientName.lowercase() == target }
-        return scoped + rest
+        scopedPatient: String?,
+        dateRange: RagDateRange?,
+        requiresPatientFilter: Boolean,
+    ): List<SearchResult> =
+        if (requiresPatientFilter && scopedPatient == null) {
+            // Test/alternate seams may not have an IPatientRepository. A
+            // pronoun can still be safely resolved when retrieval itself has
+            // returned records for exactly one patient; never allow a mixed
+            // result set to cross patient boundaries without an explicit
+            // scope.
+            results
+                .takeIf { rows -> rows.map(SearchResult::patientId).distinct().size <= 1 }
+                .orEmpty()
+        } else {
+            results.filter { result ->
+                val patientMatches = scopedPatient == null || result.patientName.lowercase() == scopedPatient
+                val dateMatches = dateRange == null || result.date?.let(dateRange::contains) == true
+                patientMatches && dateMatches
+            }
+        }
+
+    /** Resolves a unique patient, or marks the result set unsafe to share. */
+    private fun resolvePatientScope(query: String): PatientScope {
+        val activeNames = patientRepository?.patientNames().orEmpty()
+        val tokens = patientScopeTokens(query)
+        val matchedNames =
+            activeNames.filter { name ->
+                val lowered = name.lowercase()
+                tokens.any { token -> lowered.startsWith(token) }
+            }
+        val hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query)
+        val hasLikelyName =
+            patientRepository != null && RecordQuestionIntent.hasLikelyNamedPatientReference(query)
+        val name =
+            when {
+                matchedNames.size == 1 -> matchedNames.single().lowercase()
+                matchedNames.isEmpty() && hasIndividualReference && activeNames.size == 1 ->
+                    activeNames.single().lowercase()
+                else -> null
+            }
+        return PatientScope(
+            name = name,
+            requiresFilter = matchedNames.isNotEmpty() || hasIndividualReference || hasLikelyName,
+            nameMentioned = matchedNames.isNotEmpty() || hasLikelyName,
+        )
     }
 
-    /** The single patient name (lowercased) whose records should be boosted, or null. */
-    private fun scopedPatientName(
+    private fun patientScopeTokens(query: String): Set<String> =
+        query
+            .split(Regex("\\s+"))
+            .map(::cleanPatientToken)
+            .filter { it.length >= MIN_NAME_PREFIX_CHARS && it !in PATIENT_SCOPE_STOP_WORDS }
+            .toSet()
+
+    private fun cleanPatientToken(token: String): String =
+        token
+            .trim('?', ',', '.', '!', ':', ';', '\'')
+            .removeSuffix("'s")
+            .removeSuffix("'S")
+            .removeSuffix("’s")
+            .removeSuffix("’S")
+            .lowercase()
+
+    /**
+     * A date-only activity answer is already a database projection. Keeping it
+     * deterministic means a provider cannot turn unrelated context into a
+     * clinical story for a simple “what happened?” question.
+     */
+    private suspend fun FlowCollector<RagStreamEvent>.emitRecentActivityAnswer(
         results: List<SearchResult>,
-        query: String,
-    ): String? {
-        val repository = patientRepository
-        if (repository == null || results.size < 2) return null
-        val tokens =
-            query
-                .split(Regex("\\s+"))
-                .map { it.trim('?', ',', '.', '!', ':', ';', '\'') }
-                .filter { it.length >= MIN_NAME_PREFIX_CHARS }
-                .map(String::lowercase)
-                .toSet()
-        val matchedNames =
-            if (tokens.isEmpty()) {
-                emptyList()
+        dateRange: RagDateRange?,
+        turnStrings: AssistantStrings,
+    ): Boolean {
+        if (dateRange == null || results.isEmpty()) return false
+        val visible = results.take(MAX_RECENT_ACTIVITY_ROWS)
+        val omitted = results.size - visible.size
+        val portuguese = turnStrings === PtAssistantStrings
+        val period = "${formatHumanDate(dateRange.from)}–${formatHumanDate(dateRange.to)}"
+        val heading =
+            if (portuguese) {
+                "Encontrei ${results.size} ${if (results.size == 1) "registo" else "registos"} " +
+                    "no período $period:"
             } else {
-                repository.patientNames().filter { name ->
-                    val lowered = name.lowercase()
-                    tokens.any { token -> lowered.startsWith(token) }
-                }
+                "I found ${results.size} record${if (results.size == 1) "" else "s"} " +
+                    "between $period:"
             }
-        return matchedNames.singleOrNull()?.lowercase()
+        val lines =
+            visible.joinToString("\n") { result ->
+                val date = result.date?.let(::formatHumanDate) ?: "unknown date"
+                val type = recordTypeNoun(result.recordType, portuguese)
+                val detail =
+                    result.snippet
+                        .replace(Regex("\\s+"), " ")
+                        .trim()
+                        .take(MAX_ACTIVITY_DETAIL_CHARS)
+                "- $date — ${result.patientName}: $type" +
+                    detail.takeIf(String::isNotBlank)?.let { " — $it" }.orEmpty()
+            }
+        val suffix =
+            if (omitted > 0) {
+                if (portuguese) {
+                    "\n(E há mais $omitted registos neste período.)"
+                } else {
+                    "\n(There are $omitted more records in this period.)"
+                }
+            } else {
+                ""
+            }
+        emit(RagStreamEvent.Chunk("$heading\n$lines$suffix"))
+        emit(RagStreamEvent.Sources(visible))
+        return true
     }
 
     /**

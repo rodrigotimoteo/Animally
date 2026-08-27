@@ -90,8 +90,30 @@ val llmModule =
         single {
             val searchRepository = get<ISearchRepository>()
             val recordSearch =
-                RagRecordSearch { ftsQuery ->
-                    searchRepository.searchSnippets(ftsQuery, from = null, to = null, recordTypes = null)
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String) =
+                        searchRepository.searchSnippets(
+                            ftsQuery,
+                            from = null,
+                            to = null,
+                            recordTypes = null,
+                        )
+
+                    override fun search(
+                        ftsQuery: String,
+                        from: kotlinx.datetime.LocalDate?,
+                        to: kotlinx.datetime.LocalDate?,
+                    ) = searchRepository.searchSnippets(
+                        ftsQuery,
+                        from = from,
+                        to = to,
+                        recordTypes = null,
+                    )
+
+                    override fun searchByDateRange(
+                        from: kotlinx.datetime.LocalDate,
+                        to: kotlinx.datetime.LocalDate,
+                    ) = searchRepository.searchByDateRange(from, to)
                 }
             // Analysis mode: Kotlin computes count/trend/overdue summaries
             // from the repositories; the model only narrates them.

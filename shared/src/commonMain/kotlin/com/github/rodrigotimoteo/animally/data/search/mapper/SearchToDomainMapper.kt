@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.data.search.mapper
 
 import com.github.rodrigotimoteo.animally.data.search.Search
+import com.github.rodrigotimoteo.animally.data.search.SearchByDateRange
 import com.github.rodrigotimoteo.animally.data.search.SearchOwners
 import com.github.rodrigotimoteo.animally.data.search.SearchSnippets
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
@@ -40,6 +41,19 @@ fun SearchSnippets.toDomain(): SearchResult =
         recordId = recordId,
         date = date,
         snippet = snippetText,
+    )
+
+/** Converts a date-range metadata row into a full-text search result. */
+fun SearchByDateRange.toDomain(): SearchResult =
+    SearchResult(
+        patientId = patientId,
+        patientName = patientName,
+        breed = breed,
+        microchipId = microchipId,
+        recordType = recordType,
+        recordId = recordId,
+        date = date,
+        snippet = searchableText,
     )
 
 /**

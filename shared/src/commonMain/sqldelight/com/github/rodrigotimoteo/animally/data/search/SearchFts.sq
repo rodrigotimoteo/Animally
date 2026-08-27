@@ -90,6 +90,25 @@ WHERE SearchFts MATCH :query
     AND (:toDate IS NULL OR i.date <= :toDate)
 ORDER BY bm25(SearchFts), i.date DESC;
 
+-- Date-only assistant activity queries must not use an arbitrary FTS token as
+-- a proxy for “what happened”. Read the indexed metadata directly, retaining
+-- only active patient-owned rows with a real date in the requested window.
+searchByDateRange:
+SELECT
+    p.id AS patientId,
+    p.name AS patientName,
+    p.breed AS breed,
+    p.microchipId AS microchipId,
+    i.recordType AS recordType,
+    i.recordId AS recordId,
+    i.date AS date,
+    i.searchableText AS searchableText
+FROM SearchFtsIndex i
+JOIN Patient p ON p.id = i.patientId AND p.isActive = 1
+WHERE i.date >= :fromDate
+    AND i.date <= :toDate
+ORDER BY i.date DESC, i.recordType, i.recordId;
+
 -- Owner hits share the same index but join the Owner table instead of
 -- Patient: owner rows are stored with patientId = 0 and recordId = ownerId.
 -- Date bounds do not apply (owners carry no indexed date). Owners carry no
