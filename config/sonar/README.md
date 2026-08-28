@@ -24,15 +24,20 @@ report generation explicit.
 
 The analysis command runs:
 
-- Detekt and KtLint, including their Checkstyle-compatible reports;
+- Detekt and KtLint, including their Checkstyle-compatible XML reports,
+  scoped to the Gradle module that produced each report;
 - Android Lint for the debug variant;
 - the existing Kover XML coverage report from JVM/Android/desktop tests; and
 - the SonarQube scanner with `sonar.qualitygate.wait=true` by default.
 
 The current source scope includes shared Kotlin (`commonMain`, `androidMain`,
-`iosMain`, and `desktopMain`), the Android application, the iOS Swift host, and
-their test sources. Generated code, build output, Xcode project/resource
-containers, and preview assets are excluded.
+`iosMain`, and `desktopMain`) and the Android application through the Gradle
+plugin's KMP/Android subproject discovery, plus the standalone iOS Swift host
+and UI tests from the root configuration. Generated code, build output, Xcode
+project/resource containers, preview assets, and binary image files are
+excluded. Report paths are enumerated from each module's generated output at
+scan time, while the root `sonar.sources` list only owns the standalone iOS
+host; this prevents duplicate indexing and cross-module path rebasing.
 
 ## Recommended server policy
 
@@ -55,6 +60,12 @@ This keeps legacy debt visible without making old findings block every change.
 New security, reliability, and maintainability regressions remain blocking.
 Do not mark a finding false-positive merely to pass the gate; document a real
 exception in the SonarQube issue and, where useful, in an ADR.
+
+The local development server is configured with this policy as the
+`Animally Strict New Code` gate for the `animally-local` project. Hosted
+SonarQube or SonarCloud projects must create or assign an equivalent gate
+themselves; gate configuration and credentials are intentionally not stored in
+the repository.
 
 Kover does not currently measure native iOS execution. iOS Swift and Kotlin
 native code are therefore included in issue analysis but excluded from the

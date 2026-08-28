@@ -477,13 +477,15 @@ OpenRouter cloud stream -> answer + source cards in Swift UI
    Lint, JUnit, and Kover reports.
 3. Document a strict new-code quality-gate policy that blocks regressions while
    keeping existing debt visible, and keep all credentials outside the repo.
-4. Verify report generation and the Sonar task graph, review the diff, and
-   commit the configuration.
+4. Verify report generation and the real local scan, correct any source-scope
+   integration issue, review the diff, and commit the configuration.
 
 ### Verification boundary
 
 - Static analysis and Android Lint report generation pass.
-- `sonar --dry-run` validates task wiring without requiring a server token.
+- `sonar --dry-run` validates task wiring without requiring a server token; a
+  local server run additionally confirmed that source roots are disjoint and
+  that all configured external reports import without warnings.
 - Full coverage generation remains subject to the two pre-existing shared test
   failures recorded by the existing baseline; the Sonar configuration does not
   suppress or exclude those tests.

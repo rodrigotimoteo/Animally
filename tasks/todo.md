@@ -65,6 +65,7 @@
 - [x] Import Detekt, KtLint, Android Lint, JUnit, and Kover reports
 - [x] Document a strict, new-code-focused quality-gate policy and secret handling
 - [x] Verify static-analysis reports and the Sonar task graph
+- [x] Run a real local SonarQube scan and resolve source/report integration issues
+- [x] Configure the documented gate on the local server while keeping credentials external
 - [ ] Resolve the two pre-existing shared test failures so the full coverage/Sonar run can complete
-- [ ] Configure the documented gate and project credentials on the chosen SonarQube server
-- [ ] Commit the verified configuration
+- [x] Commit the verified configuration

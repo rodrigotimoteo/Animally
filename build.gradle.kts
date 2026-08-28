@@ -16,6 +16,55 @@ plugins {
 }
 
 subprojects {
+    // The root scanner creates a Sonar extension for every Gradle project. Keep
+    // report properties on the module that owns each report so the scanner does
+    // not rebase one module's paths into every other module.
+    extensions.configure<org.sonarqube.gradle.SonarExtension> {
+        properties {
+            when (project.name) {
+                "shared" -> {
+                    property(
+                        "sonar.kotlin.detekt.reportPaths",
+                        project.file("build/reports/detekt/detekt.xml").absolutePath,
+                    )
+                    property(
+                        "sonar.kotlin.ktlint.reportPaths",
+                        project.fileTree(project.file("build/reports/ktlint")) {
+                            include("**/*.xml")
+                        },
+                    )
+                    property(
+                        "sonar.junit.reportPaths",
+                        project.fileTree(project.file("build/test-results")) {
+                            include("**/TEST-*.xml")
+                        },
+                    )
+                    property(
+                        "sonar.coverage.jacoco.xmlReportPaths",
+                        project.file("build/reports/kover/report.xml").absolutePath,
+                    )
+                }
+
+                "androidApp" -> {
+                    property(
+                        "sonar.kotlin.detekt.reportPaths",
+                        project.file("build/reports/detekt/detekt.xml").absolutePath,
+                    )
+                    property(
+                        "sonar.kotlin.ktlint.reportPaths",
+                        project.fileTree(project.file("build/reports/ktlint")) {
+                            include("**/*.xml")
+                        },
+                    )
+                    property(
+                        "sonar.androidLint.reportPaths",
+                        project.file("build/reports/lint-results-debug.xml").absolutePath,
+                    )
+                }
+            }
+        }
+    }
+
     pluginManager.withPlugin("io.gitlab.arturbosch.detekt") {
         configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
             toolVersion = "1.23.8"
@@ -93,27 +142,19 @@ sonar {
         property("sonar.projectDescription", "iOS-first equine veterinary internship record app")
         property("sonar.sourceEncoding", "UTF-8")
 
-        // KMP source sets are not all under the conventional src/main tree.
-        // Keep this list explicit so shared business logic and the iOS host are
-        // analyzed instead of silently disappearing from the project.
+        // The Gradle Sonar plugin discovers Android and KMP source sets from
+        // their subprojects. Listing those directories again at the root would
+        // index shared Kotlin files twice. Keep only the standalone iOS host
+        // here; the Gradle modules provide their own source roots below.
         property(
             "sonar.sources",
             listOf(
-                "shared/src/commonMain/kotlin",
-                "shared/src/androidMain/kotlin",
-                "shared/src/iosMain/kotlin",
-                "shared/src/desktopMain/kotlin",
-                "androidApp/src/main/kotlin",
                 "iosApp/iosApp",
             ),
         )
         property(
             "sonar.tests",
             listOf(
-                "shared/src/commonTest/kotlin",
-                "shared/src/androidHostTest/kotlin",
-                "shared/src/desktopTest/kotlin",
-                "shared/src/iosTest/kotlin",
                 "iosApp/iosUITests",
             ),
         )
@@ -130,6 +171,11 @@ sonar {
                 "**/*.xcodeproj/**",
                 "**/*.xcassets/**",
                 "**/Preview Content/**",
+                "**/*.png",
+                "**/*.jpg",
+                "**/*.jpeg",
+                "**/*.gif",
+                "**/*.webp",
             ),
         )
         property(
@@ -152,14 +198,6 @@ sonar {
                 "**/generated/**",
             ),
         )
-
-        // Import the checks already enforced locally instead of maintaining a
-        // second, divergent set of style/security findings in SonarQube.
-        property("sonar.kotlin.detekt.reportPaths", "**/build/reports/detekt/detekt.xml")
-        property("sonar.kotlin.ktlint.reportPaths", "**/build/reports/ktlint/**/*.xml")
-        property("sonar.androidLint.reportPaths", "androidApp/build/reports/lint-results-debug.xml")
-        property("sonar.coverage.jacoco.xmlReportPaths", "shared/build/reports/kover/report.xml")
-        property("sonar.junit.reportPaths", "**/build/test-results/**/*.xml")
 
         // Fail the analysis command if the server-side quality gate fails.
         // This remains overridable for diagnostics with -Psonar.qualitygate.wait=false.
