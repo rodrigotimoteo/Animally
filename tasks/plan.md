@@ -579,11 +579,11 @@ No database or clinical/business logic is added to SwiftUI.
 
 Acceptance criteria:
 
-- [ ] Language changes keep the sheet in place and do not show “Preparing
+- [x] Language changes keep the sheet in place and do not show “Preparing
       dictation…” or a full-screen startup flicker.
-- [ ] Assistant, Dictation review/archive, and audio controls use the selected
+- [x] Assistant, Dictation review/archive, and audio controls use the selected
       accent after changing it and after sheet re-entry.
-- [ ] Permission, engine-unavailable, and cancellation errors remain visible;
+- [x] Permission, engine-unavailable, and cancellation errors remain visible;
       removing the progress label must not hide a real failure.
 
 Verification: focused iOS UI tests with `-animally-ui-test-dictation`, native
@@ -608,12 +608,12 @@ and the focused assistant UI test. Scope: Medium.
 
 Acceptance criteria:
 
-- [ ] Editing a transcript before Extract changes the saved Dictation history
+- [x] Editing a transcript before Extract changes the saved Dictation history
       text, not just the temporary editor.
-- [ ] Extraction receives exactly the current editor value, never the original
+- [x] Extraction receives exactly the current editor value, never the original
       speech result; whitespace-only input is rejected without overwriting useful
       prior text.
-- [ ] Audio path, duration, timestamp, and capture retention remain unchanged.
+- [x] Audio path, duration, timestamp, and capture retention remain unchanged.
 
 Verification: shared ViewModel/use-case tests, SQLDelight-backed repository test
 where practical, iOS deterministic flow test that edits text before extraction,
@@ -626,10 +626,10 @@ touched: dictation repository contract/implementation/query, update use case,
 
 #### Checkpoint A: shared state and dictation flow
 
-- [ ] Focused shared tests pass.
-- [ ] KMP iOS framework/native simulator build passes.
-- [ ] Deterministic dictation flow shows the edited transcript in history.
-- [ ] No uncommitted unrelated changes are present before the next phase.
+- [x] Focused shared tests pass.
+- [x] KMP iOS framework/native simulator build passes.
+- [x] Deterministic dictation flow shows the edited transcript in history.
+- [x] No uncommitted unrelated changes are present before the next phase.
 
 #### Phase 3: Structured extraction reliability and no-result feedback
 
@@ -647,11 +647,11 @@ touched: dictation repository contract/implementation/query, update use case,
 
 Acceptance criteria:
 
-- [ ] Valid provider variants reach review; reasoning blocks and wrapper prose
+- [x] Valid provider variants reach review; reasoning blocks and wrapper prose
       do not become visible records or leak into the payload.
-- [ ] A valid empty `records` result is explained as “no supported record found”
+- [x] A valid empty `records` result is explained as “no supported record found”
       while invalid/blank output offers a retryable extraction error.
-- [ ] Failed extraction never discards the editable transcript or audio.
+- [x] Failed extraction never discards the editable transcript or audio.
 
 Verification: focused `GenerateDictationSessionUseCaseTest`/parser tests,
 shared iOS tests, deterministic simulator extraction failure/retry path, and
@@ -674,10 +674,10 @@ contract mismatch is confirmed. Scope: Small–Medium.
 
 Acceptance criteria:
 
-- [ ] A playable recording shows progress and elapsed/total time while active.
-- [ ] Dragging the slider seeks; 1x, 1.5x, and 2x change `AVAudioPlayer.rate`
+- [x] A playable recording shows progress and elapsed/total time while active.
+- [x] Dragging the slider seeks; 1x, 1.5x, and 2x change `AVAudioPlayer.rate`
       without losing the active recording.
-- [ ] Stop, completion, missing-file, archive dismissal, and replay paths clean
+- [x] Stop, completion, missing-file, archive dismissal, and replay paths clean
       up the audio session and remain safe.
 
 Verification: focused controller tests where possible, deterministic iOS UI test
@@ -689,13 +689,13 @@ Dependencies: Checkpoint A. Files likely touched: `DictationAudioPlaybackControl
 
 #### Final checkpoint
 
-- [ ] `./gradlew :shared:allTests :shared:ktlintCheck :shared:detekt`
+- [x] `./gradlew :shared:allTests :shared:ktlintCheck :shared:detekt`
       (or the repository’s equivalent focused tasks) passes.
-- [ ] Native iOS simulator build and focused UI tests pass; claims are separated
+- [x] Native iOS simulator build and focused UI tests pass; claims are separated
       from physical-device microphone/audio verification.
-- [ ] Diff review confirms no Swift persistence/business logic and no unrelated
+- [x] Diff review confirms no Swift persistence/business logic and no unrelated
       rewrites.
-- [ ] Commit the complete slice and leave the worktree clean.
+- [x] Commit the complete slice and leave the worktree clean.
 
 ### Failure modes and mitigations
 

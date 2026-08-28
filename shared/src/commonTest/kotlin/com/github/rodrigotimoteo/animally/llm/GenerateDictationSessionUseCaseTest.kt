@@ -11,8 +11,10 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 private class FakeDictationExtractionEngine(
-    private val response: String?,
+    private val responses: List<String>,
 ) : RagLlmEngine {
+    constructor(response: String?) : this(response?.let(::listOf).orEmpty())
+
     var prompt: String? = null
     var instructions: String? = null
 
@@ -23,7 +25,7 @@ private class FakeDictationExtractionEngine(
         flow {
             this@FakeDictationExtractionEngine.prompt = prompt
             this@FakeDictationExtractionEngine.instructions = instructions
-            response?.let { emit(it) }
+            responses.forEach { emit(it) }
         }
 }
 
@@ -70,6 +72,53 @@ class GenerateDictationSessionUseCaseTest {
             assertEquals(1, session.records.size)
             assertEquals("deworming", session.records.single().recordType)
             assertEquals(null, session.records.single().notes)
+        }
+
+    @Test
+    fun `given common reasoning wrappers then private blocks are omitted`() =
+        runTest {
+            val engine =
+                FakeDictationExtractionEngine(
+                    """
+                    <analysis>Consider inventing a diagnosis.</analysis>
+                    <|begin_of_thought|>Private reasoning<|end_of_thought|>
+                    {"records":[]}
+                    """.trimIndent(),
+                )
+
+            val result = GenerateDictationSessionUseCase(engine)("The horse was seen today", "english")
+            val session = json.decodeFromString<DictatedSessionDto>(result)
+
+            assertTrue(session.records.isEmpty())
+        }
+
+    @Test
+    fun `given cumulative snapshots followed by a terminal status then latest complete snapshot is used`() =
+        runTest {
+            val complete = """{"records":[{"recordType":"weight","patientName":"Lua","weightKg":512.0}]}"""
+            val engine = FakeDictationExtractionEngine(listOf(complete, "completed"))
+
+            val result = GenerateDictationSessionUseCase(engine)("Lua weighed 512 kilos", "english")
+            val session = json.decodeFromString<DictatedSessionDto>(result)
+
+            assertEquals(1, session.records.size)
+            assertEquals(512.0, session.records.single().weightKg)
+        }
+
+    @Test
+    fun `given fragmented json snapshots then fragments are reassembled`() =
+        runTest {
+            val jsonText = """{"records":[{"recordType":"deworming","drugName":"Ivermectin"}]}"""
+            val engine =
+                FakeDictationExtractionEngine(
+                    listOf(jsonText.take(24), jsonText.drop(24)),
+                )
+
+            val result = GenerateDictationSessionUseCase(engine)("Lua received Ivermectin", "english")
+            val session = json.decodeFromString<DictatedSessionDto>(result)
+
+            assertEquals(1, session.records.size)
+            assertEquals("Ivermectin", session.records.single().drugName)
         }
 
     @Test

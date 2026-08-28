@@ -9,6 +9,7 @@ import Shared
 struct AssistantHistoryView: View {
     let conversations: [AssistantConversationItem]
     let isLoading: Bool
+    let accentColor: Color
     let onUseQuestion: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -69,6 +70,7 @@ struct AssistantHistoryView: View {
                     NavigationLink {
                         AssistantConversationDetailView(
                             conversation: conversation,
+                            accentColor: accentColor,
                             onUseQuestion: onUseQuestion
                         )
                     } label: {
@@ -125,6 +127,7 @@ struct AssistantHistoryView: View {
 /// Full-screen detail for one persisted multi-turn conversation.
 private struct AssistantConversationDetailView: View {
     let conversation: AssistantConversationItem
+    let accentColor: Color
     let onUseQuestion: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -208,7 +211,7 @@ private struct AssistantConversationDetailView: View {
                 .foregroundStyle(isUser ? .white : Theme.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
-                .background(isUser ? Theme.forestGreen : Theme.surfaceElevated)
+                .background(isUser ? accentColor : Theme.surfaceElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }

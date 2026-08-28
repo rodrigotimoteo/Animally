@@ -13,6 +13,12 @@ interface IDictationCaptureRepository {
     /** Returns the capture with [id], if it exists. */
     fun getById(id: Long): DictationCapture?
 
+    /** Updates the searchable transcript without changing audio metadata. */
+    fun updateTranscript(
+        id: Long,
+        transcript: String,
+    ): Long
+
     /** Removes one capture and returns the number of deleted rows. */
     fun deleteById(id: Long): Long
 

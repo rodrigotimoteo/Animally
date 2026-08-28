@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.di
 import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule.Companion.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.dictation.InsertSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.UpdateDictationCaptureTranscriptUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
 import com.github.rodrigotimoteo.animally.llm.GenerateDictationSessionUseCase
@@ -38,6 +39,7 @@ val dictationModule =
                 resolvePatientUseCase = get(),
                 getDictationCapturesUseCase = get(),
                 saveDictationCaptureUseCase = get(),
+                updateDictationCaptureTranscriptUseCase = get<UpdateDictationCaptureTranscriptUseCase>(),
                 deleteDictationCaptureUseCase = get(),
                 ioDispatcher = get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 generateDictationSession = get<GenerateDictationSessionUseCase>(),

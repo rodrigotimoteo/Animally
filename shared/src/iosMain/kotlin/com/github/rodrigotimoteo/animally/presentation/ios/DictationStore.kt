@@ -114,13 +114,17 @@ class DictationStore(
     }
 
     /** Stores a completed transcript and its optional original audio path. */
-    fun saveCapture(
+    suspend fun saveCapture(
         transcript: String,
         audioPath: String?,
         durationMillis: Long?,
-    ) {
-        viewModel.saveCapture(transcript, audioPath, durationMillis)
-    }
+    ): Long? = viewModel.saveCapture(transcript, audioPath, durationMillis)
+
+    /** Updates the reviewed transcript without touching the original audio. */
+    suspend fun updateCaptureTranscript(
+        id: Long,
+        transcript: String,
+    ): Boolean = viewModel.updateCaptureTranscript(id, transcript)
 
     /** Removes one archive entry and its app-owned audio file. */
     fun deleteCapture(id: Long) {

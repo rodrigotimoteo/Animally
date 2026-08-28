@@ -2,7 +2,7 @@ package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.dictation.dto.DictatedSessionDto
 import com.github.rodrigotimoteo.animally.domain.dictation.dto.SuggestedRecordDto
-import kotlinx.coroutines.flow.lastOrNull
+import kotlinx.coroutines.flow.collect
 import kotlinx.serialization.json.Json
 
 /**
@@ -28,19 +28,37 @@ class GenerateDictationSessionUseCase(
         val normalizedTranscript = transcript.trim()
         require(normalizedTranscript.isNotEmpty()) { "There is no transcript to extract." }
 
-        val raw =
-            llmEngine
-                .generate(
-                    prompt = buildPrompt(normalizedTranscript, language),
-                    instructions = extractionInstructions(language),
-                ).lastOrNull()
-                ?.trim()
-                .orEmpty()
-        if (raw.isEmpty()) {
+        val emissions =
+            buildList {
+                llmEngine
+                    .generate(
+                        prompt = buildPrompt(normalizedTranscript, language),
+                        instructions = extractionInstructions(language),
+                    ).collect { emission ->
+                        emission.trim().takeIf(String::isNotEmpty)?.let(::add)
+                    }
+            }
+        if (emissions.isEmpty()) {
             error("The extraction model returned no structured records.")
         }
 
-        return json.encodeToString(DictatedSessionDto.serializer(), decodeSession(raw))
+        // Most engines emit cumulative snapshots, but a few OpenAI-compatible
+        // gateways send deltas or append a non-JSON terminal status. Prefer the
+        // newest complete snapshot, then try the concatenated stream as a
+        // compatibility fallback. No model text is accepted unless it parses
+        // into the exact shared session contract.
+        val session =
+            emissions
+                .asReversed()
+                .asSequence()
+                .mapNotNull { emission -> runCatching { decodeSession(emission) }.getOrNull() }
+                .firstOrNull()
+                ?: runCatching { decodeSession(emissions.joinToString(separator = "")) }
+                    .getOrElse {
+                        error("The extraction model returned invalid structured data. Please try the dictation again.")
+                    }
+
+        return json.encodeToString(DictatedSessionDto.serializer(), session)
     }
 
     private fun buildPrompt(
@@ -80,34 +98,89 @@ class GenerateDictationSessionUseCase(
 
     /** Accepts strict JSON, fenced JSON, prose-wrapped JSON, or a bare record array. */
     private fun decodeSession(raw: String): DictatedSessionDto {
-        val normalized = raw.replace(THINKING_BLOCK_REGEX, "").trim()
-        val objectCandidate = jsonObjectCandidate(normalized)
-        if (objectCandidate != null && RECORDS_FIELD_REGEX.containsMatchIn(objectCandidate)) {
-            runCatching { json.decodeFromString<DictatedSessionDto>(objectCandidate) }
-                .getOrNull()
-                ?.let { return it }
-        }
+        val normalized = stripThinkingBlocks(raw).trim()
+        val objectSession =
+            jsonObjectCandidates(normalized)
+                .asSequence()
+                .filter { RECORDS_FIELD_REGEX.containsMatchIn(it) }
+                .mapNotNull { candidate ->
+                    runCatching { json.decodeFromString<DictatedSessionDto>(candidate) }.getOrNull()
+                }.firstOrNull()
+        if (objectSession != null) return objectSession
 
-        val arrayCandidate = jsonArrayCandidate(normalized)
-        if (arrayCandidate != null) {
-            runCatching { json.decodeFromString<List<SuggestedRecordDto>>(arrayCandidate) }
-                .getOrNull()
-                ?.let { return DictatedSessionDto(records = it) }
-        }
+        val arraySession =
+            jsonArrayCandidates(normalized)
+                .asSequence()
+                .mapNotNull { candidate ->
+                    runCatching { json.decodeFromString<List<SuggestedRecordDto>>(candidate) }.getOrNull()
+                }.firstOrNull()
+        if (arraySession != null) return DictatedSessionDto(records = arraySession)
 
         error("The extraction model returned invalid structured data. Please try the dictation again.")
     }
 
-    private fun jsonObjectCandidate(value: String): String? {
-        val start = value.indexOf('{')
-        val end = value.lastIndexOf('}')
-        return if (start >= 0 && end > start) value.substring(start, end + 1) else null
+    private fun stripThinkingBlocks(value: String): String =
+        THINKING_BLOCK_REGEXES.fold(value) { current, regex ->
+            current.replace(regex, "")
+        }
+
+    /** Returns balanced JSON object candidates in source order, outer first. */
+    private fun jsonObjectCandidates(value: String): List<String> = balancedJsonCandidates(value, opening = '{')
+
+    /** Returns balanced JSON array candidates in source order, outer first. */
+    private fun jsonArrayCandidates(value: String): List<String> = balancedJsonCandidates(value, opening = '[')
+
+    /**
+     * Finds complete JSON-shaped substrings without being confused by braces
+     * inside quoted notes or by prose surrounding the model response.
+     */
+    private fun balancedJsonCandidates(
+        value: String,
+        opening: Char,
+    ): List<String> {
+        val candidates = mutableListOf<String>()
+        value.forEachIndexed { start, character ->
+            if (character != opening) return@forEachIndexed
+            balancedJsonCandidate(value, start)?.let(candidates::add)
+        }
+        return candidates
     }
 
-    private fun jsonArrayCandidate(value: String): String? {
-        val start = value.indexOf('[')
-        val end = value.lastIndexOf(']')
-        return if (start >= 0 && end > start) value.substring(start, end + 1) else null
+    private fun balancedJsonCandidate(
+        value: String,
+        start: Int,
+    ): String? {
+        val expectedClosings = mutableListOf<Char>()
+        var inString = false
+        var escaped = false
+
+        for (index in start until value.length) {
+            val character = value[index]
+            if (inString) {
+                when {
+                    escaped -> escaped = false
+                    character == '\\' -> escaped = true
+                    character == '"' -> inString = false
+                }
+                continue
+            }
+
+            when (character) {
+                '"' -> inString = true
+                '{' -> expectedClosings += '}'
+                '[' -> expectedClosings += ']'
+                '}', ']' -> {
+                    if (
+                        expectedClosings.isEmpty() ||
+                        expectedClosings.removeAt(expectedClosings.lastIndex) != character
+                    ) {
+                        return null
+                    }
+                    if (expectedClosings.isEmpty()) return value.substring(start, index + 1)
+                }
+            }
+        }
+        return null
     }
 
     private fun languageLabel(language: String): String =
@@ -119,7 +192,24 @@ class GenerateDictationSessionUseCase(
 
     private companion object {
         const val PORTUGUESE = "portuguese"
-        val THINKING_BLOCK_REGEX = Regex("<think(?:ing)?>(?s:.*?)</think(?:ing)>", RegexOption.IGNORE_CASE)
+        val THINKING_BLOCK_REGEXES =
+            listOf(
+                Regex("<think(?:ing)?>(?s:.*?)</think(?:ing)>", RegexOption.IGNORE_CASE),
+                Regex("<(?:analysis|reasoning)>(?s:.*?)</(?:analysis|reasoning)>", RegexOption.IGNORE_CASE),
+                Regex("\\[(?:THINK|THOUGHT)\\](?s:.*?)\\[/(?:THINK|THOUGHT)\\]", RegexOption.IGNORE_CASE),
+                Regex(
+                    "<\\|(?:thinking|analysis|reasoning|thought)\\|>" +
+                        "(?s:.*?)" +
+                        "<\\|end_(?:thinking|analysis|reasoning|thought)\\|>",
+                    RegexOption.IGNORE_CASE,
+                ),
+                Regex(
+                    "<\\|begin_of_(?:thought|analysis|reasoning)\\|>" +
+                        "(?s:.*?)" +
+                        "<\\|end_of_(?:thought|analysis|reasoning)\\|>",
+                    RegexOption.IGNORE_CASE,
+                ),
+            )
         val RECORDS_FIELD_REGEX = Regex("\\\"records\\\"\\s*:")
     }
 }

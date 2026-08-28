@@ -10,6 +10,7 @@ import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValida
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.DeleteDictationCaptureUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.GetDictationCapturesUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.SaveDictationCaptureUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.UpdateDictationCaptureTranscriptUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.PatientResolution
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
 import com.github.rodrigotimoteo.animally.llm.GenerateDictationSessionUseCase
@@ -83,6 +84,7 @@ data class DictationUiState(
  * @param resolvePatientUseCase Resolves spoken patient names to patients.
  * @param getDictationCapturesUseCase Loads the local dictation archive.
  * @param saveDictationCaptureUseCase Persists a completed capture.
+ * @param updateDictationCaptureTranscriptUseCase Persists reviewed transcript edits.
  * @param deleteDictationCaptureUseCase Removes a capture and its audio file.
  * @param ioDispatcher Dispatcher for database and file work.
  * @param generateDictationSession Cloud fallback for structured extraction on
@@ -94,6 +96,7 @@ class DictationViewModel(
     private val resolvePatientUseCase: ResolvePatientUseCase,
     private val getDictationCapturesUseCase: GetDictationCapturesUseCase,
     private val saveDictationCaptureUseCase: SaveDictationCaptureUseCase,
+    private val updateDictationCaptureTranscriptUseCase: UpdateDictationCaptureTranscriptUseCase,
     private val deleteDictationCaptureUseCase: DeleteDictationCaptureUseCase,
     private val ioDispatcher: CoroutineDispatcher,
     private val generateDictationSession: GenerateDictationSessionUseCase? = null,
@@ -160,26 +163,58 @@ class DictationViewModel(
      * keeps the original recording available for manual checking even when
      * speech recognition or structured extraction failed.
      */
-    fun saveCapture(
+    suspend fun saveCapture(
         transcript: String,
         audioPath: String?,
         durationMillis: Long?,
-    ) {
+    ): Long? {
         val normalizedTranscript = transcript.trim()
         val normalizedAudioPath = audioPath?.trim()?.takeIf { it.isNotEmpty() }
-        if (normalizedTranscript.isEmpty() && normalizedAudioPath == null) return
+        if (normalizedTranscript.isEmpty() && normalizedAudioPath == null) return null
 
-        runCaptureOperation {
-            saveDictationCaptureUseCase(
-                DictationCapture(
-                    transcript = normalizedTranscript,
-                    audioPath = normalizedAudioPath,
-                    durationMillis = durationMillis?.takeIf { it >= 0L },
-                    capturedAt = Clock.System.now(),
-                ),
+        val (id, captures) =
+            withContext(ioDispatcher) {
+                val id =
+                    saveDictationCaptureUseCase(
+                        DictationCapture(
+                            transcript = normalizedTranscript,
+                            audioPath = normalizedAudioPath,
+                            durationMillis = durationMillis?.takeIf { it >= 0L },
+                            capturedAt = Clock.System.now(),
+                        ),
+                    )
+                id to getDictationCapturesUseCase()
+            }
+        _uiState.update {
+            it.copy(
+                captures = captures,
+                isCapturesLoading = false,
+                captureError = null,
             )
-            getDictationCapturesUseCase()
         }
+        return id
+    }
+
+    /** Saves the edited transcript while preserving the original recording. */
+    suspend fun updateCaptureTranscript(
+        id: Long,
+        transcript: String,
+    ): Boolean {
+        val updated =
+            withContext(ioDispatcher) {
+                updateDictationCaptureTranscriptUseCase(id, transcript)
+            }
+        if (updated) {
+            val captures = withContext(ioDispatcher) { getDictationCapturesUseCase() }
+            _uiState.update {
+                it.copy(
+                    captures = captures,
+                    isCapturesLoading = false,
+                    captureError = null,
+                )
+            }
+        }
+        return updated
     }
 
     /** Deletes one archive entry and best-effort removes its audio artifact. */

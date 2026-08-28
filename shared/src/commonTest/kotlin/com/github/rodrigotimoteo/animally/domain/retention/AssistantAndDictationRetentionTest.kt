@@ -9,6 +9,7 @@ import com.github.rodrigotimoteo.animally.domain.assistant.usecase.SaveAssistant
 import com.github.rodrigotimoteo.animally.domain.dictation.model.DictationCapture
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.GetDictationCapturesUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.SaveDictationCaptureUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.UpdateDictationCaptureTranscriptUseCase
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -46,16 +47,19 @@ class AssistantAndDictationRetentionTest {
         val database = createTestDatabase()
         val repository = DictationCaptureRepositoryImpl(database, database.dictationCaptureQueries)
         val save = SaveDictationCaptureUseCase(repository)
+        val update = UpdateDictationCaptureTranscriptUseCase(repository)
         val getAll = GetDictationCapturesUseCase(repository)
 
-        save(
-            DictationCapture(
-                transcript = "",
-                audioPath = "/private/app/dictations/empty-transcript.caf",
-                durationMillis = 1_250L,
-                capturedAt = Instant.fromEpochMilliseconds(1L),
-            ),
-        )
+        val audioCaptureId =
+            save(
+                DictationCapture(
+                    transcript = "",
+                    audioPath = "/private/app/dictations/empty-transcript.caf",
+                    durationMillis = 1_250L,
+                    capturedAt = Instant.fromEpochMilliseconds(1L),
+                ),
+            )
+        assertTrue(update(audioCaptureId, "Edited transcript after review."))
         save(
             DictationCapture(
                 transcript = "Registar o peso da Lua.",
@@ -68,6 +72,7 @@ class AssistantAndDictationRetentionTest {
         val captures = getAll()
         assertEquals(2, captures.size)
         assertEquals("Registar o peso da Lua.", captures[0].transcript)
+        assertEquals("Edited transcript after review.", captures[1].transcript)
         assertEquals("/private/app/dictations/empty-transcript.caf", captures[1].audioPath)
         assertEquals(1_250L, captures[1].durationMillis)
     }

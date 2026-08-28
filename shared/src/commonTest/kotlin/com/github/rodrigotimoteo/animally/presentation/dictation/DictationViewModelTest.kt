@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValida
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.DeleteDictationCaptureUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.GetDictationCapturesUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.usecase.SaveDictationCaptureUseCase
+import com.github.rodrigotimoteo.animally.domain.dictation.usecase.UpdateDictationCaptureTranscriptUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.ResolvePatientUseCase
 import com.github.rodrigotimoteo.animally.llm.GenerateDictationSessionUseCase
@@ -52,6 +53,7 @@ class DictationViewModelTest {
             resolvePatientUseCase = ResolvePatientUseCase(patientRepositoryMock),
             getDictationCapturesUseCase = GetDictationCapturesUseCase(dictationCaptureRepositoryMock),
             saveDictationCaptureUseCase = SaveDictationCaptureUseCase(dictationCaptureRepositoryMock),
+            updateDictationCaptureTranscriptUseCase = UpdateDictationCaptureTranscriptUseCase(dictationCaptureRepositoryMock),
             deleteDictationCaptureUseCase = DeleteDictationCaptureUseCase(dictationCaptureRepositoryMock),
             ioDispatcher = Dispatchers.Unconfined,
             generateDictationSession = generateDictationSession,

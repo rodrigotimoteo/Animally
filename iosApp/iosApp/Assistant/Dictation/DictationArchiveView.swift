@@ -6,9 +6,11 @@ import SwiftUI
 /// even when a recording was not available or has since been removed.
 struct DictationArchiveView: View {
     @ObservedObject var viewModel: DictationReviewViewModel
+    @EnvironmentObject private var theme: ThemeViewModel
     @Environment(\.dismiss) private var dismiss
     @StateObject private var playback = DictationAudioPlaybackController()
     @State private var playbackError: String?
+    @State private var isPlaybackSpeedPickerPresented = false
 
     private var captures: [DictationCaptureItem] {
         viewModel.state.captures
@@ -67,6 +69,7 @@ struct DictationArchiveView: View {
             .onDisappear { stopPlayback() }
         }
         .accessibilityIdentifier("dictation_archive")
+        .tint(theme.accentColor)
     }
 
     private var emptyView: some View {
@@ -109,58 +112,120 @@ struct DictationArchiveView: View {
 
     private func captureRow(_ capture: DictationCaptureItem) -> some View {
         let hasAudio = hasPlayableAudio(capture)
-        return HStack(alignment: .top, spacing: 12) {
-            Image(systemName: hasAudio ? "waveform" : "text.quote")
-                .font(.title3)
-                .foregroundStyle(Theme.forestGreen)
-                .frame(width: 34, height: 34)
-                .background(Theme.forestGreen.opacity(0.10))
-                .clipShape(Circle())
+        let isPlaying = playback.playingCaptureId == capture.id
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: hasAudio ? "waveform" : "text.quote")
+                    .font(.title3)
+                    .foregroundStyle(theme.accentColor)
+                    .frame(width: 34, height: 34)
+                    .background(theme.accentColor.opacity(0.10))
+                    .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(capture.transcript.isEmpty ? "No transcript captured" : capture.transcript)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(4)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(capture.transcript.isEmpty ? "No transcript captured" : capture.transcript)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(4)
 
-                HStack(spacing: 8) {
-                    Text(dateText(for: capture))
-                    if let duration = capture.durationMillis?.int64Value, duration > 0 {
-                        Text("•")
-                        Text(durationText(duration))
+                    HStack(spacing: 8) {
+                        Text(dateText(for: capture))
+                        if let duration = capture.durationMillis?.int64Value, duration > 0 {
+                            Text("•")
+                            Text(durationText(duration))
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+
+                    if !hasAudio {
+                        Label("Audio not available", systemImage: "waveform.slash")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textTertiary)
                     }
                 }
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
 
-                if !hasAudio {
-                    Label("Audio not available", systemImage: "waveform.slash")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textTertiary)
+                Spacer(minLength: 4)
+
+                Button {
+                    togglePlayback(capture)
+                } label: {
+                    Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(hasAudio ? theme.accentColor : Theme.textTertiary)
                 }
+                .buttonStyle(.plain)
+                .disabled(!hasAudio)
+                .accessibilityLabel(
+                    hasAudio
+                        ? (isPlaying ? "Stop recording playback" : "Play recording")
+                        : "Recording unavailable"
+                )
+                .accessibilityIdentifier("dictation_play_\(capture.id)")
             }
 
-            Spacer(minLength: 4)
-
-            Button {
-                togglePlayback(capture)
-            } label: {
-                Image(systemName: playback.playingCaptureId == capture.id ? "stop.circle.fill" : "play.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(hasAudio ? Theme.forestGreen : Theme.textTertiary)
+            if isPlaying {
+                playbackControls
             }
-            .buttonStyle(.plain)
-            .disabled(!hasAudio)
-            .accessibilityLabel(
-                hasAudio
-                    ? (playback.playingCaptureId == capture.id ? "Stop recording playback" : "Play recording")
-                    : "Recording unavailable"
-            )
-            .accessibilityIdentifier("dictation_play_\(capture.id)")
         }
         .padding(.vertical, 5)
         .contentShape(Rectangle())
         .accessibilityIdentifier("dictation_capture_\(capture.id)")
+    }
+
+    private var playbackControls: some View {
+        VStack(spacing: 4) {
+            Slider(
+                value: Binding(
+                    get: { playback.currentTime },
+                    set: { playback.seek(to: $0) }
+                ),
+                in: 0...max(playback.duration, 0.01)
+            )
+            .tint(theme.accentColor)
+            .accessibilityLabel("Playback progress")
+            .accessibilityValue(
+                "\(playbackTimeText(playback.currentTime)) of \(playbackTimeText(playback.duration))"
+            )
+            .accessibilityIdentifier("dictation_progress_\(playback.playingCaptureId ?? 0)")
+
+            HStack(spacing: 10) {
+                Text(playbackTimeText(playback.currentTime))
+                Spacer(minLength: 4)
+                Button {
+                    isPlaybackSpeedPickerPresented = true
+                } label: {
+                    Label(playbackRateText(playback.playbackRate), systemImage: "speedometer")
+                        .font(.caption.weight(.semibold))
+                }
+                .confirmationDialog(
+                    "Playback speed",
+                    isPresented: $isPlaybackSpeedPickerPresented,
+                    titleVisibility: .visible
+                ) {
+                    ForEach(DictationAudioPlaybackController.supportedRates, id: \.self) { rate in
+                        Button {
+                            playback.setRate(rate)
+                        } label: {
+                            HStack {
+                                Text(playbackRateText(rate))
+                                if playback.playbackRate == rate {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("dictation_speed_option_\(playbackRateText(rate))")
+                    }
+                }
+                .accessibilityLabel("Playback speed")
+                .accessibilityIdentifier("dictation_speed_\(playback.playingCaptureId ?? 0)")
+                Spacer(minLength: 4)
+                Text("-\(playbackTimeText(max(0, playback.duration - playback.currentTime)))")
+            }
+            .font(.caption)
+            .foregroundStyle(Theme.textSecondary)
+        }
+        .padding(.leading, 46)
     }
 
     private func dateText(for capture: DictationCaptureItem) -> String {
@@ -171,6 +236,19 @@ struct DictationArchiveView: View {
     private func durationText(_ durationMillis: Int64) -> String {
         let totalSeconds = max(0, durationMillis / 1000)
         return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
+    }
+
+    private func playbackTimeText(_ time: TimeInterval) -> String {
+        durationText(Int64(max(0, time) * 1000))
+    }
+
+    private func playbackRateText(_ rate: Float) -> String {
+        switch rate {
+        case 1.0: return "1x"
+        case 1.5: return "1.5x"
+        case 2.0: return "2x"
+        default: return "\(rate)x"
+        }
     }
 
     private func hasPlayableAudio(_ capture: DictationCaptureItem) -> Bool {

@@ -9,6 +9,7 @@ import SwiftUI
 /// point discards everything.
 struct DictationCaptureView: View {
     let onFinished: () -> Void
+    @EnvironmentObject private var theme: ThemeViewModel
 
     private enum Phase {
         case idle
@@ -26,7 +27,8 @@ struct DictationCaptureView: View {
     @State private var errorMessage: String?
     @State private var fallbackLocaleHint: String?
     @State private var disambiguatedPatients: [Int: Patient] = [:]
-    @State private var isPreparingEngine = true
+    @State private var persistedCaptureId: Int64?
+    @State private var isStartingRecording = false
     @State private var engineUnavailableMessage: String?
     @State private var operationTask: Task<Void, Never>?
 
@@ -57,6 +59,11 @@ struct DictationCaptureView: View {
                     SuggestionReviewView(
                         viewModel: reviewViewModel,
                         disambiguatedPatients: $disambiguatedPatients,
+                        accentColor: theme.accentColor,
+                        onRetryExtraction: {
+                            errorMessage = nil
+                            phase = .reviewingTranscript
+                        },
                         onFinished: onFinished
                     )
                     .accessibilityIdentifier("dictation_review")
@@ -82,6 +89,7 @@ struct DictationCaptureView: View {
             operationTask = nil
             Task { await transcriber?.cancel() }
         }
+        .tint(theme.accentColor)
     }
 
     // MARK: Idle
@@ -111,17 +119,13 @@ struct DictationCaptureView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 28)
                     .padding(.vertical, 14)
-                    .background(Theme.forestGreen)
+                    .background(theme.accentColor)
                     .clipShape(Capsule())
             }
-            .disabled(isPreparingEngine)
+            .disabled(isStartingRecording)
             .accessibilityIdentifier("dictation_start")
 
-            if isPreparingEngine {
-                ProgressView("Preparing dictation…")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-            } else if let engineUnavailableMessage {
+            if let engineUnavailableMessage {
                 Label(engineUnavailableMessage, systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
@@ -139,7 +143,7 @@ struct DictationCaptureView: View {
 
     private var recordingView: some View {
         VStack(spacing: 28) {
-            WaveformIndicator()
+            WaveformIndicator(accentColor: theme.accentColor)
                 .frame(height: 48)
 
             if let fallbackLocaleHint {
@@ -223,7 +227,7 @@ struct DictationCaptureView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 28)
                     .padding(.vertical, 14)
-                    .background(Theme.forestGreen)
+                    .background(theme.accentColor)
                     .clipShape(Capsule())
             }
             .disabled(editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -254,7 +258,6 @@ struct DictationCaptureView: View {
     // MARK: Actions
 
     private func prepareEngines(for language: DictationLanguage) async {
-        isPreparingEngine = true
         let candidateExtractor = DictationExtractorFactory.make(
             language: language,
             cloudExtraction: cloudExtraction
@@ -266,7 +269,6 @@ struct DictationCaptureView: View {
         // prevents a stale resolution from winning a rapid language switch.
         extractor = candidateExtractor
         applyResolvedEngine(resolved)
-        isPreparingEngine = false
     }
 
     private var cloudExtraction: CloudDictationExtraction? {
@@ -277,13 +279,14 @@ struct DictationCaptureView: View {
     }
 
     private func startRecording() {
-        guard !isPreparingEngine else {
-            errorMessage = "Dictation is still preparing. Try again in a moment."
-            return
-        }
         errorMessage = nil
+        persistedCaptureId = nil
+        liveTranscript = ""
+        editableTranscript = ""
+        isStartingRecording = true
         operationTask?.cancel()
         operationTask = Task {
+            defer { isStartingRecording = false }
             if let permissionError = await SpeechAuthService.requestAuthorization() {
                 errorMessage = permissionError.localizedDescription
                 return
@@ -291,12 +294,10 @@ struct DictationCaptureView: View {
             // Availability can change after permission is granted or after
             // speech assets finish installing, so always resolve once more at
             // the point of use instead of trusting a stale preflight result.
-            isPreparingEngine = true
             let language = selectedLanguage
             let resolved = await SpeechTranscriberService.resolve(preferredLocale: language.locale)
             guard !Task.isCancelled, selectedLanguage == language else { return }
             applyResolvedEngine(resolved)
-            isPreparingEngine = false
             guard let transcriber else {
                 errorMessage = engineUnavailableMessage ?? SpeechTranscriberService.unavailableMessage
                 return
@@ -343,44 +344,76 @@ struct DictationCaptureView: View {
             }
             do {
                 let transcript = try await transcriber.finish()
+                let reviewedTranscript =
+                    transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? liveTranscript
+                    : transcript
                 // Persist before extraction or review. A failed extractor or
                 // later cancellation must never discard the original note.
-                reviewViewModel.saveCapture(
-                    transcript: transcript,
+                persistedCaptureId = await persistCapture(
+                    transcript: reviewedTranscript,
                     audioPath: transcriber.recordingFilePath,
                     durationMillis: transcriber.recordingDurationMillis
                 )
-                guard !transcript.isEmpty else {
-                    phase = .idle
-                    errorMessage = "Nothing was captured. Try again."
+                editableTranscript = reviewedTranscript
+                guard !reviewedTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    errorMessage = "No words were transcribed. Type the note here or try recording again."
                     return
                 }
-                editableTranscript = transcript
             } catch is CancellationError {
                 return
             } catch {
                 // `finish()` tears down the pipeline even when recognition
                 // fails. Keep any partial transcript and completed audio.
-                reviewViewModel.saveCapture(
+                persistedCaptureId = await persistCapture(
                     transcript: liveTranscript,
                     audioPath: transcriber.recordingFilePath,
                     durationMillis: transcriber.recordingDurationMillis
                 )
                 errorMessage = error.localizedDescription
-                phase = .recording
+                editableTranscript = liveTranscript
+                phase = .reviewingTranscript
             }
         }
     }
 
     private func runExtraction(transcript: String) async {
-        guard let extractor else {
-            errorMessage = "Extractor unavailable."
-            phase = .idle
+        let normalizedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTranscript.isEmpty else {
+            errorMessage = "There is no transcript to extract."
+            phase = .reviewingTranscript
             return
         }
-        reviewViewModel.setTranscript(transcript)
+
+        // The editor is authoritative after recording stops. Update the
+        // Kotlin-owned archive before invoking any extractor so history and
+        // structured extraction cannot observe different text.
+        reviewViewModel.setTranscript(normalizedTranscript)
+        if let persistedCaptureId {
+            do {
+                let updated = try await reviewViewModel.updateCaptureTranscript(
+                    id: persistedCaptureId,
+                    transcript: normalizedTranscript
+                )
+                guard updated else {
+                    errorMessage = "Could not update this dictation in history. Try again."
+                    phase = .reviewingTranscript
+                    return
+                }
+            } catch {
+                errorMessage = "Could not update dictation history: \(error.localizedDescription)"
+                phase = .reviewingTranscript
+                return
+            }
+        }
+
+        guard let extractor else {
+            errorMessage = "Extractor unavailable."
+            phase = .reviewingTranscript
+            return
+        }
         do {
-            let sessionJson = try await extractor.extract(transcript: transcript, onUpdate: nil)
+            let sessionJson = try await extractor.extract(transcript: normalizedTranscript, onUpdate: nil)
             try Task.checkCancellation()
             reviewViewModel.validate(sessionJson: sessionJson)
             phase = .reviewing
@@ -394,6 +427,23 @@ struct DictationCaptureView: View {
         } catch {
             errorMessage = "Could not read the dictation: \(error.localizedDescription)"
             phase = .reviewingTranscript
+        }
+    }
+
+    private func persistCapture(
+        transcript: String,
+        audioPath: String?,
+        durationMillis: Int64?
+    ) async -> Int64? {
+        do {
+            return try await reviewViewModel.saveCapture(
+                transcript: transcript,
+                audioPath: audioPath,
+                durationMillis: durationMillis
+            )
+        } catch {
+            errorMessage = "Could not save dictation history: \(error.localizedDescription)"
+            return nil
         }
     }
 
@@ -436,6 +486,7 @@ struct DictationCaptureView: View {
 
 /// Lightweight animated level bars standing in for a live waveform.
 private struct WaveformIndicator: View {
+    let accentColor: Color
     @State private var animating = false
 
     private let barHeights: [CGFloat] = [0.35, 0.7, 1.0, 0.55, 0.85, 0.45]
@@ -444,7 +495,7 @@ private struct WaveformIndicator: View {
         HStack(spacing: 6) {
             ForEach(Array(barHeights.enumerated()), id: \.offset) { index, height in
                 Capsule()
-                    .fill(Theme.forestGreen)
+                    .fill(accentColor)
                     .frame(width: 6, height: 40 * height)
                     .scaleEffect(y: animating ? 0.45 : 1.0, anchor: .center)
                     .animation(

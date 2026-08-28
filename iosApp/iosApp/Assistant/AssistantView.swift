@@ -96,6 +96,7 @@ struct AssistantView: View {
                 AssistantHistoryView(
                     conversations: viewModel.state.conversations,
                     isLoading: viewModel.state.isHistoryLoading,
+                    accentColor: theme.accentColor,
                     onUseQuestion: { question in
                         draft = question
                         showChatHistory = false
@@ -145,6 +146,7 @@ struct AssistantView: View {
                     ForEach(Array(viewModel.state.messages.enumerated()), id: \.offset) { index, message in
                         ChatBubble(
                             message: message,
+                            accentColor: theme.accentColor,
                             onFollowUp: { suggestion in
                                 draft = suggestion
                                 inputFocused = true
@@ -218,7 +220,7 @@ struct AssistantView: View {
         VStack(spacing: 16) {
             Image(systemName: "sparkles")
                 .font(.system(size: 64))
-                .foregroundStyle(Theme.forestGreen.opacity(0.6))
+                .foregroundStyle(theme.accentColor.opacity(0.6))
             Text("What would you like to know?")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
@@ -248,10 +250,10 @@ struct AssistantView: View {
                                 .font(.subheadline)
                             Spacer()
                         }
-                        .foregroundStyle(Theme.forestGreen)
+                        .foregroundStyle(theme.accentColor)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Theme.forestGreen.opacity(0.08))
+                        .background(theme.accentColor.opacity(0.08))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
@@ -275,9 +277,9 @@ struct AssistantView: View {
             } label: {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 20))
-                    .foregroundStyle(Theme.forestGreen)
+                    .foregroundStyle(theme.accentColor)
                     .frame(width: 40, height: 40)
-                    .background(Theme.forestGreen.opacity(0.12))
+                    .background(theme.accentColor.opacity(0.12))
                     .clipShape(Circle())
             }
             .disabled(viewModel.state.isGenerating || viewModel.state.isHistoryLoading)
@@ -300,7 +302,7 @@ struct AssistantView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundStyle(canSend ? Theme.forestGreen : Theme.textTertiary)
+                    .foregroundStyle(canSend ? theme.accentColor : Theme.textTertiary)
                     .scaleEffect(viewModel.state.isGenerating ? 0.92 : 1.0)
                     .animation(
                         viewModel.state.isGenerating
@@ -367,11 +369,11 @@ struct AssistantView: View {
         VStack(spacing: 24) {
             ZStack {
                 Circle()
-                    .fill(Theme.forestGreen.opacity(0.12))
+                    .fill(theme.accentColor.opacity(0.12))
                     .frame(width: 120, height: 120)
                 Image(systemName: "sparkles")
                     .font(.system(size: 52))
-                    .foregroundStyle(Theme.forestGreen)
+                    .foregroundStyle(theme.accentColor)
             }
 
             Text("On-device AI not available here")
@@ -402,7 +404,7 @@ struct AssistantView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 28)
                     .padding(.vertical, 12)
-                    .background(Theme.forestGreen)
+                    .background(theme.accentColor)
                     .clipShape(Capsule())
             }
 
@@ -411,10 +413,10 @@ struct AssistantView: View {
             } label: {
                 Label("Dictate records", systemImage: "mic.fill")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.forestGreen)
+                    .foregroundStyle(theme.accentColor)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
-                    .background(Theme.forestGreen.opacity(0.10))
+                    .background(theme.accentColor.opacity(0.10))
                     .clipShape(Capsule())
             }
             .accessibilityIdentifier("assistant_dictate")
@@ -477,6 +479,7 @@ struct AssistantView: View {
 
 private struct ChatBubble: View {
     let message: AssistantChatMessage
+    let accentColor: Color
     let onFollowUp: (String) -> Void
     let onOpenSource: (SearchResult) -> Void
     let onRetry: (() -> Void)?
@@ -502,7 +505,7 @@ private struct ChatBubble: View {
                     .foregroundStyle(isUser ? .white : Theme.textPrimary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(isUser ? Theme.forestGreen : Theme.surfaceElevated)
+                    .background(isUser ? accentColor : Theme.surfaceElevated)
                     .clipShape(ChatBubbleShape(isUser: isUser))
                 if message.interrupted {
                     interruptedFooter
@@ -536,7 +539,7 @@ private struct ChatBubble: View {
                 Button(action: onRetry) {
                     Text("Retry")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.forestGreen)
+                        .foregroundStyle(accentColor)
                 }
                 .accessibilityIdentifier("assistant_retry")
             }
@@ -572,8 +575,8 @@ private struct ChatBubble: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(Theme.forestGreen.opacity(0.12))
-                        .foregroundStyle(Theme.forestGreen)
+                        .background(accentColor.opacity(0.12))
+                        .foregroundStyle(accentColor)
                         .clipShape(Capsule())
                     }
                     .accessibilityIdentifier("assistant_source_chip")

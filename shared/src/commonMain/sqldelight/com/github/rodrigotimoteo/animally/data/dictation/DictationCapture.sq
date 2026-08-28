@@ -13,6 +13,11 @@ ORDER BY capturedAt DESC, id DESC;
 selectById:
 SELECT * FROM DictationCapture WHERE id = ?;
 
+updateTranscript:
+UPDATE DictationCapture
+SET transcript = ?
+WHERE id = ?;
+
 deleteById:
 DELETE FROM DictationCapture WHERE id = ?;
 

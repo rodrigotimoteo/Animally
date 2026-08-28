@@ -48,6 +48,16 @@ class DictationCaptureRepositoryImpl(
             )
         }
 
+    override fun updateTranscript(
+        id: Long,
+        transcript: String,
+    ): Long =
+        queries
+            .updateTranscript(
+                transcript = transcript,
+                id = id,
+            ).value
+
     override fun deleteById(id: Long): Long = queries.deleteById(id).value
 
     override fun deleteAll() {

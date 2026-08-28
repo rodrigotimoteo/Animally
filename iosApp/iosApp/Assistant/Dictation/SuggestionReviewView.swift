@@ -44,12 +44,17 @@ final class DictationReviewViewModel: ObservableObject {
         transcript: String,
         audioPath: String?,
         durationMillis: Int64?
-    ) {
-        store.saveCapture(
+    ) async throws -> Int64? {
+        let id = try await store.saveCapture(
             transcript: transcript,
             audioPath: audioPath,
             durationMillis: durationMillis.map { KotlinLong(longLong: $0) }
         )
+        return id?.int64Value
+    }
+
+    func updateCaptureTranscript(id: Int64, transcript: String) async throws -> Bool {
+        try await store.updateCaptureTranscript(id: id, transcript: transcript).boolValue
     }
 
     func deleteCapture(id: Int64) {
@@ -140,6 +145,8 @@ struct SuggestionReviewView: View {
     @ObservedObject var viewModel: DictationReviewViewModel
     /// Chosen patient per suggestion index after disambiguation.
     @Binding var disambiguatedPatients: [Int: Patient]
+    let accentColor: Color
+    let onRetryExtraction: () -> Void
     let onFinished: () -> Void
     @State private var saveError: String?
 
@@ -175,21 +182,34 @@ struct SuggestionReviewView: View {
         List {
             if viewModel.state.error != nil {
                 Section {
-                    Label(
-                        viewModel.state.error ?? "Could not read the dictation.",
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .foregroundStyle(Theme.amber)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label(
+                            viewModel.state.error ?? "Could not read the dictation.",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .foregroundStyle(Theme.amber)
+                        retryExtractionButton
+                    }
                 }
             }
 
             if suggestions.isEmpty && viewModel.state.error == nil {
-                ContentUnavailableView(
-                    "No records found",
-                    systemImage: "doc.questionmark",
-                    description: Text("Try mentioning a horse, a date, and the record you want to add.")
-                )
-                .listRowBackground(Color.clear)
+                Section {
+                    VStack(spacing: 12) {
+                        ContentUnavailableView(
+                            "No supported records found",
+                            systemImage: "doc.questionmark",
+                            description: Text(
+                                "Nothing was added. The transcript did not contain a clear ultrasound, weight, or deworming record. Edit it and try again — the app will never invent a record."
+                            )
+                        )
+                        retryExtractionButton
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                } footer: {
+                    Text("Only explicitly spoken record details are suggested. You can add other visit types manually from the patient page.")
+                }
             }
 
             if !validIndices.isEmpty {
@@ -225,6 +245,18 @@ struct SuggestionReviewView: View {
         }
     }
 
+    private var retryExtractionButton: some View {
+        Button {
+            onRetryExtraction()
+        } label: {
+            Label("Edit transcript", systemImage: "pencil")
+                .font(.subheadline.weight(.semibold))
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(accentColor)
+        .accessibilityIdentifier("dictation_edit_transcript")
+    }
+
     // MARK: Rows
 
     @ViewBuilder
@@ -251,7 +283,7 @@ struct SuggestionReviewView: View {
                     } label: {
                         Label("Choose which horse", systemImage: "person.2")
                             .font(.footnote.weight(.medium))
-                            .foregroundStyle(Theme.forestGreen)
+                            .foregroundStyle(accentColor)
                     }
                     .buttonStyle(.plain)
                 }
@@ -303,9 +335,9 @@ struct SuggestionReviewView: View {
             }
         return Image(systemName: systemName)
             .font(.title3)
-            .foregroundStyle(Theme.forestGreen)
+            .foregroundStyle(accentColor)
             .frame(width: 40, height: 40)
-            .background(Theme.forestGreen.opacity(0.10))
+            .background(accentColor.opacity(0.10))
             .clipShape(Circle())
     }
 
@@ -326,7 +358,7 @@ struct SuggestionReviewView: View {
             } label: {
                 Image(systemName: suggestions[index].decision == true ? "checkmark.circle.fill" : "checkmark.circle")
                     .font(.title3)
-                    .foregroundStyle(suggestions[index].decision == true ? Theme.forestGreen : Theme.textTertiary)
+                    .foregroundStyle(suggestions[index].decision == true ? accentColor : Theme.textTertiary)
             }
             .buttonStyle(.plain)
             .disabled(!isSaveable(index, suggestion: suggestions[index]))
@@ -381,7 +413,7 @@ struct SuggestionReviewView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(acceptedCount > 0 && saveError == nil ? Theme.forestGreen : Theme.textTertiary)
+                    .background(acceptedCount > 0 && saveError == nil ? accentColor : Theme.textTertiary)
                     .clipShape(Capsule())
             }
             .disabled(saveError != nil || (acceptedCount == 0 && hasPendingDecisions))

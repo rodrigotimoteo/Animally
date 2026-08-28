@@ -241,6 +241,17 @@ final class AssistantUITests: AnimallyTestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "Transcript review did not appear")
         XCTAssertFalse((editor.value as? String ?? "").isEmpty, "Mock transcript was not delivered")
 
+        // The reviewed text is the source of truth for both extraction and
+        // the archive. Add a marker that cannot come from the mock speech
+        // result so this catches accidental use of the original transcript.
+        let editedMarker = "Edited during review"
+        editor.tap()
+        editor.typeText(" \(editedMarker)")
+        XCTAssertTrue(
+            (editor.value as? String ?? "").contains(editedMarker),
+            "Transcript editor did not retain the review edit"
+        )
+
         app.buttons["dictation_extract"].tap()
         let review = app.descendants(matching: .any)
             .matching(identifier: "dictation_review").firstMatch
@@ -263,24 +274,42 @@ final class AssistantUITests: AnimallyTestCase {
 
         XCTAssertTrue(app.staticTexts["Dictation history"].waitForExistence(timeout: 10))
         XCTAssertTrue(
-            app.staticTexts[
-                "Registar o peso do Lua do Pinhal e uma desparasitação. Depois fazer uma ecografia à Fantasma Inexistente."
-            ].waitForExistence(timeout: 10),
-            "Completed dictation transcript was not retained"
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", editedMarker)).firstMatch
+                .waitForExistence(timeout: 10),
+            "Edited dictation transcript was not retained"
         )
 
-        let play = app.buttons.matching(
+        let firstCapture = app.buttons.matching(
             NSPredicate(format: "label == %@", "Play recording")
         ).firstMatch
-        XCTAssertTrue(play.waitForExistence(timeout: 10), "Saved dictation audio was not playable")
-        XCTAssertTrue(play.isEnabled, "Saved dictation audio play action was disabled")
-        play.tap()
+        XCTAssertTrue(firstCapture.waitForExistence(timeout: 10), "Saved dictation audio was not playable")
+        XCTAssertTrue(firstCapture.isEnabled, "Saved dictation audio play action was disabled")
+        firstCapture.tap()
+
+        let stopPlayback = app.buttons.matching(
+            NSPredicate(format: "label == %@", "Stop recording playback")
+        ).firstMatch
         XCTAssertTrue(
-            app.buttons["Stop recording playback"].waitForExistence(timeout: 5),
+            stopPlayback.waitForExistence(timeout: 5),
             "Playback did not enter the playing state"
         )
-        app.buttons["Stop recording playback"].tap()
-        XCTAssertTrue(app.buttons["Play recording"].waitForExistence(timeout: 5))
+        let progress = app.sliders.firstMatch
+        XCTAssertTrue(progress.waitForExistence(timeout: 5), "Playback progress slider was not shown")
+        progress.adjust(toNormalizedSliderPosition: 0.1)
+
+        let speed = app.buttons["Playback speed"]
+        XCTAssertTrue(speed.waitForExistence(timeout: 5), "Playback speed control was not shown")
+        speed.tap()
+        let faster = app.buttons["1.5x"].firstMatch
+        XCTAssertTrue(faster.waitForExistence(timeout: 5), "1.5x playback option was not shown")
+        faster.tap()
+
+        stopPlayback.tap()
+        XCTAssertTrue(
+            app.buttons.matching(NSPredicate(format: "label == %@", "Play recording"))
+                .firstMatch
+                .waitForExistence(timeout: 5)
+        )
     }
 
     private func selectPlumAccent(_ app: XCUIApplication) {

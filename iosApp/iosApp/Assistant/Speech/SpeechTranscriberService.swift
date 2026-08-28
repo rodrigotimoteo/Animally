@@ -954,7 +954,7 @@ final class MockSpeechTranscriber: SpeechTranscribing {
     private func createDeterministicRecording() {
         guard
             let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1),
-            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 441_000)
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 44_100 * 30)
         else { return }
         buffer.frameLength = buffer.frameCapacity
         buffer.floatChannelData?[0].initialize(repeating: 0, count: Int(buffer.frameLength))
