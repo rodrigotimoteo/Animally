@@ -467,3 +467,23 @@ OpenRouter cloud stream -> answer + source cards in Swift UI
   deterministic dictation save/archive/playback path.
 - Obtain a Luna diff review, commit the verified slice, and install/launch on
   Daniela's iPhone if its CoreDevice tunnel is available.
+
+## Current implementation slice: SonarQube quality analysis
+
+1. Add the pinned SonarScanner for Gradle at the root and keep analysis opt-in
+   so ordinary Android/KMP builds do not require a Sonar server.
+2. Give Sonar an explicit KMP/iOS source and test scope, exclude generated and
+   resource-container noise, and import the existing Detekt, KtLint, Android
+   Lint, JUnit, and Kover reports.
+3. Document a strict new-code quality-gate policy that blocks regressions while
+   keeping existing debt visible, and keep all credentials outside the repo.
+4. Verify report generation and the Sonar task graph, review the diff, and
+   commit the configuration.
+
+### Verification boundary
+
+- Static analysis and Android Lint report generation pass.
+- `sonar --dry-run` validates task wiring without requiring a server token.
+- Full coverage generation remains subject to the two pre-existing shared test
+  failures recorded by the existing baseline; the Sonar configuration does not
+  suppress or exclude those tests.

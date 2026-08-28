@@ -57,3 +57,14 @@
 - [x] Run focused shared tests, native simulator build, and assistant/dictation UI smoke tests
 - [x] Run the final full verification pass and commit the slice
 - [ ] Install/launch on Daniela's iPhone when its CoreDevice tunnel is available
+
+## Current slice: SonarQube quality analysis
+
+- [x] Pin and apply the root SonarScanner for Gradle plugin
+- [x] Scope shared KMP, Android, iOS host, and test sources explicitly
+- [x] Import Detekt, KtLint, Android Lint, JUnit, and Kover reports
+- [x] Document a strict, new-code-focused quality-gate policy and secret handling
+- [x] Verify static-analysis reports and the Sonar task graph
+- [ ] Resolve the two pre-existing shared test failures so the full coverage/Sonar run can complete
+- [ ] Configure the documented gate and project credentials on the chosen SonarQube server
+- [ ] Commit the verified configuration

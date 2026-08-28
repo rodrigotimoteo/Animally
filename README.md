@@ -26,6 +26,12 @@ Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
 - Android tests: `./gradlew :shared:testAndroidHostTest`
 - iOS tests: `./gradlew :shared:iosSimulatorArm64Test`
 
+### Static analysis
+
+Run the full local quality pipeline and SonarQube quality gate with
+`./gradlew quality`. SonarQube credentials and setup are documented in
+[`config/sonar/README.md`](./config/sonar/README.md).
+
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
