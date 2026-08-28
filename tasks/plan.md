@@ -521,3 +521,197 @@ domain logic into platform UI code.
 - Full coverage and the configured quality gate complete; the Sonar report
   configuration no longer imports stale native JUnit result files.
 - `git diff --check`, the repository checks, and the commit hook pass.
+
+## Current implementation slice: dictation stability, edited transcripts, and playback
+
+### Objective
+
+Fix the reported iPhone dictation issues in small, sequential vertical slices:
+make Assistant and Dictation presentation use the live selected accent, remove
+the visible startup-preparation flicker, make the edited transcript the single
+source of truth for extraction and dictation history, make structured extraction
+fail clearly without silently producing an empty result, and add usable progress,
+seeking, and playback-speed controls to saved recordings.
+
+The shared Kotlin layer remains responsible for transcript state, persistence,
+repository operations, extraction policy, JSON normalization, and validation.
+Swift owns only the iOS presentation state and platform speech/audio adapters.
+No database or clinical/business logic is added to SwiftUI.
+
+### Evidence and confirmed hypotheses
+
+- `DictationCaptureView` persists the finalized speech transcript immediately in
+  `stopRecording()`, before the user can edit `editableTranscript`; there is no
+  update-by-capture-id operation, so the archive necessarily retains stale text.
+- The extraction button currently reads the editor binding, but the ownership
+  boundary is implicit and the persisted Kotlin transcript is not updated. The
+  fix will give the capture an explicit id and update it from the finalized
+  editor value before extraction starts.
+- `isPreparingEngine` is set by both the language `.task(id:)` preflight and the
+  recording-start path, while its `ProgressView("Preparing dictation…")` is
+  rendered in the idle screen. The same flag therefore causes a visible flash
+  during language changes and every start attempt.
+- The Assistant and dictation views still use `Theme.forestGreen`, which is the
+  semantic `Color.accentColor`. Sheet presentation can resolve that asset tint
+  instead of the concrete selected accent even though the root supplies
+  `.tint(theme.accentColor)`. The affected controls should use the live concrete
+  theme color at the presentation boundary.
+- `DictationAudioPlaybackController` currently publishes only the active id;
+  `AVAudioPlayer` already exposes duration, current time, and rate, so progress
+  and seeking can be added without changing the stored audio contract.
+- `GenerateDictationSessionUseCase` rejects blank/invalid output safely, but the
+  iOS review state needs a stronger empty-result message and the shared parser
+  needs tests for the provider shapes that produced the reported no-result case.
+
+### Ordered tasks
+
+#### Phase 1: Theme lifecycle and startup stability
+
+1. Reproduce the accent mismatch and language/startup flicker on the current
+   deterministic simulator route. Replace visible preparation progress with a
+   stable idle state: the start action may remain disabled until preflight is
+   ready, but changing languages must not flash a preparation screen or replace
+   the visible sheet. Pass the concrete selected accent through the Assistant,
+   Dictation, review, and archive presentation boundaries.
+2. Add or extend focused UI coverage for language switching, opening Dictation
+   twice after a start/cancel, and comparing the selected accent on Assistant,
+   Dictation, and archive controls.
+
+Acceptance criteria:
+
+- [ ] Language changes keep the sheet in place and do not show “Preparing
+      dictation…” or a full-screen startup flicker.
+- [ ] Assistant, Dictation review/archive, and audio controls use the selected
+      accent after changing it and after sheet re-entry.
+- [ ] Permission, engine-unavailable, and cancellation errors remain visible;
+      removing the progress label must not hide a real failure.
+
+Verification: focused iOS UI tests with `-animally-ui-test-dictation`, native
+simulator build, simulator screenshot/element inspection, and `git diff --check`.
+
+Dependencies: none. Files likely touched: `DictationCaptureView.swift`,
+`DictationArchiveView.swift`, `SuggestionReviewView.swift`, `AssistantView.swift`,
+and the focused assistant UI test. Scope: Medium.
+
+#### Phase 2: Edited transcript as the authoritative capture
+
+1. Add a shared repository update operation and use case that updates only a
+   capture’s transcript by id, then expose it through `DictationViewModel` and
+   `DictationStore`. Keep it as a Kotlin-owned persistence operation with no
+   Swift database access.
+2. Capture the inserted id in the iOS flow. On Extract, trim the current editor
+   value, update the persisted capture first, set the shared ViewModel transcript
+   to that same value, and pass that same value to the extractor. If extraction
+   fails, the archive must still contain the edited text and original audio.
+3. Add a regression test proving a changed transcript is what the archive and
+   extraction boundary receive, including the failure/retry path.
+
+Acceptance criteria:
+
+- [ ] Editing a transcript before Extract changes the saved Dictation history
+      text, not just the temporary editor.
+- [ ] Extraction receives exactly the current editor value, never the original
+      speech result; whitespace-only input is rejected without overwriting useful
+      prior text.
+- [ ] Audio path, duration, timestamp, and capture retention remain unchanged.
+
+Verification: shared ViewModel/use-case tests, SQLDelight-backed repository test
+where practical, iOS deterministic flow test that edits text before extraction,
+and simulator archive inspection.
+
+Dependencies: Phase 1 only for shared UI identifiers/test setup. Files likely
+touched: dictation repository contract/implementation/query, update use case,
+`DictationViewModel.kt`, `DictationStore.kt`, `SuggestionReviewViewModel`/
+`DictationCaptureView.swift`, and tests. Scope: Medium.
+
+#### Checkpoint A: shared state and dictation flow
+
+- [ ] Focused shared tests pass.
+- [ ] KMP iOS framework/native simulator build passes.
+- [ ] Deterministic dictation flow shows the edited transcript in history.
+- [ ] No uncommitted unrelated changes are present before the next phase.
+
+#### Phase 3: Structured extraction reliability and no-result feedback
+
+1. Add focused fixtures for cumulative streaming output, thinking/reasoning
+   blocks, fenced/prose-wrapped JSON, empty `records`, malformed output, and
+   provider terminal frames. Confirm the parser keeps only visible structured
+   content and never fabricates a record when the transcript does not support it.
+2. Improve the shared extraction error contract and iOS review copy so an empty
+   or unusable model answer is distinguishable from a valid “no supported record
+   was spoken” result. Preserve the transcript for correction/retry in both
+   cases; do not auto-create facts.
+3. Make the Foundation Models and cloud adapters use the same canonical
+   transcript/extraction contract and add tests for English and Portuguese
+   prompts that contain clinical words but no supported record.
+
+Acceptance criteria:
+
+- [ ] Valid provider variants reach review; reasoning blocks and wrapper prose
+      do not become visible records or leak into the payload.
+- [ ] A valid empty `records` result is explained as “no supported record found”
+      while invalid/blank output offers a retryable extraction error.
+- [ ] Failed extraction never discards the editable transcript or audio.
+
+Verification: focused `GenerateDictationSessionUseCaseTest`/parser tests,
+shared iOS tests, deterministic simulator extraction failure/retry path, and
+native simulator build.
+
+Dependencies: Phase 2. Files likely touched: `GenerateDictationSessionUseCase.kt`,
+dictation extraction tests, and the two native extractor/adaptor files only if a
+contract mismatch is confirmed. Scope: Small–Medium.
+
+#### Phase 4: Playback progress, seeking, and speed
+
+1. Extend the native playback controller with published duration/current time,
+   active rate, safe seek, and progress refresh while keeping its explicit audio
+   session lifecycle and missing-file behavior.
+2. Add an archive row playback surface with a progress slider, elapsed/remaining
+   time, seek interaction, and a 1x/1.5x/2x rate menu. Keep the existing full
+   swipe delete behavior and make the controls use the selected accent.
+3. Add deterministic UI coverage for entering playback, seeing progress
+   controls, changing rates, seeking, stopping, and replaying the same capture.
+
+Acceptance criteria:
+
+- [ ] A playable recording shows progress and elapsed/total time while active.
+- [ ] Dragging the slider seeks; 1x, 1.5x, and 2x change `AVAudioPlayer.rate`
+      without losing the active recording.
+- [ ] Stop, completion, missing-file, archive dismissal, and replay paths clean
+      up the audio session and remain safe.
+
+Verification: focused controller tests where possible, deterministic iOS UI test
+and simulator screenshots; real microphone/speaker quality remains a physical
+device check when Daniela’s iPhone is connected.
+
+Dependencies: Checkpoint A. Files likely touched: `DictationAudioPlaybackController.swift`,
+`DictationArchiveView.swift`, and dictation UI tests. Scope: Small–Medium.
+
+#### Final checkpoint
+
+- [ ] `./gradlew :shared:allTests :shared:ktlintCheck :shared:detekt`
+      (or the repository’s equivalent focused tasks) passes.
+- [ ] Native iOS simulator build and focused UI tests pass; claims are separated
+      from physical-device microphone/audio verification.
+- [ ] Diff review confirms no Swift persistence/business logic and no unrelated
+      rewrites.
+- [ ] Commit the complete slice and leave the worktree clean.
+
+### Failure modes and mitigations
+
+| Failure mode | Mitigation |
+| --- | --- |
+| Sheet tint resolves to the asset’s default blue after re-entry | Use the concrete `ThemeViewModel` accent at each sheet/component boundary and verify by screenshot |
+| Hiding preparation UI masks a real engine failure | Keep start readiness internal, preserve explicit unavailable/error copy, and test denial/unavailable branches |
+| Editor text races the async Kotlin bridge | Normalize once in the button action, update Kotlin by capture id, and pass the same immutable value to extraction |
+| Cloud model returns reasoning-only, empty, or wrapped output | Normalize at the shared parser boundary, distinguish valid empty records from invalid output, and retain retryable transcript state |
+| Seeking/rate changes leave AVAudioSession or player stale | Keep controller as the sole owner of player/session lifecycle and test stop, completion, dismissal, and replay |
+| Simulator gives false confidence for microphone behavior | Use deterministic simulator coverage for orchestration and report live speech/audio as device-only evidence |
+
+### Human checkpoint
+
+This order is intentionally sequential because Phase 2 depends on the stable
+capture lifecycle from Phase 1, Phase 3 depends on the authoritative transcript,
+and Phase 4 should not obscure extraction debugging. Review this plan before
+implementation continues; after approval, each phase will be implemented and
+verified before the next one starts.

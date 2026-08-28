@@ -78,3 +78,44 @@
 - [x] Refactor the three reported high-complexity LLM methods without changing behavior
 - [x] Run full coverage, shared tests, static checks, and a fresh local Sonar gate
 - [x] Review the diff, commit the fixes, and confirm a clean worktree
+
+## Current slice: dictation stability, edited transcripts, and playback
+
+### Phase 1: theme lifecycle and startup stability
+
+- [ ] Reproduce the Assistant/Dictation accent mismatch and language/startup flicker
+- [ ] Remove visible preparation flicker while preserving readiness and errors
+- [ ] Apply the concrete selected accent to Assistant, Dictation review, archive, and audio controls
+- [ ] Add focused language-switch/re-entry accent UI coverage
+
+### Phase 2: authoritative edited transcript
+
+- [ ] Add a Kotlin-owned update-by-capture-id repository operation/use case
+- [ ] Bridge capture id and update the saved transcript before extraction
+- [ ] Ensure extraction and archive receive the same normalized editor value
+- [ ] Add regression coverage for edited text and extraction failure/retry
+
+### Checkpoint A
+
+- [ ] Focused shared tests and KMP iOS build pass
+- [ ] Deterministic simulator flow shows edited transcript in history
+- [ ] Review diff for Swift/Kotlin separation before continuing
+
+### Phase 3: structured extraction reliability
+
+- [ ] Add provider-shape fixtures for thinking blocks, wrappers, cumulative output, and terminal frames
+- [ ] Distinguish valid empty records from invalid/blank extraction output
+- [ ] Preserve transcript/audio and expose a useful retry path for failed extraction
+- [ ] Verify English and Portuguese extraction contracts
+
+### Phase 4: playback controls
+
+- [ ] Add published playback progress, duration, rate, and seeking
+- [ ] Add progress slider, elapsed/remaining time, and 1x/1.5x/2x controls
+- [ ] Verify stop/completion/missing-file/dismiss/replay cleanup
+
+### Final verification
+
+- [ ] Run focused and full shared tests, ktlint, detekt, and native simulator build/UI tests
+- [ ] Review the complete diff for architecture, style, and regressions
+- [ ] Commit the complete slice and confirm a clean worktree
