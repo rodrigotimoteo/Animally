@@ -77,8 +77,9 @@ presentation and platform-integration layer.
 
 Make the dictation sheet retain the selected accent whenever it is opened,
 closed, and opened again, and make the existing local assistant history
-discoverable and useful on iOS. The history remains a Kotlin-owned list of up
-to 15 completed question/answer turns; SwiftUI only renders the iOS projection,
+discoverable and useful on iOS. The history remains Kotlin-owned: up to 15
+completed question/answer turns are persisted, each new chat gets a stable
+conversation boundary, and SwiftUI only renders the grouped iOS projection,
 formats dates, and requests that a saved question be reused in the composer.
 
 ## Confirmed findings
@@ -86,9 +87,10 @@ formats dates, and requests that a saved question be reused in the composer.
 - `AssistantViewModel` already persists and hydrates the newest 15 completed
   turns in shared Kotlin, but `AssistantView` exposes only the current transcript
   and the separate dictation archive button.
-- The persisted model is turn-based, not session-based. The UI must therefore
-  call this “Chat history” or “Recent chats” and must not imply that separate
-  named conversations can be reopened.
+- The persisted model was initially turn-based, not session-based. A migration
+  now adds a stable conversation id while assigning legacy rows to individual
+  safe groups, so the UI can reopen complete multi-turn blocks without merging
+  unrelated old answers.
 - `DictationCaptureView` uses `Theme.forestGreen` (`Color.accentColor`) but the
   sheet does not explicitly receive `ThemeViewModel.accentColor`. That relies
   on inherited SwiftUI tint propagation and is vulnerable to stale sheet
@@ -98,10 +100,11 @@ formats dates, and requests that a saved question be reused in the composer.
 
 - Add the recent-turn collection to shared assistant state and refresh it after
   a completed answer is persisted. The Kotlin ViewModel remains responsible for
-  ordering, retention, loading, and error state.
+  conversation identity, ordering, retention, loading, and error state.
 - Project history to an Objective-C-friendly iOS store state with primitive
-  fields, including epoch milliseconds, following the existing dictation-store
-  bridge pattern. No Swift database or repository access is introduced.
+  fields, including epoch milliseconds and grouped conversation projections,
+  following the existing dictation-store bridge pattern. No Swift database or
+  repository access is introduced.
 - Add a clearly separate “Chat history” toolbar action. A list shows the newest
   turns first, searchable by question/answer; a detail screen shows the complete
   saved exchange and offers “Use question” to place it back in the composer for
@@ -119,7 +122,7 @@ AssistantChatHistoryRepository / use cases
 AssistantViewModel state + refresh after save
         |
         v
-AssistantStore iOS projection (turns + epoch dates)
+AssistantStore iOS projection (turns, conversation ids + epoch dates)
         |
         +--> Chat history list/detail/reuse UI
         |
@@ -133,9 +136,9 @@ AssistantStore iOS projection (turns + epoch dates)
    on the sheet controls.
 2. The assistant toolbar exposes a distinct Chat history action without
    confusing it with Dictation history.
-3. Chat history shows up to the 15 persisted turns newest first, supports local
-   search, exposes the full question and answer on selection, and clearly marks
-   cloud/on-device and partial responses.
+3. Chat history shows up to the 15 persisted turns grouped into conversation
+   blocks, supports local search, exposes every question/answer exchange on
+   selection, and clearly marks cloud/on-device and partial responses.
 4. “Use question” closes history and fills the assistant composer without
    sending unexpectedly; the user can edit and submit it normally.
 5. A newly completed answer appears in Chat history without requiring an app
@@ -160,7 +163,7 @@ AssistantStore iOS projection (turns + epoch dates)
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Existing data has turns but no conversation/session id | Users could be misled about what can be reopened | Present individual saved exchanges as recent turns, not named sessions |
+| Existing data has turns but no conversation/session id | Unrelated answers could be merged or users could be misled about what can be reopened | Migrate legacy rows to one safe group per row and use stable ids for new chats |
 | Swift sheet captures an old environment value | Accent appears to revert after re-entry | Bind `.tint` directly to the live `ThemeViewModel` on every sheet presentation |
 | Kotlin collections/types are awkward in Objective-C headers | iOS build failure or fragile Swift access | Use a small `@ObjCName` primitive projection, matching `DictationStore` |
 | A history refresh races with generation | Composer could be disabled or transcript replaced | Preserve live messages on refresh and block only while the shared load is active |
@@ -438,3 +441,29 @@ OpenRouter cloud stream -> answer + source cards in Swift UI
   simulator build, and deterministic dictation playback UI test pass. A Luna
   diff review found no blocking issues; its payload/session concerns were
   incorporated before the final verification pass.
+
+## Current implementation slice: consistent dictation deletion and conversation blocks
+
+### Behavior that must become true
+
+- Dictation archive deletion keeps the existing full-swipe behavior but uses the
+  same text-only red swipe affordance as patient, owner, and clinical-record
+  rows.
+- Assistant history persists a stable conversation id with each completed turn,
+  groups turns by that id in Kotlin, and reopens only the most recent chat in
+  the live transcript on app launch.
+- Legacy assistant rows remain reviewable after migration and are never merged
+  into one unrelated conversation. Backups preserve conversation ids while
+  still accepting payloads created before this field existed.
+- Chat history has a clear conversation list and a detail view containing every
+  exchange, per-turn reuse actions, source labels, and partial-response state.
+
+### Verification plan
+
+- Run the shared conversation-grouping and assistant-retention tests on iOS and
+  Android host targets, plus the iOS simulator framework compile.
+- Run ktlint and detekt, then build the native iOS simulator app.
+- Run focused simulator UI coverage for opening chat history and the existing
+  deterministic dictation save/archive/playback path.
+- Obtain a Luna diff review, commit the verified slice, and install/launch on
+  Daniela's iPhone if its CoreDevice tunnel is available.

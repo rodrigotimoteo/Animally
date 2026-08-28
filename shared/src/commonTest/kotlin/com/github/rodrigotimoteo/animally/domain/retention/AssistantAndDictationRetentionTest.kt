@@ -30,11 +30,13 @@ class AssistantAndDictationRetentionTest {
                     source = "CLOUD",
                     interrupted = index == 15,
                     createdAt = Instant.fromEpochMilliseconds(index.toLong()),
+                    conversationId = "retention-chat",
                 ),
             )
         }
 
         assertEquals((1..15).map { "Question $it" }, getRecent().map { it.question })
+        assertEquals("retention-chat", getRecent().first().conversationId)
         assertEquals("Answer 15", getRecent().last().answer)
         assertTrue(getRecent().last().interrupted)
     }

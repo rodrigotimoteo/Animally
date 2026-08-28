@@ -46,3 +46,14 @@
 - [x] Run focused/full checks and obtain a Luna diff review
 - [x] Commit the verified final slice
 - [ ] Install/launch on Daniela's iPhone when its CoreDevice tunnel is available
+
+## Current slice: consistent dictation deletion and conversation blocks
+
+- [x] Match the dictation archive swipe label and red tint to other delete rows while retaining full-swipe behavior
+- [x] Persist stable assistant conversation ids through SQLDelight and backups
+- [x] Group retained turns in Kotlin and expose grouped iOS store projections
+- [x] Add searchable conversation list/detail UI with per-turn question reuse and source/partial markers
+- [x] Capture the conversation id at request start to prevent in-flight reassignment
+- [x] Run focused shared tests, native simulator build, and assistant/dictation UI smoke tests
+- [x] Run the final full verification pass and commit the slice
+- [ ] Install/launch on Daniela's iPhone when its CoreDevice tunnel is available

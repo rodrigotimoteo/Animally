@@ -93,8 +93,9 @@ struct DictationArchiveView: View {
                                 }
                                 viewModel.deleteCapture(id: capture.id)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Text("Delete")
                             }
+                            .tint(.red)
                         }
                 }
             } header: {

@@ -94,7 +94,7 @@ struct AssistantView: View {
             }
             .sheet(isPresented: $showChatHistory) {
                 AssistantHistoryView(
-                    turns: viewModel.state.history,
+                    conversations: viewModel.state.conversations,
                     isLoading: viewModel.state.isHistoryLoading,
                     onUseQuestion: { question in
                         draft = question

@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.assistant
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantChatTurn
+import com.github.rodrigotimoteo.animally.domain.assistant.model.conversationKey
 import com.github.rodrigotimoteo.animally.domain.assistant.usecase.GetRecentAssistantChatHistoryUseCase
 import com.github.rodrigotimoteo.animally.domain.assistant.usecase.SaveAssistantChatTurnUseCase
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * One turn of the assistant conversation.
@@ -76,6 +79,7 @@ private typealias MessageTransform = (AssistantChatMessage) -> AssistantChatMess
  * Constructed manually by the iOS bridge (not via Koin annotations) following the
  * established store pattern.
  */
+@OptIn(ExperimentalUuidApi::class)
 class AssistantViewModel(
     private val generateRagResponse: GenerateRagResponseUseCase,
     private val llmEngine: LlmEngine,
@@ -97,6 +101,7 @@ class AssistantViewModel(
      * here and stamped onto every message created until the next ask() resets it.
      */
     private var currentTurnSource: EngineSource = EngineSource.ON_DEVICE
+    private var currentConversationId: String = Uuid.random().toString()
 
     init {
         refreshAvailability()
@@ -135,10 +140,16 @@ class AssistantViewModel(
             try {
                 val history = withContext(ioDispatcher) { getRecentAssistantChatHistory() }
                 _uiState.update { state ->
+                    val latestConversationId = history.lastOrNull()?.conversationKey()
+                    if (populateMessages && state.messages.isEmpty() && latestConversationId != null) {
+                        currentConversationId = latestConversationId
+                    }
                     state.copy(
                         messages =
                             if (populateMessages && state.messages.isEmpty()) {
-                                history.flatMap { it.toMessages() }
+                                history
+                                    .filter { it.conversationKey() == currentConversationId }
+                                    .flatMap { it.toMessages() }
                             } else {
                                 state.messages
                             },
@@ -173,6 +184,7 @@ class AssistantViewModel(
      */
     fun startNewChat() {
         if (_uiState.value.isGenerating) return
+        currentConversationId = Uuid.random().toString()
         _uiState.update { it.copy(messages = emptyList(), error = null) }
     }
 
@@ -203,6 +215,7 @@ class AssistantViewModel(
         if (trimmed.isEmpty() || _uiState.value.isGenerating || _uiState.value.isHistoryLoading) return
 
         val history = _uiState.value.messages.toRagHistory()
+        val conversationId = currentConversationId
         currentTurnSource = EngineSource.ON_DEVICE
         _uiState.update {
             it.copy(
@@ -241,7 +254,7 @@ class AssistantViewModel(
                     current.copy(messages = patched, error = message)
                 }
             }
-            persistLatestTurn(trimmed)
+            persistLatestTurn(trimmed, conversationId)
             _uiState.update { state ->
                 state.copy(
                     messages = state.messages.trimToHistoryLimit(),
@@ -347,7 +360,10 @@ class AssistantViewModel(
         return entries
     }
 
-    private suspend fun persistLatestTurn(question: String) {
+    private suspend fun persistLatestTurn(
+        question: String,
+        conversationId: String,
+    ) {
         val state = _uiState.value
         val assistant = state.messages.lastOrNull()
         if (assistant?.role != AssistantChatMessageRole.ASSISTANT || assistant.text.isBlank()) return
@@ -362,6 +378,7 @@ class AssistantViewModel(
                             source = assistant.source.name,
                             interrupted = assistant.interrupted,
                             createdAt = Clock.System.now(),
+                            conversationId = conversationId,
                         ),
                     )
                     getRecentAssistantChatHistory()

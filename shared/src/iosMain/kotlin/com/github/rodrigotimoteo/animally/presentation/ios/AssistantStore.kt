@@ -5,6 +5,8 @@ package com.github.rodrigotimoteo.animally.presentation.ios
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantChatTurn
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantConversationGrouper
+import com.github.rodrigotimoteo.animally.domain.assistant.model.conversationKey
 import com.github.rodrigotimoteo.animally.llm.EngineType
 import com.github.rodrigotimoteo.animally.llm.LlmAvailability
 import com.github.rodrigotimoteo.animally.presentation.assistant.AssistantChatMessage
@@ -20,6 +22,7 @@ import kotlin.native.ObjCName
 @ObjCName("AssistantHistoryItem")
 data class AssistantHistoryItem(
     val id: Long,
+    val conversationId: String,
     val question: String,
     val answer: String,
     val source: String,
@@ -37,6 +40,19 @@ data class AssistantStoreState(
     val isHistoryLoading: Boolean = true,
     val historyError: String? = null,
     val history: List<AssistantHistoryItem> = emptyList(),
+    val conversations: List<AssistantConversationItem> = emptyList(),
+)
+
+/** Swift-facing projection of one multi-turn assistant conversation. */
+@ObjCName("AssistantConversationItem")
+data class AssistantConversationItem(
+    val id: String,
+    val title: String,
+    val preview: String,
+    val turnCount: Int,
+    val createdAtMillis: Long,
+    val updatedAtMillis: Long,
+    val turns: List<AssistantHistoryItem>,
 )
 
 /**
@@ -60,19 +76,36 @@ class AssistantStore(
         )
 
     private fun toStoreState(ui: AssistantUiState): AssistantStoreState =
-        AssistantStoreState(
-            availability = ui.availability,
-            messages = ui.messages,
-            isGenerating = ui.isGenerating,
-            error = ui.error,
-            isHistoryLoading = ui.isHistoryLoading,
-            historyError = ui.historyError,
-            history = ui.history.map(::toHistoryItem),
-        )
+        ui.history.map(::toHistoryItem).let { history ->
+            AssistantStoreState(
+                availability = ui.availability,
+                messages = ui.messages,
+                isGenerating = ui.isGenerating,
+                error = ui.error,
+                isHistoryLoading = ui.isHistoryLoading,
+                historyError = ui.historyError,
+                history = history,
+                conversations =
+                    AssistantConversationGrouper
+                        .group(ui.history)
+                        .map { conversation ->
+                            AssistantConversationItem(
+                                id = conversation.id,
+                                title = conversation.title,
+                                preview = conversation.preview,
+                                turnCount = conversation.turns.size,
+                                createdAtMillis = conversation.createdAt.toEpochMilliseconds(),
+                                updatedAtMillis = conversation.updatedAt.toEpochMilliseconds(),
+                                turns = conversation.turns.map(::toHistoryItem),
+                            )
+                        },
+            )
+        }
 
     private fun toHistoryItem(turn: AssistantChatTurn): AssistantHistoryItem =
         AssistantHistoryItem(
             id = turn.id,
+            conversationId = turn.conversationKey(),
             question = turn.question,
             answer = turn.answer,
             source = turn.source,

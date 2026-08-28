@@ -67,6 +67,7 @@ class ExportBackupUseCaseTest {
             source = "CLOUD",
             interrupted = false,
             createdAt = Instant.fromEpochMilliseconds(1L),
+            conversationId = "export-test",
         )
         database.dictationCaptureQueries.insert(
             transcript = "Registar o peso do Charlie.",

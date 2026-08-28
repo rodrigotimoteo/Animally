@@ -1,46 +1,49 @@
 import SwiftUI
 import Shared
 
-/// Browseable view of the assistant's bounded, device-local turn history.
+/// Browseable view of the assistant's bounded, device-local conversation history.
 ///
 /// The persistence boundary and retention policy live in shared Kotlin. This
 /// view only searches and presents the iOS-friendly projection supplied by the
 /// assistant store.
 struct AssistantHistoryView: View {
-    let turns: [AssistantHistoryItem]
+    let conversations: [AssistantConversationItem]
     let isLoading: Bool
     let onUseQuestion: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
 
-    private var filteredTurns: [AssistantHistoryItem] {
-        let newestFirst = Array(turns.reversed())
+    private var filteredConversations: [AssistantConversationItem] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return newestFirst }
-        return newestFirst.filter { turn in
-            turn.question.localizedCaseInsensitiveContains(query) ||
-                turn.answer.localizedCaseInsensitiveContains(query)
+        guard !query.isEmpty else { return conversations }
+        return conversations.filter { conversation in
+            conversation.title.localizedCaseInsensitiveContains(query) ||
+                conversation.preview.localizedCaseInsensitiveContains(query) ||
+                conversation.turns.contains { turn in
+                    turn.question.localizedCaseInsensitiveContains(query) ||
+                        turn.answer.localizedCaseInsensitiveContains(query)
+                }
         }
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if isLoading && turns.isEmpty {
+                if isLoading && conversations.isEmpty {
                     ProgressView("Loading chat history…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .accessibilityIdentifier("assistant_history_loading")
-                } else if turns.isEmpty {
+                } else if conversations.isEmpty {
                     ContentUnavailableView(
                         "No saved chats",
                         systemImage: "bubble.left.and.bubble.right",
                         description: Text(
-                            "Completed assistant questions and answers will appear here. The latest 15 turns stay on this device."
+                            "Completed conversations will appear here. The latest 15 turns stay on this device, grouped into chat blocks."
                         )
                     )
                     .accessibilityIdentifier("assistant_history_empty")
-                } else if filteredTurns.isEmpty {
+                } else if filteredConversations.isEmpty {
                     ContentUnavailableView.search(text: searchText)
                 } else {
                     historyList
@@ -62,49 +65,49 @@ struct AssistantHistoryView: View {
     private var historyList: some View {
         List {
             Section {
-                ForEach(filteredTurns, id: \.id) { turn in
+                ForEach(filteredConversations, id: \.id) { conversation in
                     NavigationLink {
-                        AssistantHistoryDetailView(
-                            turn: turn,
-                            onUseQuestion: { onUseQuestion(turn.question) }
+                        AssistantConversationDetailView(
+                            conversation: conversation,
+                            onUseQuestion: onUseQuestion
                         )
                     } label: {
-                        historyRow(turn)
+                        conversationRow(conversation)
                     }
-                    .accessibilityIdentifier("assistant_history_\(turn.id)")
-                    .accessibilityHint("Opens the saved question and answer")
+                    .accessibilityIdentifier("assistant_conversation_\(conversation.id)")
+                    .accessibilityHint("Opens the complete conversation")
                 }
             } header: {
-                Text("\(filteredTurns.count) recent \(filteredTurns.count == 1 ? "chat" : "chats")")
+                Text("\(filteredConversations.count) recent \(filteredConversations.count == 1 ? "conversation" : "conversations")")
             } footer: {
-                Text("Saved locally on this device. Tap a chat to read the full answer or reuse its question.")
+                Text("Saved locally on this device. Tap a conversation to read every exchange or reuse a question.")
             }
         }
         .listStyle(.insetGrouped)
     }
 
-    private func historyRow(_ turn: AssistantHistoryItem) -> some View {
+    private func conversationRow(_ conversation: AssistantConversationItem) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "clock")
-                Text(dateText(for: turn))
+                Text(dateText(for: conversation.updatedAtMillis))
                 Spacer(minLength: 4)
-                sourceBadge(for: turn)
+                Text("\(conversation.turnCount) \(conversation.turnCount == 1 ? "exchange" : "exchanges")")
             }
             .font(.caption)
             .foregroundStyle(Theme.textSecondary)
 
-            Text(turn.question)
+            Text(conversation.title)
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .lineLimit(2)
 
-            Text(turn.answer.isEmpty ? "No response saved" : turn.answer)
+            Text(conversation.preview.isEmpty ? "No response saved" : conversation.preview)
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
                 .lineLimit(3)
 
-            if turn.interrupted {
+            if conversation.turns.contains(where: \.interrupted) {
                 Label("Partial response saved", systemImage: "exclamationmark.triangle")
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(Theme.amber)
@@ -113,76 +116,85 @@ struct AssistantHistoryView: View {
         .padding(.vertical, 6)
     }
 
-    private func sourceBadge(for turn: AssistantHistoryItem) -> some View {
-        Label(
-            turn.source.uppercased() == "CLOUD" ? "Cloud" : "On-device",
-            systemImage: turn.source.uppercased() == "CLOUD" ? "cloud.fill" : "iphone"
-        )
-        .font(.caption2.weight(.medium))
-    }
-
-    private func dateText(for turn: AssistantHistoryItem) -> String {
-        Date(timeIntervalSince1970: TimeInterval(turn.createdAtMillis) / 1000)
+    private func dateText(for millis: Int64) -> String {
+        Date(timeIntervalSince1970: TimeInterval(millis) / 1000)
             .formatted(date: .abbreviated, time: .shortened)
     }
 }
 
-/// Full-screen detail for one saved assistant exchange.
-private struct AssistantHistoryDetailView: View {
-    let turn: AssistantHistoryItem
-    let onUseQuestion: () -> Void
+/// Full-screen detail for one persisted multi-turn conversation.
+private struct AssistantConversationDetailView: View {
+    let conversation: AssistantConversationItem
+    let onUseQuestion: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 8) {
-                    Image(systemName: turn.source.uppercased() == "CLOUD" ? "cloud.fill" : "iphone")
-                    Text(turn.source.uppercased() == "CLOUD" ? "Answered by cloud model" : "Answered on device")
-                    Spacer()
-                    Text(dateText)
+                conversationHeader
+
+                ForEach(conversation.turns, id: \.id) { turn in
+                    VStack(alignment: .leading, spacing: 10) {
+                        exchangeCard(
+                            title: "You asked",
+                            text: turn.question,
+                            isUser: true
+                        )
+
+                        exchangeCard(
+                            title: "Assistant",
+                            text: turn.answer.isEmpty ? "No response saved" : turn.answer,
+                            isUser: false
+                        )
+
+                        sourceBadge(for: turn)
+
+                        if turn.interrupted {
+                            Label(
+                                "This response was saved after generation stopped early.",
+                                systemImage: "exclamationmark.triangle"
+                            )
+                            .font(.footnote)
+                            .foregroundStyle(Theme.amber)
+                        }
+
+                        Button {
+                            onUseQuestion(turn.question)
+                            dismiss()
+                        } label: {
+                            Label("Use this question", systemImage: "arrow.uturn.right")
+                        }
+                        .font(.footnote.weight(.medium))
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("assistant_history_use_question_\(turn.id)")
+                    }
+                    .accessibilityIdentifier("assistant_history_turn_\(turn.id)")
                 }
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-
-                exchangeCard(
-                    title: "You asked",
-                    text: turn.question,
-                    isUser: true
-                )
-
-                exchangeCard(
-                    title: "Assistant",
-                    text: turn.answer.isEmpty ? "No response saved" : turn.answer,
-                    isUser: false
-                )
-
-                if turn.interrupted {
-                    Label(
-                        "This response was saved after generation stopped early.",
-                        systemImage: "exclamationmark.triangle"
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(Theme.amber)
-                }
-
-                Button {
-                    onUseQuestion()
-                    dismiss()
-                } label: {
-                    Label("Use question", systemImage: "arrow.uturn.right")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("assistant_history_use_question")
             }
             .padding()
         }
         .background(Theme.surfaceElevated.opacity(0.35))
-        .navigationTitle("Saved chat")
+        .navigationTitle("Conversation")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("assistant_history_detail")
+    }
+
+    private var conversationHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                Text("\(conversation.turnCount) \(conversation.turnCount == 1 ? "exchange" : "exchanges")")
+                Spacer()
+                Text(dateRangeText)
+            }
+            .font(.caption)
+            .foregroundStyle(Theme.textSecondary)
+
+            Text(conversation.title)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+        }
     }
 
     private func exchangeCard(title: String, text: String, isUser: Bool) -> some View {
@@ -201,8 +213,20 @@ private struct AssistantHistoryDetailView: View {
         }
     }
 
-    private var dateText: String {
-        Date(timeIntervalSince1970: TimeInterval(turn.createdAtMillis) / 1000)
-            .formatted(date: .abbreviated, time: .shortened)
+    private func sourceBadge(for turn: AssistantHistoryItem) -> some View {
+        let isCloud = turn.source.uppercased() == "CLOUD"
+        return Label(
+            isCloud ? "Answered by cloud model" : "Answered on device",
+            systemImage: isCloud ? "cloud.fill" : "iphone"
+        )
+        .font(.caption)
+        .foregroundStyle(Theme.textSecondary)
+    }
+
+    private var dateRangeText: String {
+        let formatter = Date.FormatStyle(date: .abbreviated, time: .shortened)
+        let start = Date(timeIntervalSince1970: TimeInterval(conversation.createdAtMillis) / 1000)
+        let end = Date(timeIntervalSince1970: TimeInterval(conversation.updatedAtMillis) / 1000)
+        return start == end ? start.formatted(formatter) : "\(start.formatted(formatter)) – \(end.formatted(formatter))"
     }
 }

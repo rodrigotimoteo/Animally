@@ -14,6 +14,8 @@ data class AssistantChatHistoryDto(
     val source: String,
     val interrupted: Boolean,
     @Serializable(with = InstantSerializer::class) val createdAt: Instant,
+    // Optional keeps backups created before conversation blocks backward-compatible.
+    val conversationId: String = "",
 )
 
 /** Serializable mirror of the dictation metadata table. */
@@ -34,6 +36,7 @@ internal fun AssistantChatHistory.toDto(): AssistantChatHistoryDto =
         source = source,
         interrupted = interrupted,
         createdAt = createdAt,
+        conversationId = conversationId.ifBlank { "legacy-$id" },
     )
 
 internal fun DictationCapture.toDto(): DictationCaptureDto =

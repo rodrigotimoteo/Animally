@@ -83,6 +83,7 @@ class RestoreBackupUseCaseTest {
             source = "CLOUD",
             interrupted = true,
             createdAt = Instant.fromEpochMilliseconds(4_100L),
+            conversationId = "restore-test",
         )
         database.dictationCaptureQueries.insertWithId(
             id = 42L,

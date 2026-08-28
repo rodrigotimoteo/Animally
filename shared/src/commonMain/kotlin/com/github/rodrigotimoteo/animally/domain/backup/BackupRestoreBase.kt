@@ -58,6 +58,7 @@ internal fun AnimallyDatabase.insertAssistantChatHistory(payload: BackupPayload)
             source = row.source,
             interrupted = row.interrupted,
             createdAt = row.createdAt,
+            conversationId = row.conversationId.ifBlank { "legacy-${row.id}" },
         )
     }
 }

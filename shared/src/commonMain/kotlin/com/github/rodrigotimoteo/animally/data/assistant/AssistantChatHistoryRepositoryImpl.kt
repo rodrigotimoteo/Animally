@@ -24,6 +24,7 @@ class AssistantChatHistoryRepositoryImpl(
                     source = row.source,
                     interrupted = row.interrupted,
                     createdAt = row.createdAt,
+                    conversationId = row.conversationId.ifBlank { "legacy-${row.id}" },
                 )
             }
 
@@ -35,6 +36,7 @@ class AssistantChatHistoryRepositoryImpl(
                 source = turn.source,
                 interrupted = turn.interrupted,
                 createdAt = turn.createdAt,
+                conversationId = turn.conversationId,
             )
             database.commonQueries.selectLastRowId().executeAsOne()
         }

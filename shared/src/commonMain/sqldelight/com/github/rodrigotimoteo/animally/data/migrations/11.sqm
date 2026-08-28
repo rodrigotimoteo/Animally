@@ -1,0 +1,9 @@
+-- Give each persisted assistant turn a stable conversation boundary so the
+-- local history can be presented as multi-turn conversation blocks.
+ALTER TABLE AssistantChatHistory ADD COLUMN conversationId TEXT NOT NULL DEFAULT '';
+
+-- Rows created before conversation ids existed remain individually reviewable
+-- instead of being merged into one unrelated conversation.
+UPDATE AssistantChatHistory
+SET conversationId = 'legacy-' || id
+WHERE conversationId = '';

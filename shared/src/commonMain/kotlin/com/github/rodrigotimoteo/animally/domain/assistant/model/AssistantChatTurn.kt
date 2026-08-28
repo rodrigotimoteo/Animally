@@ -10,4 +10,6 @@ data class AssistantChatTurn(
     val source: String,
     val interrupted: Boolean,
     val createdAt: Instant,
+    /** Stable local boundary used to keep related turns in one conversation. */
+    val conversationId: String = "",
 )
