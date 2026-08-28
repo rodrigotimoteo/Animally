@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.owner.OwnerRepositoryImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.OwnerPayload
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.OwnerSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.SyncJson
@@ -36,6 +37,7 @@ class SyncOwnerHandlerTest {
         name: String,
         updatedAt: Instant,
         email: String? = null,
+        location: OwnerLocation? = null,
     ): Long =
         ownerRepo.insertOwner(
             Owner(
@@ -44,6 +46,7 @@ class SyncOwnerHandlerTest {
                 email = email,
                 phone = null,
                 address = "Somewhere",
+                location = location,
                 isActive = true,
                 createdAt = epoch,
                 updatedAt = updatedAt,
@@ -55,6 +58,7 @@ class SyncOwnerHandlerTest {
         updatedAt: Instant,
         name: String,
         email: String? = null,
+        location: OwnerLocation? = null,
     ) = SyncRecord(
         type = SyncEntityType.OWNER.wireName,
         serverId = serverId,
@@ -64,7 +68,14 @@ class SyncOwnerHandlerTest {
             SyncJson
                 .encodeToJsonElement(
                     OwnerPayload.serializer(),
-                    OwnerPayload(name = name, email = email, address = "Somewhere", createdAt = epoch),
+                    OwnerPayload(
+                        name = name,
+                        email = email,
+                        address = "Somewhere",
+                        createdAt = epoch,
+                        latitude = location?.latitude,
+                        longitude = location?.longitude,
+                    ),
                 ).jsonObject,
     )
 
@@ -82,6 +93,34 @@ class SyncOwnerHandlerTest {
             assertNotNull(record.payload["name"])
             assertEquals("Alice", record.payload["name"]?.jsonPrimitive?.content)
             assertEquals("alice@x.com", record.payload["email"]?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun buildingRecordIncludesOwnerLocation() =
+        runTest {
+            val location = OwnerLocation(latitude = 38.7223, longitude = -9.1393)
+            val id =
+                seedOwner(
+                    name = "Alice",
+                    updatedAt = Instant.fromEpochMilliseconds(100),
+                    location = location,
+                )
+
+            val record = sut.buildRecord(id)
+
+            val latitude =
+                record.payload["latitude"]
+                    ?.jsonPrimitive
+                    ?.content
+                    ?.toDouble()
+            val longitude =
+                record.payload["longitude"]
+                    ?.jsonPrimitive
+                    ?.content
+                    ?.toDouble()
+
+            assertEquals(38.7223, latitude)
+            assertEquals(-9.1393, longitude)
         }
 
     @Test
@@ -114,6 +153,24 @@ class SyncOwnerHandlerTest {
             )
             assertEquals(Instant.fromEpochMilliseconds(200), row.updatedAt)
             assertEquals(newId, sut.localIdFor("owner-svc-2"))
+        }
+
+    @Test
+    fun applyingRemoteRecordPreservesOwnerLocation() =
+        runTest {
+            val location = OwnerLocation(latitude = 41.1579, longitude = -8.6291)
+
+            val newId =
+                sut.applyRecord(
+                    remoteRecord(
+                        serverId = "owner-svc-location",
+                        updatedAt = Instant.fromEpochMilliseconds(200),
+                        name = "Porto Owner",
+                        location = location,
+                    ),
+                )
+
+            assertEquals(location, ownerRepo.getOwnerById(newId)?.location)
         }
 
     @Test

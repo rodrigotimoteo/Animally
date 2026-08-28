@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.data.owner.mapper
 
 import com.github.rodrigotimoteo.animally.data.migrations.Owner
+import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner as DomainOwner
 
 /**
@@ -18,4 +19,5 @@ fun Owner.toDomain(): DomainOwner =
         isActive = isActive,
         createdAt = createdAt,
         updatedAt = updatedAt,
+        location = OwnerLocation.fromNullable(latitude, longitude),
     )

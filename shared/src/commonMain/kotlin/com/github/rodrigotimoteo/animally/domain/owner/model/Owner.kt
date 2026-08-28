@@ -13,6 +13,7 @@ import kotlin.time.Instant
  * @property email Optional email address for contact.
  * @property phone Optional phone number for contact.
  * @property address Optional physical address.
+ * @property location Optional map location for the owner.
  * @property isActive Indicates whether the owner record is active. Defaults to `true`.
  * @property createdAt Timestamp when the owner record was created.
  * @property updatedAt Timestamp when the owner record was last modified.
@@ -27,4 +28,5 @@ data class Owner(
     val createdAt: Instant,
     val updatedAt: Instant,
     val serverId: String? = null,
+    val location: OwnerLocation? = null,
 )

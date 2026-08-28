@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.data.owner
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -310,5 +311,57 @@ class OwnerRepositoryImplTest {
         val result = sut.setInactive(999L, Instant.fromEpochMilliseconds(0L))
 
         assertEquals(0L, result)
+    }
+
+    @Test
+    fun ownerWithLocationRoundTrips() {
+        val location = OwnerLocation(latitude = 38.7223, longitude = -9.1393)
+        val owner =
+            Owner(
+                id = 0L,
+                name = "Map Owner",
+                email = null,
+                phone = null,
+                address = "Lisbon",
+                location = location,
+                createdAt = Instant.fromEpochMilliseconds(0L),
+                updatedAt = Instant.fromEpochMilliseconds(0L),
+            )
+
+        val id = sut.insertOwner(owner)
+
+        assertEquals(location, sut.getOwnerById(id)?.location)
+    }
+
+    @Test
+    fun updatingOwnerWithoutLocationClearsPreviousLocation() {
+        val id =
+            sut.insertOwner(
+                Owner(
+                    id = 0L,
+                    name = "Map Owner",
+                    email = null,
+                    phone = null,
+                    address = null,
+                    location = OwnerLocation(latitude = 38.7223, longitude = -9.1393),
+                    createdAt = Instant.fromEpochMilliseconds(0L),
+                    updatedAt = Instant.fromEpochMilliseconds(0L),
+                ),
+            )
+
+        sut.updateOwner(
+            Owner(
+                id = id,
+                name = "Map Owner",
+                email = null,
+                phone = null,
+                address = null,
+                location = null,
+                createdAt = Instant.fromEpochMilliseconds(0L),
+                updatedAt = Instant.fromEpochMilliseconds(1L),
+            ),
+        )
+
+        assertNull(sut.getOwnerById(id)?.location)
     }
 }

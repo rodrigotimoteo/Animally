@@ -4,6 +4,8 @@ import Shared
 struct OwnerEditView: View {
     @StateObject private var viewModel: OwnerEditViewModel
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var theme: ThemeViewModel
+    @State private var showLocationPicker = false
 
     init(ownerId: Int64?) {
         _viewModel = StateObject(wrappedValue: OwnerEditViewModel(ownerId: ownerId))
@@ -43,6 +45,19 @@ struct OwnerEditView: View {
         }
         .onAppear {
             viewModel.onSaved = { dismiss() }
+        }
+        .sheet(isPresented: $showLocationPicker) {
+            if let form = viewModel.form {
+                OwnerLocationPickerView(
+                    initialLatitude: form.location?.latitude,
+                    initialLongitude: form.location?.longitude,
+                    address: form.address,
+                    accentColor: theme.accentColor
+                ) { latitude, longitude in
+                    viewModel.onLocationChange(latitude, longitude)
+                }
+                .tint(theme.accentColor)
+            }
         }
     }
 
@@ -88,6 +103,41 @@ struct OwnerEditView: View {
                 .textCase(nil)
             } header: {
                 sectionHeader("Contact")
+            }
+
+            Section {
+                if let location = form.location {
+                    OwnerLocationPreview(
+                        title: form.name.isEmpty ? "Owner location" : form.name,
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                        accentColor: theme.accentColor,
+                        showsOpenInMaps: false
+                    )
+
+                    Button {
+                        showLocationPicker = true
+                    } label: {
+                        Label("Change map location", systemImage: "mappin.and.ellipse")
+                    }
+
+                    Button(role: .destructive) {
+                        viewModel.clearLocation()
+                    } label: {
+                        Label("Remove map location", systemImage: "mappin.slash")
+                    }
+                } else {
+                    Button {
+                        showLocationPicker = true
+                    } label: {
+                        Label("Set map location", systemImage: "mappin.and.ellipse")
+                    }
+                    Text("Optional. Search for the address or place the pin manually.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            } header: {
+                sectionHeader("Map location")
             }
         }
     }

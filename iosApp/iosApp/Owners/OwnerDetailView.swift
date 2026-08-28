@@ -3,6 +3,7 @@ import Shared
 
 struct OwnerDetailView: View {
     @StateObject private var viewModel: OwnerDetailViewModel
+    @EnvironmentObject private var theme: ThemeViewModel
     @State private var showLinkPatientSheet = false
 
     init(ownerId: Int64) {
@@ -65,6 +66,18 @@ struct OwnerDetailView: View {
             VStack(spacing: 20) {
                 ownerHeader
                 contactSection(owner: owner)
+                if let location = owner.location {
+                    Section {
+                        OwnerLocationPreview(
+                            title: owner.name,
+                            latitude: location.latitude,
+                            longitude: location.longitude,
+                            accentColor: theme.accentColor
+                        )
+                    } header: {
+                        sectionHeader("Map location")
+                    }
+                }
                 patientsSection
             }
             .padding()

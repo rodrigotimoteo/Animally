@@ -33,6 +33,11 @@ class BackupRoundTripIdentityTest {
             createdAt = Instant.fromEpochMilliseconds(100L),
             updatedAt = Instant.fromEpochMilliseconds(200L),
         )
+        database.ownerQueries.setLocation(
+            latitude = 38.7223,
+            longitude = -9.1393,
+            id = 9L,
+        )
 
         val json = exportAndWipe()
         restoreBackupUseCase(database).invoke(json)
@@ -47,6 +52,8 @@ class BackupRoundTripIdentityTest {
         assertEquals("jane@example.com", restored.email)
         assertEquals("+55 11 99999-0000", restored.phone)
         assertEquals("Fazenda Santa Rita", restored.address)
+        assertEquals(38.7223, restored.latitude)
+        assertEquals(-9.1393, restored.longitude)
         assertEquals(true, restored.isActive)
         assertEquals(Instant.fromEpochMilliseconds(100L), restored.createdAt)
         assertEquals(Instant.fromEpochMilliseconds(200L), restored.updatedAt)

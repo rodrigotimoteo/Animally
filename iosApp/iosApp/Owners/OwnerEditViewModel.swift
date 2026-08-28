@@ -46,6 +46,14 @@ final class OwnerEditViewModel: ObservableObject {
         store.onAddressChange(address: address)
     }
 
+    func onLocationChange(_ latitude: Double, _ longitude: Double) {
+        store.onLocationChange(latitude: latitude, longitude: longitude)
+    }
+
+    func clearLocation() {
+        store.clearLocation()
+    }
+
     func save() {
         store.save()
     }

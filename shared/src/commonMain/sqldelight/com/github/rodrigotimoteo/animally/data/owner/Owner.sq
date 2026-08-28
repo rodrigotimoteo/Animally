@@ -36,6 +36,12 @@ insertWithId:
 INSERT INTO Owner (id, name, email, phone, address, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
+setLocation:
+UPDATE Owner SET
+    latitude = ?,
+    longitude = ?
+WHERE id = ?;
+
 -- Sync support --
 selectByServerId:
 SELECT * FROM Owner WHERE serverId = ?;

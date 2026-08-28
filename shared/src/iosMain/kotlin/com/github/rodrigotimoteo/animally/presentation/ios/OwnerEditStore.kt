@@ -67,6 +67,19 @@ class OwnerEditStore(
         viewModel.onAddressChange(address)
     }
 
+    /** Updates the owner's map location from the iOS map picker. */
+    fun onLocationChange(
+        latitude: Double,
+        longitude: Double,
+    ) {
+        viewModel.onLocationChange(latitude, longitude)
+    }
+
+    /** Removes the owner's optional map location. */
+    fun clearLocation() {
+        viewModel.clearLocation()
+    }
+
     /** Validates and persists the current form. */
     fun save() {
         viewModel.save()

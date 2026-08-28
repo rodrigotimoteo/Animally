@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.ownerEdit
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.GetOwnerDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.SaveOwnerUseCase
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.BaseAddEditViewModel
@@ -53,6 +54,7 @@ class OwnerEditViewModel(
                                 email = owner.email,
                                 address = owner.address,
                                 createdAt = owner.createdAt,
+                                location = owner.location,
                             ),
                         )
                     }
@@ -91,6 +93,23 @@ class OwnerEditViewModel(
     }
 
     /**
+     * Updates the owner's map location after the platform map picker confirms
+     * a valid coordinate pair.
+     */
+    fun onLocationChange(
+        latitude: Double,
+        longitude: Double,
+    ) {
+        val location = OwnerLocation.fromNullable(latitude, longitude) ?: return
+        formState.value?.let { updateForm(it.copy(location = location)) }
+    }
+
+    /** Removes the optional map location while preserving the text address. */
+    fun clearLocation() {
+        formState.value?.let { updateForm(it.copy(location = null)) }
+    }
+
+    /**
      * Validates and persists the current form.
      */
     override fun save() {
@@ -109,6 +128,7 @@ class OwnerEditViewModel(
                     phone = form.phone,
                     email = form.email,
                     address = form.address,
+                    location = form.location,
                     createdAt = form.createdAt ?: now,
                     updatedAt = now,
                 )

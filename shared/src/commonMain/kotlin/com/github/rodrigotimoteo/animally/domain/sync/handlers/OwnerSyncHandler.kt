@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.owner.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 import com.github.rodrigotimoteo.animally.domain.sync.ENTITY_NOT_APPLIED
 import com.github.rodrigotimoteo.animally.domain.sync.SyncEntityType
 import com.github.rodrigotimoteo.animally.domain.sync.SyncRecord
@@ -25,6 +26,8 @@ data class OwnerPayload(
     val phone: String? = null,
     val address: String? = null,
     val createdAt: Instant? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 )
 
 /** Push/pull serialization for [Owner] rows. No parent FK — top of the sync order. */
@@ -50,6 +53,8 @@ class OwnerSyncHandler(
                         phone = row.phone,
                         address = row.address,
                         createdAt = row.createdAt,
+                        latitude = row.location?.latitude,
+                        longitude = row.location?.longitude,
                     ),
                 ).jsonObject
         return SyncRecord(
@@ -98,6 +103,7 @@ class OwnerSyncHandler(
                     email = payload.email,
                     phone = payload.phone,
                     address = payload.address,
+                    location = OwnerLocation.fromNullable(payload.latitude, payload.longitude),
                     isActive = record.isActive,
                     createdAt = payload.createdAt ?: record.updatedAt,
                     updatedAt = record.updatedAt,
@@ -126,6 +132,7 @@ class OwnerSyncHandler(
                 email = payload.email,
                 phone = payload.phone,
                 address = payload.address,
+                location = OwnerLocation.fromNullable(payload.latitude, payload.longitude),
                 isActive = record.isActive,
                 createdAt = local.createdAt,
                 updatedAt = record.updatedAt,

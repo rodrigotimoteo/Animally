@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.backup
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.storage.FileStorage
+import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 
 /** Returns app-owned audio paths referenced by the current dictation rows. */
 internal fun AnimallyDatabase.dictationAudioPaths(): Set<String> =
@@ -87,6 +88,13 @@ internal fun AnimallyDatabase.insertOwners(payload: BackupPayload) {
             createdAt = row.createdAt,
             updatedAt = row.updatedAt,
         )
+        OwnerLocation.fromNullable(row.latitude, row.longitude)?.let { location ->
+            ownerQueries.setLocation(
+                latitude = location.latitude,
+                longitude = location.longitude,
+                id = row.id,
+            )
+        }
     }
 }
 

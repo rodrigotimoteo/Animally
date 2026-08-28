@@ -46,6 +46,8 @@ data class OwnerDto(
     val isActive: Boolean,
     @Serializable(with = InstantSerializer::class) val createdAt: Instant,
     @Serializable(with = InstantSerializer::class) val updatedAt: Instant,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 )
 
 /**
@@ -95,6 +97,8 @@ internal fun Owner.toDto(): OwnerDto =
         isActive = isActive,
         createdAt = createdAt,
         updatedAt = updatedAt,
+        latitude = latitude,
+        longitude = longitude,
     )
 
 internal fun Anamnese.toDto(): AnamneseDto =

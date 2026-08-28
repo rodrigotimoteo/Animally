@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.ownerEdit
 
+import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 import kotlin.time.Instant
 
 /**
@@ -10,6 +11,7 @@ import kotlin.time.Instant
  * @param phone Optional phone number.
  * @param email Optional email address.
  * @param address Optional physical address.
+ * @param location Optional map location.
  * @param createdAt The original creation timestamp, preserved when editing.
  * @param nameError Validation message for the name field, or `null` when valid.
  * @param isLoading Whether the form is still loading an existing owner.
@@ -25,6 +27,7 @@ data class OwnerFormState(
     val nameError: String? = null,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
+    val location: OwnerLocation? = null,
 ) {
     val isEditing: Boolean get() = id != null
 }

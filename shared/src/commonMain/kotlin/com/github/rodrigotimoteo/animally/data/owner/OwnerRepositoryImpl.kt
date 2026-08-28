@@ -29,20 +29,28 @@ class OwnerRepositoryImpl(
                     createdAt = owner.createdAt,
                     updatedAt = owner.updatedAt,
                 )
-            database.commonQueries.selectLastRowId().executeAsOne()
+            val ownerId = database.commonQueries.selectLastRowId().executeAsOne()
+            setLocation(ownerId, owner)
+            ownerId
         }
 
-    override fun updateOwner(owner: Owner): Long =
-        ownerQueries
-            .update(
-                id = owner.id,
-                name = owner.name,
-                email = owner.email,
-                phone = owner.phone,
-                address = owner.address,
-                isActive = owner.isActive,
-                updatedAt = owner.updatedAt,
-            ).value
+    override fun updateOwner(owner: Owner): Long {
+        val rowsUpdated =
+            ownerQueries
+                .update(
+                    id = owner.id,
+                    name = owner.name,
+                    email = owner.email,
+                    phone = owner.phone,
+                    address = owner.address,
+                    isActive = owner.isActive,
+                    updatedAt = owner.updatedAt,
+                ).value
+        if (rowsUpdated > 0) {
+            setLocation(owner.id, owner)
+        }
+        return rowsUpdated
+    }
 
     override fun setInactive(
         id: Long,
@@ -53,4 +61,16 @@ class OwnerRepositoryImpl(
                 id = id,
                 updatedAt = updatedAt,
             ).value
+
+    private fun setLocation(
+        ownerId: Long,
+        owner: Owner,
+    ) {
+        ownerQueries
+            .setLocation(
+                latitude = owner.location?.latitude,
+                longitude = owner.location?.longitude,
+                id = ownerId,
+            )
+    }
 }

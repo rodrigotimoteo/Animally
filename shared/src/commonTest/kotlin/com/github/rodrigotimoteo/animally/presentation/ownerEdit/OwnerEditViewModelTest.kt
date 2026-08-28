@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.ownerEdit
 import app.cash.turbine.test
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.GetOwnerDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.SaveOwnerUseCase
 import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
@@ -173,6 +174,33 @@ class OwnerEditViewModelTest {
 
             vm.onAddressChange("")
             assertEquals(null, vm.formState.value?.address)
+        }
+
+    @Test
+    fun locationChangesAreValidatedAndCanBeCleared() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
+            val location = OwnerLocation(latitude = 38.7223, longitude = -9.1393)
+
+            vm.onLocationChange(location.latitude, location.longitude)
+            assertEquals(location, vm.formState.value?.location)
+
+            vm.clearLocation()
+            assertEquals(null, vm.formState.value?.location)
+        }
+
+    @Test
+    fun invalidLocationDoesNotReplaceExistingLocation() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = OwnerEditViewModel(null, getOwnerDetailUseCase, saveOwnerUseCase, navigator, StandardTestDispatcher(testScheduler))
+            val location = OwnerLocation(latitude = 38.7223, longitude = -9.1393)
+
+            vm.onLocationChange(location.latitude, location.longitude)
+            vm.onLocationChange(latitude = 91.0, longitude = 0.0)
+
+            assertEquals(location, vm.formState.value?.location)
         }
 
     @Test
