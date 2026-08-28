@@ -16,7 +16,7 @@ data class ChangedRecord(
 /**
  * Detects rows updated since a given instant across all synced entity tables.
  */
-interface SyncChangeTracker {
+fun interface SyncChangeTracker {
     /**
      * Returns every row whose `updatedAt` is newer than [instant], across all entity tables.
      */

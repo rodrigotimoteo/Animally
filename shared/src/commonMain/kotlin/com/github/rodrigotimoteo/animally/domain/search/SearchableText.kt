@@ -113,13 +113,11 @@ internal object SearchableText {
                 gestation.status.equals("Foaled", ignoreCase = true)
         val pregnancyVocabulary =
             if (isResolved) null else "pregnant in foal active gestation expected foaling"
-        val breedingVocabulary = "bred breeding mating covered coverage"
         return listOfNotNull(
             gestation.breedingDate.toString(),
             gestation.status,
             gestation.notes,
             pregnancyVocabulary,
-            breedingVocabulary,
         ).joinToString(" ")
     }
 

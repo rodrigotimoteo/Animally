@@ -113,8 +113,8 @@ internal fun cloudModelsUrl(baseUrl: String): String {
     val normalized = baseUrl.trim().trimEnd('/')
     return when {
         normalized.endsWith("/models") -> normalized
-        normalized.endsWith("/chat/completions") ->
-            normalized.removeSuffix("/chat/completions") + "/models"
+        normalized.endsWith(CHAT_COMPLETIONS_PATH) ->
+            normalized.removeSuffix(CHAT_COMPLETIONS_PATH) + "/models"
         else -> "$normalized/models"
     }
 }
@@ -126,9 +126,11 @@ internal fun cloudModelsUrl(baseUrl: String): String {
  */
 internal fun cloudChatCompletionsUrl(baseUrl: String): String {
     val normalized = baseUrl.trim().trimEnd('/')
-    return if (normalized.endsWith("/chat/completions")) {
+    return if (normalized.endsWith(CHAT_COMPLETIONS_PATH)) {
         normalized
     } else {
-        "$normalized/chat/completions"
+        normalized + CHAT_COMPLETIONS_PATH
     }
 }
+
+private const val CHAT_COMPLETIONS_PATH = "/chat/completions"

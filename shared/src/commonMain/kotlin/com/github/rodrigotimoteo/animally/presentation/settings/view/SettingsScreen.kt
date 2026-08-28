@@ -341,7 +341,7 @@ private fun CloudSyncSection() {
                 }
                 Text(if (syncState.isSyncing) "Syncing…" else "Sync now")
             }
-            syncState.errorMessage?.let { message ->
+            syncState.errorMessage?.let { _ ->
                 Button(onClick = syncViewModel::onDismissError) {
                     Text("Dismiss error")
                 }

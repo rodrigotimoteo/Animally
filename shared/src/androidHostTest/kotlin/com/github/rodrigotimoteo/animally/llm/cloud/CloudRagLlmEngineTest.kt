@@ -4,21 +4,33 @@ import com.github.rodrigotimoteo.animally.llm.RagChatMessage
 import com.github.rodrigotimoteo.animally.llm.RagChatRole
 import com.github.rodrigotimoteo.animally.llm.RagToolCall
 import com.github.rodrigotimoteo.animally.llm.RagToolDefinition
+import com.github.rodrigotimoteo.animally.llm.RagToolStreamEvent
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * Contract tests for [CloudRagLlmEngine]'s wire shape and SSE parsing.
  *
- * The ktor client pipeline itself is exercised by the assistant UI suites on a real
- * device/simulator; here the request DTO builder and the SSE line parser are driven
- * directly (ktor-client-mock is a separate artifact not available to this source set).
+ * The test doubles exercise the full Ktor request/response pipeline without a network
+ * connection, while the lower-level cases keep malformed and provider-specific frames
+ * easy to diagnose.
  */
 class CloudRagLlmEngineTest {
     private val config =
@@ -364,5 +376,112 @@ class CloudRagLlmEngineTest {
         assertEquals("Legacy answer", engine.appendSseDelta(body, cumulative))
         assertEquals("Legacy answer", cumulative.toString())
         assertTrue(engine.isTerminalSseFrame(body))
+    }
+
+    @Test
+    fun `streaming request emits cumulative snapshots from an sse response`() =
+        runTest {
+            val client = mockClient(SSE_CONTENT_RESPONSE)
+            try {
+                val streamingEngine = CloudRagLlmEngine(client) { config }
+
+                assertEquals(
+                    listOf("Hello", "Hello world"),
+                    streamingEngine.generateStreaming("question", "instructions").toList(),
+                )
+            } finally {
+                client.close()
+            }
+        }
+
+    @Test
+    fun `tool streaming request assembles fragmented calls`() =
+        runTest {
+            val client = mockClient(toolCallResponse)
+            try {
+                val streamingEngine = CloudRagLlmEngine(client) { config }
+                val tool =
+                    RagToolDefinition(
+                        name = "weight_summary",
+                        description = "Summarize weights.",
+                        parameters = Json.parseToJsonElement("""{"type":"object","properties":{}}""").jsonObject,
+                    )
+
+                assertEquals(
+                    listOf(
+                        RagToolStreamEvent.ToolCalls(
+                            listOf(
+                                RagToolCall(
+                                    id = "call-1",
+                                    name = "weight_summary",
+                                    arguments = "{\"patient_name\":\"Descarada\"}",
+                                ),
+                            ),
+                        ),
+                    ),
+                    streamingEngine
+                        .generateStreamingWithTools(
+                            messages = listOf(RagChatMessage(RagChatRole.USER, "Analyze weights")),
+                            tools = listOf(tool),
+                        ).toList(),
+                )
+            } finally {
+                client.close()
+            }
+        }
+
+    @Test
+    fun `http failure is surfaced instead of becoming an empty answer`() =
+        runTest {
+            val client = mockClient("quota exceeded", HttpStatusCode.TooManyRequests)
+            try {
+                val streamingEngine = CloudRagLlmEngine(client) { config }
+
+                val failure =
+                    assertFailsWith<IllegalStateException> {
+                        streamingEngine.generateStreaming("question", "instructions").toList()
+                    }
+
+                assertTrue(failure.message.orEmpty().contains("HTTP 429"))
+                assertTrue(failure.message.orEmpty().contains("quota exceeded"))
+            } finally {
+                client.close()
+            }
+        }
+
+    private fun mockClient(
+        body: String,
+        status: HttpStatusCode = HttpStatusCode.OK,
+    ): HttpClient =
+        HttpClient(
+            MockEngine {
+                respond(
+                    content = body,
+                    status = status,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Text.EventStream.toString()),
+                )
+            },
+        ) {
+            install(ContentNegotiation) {
+                json(
+                    Json {
+                        explicitNulls = false
+                    },
+                )
+            }
+        }
+
+    private companion object {
+        const val SSE_CONTENT_RESPONSE =
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n" +
+                "data: {\"choices\":[{\"delta\":{\"content\":\" world\"}}]}\n" +
+                "data: [DONE]\n"
+        val toolCallResponse =
+            """
+            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"weight_summary","arguments":"{\"patient_name\":\"Descarada\""}}]}}]}
+            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]}}]}
+            data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
+            data: [DONE]
+            """.trimIndent()
     }
 }

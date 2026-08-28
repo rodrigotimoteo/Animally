@@ -5,7 +5,7 @@ package com.github.rodrigotimoteo.animally.domain.sync
  * dependency order, pull remote changes back, then advance the last-synced
  * marker on success.
  */
-interface SyncEngine {
+fun interface SyncEngine {
     /**
      * Runs a full sync cycle.
      *

@@ -1,5 +1,5 @@
 @file:OptIn(ExperimentalObjCName::class, ExperimentalForeignApi::class)
-@file:Suppress("MatchingDeclarationName")
+@file:Suppress("MatchingDeclarationName", "UNUSED_PARAMETER")
 
 package com.github.rodrigotimoteo.animally.domain.export
 

@@ -1251,11 +1251,23 @@ class RagGoldenSetTest {
                 expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM),
                 exact = true,
             ),
-            // Fully-PT clinical question with no proper noun: every token
-            // misses the English-only index ("vacinas*" ≠ "vaccine*"), so the
-            // retrieval is empty and the assistant answers with its honest
-            // no-results fallback. Pinned gap - flips when PT synonyms land.
-            Golden("Quantas vacinas foram administradas?", expected = emptySet(), exact = true),
+            // PT synonym expansion maps "vacinas" to the indexed vaccination
+            // vocabulary, so a language-mixed question retrieves every
+            // vaccination row. The analysis tool applies the authoritative
+            // count when the assistant answers the question.
+            Golden(
+                "Quantas vacinas foram administradas?",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                    ),
+                exact = true,
+            ),
             // --- Punctuation / hyphen robustness ---
             // Hyphenated input tokenizes exactly like the spaced content in
             // the record ("Steel full set"), so the AND leg matches directly.
@@ -1640,10 +1652,21 @@ class RagGoldenSetTest {
                 exact = true,
             ),
             Golden("January", expected = emptySet(), exact = true),
-            // Years surface only through batch-number text.
+            // Years surface through batch-number text and the recorded
+            // breeding date on gestation rows.
             Golden(
                 "2026",
-                expected = setOf(VACC_INFLUENZA, VACC_TETANUS, VACC_WEST_NILE, VACC_RABIES, VACC_EHV, VACC_EVA),
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                        GESTATION_ACTIVE,
+                        GESTATION_FAILED,
+                    ),
                 exact = true,
             ),
             // --- Negation / true-absence gaps ---
@@ -1723,8 +1746,24 @@ class RagGoldenSetTest {
             Golden("Dr. Almeida", expected = setOf(VACC_EHV, CONSULT_DERMATITIS, DENTISTRY_WAVE_MOUTH, CONSULT_QUIDDING), exact = true),
             Golden("Mendes", expected = setOf(SURGERY_ARTHROSCOPY, ICSI_COMET), exact = true),
             // --- Portuguese (proper-noun anchored via OR retry) ---
-            // "tem*" leaks onto "temperature" in Comet's SOAP text.
-            Golden("Quantas vacinas tem a Thunder?", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM, CONSULT_COUGH), exact = true),
+            // "tem*" leaks onto "temperature" in Comet's SOAP text, while
+            // the vaccination synonym group recovers all vaccination rows.
+            Golden(
+                "Quantas vacinas tem a Thunder?",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                        PATIENT_THUNDER,
+                        PATIENT_THUNDERSTORM,
+                        CONSULT_COUGH,
+                    ),
+                exact = true,
+            ),
             // FLIPPED (short-prefix guard): "da" is 2 letters, so it now
             // matches EXACTLY (no indexed standalone "da" token) instead of
             // exploding onto Daniela/daily/days/"day 30" - only the proper
@@ -1734,12 +1773,26 @@ class RagGoldenSetTest {
                 expected = setOf(PATIENT_TROVOADA),
                 exact = true,
             ),
-            // Diacritic folding gives "gestacao*", which misses "gestation";
-            // only the proper noun survives.
-            Golden("Trovoada gestação", expected = setOf(PATIENT_TROVOADA), exact = true),
+            // The Portuguese pregnancy synonym reaches the active gestation;
+            // production patient scoping removes that cross-patient row before
+            // it is presented as Trovoada's fact.
+            Golden("Trovoada gestação", expected = setOf(PATIENT_TROVOADA, GESTATION_ACTIVE), exact = true),
             Golden("égua sorraia", expected = setOf(PATIENT_TROVOADA), exact = true),
             Golden("Belinha peso", expected = setOf(PATIENT_BELINHA), exact = true),
-            Golden("Isabella vacina", expected = setOf(PATIENT_ISABELLA), exact = true),
+            Golden(
+                "Isabella vacina",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                        PATIENT_ISABELLA,
+                    ),
+                exact = true,
+            ),
             // Bare PT clinical term with no anchor: fully empty.
             Golden("cólica", expected = emptySet(), exact = true),
             // --- Typos / truncation robustness ---

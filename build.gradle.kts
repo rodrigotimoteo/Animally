@@ -35,9 +35,10 @@ subprojects {
                     )
                     property(
                         "sonar.junit.reportPaths",
-                        project.fileTree(project.file("build/test-results")) {
-                            include("**/TEST-*.xml")
-                        },
+                        listOf(
+                            project.file("build/test-results/desktopTest"),
+                            project.file("build/test-results/testAndroidHostTest"),
+                        ).joinToString(",") { it.absolutePath },
                     )
                     property(
                         "sonar.coverage.jacoco.xmlReportPaths",
@@ -195,6 +196,7 @@ sonar {
                 "iosApp/iosApp/**",
                 "shared/src/iosMain/**",
                 "shared/src/iosTest/**",
+                "shared/src/desktopMain/kotlin/com/github/rodrigotimoteo/animally/domain/notification/NotificationScheduler.desktop.kt",
                 "**/generated/**",
             ),
         )

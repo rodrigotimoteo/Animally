@@ -10,12 +10,15 @@ package com.github.rodrigotimoteo.animally.sync.cloudkit
  */
 @Suppress("ExpressionBodyEncoding")
 public actual class SyncCloudBridge public constructor() {
-    private fun unsupported(): Nothing = throw UnsupportedOperationException("CloudKit is iOS-only")
+    private fun unsupported(): Nothing = throw UnsupportedOperationException(CLOUDKIT_IOS_ONLY_MESSAGE)
 
     public actual suspend fun accountStatus(): String {
         throw unsupported()
     }
 
+    // The shared expect API is suspend for the real iOS bridge; Android must
+    // keep the same signature even though its CloudKit stub throws immediately.
+    @Suppress("kotlin:S6318")
     public actual suspend fun start() {
         throw unsupported()
     }
@@ -28,6 +31,7 @@ public actual class SyncCloudBridge public constructor() {
         throw unsupported()
     }
 
+    @Suppress("kotlin:S6318")
     public actual suspend fun fetchChanges() {
         throw unsupported()
     }
@@ -38,3 +42,5 @@ public actual class SyncCloudBridge public constructor() {
 }
 
 public actual fun createSyncCloudBridge(): SyncCloudBridge = SyncCloudBridge()
+
+private const val CLOUDKIT_IOS_ONLY_MESSAGE = "CloudKit is iOS-only"

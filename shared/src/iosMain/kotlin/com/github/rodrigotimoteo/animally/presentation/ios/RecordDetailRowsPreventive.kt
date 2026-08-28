@@ -5,6 +5,8 @@ import com.github.rodrigotimoteo.animally.presentation.deworming.DewormingFormSt
 import com.github.rodrigotimoteo.animally.presentation.farrier.FarrierVisitFormState
 import com.github.rodrigotimoteo.animally.presentation.vaccination.VaccinationFormState
 
+private const val NEXT_DUE_LABEL = "Next Due"
+
 /**
  * Field-row builders for the preventive-care record types of the read-only
  * detail. Labels and ordering mirror the tab views' preview rows exactly.
@@ -27,7 +29,7 @@ internal fun dewormingRows(form: DewormingFormState): List<RecordDetailRow> =
             "Product" to form.product,
             "Dose" to form.dose,
             "Date Administered" to form.dateAdministered,
-            "Next Due" to form.nextDueDate,
+            NEXT_DUE_LABEL to form.nextDueDate,
             "Veterinarian" to form.vetName,
             "Notes" to form.notes,
         ),
@@ -39,7 +41,7 @@ internal fun dentistryRows(form: DentistryFormState): List<RecordDetailRow> =
             "Date" to form.date,
             "Treatment" to form.treatment,
             "Findings" to form.findings,
-            "Next Due" to form.nextDueDate,
+            NEXT_DUE_LABEL to form.nextDueDate,
             "Veterinarian" to form.vetName,
             "Notes" to form.notes,
         ),
@@ -52,7 +54,7 @@ internal fun farrierRows(form: FarrierVisitFormState): List<RecordDetailRow> =
             "Trim or Shoe" to form.trimOrShoe,
             "Shoe Type" to form.shoeType,
             "Findings" to form.findings,
-            "Next Due" to form.nextDueDate,
+            NEXT_DUE_LABEL to form.nextDueDate,
             "Farrier" to form.farrier,
             "Notes" to form.notes,
         ),

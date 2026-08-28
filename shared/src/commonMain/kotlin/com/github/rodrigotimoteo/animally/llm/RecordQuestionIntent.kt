@@ -57,7 +57,8 @@ internal object RecordQuestionIntent {
     private val educationalQuestionRegex =
         Regex(
             "^(?:what\\s+(?:is|are)|define|(?:can|could)\\s+you\\s+explain|explain|" +
-                "o\\s+que\\s+(?:é|e|são|sao)|(?:podes?|poderia)\\s+explicar|explica|explique)\\b",
+                "o\\s+que\\s+(?:é|e|são|sao)|(?:podes?|poderia)\\s+explicar|explica|explique)" +
+                "(?=$|[^\\p{L}\\p{N}_])",
             RegexOption.IGNORE_CASE,
         )
     private val gestationPopulationReferenceRegex =

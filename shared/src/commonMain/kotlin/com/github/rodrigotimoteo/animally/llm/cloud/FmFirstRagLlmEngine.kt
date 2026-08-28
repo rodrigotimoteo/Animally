@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.llm.RagToolCallingEngine
 import com.github.rodrigotimoteo.animally.llm.RagToolDefinition
 import com.github.rodrigotimoteo.animally.llm.RagToolStreamEvent
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -142,60 +143,56 @@ class FmFirstRagLlmEngine(
             // failed produceIn child would tear the scope down before the fallback
             // decision could be made).
             val upstream = Channel<String>(Channel.UNLIMITED)
-            val producer =
-                launch {
-                    try {
-                        primary.generateStreaming(prompt, instructions).collect {
-                            upstream.send(it)
-                        }
-                        upstream.close()
-                    } catch (ce: CancellationException) {
-                        throw ce
-                    } catch (t: Throwable) {
-                        upstream.close(t)
-                    }
-                }
+            val producer = launchPrimaryStream(prompt, instructions, upstream)
             try {
-                var emittedAny = false
-                var outcome: PrimaryOutcome? = null
-                while (outcome == null) {
-                    val result =
-                        if (emittedAny) {
-                            upstream.receiveCatching()
-                        } else {
-                            awaitFirstEmission(upstream)
-                        }
-                    outcome =
-                        when {
-                            // First-emission timeout: FM never answered in time.
-                            result == null -> PrimaryOutcome(failure = null, completed = false)
-                            result.isSuccess -> {
-                                val text = result.getOrThrow()
-                                if (text.isBlank()) {
-                                    null
-                                } else {
-                                    if (!emittedAny) {
-                                        emittedAny = true
-                                        signal(EngineSource.ON_DEVICE)
-                                    }
-                                    emit(text)
-                                    null // keep streaming
-                                }
-                            }
-                            // Channel closed. Normal completion after emissions ends the
-                            // loop; anything else (error before/after emissions, or a
-                            // silent empty stream) routes to the fallback.
-                            emittedAny && result.exceptionOrNull() == null ->
-                                PrimaryOutcome(failure = null, completed = true)
-                            else -> PrimaryOutcome(failure = result.exceptionOrNull(), completed = false)
-                        }
-                }
-                outcome
+                collectPrimary(upstream)
             } finally {
                 producer.cancel()
                 upstream.close()
             }
         }
+
+    private fun CoroutineScope.launchPrimaryStream(
+        prompt: String,
+        instructions: String,
+        upstream: Channel<String>,
+    ) = launch {
+        try {
+            primary.generateStreaming(prompt, instructions).collect { upstream.send(it) }
+            upstream.close()
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (t: Throwable) {
+            upstream.close(t)
+        }
+    }
+
+    private suspend fun FlowCollector<String>.collectPrimary(upstream: ReceiveChannel<String>): PrimaryOutcome {
+        var emittedAny = false
+        while (true) {
+            val result = nextPrimaryResult(upstream, emittedAny) ?: return PrimaryOutcome(null, completed = false)
+            if (!result.isSuccess) {
+                return if (emittedAny && result.exceptionOrNull() == null) {
+                    PrimaryOutcome(failure = null, completed = true)
+                } else {
+                    PrimaryOutcome(failure = result.exceptionOrNull(), completed = false)
+                }
+            }
+            val text = result.getOrThrow()
+            if (text.isNotBlank()) {
+                if (!emittedAny) {
+                    emittedAny = true
+                    signal(EngineSource.ON_DEVICE)
+                }
+                emit(text)
+            }
+        }
+    }
+
+    private suspend fun nextPrimaryResult(
+        upstream: ReceiveChannel<String>,
+        emittedAny: Boolean,
+    ): ChannelResult<String>? = if (emittedAny) upstream.receiveCatching() else awaitFirstEmission(upstream)
 
     /**
      * Awaits the primary's first delivery under [firstEmissionTimeout]; null means the

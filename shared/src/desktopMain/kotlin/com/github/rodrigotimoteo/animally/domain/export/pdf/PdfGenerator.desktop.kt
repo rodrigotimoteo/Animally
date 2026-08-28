@@ -1,4 +1,4 @@
-@file:Suppress("ktlint:standard:filename")
+@file:Suppress("ktlint:standard:filename", "UNUSED_PARAMETER")
 
 package com.github.rodrigotimoteo.animally.domain.export.pdf
 

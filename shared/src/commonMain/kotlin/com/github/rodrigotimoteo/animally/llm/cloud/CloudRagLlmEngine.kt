@@ -12,6 +12,7 @@ import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.accept
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
@@ -148,7 +149,6 @@ class CloudRagLlmEngine(
      * responses share this parser so reasoning filtering and terminal handling
      * cannot drift between the normal and tool-aware paths.
      */
-    @Suppress("CyclomaticComplexMethod")
     private fun streamRequest(
         request: ChatCompletionRequest,
         config: CloudLlmConfig,
@@ -156,60 +156,95 @@ class CloudRagLlmEngine(
         // Ktor executes streaming response callbacks on the native engine
         // dispatcher. channelFlow safely bridges those emissions to collectors.
         channelFlow {
-            var sawDone = false
-            var finishReason: String? = null
             httpClient
                 .preparePost(cloudChatCompletionsUrl(config.baseUrl)) {
                     applyCloudLlmRequest(this, config, request)
                 }.execute { response ->
-                    if (!response.status.isSuccess()) {
-                        val detail = response.bodyAsText().compactCloudError()
-                        val suffix = detail.takeIf(String::isNotBlank)?.let { ": $it" }.orEmpty()
-                        error("Cloud LLM request failed: HTTP ${response.status.value}$suffix")
-                    }
-                    val channel = response.bodyAsChannel()
-                    val cumulative = StringBuilder()
-                    val thinkingFilter = ThinkingBlockFilter()
-                    val toolCalls = linkedMapOf<Int, MutableCloudToolCall>()
-                    while (!channel.isClosedForRead) {
-                        val line = channel.readUTF8Line() ?: break
-                        parseSseError(line)?.let { message -> error(message) }
-                        if (appendSseDelta(line, cumulative, thinkingFilter)?.isNotEmpty() == true) {
-                            send(RagToolStreamEvent.Text(cumulative.toString()))
-                        }
-                        val chunk =
-                            dataPayload(line)
-                                ?.takeUnless { it.isEmpty() || it.equals(SSE_DONE_SENTINEL, ignoreCase = true) }
-                                ?.let(::decodeChunk)
-                        chunk?.choices?.firstOrNull()?.let { choice ->
-                            choice.delta?.toolCalls?.let { deltas -> appendToolCallDeltas(toolCalls, deltas) }
-                            if (choice.delta?.toolCalls == null) {
-                                choice.message?.toolCalls?.let { calls -> appendToolCallDeltas(toolCalls, calls) }
-                            }
-                        }
-                        if (isTerminalSseFrame(line)) sawDone = true
-                        parseFinishReason(line)?.let { finishReason = it }
-                    }
-                    thinkingFilter
-                        .finish()
-                        .takeIf(String::isNotEmpty)
-                        ?.let { tail ->
-                            cumulative.append(tail)
-                            send(RagToolStreamEvent.Text(cumulative.toString()))
-                        }
-                    validateStreamEnd(
-                        sawDone = sawDone,
-                        finishReason = finishReason,
-                        contentLength = cumulative.length,
-                    )?.let { message -> error(message) }
-                    toolCalls
-                        .toList()
-                        .sortedBy { (index, _) -> index }
-                        .mapIndexedNotNull { index, (_, call) -> call.toRagToolCall(index) }
-                        .takeIf { it.isNotEmpty() }
-                        ?.let { calls -> send(RagToolStreamEvent.ToolCalls(calls)) }
+                    ensureSuccessful(response)
+                    streamResponse(response, ::send)
                 }
         }
+
+    private suspend fun ensureSuccessful(response: HttpResponse) {
+        if (response.status.isSuccess()) return
+        val detail = response.bodyAsText().compactCloudError()
+        val suffix = detail.takeIf(String::isNotBlank)?.let { ": $it" }.orEmpty()
+        error("Cloud LLM request failed: HTTP ${response.status.value}$suffix")
+    }
+
+    private suspend fun streamResponse(
+        response: HttpResponse,
+        emit: suspend (RagToolStreamEvent) -> Unit,
+    ) {
+        val state = StreamState()
+        val channel = response.bodyAsChannel()
+        while (!channel.isClosedForRead) {
+            val line = channel.readUTF8Line() ?: break
+            processSseLine(line, state, emit)
+        }
+        finishStream(state, emit)
+    }
+
+    private suspend fun processSseLine(
+        line: String,
+        state: StreamState,
+        emit: suspend (RagToolStreamEvent) -> Unit,
+    ) {
+        parseSseError(line)?.let { message -> error(message) }
+        if (appendSseDelta(line, state.cumulative, state.thinkingFilter)?.isNotEmpty() == true) {
+            emit(RagToolStreamEvent.Text(state.cumulative.toString()))
+        }
+        val toolDeltas = extractToolCallDeltas(line)
+        if (toolDeltas.isNotEmpty()) {
+            appendToolCallDeltas(state.toolCalls, toolDeltas)
+        }
+        if (isTerminalSseFrame(line)) state.sawDone = true
+        parseFinishReason(line)?.let { state.finishReason = it }
+    }
+
+    private fun extractToolCallDeltas(line: String): List<ChatToolCall> =
+        dataPayload(line)
+            ?.takeUnless { it.isEmpty() || it.equals(SSE_DONE_SENTINEL, ignoreCase = true) }
+            ?.let(::decodeChunk)
+            ?.choices
+            ?.firstOrNull()
+            ?.let { choice ->
+                choice.delta?.toolCalls ?: choice.message?.toolCalls.orEmpty()
+            }.orEmpty()
+
+    private suspend fun finishStream(
+        state: StreamState,
+        emit: suspend (RagToolStreamEvent) -> Unit,
+    ) {
+        state.thinkingFilter
+            .finish()
+            .takeIf(String::isNotEmpty)
+            ?.let { tail ->
+                state.cumulative.append(tail)
+                emit(RagToolStreamEvent.Text(state.cumulative.toString()))
+            }
+        val failure =
+            validateStreamEnd(
+                sawDone = state.sawDone,
+                finishReason = state.finishReason,
+                contentLength = state.cumulative.length,
+            )
+        if (failure != null) error(failure)
+        val calls =
+            state.toolCalls
+                .toList()
+                .sortedBy { (index, _) -> index }
+                .mapIndexedNotNull { index, (_, call) -> call.toRagToolCall(index) }
+        if (calls.isNotEmpty()) emit(RagToolStreamEvent.ToolCalls(calls))
+    }
+
+    private class StreamState {
+        val cumulative = StringBuilder()
+        val thinkingFilter = ThinkingBlockFilter()
+        val toolCalls = linkedMapOf<Int, MutableCloudToolCall>()
+        var sawDone = false
+        var finishReason: String? = null
+    }
 
     private fun appendToolCallDeltas(
         accumulator: MutableMap<Int, MutableCloudToolCall>,
@@ -445,29 +480,44 @@ internal class ThinkingBlockFilter {
 
     private fun drain(final: Boolean): String {
         val visible = StringBuilder()
-        var draining = true
-        while (pending.isNotEmpty() && draining) {
+        while (pending.isNotEmpty()) {
             val marker = findMarker(pending, activeMarkers())
             if (marker != null) {
-                if (!inThinking) visible.append(pending, 0, marker.index)
-                pending = pending.drop(marker.index + marker.token.length)
-                if (marker.entersThinking) inThinking = true
-                if (marker.exitsThinking) inThinking = false
-            } else if (inThinking) {
-                pending = if (final) "" else pending.takeLast(markerPrefixLength(pending))
+                consumeMarker(marker, visible)
             } else {
-                val keep = if (final) 0 else markerPrefixLength(pending)
-                if (keep > 0) {
-                    visible.append(pending, 0, pending.length - keep)
-                    pending = pending.takeLast(keep)
-                } else {
-                    visible.append(pending)
-                    pending = ""
-                }
+                visible.append(drainUnmarked(final))
+                break
             }
-            draining = marker != null && pending.isNotEmpty()
         }
         return visible.toString()
+    }
+
+    private fun consumeMarker(
+        marker: ThinkingMarkerMatch,
+        visible: StringBuilder,
+    ) {
+        if (!inThinking) visible.append(pending, 0, marker.index)
+        pending = pending.drop(marker.index + marker.token.length)
+        inThinking =
+            when {
+                marker.entersThinking -> true
+                marker.exitsThinking -> false
+                else -> inThinking
+            }
+    }
+
+    private fun drainUnmarked(final: Boolean): String {
+        if (inThinking) {
+            pending = if (final) "" else pending.takeLast(markerPrefixLength(pending))
+            return ""
+        }
+        val keep = if (final) 0 else markerPrefixLength(pending)
+        if (keep == 0) {
+            return pending.also { pending = "" }
+        }
+        val visible = pending.dropLast(keep)
+        pending = pending.takeLast(keep)
+        return visible
     }
 
     private fun activeMarkers(): List<ThinkingMarker> = if (inThinking) CLOSE_MARKERS + STRIP_MARKERS else ALL_MARKERS

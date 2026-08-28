@@ -489,3 +489,35 @@ OpenRouter cloud stream -> answer + source cards in Swift UI
 - Full coverage generation remains subject to the two pre-existing shared test
   failures recorded by the existing baseline; the Sonar configuration does not
   suppress or exclude those tests.
+
+## Current remediation slice: shared regressions and Sonar findings
+
+### Objective
+
+Restore a green shared test/coverage baseline and resolve every open issue from
+the local SonarQube analysis without weakening the quality profile or moving
+domain logic into platform UI code.
+
+### Ordered work
+
+1. Confirm and fix the two failing shared tests: the accented Portuguese
+   educational-question boundary and the RAG golden-set expectations or
+   retrieval behavior, based on the fixture contract rather than a blind test
+   rewrite.
+2. Resolve deterministic Sonar findings: duplicated literals, no-op platform
+   parameters, functional-interface opportunities, Android backup/icon lint,
+   and the settings lambda parameter.
+3. Refactor the three reported high-complexity LLM methods into focused private
+   helpers while preserving stream, tool-call, fallback, and interruption
+   behavior.
+4. Generate full Kover coverage, run shared tests and static checks, rerun the
+   local Sonar scan and quality gate, inspect the remaining issue inventory,
+   review the diff, and commit only after the worktree is clean.
+
+### Checkpoints
+
+- Focused intent and RAG tests pass before Sonar refactors begin.
+- The open Sonar issue count reaches zero after a fresh analysis.
+- Full coverage and the configured quality gate complete; the Sonar report
+  configuration no longer imports stale native JUnit result files.
+- `git diff --check`, the repository checks, and the commit hook pass.

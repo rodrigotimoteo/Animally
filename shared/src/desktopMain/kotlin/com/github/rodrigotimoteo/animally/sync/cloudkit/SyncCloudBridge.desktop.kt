@@ -16,9 +16,11 @@ public actual class SyncCloudBridge public constructor() {
 
     public actual fun stop(): Unit = unsupportedUnit()
 
-    private fun unsupportedString(): String = throw UnsupportedOperationException("CloudKit is iOS-only")
+    private fun unsupportedString(): String = throw UnsupportedOperationException(CLOUDKIT_IOS_ONLY_MESSAGE)
 
-    private fun unsupportedUnit(): Unit = throw UnsupportedOperationException("CloudKit is iOS-only")
+    private fun unsupportedUnit(): Unit = throw UnsupportedOperationException(CLOUDKIT_IOS_ONLY_MESSAGE)
 }
 
-public actual fun createSyncCloudBridge(): SyncCloudBridge = throw UnsupportedOperationException("CloudKit is iOS-only")
+public actual fun createSyncCloudBridge(): SyncCloudBridge = throw UnsupportedOperationException(CLOUDKIT_IOS_ONLY_MESSAGE)
+
+private const val CLOUDKIT_IOS_ONLY_MESSAGE = "CloudKit is iOS-only"

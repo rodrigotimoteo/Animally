@@ -17,7 +17,7 @@ actual class LlmEngine actual constructor(
 ) {
     actual fun generate(prompt: String): Flow<String> =
         flow {
-            emit("LLM assistant is not available on desktop.")
+            emit(UNAVAILABLE_MESSAGE)
         }
 
     actual fun generate(
@@ -25,7 +25,7 @@ actual class LlmEngine actual constructor(
         instructions: String,
     ): Flow<String> =
         flow {
-            emit("LLM assistant is not available on desktop.")
+            emit(UNAVAILABLE_MESSAGE)
         }
 
     actual fun generateStructured(
@@ -33,7 +33,7 @@ actual class LlmEngine actual constructor(
         schema: String,
     ): Flow<String> =
         flow {
-            emit("LLM assistant is not available on desktop.")
+            emit(UNAVAILABLE_MESSAGE)
         }
 
     actual fun generateStreaming(
@@ -52,6 +52,7 @@ actual class LlmEngine actual constructor(
     actual suspend fun availability(): LlmAvailability = LlmAvailability.Unavailable(UnavailableReason.NO_LOCAL_MODEL)
 
     private companion object {
+        const val UNAVAILABLE_MESSAGE = "LLM assistant is not available on desktop."
         const val CHUNK_DELAY_MS = 120L
 
         /** Cumulative chunks simulating a progressive answer about a vaccination record. */

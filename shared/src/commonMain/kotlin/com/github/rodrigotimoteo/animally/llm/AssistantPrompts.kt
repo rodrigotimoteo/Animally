@@ -8,6 +8,9 @@ package com.github.rodrigotimoteo.animally.llm
  * record content instead of question words.
  */
 object AssistantPrompts {
+    private const val PORTUGUESE_VACCINATION = "vacinação"
+    private const val PORTUGUESE_DEWORMING = "desparasitação"
+
     private val FILLER_WORDS =
         setOf(
             "what",
@@ -121,8 +124,8 @@ object AssistantPrompts {
             "aconteceu",
             "ocorreu",
             "atividade",
-            "vacinação",
-            "desparasitação",
+            PORTUGUESE_VACCINATION,
+            PORTUGUESE_DEWORMING,
             "ferrador",
             "ferragem",
         )
@@ -165,7 +168,7 @@ object AssistantPrompts {
             "pacientes",
             "vacina",
             "vacinas",
-            "vacinação",
+            PORTUGUESE_VACCINATION,
             "tratamento",
             "tratamentos",
             "gestação",
@@ -191,8 +194,8 @@ object AssistantPrompts {
             "ultima",
             "ferrador",
             "ferragem",
-            "vacinação",
-            "desparasitação",
+            PORTUGUESE_VACCINATION,
+            PORTUGUESE_DEWORMING,
             "é",
         )
 
@@ -231,7 +234,7 @@ object AssistantPrompts {
                 "vaccine",
                 "booster",
                 "shot",
-                "vacinação",
+                PORTUGUESE_VACCINATION,
                 "vacina",
                 "reforço",
                 "reforco",
@@ -240,7 +243,7 @@ object AssistantPrompts {
                 "deworming",
                 "dewormer",
                 "wormer",
-                "desparasitação",
+                PORTUGUESE_DEWORMING,
                 "desparasitacao",
                 "vermifugação",
                 "vermifugacao",

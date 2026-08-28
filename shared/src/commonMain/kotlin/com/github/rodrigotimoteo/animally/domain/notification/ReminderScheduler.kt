@@ -9,7 +9,7 @@ import org.koin.core.annotation.Single
  * Decouples reminder persistence from the final platform scheduler so it can be
  * substituted in tests. The default implementation delegates to [NotificationScheduler].
  */
-interface ReminderScheduler {
+fun interface ReminderScheduler {
     /**
      * Schedules a platform notification for [reminder].
      *

@@ -67,5 +67,14 @@
 - [x] Verify static-analysis reports and the Sonar task graph
 - [x] Run a real local SonarQube scan and resolve source/report integration issues
 - [x] Configure the documented gate on the local server while keeping credentials external
-- [ ] Resolve the two pre-existing shared test failures so the full coverage/Sonar run can complete
+- [x] Resolve the two pre-existing shared test failures so the full coverage/Sonar run can complete
 - [x] Commit the verified configuration
+
+## Current slice: shared regressions and all Sonar findings
+
+- [x] Fix the accented Portuguese educational-question regression
+- [x] Confirm the RAG golden-set contract and fix retrieval or stale expectations
+- [x] Resolve deterministic Kotlin, Android Lint, and platform-parameter findings
+- [x] Refactor the three reported high-complexity LLM methods without changing behavior
+- [x] Run full coverage, shared tests, static checks, and a fresh local Sonar gate
+- [x] Review the diff, commit the fixes, and confirm a clean worktree

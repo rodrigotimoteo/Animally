@@ -1,3 +1,5 @@
+@file:Suppress("UNUSED_PARAMETER")
+
 package com.github.rodrigotimoteo.animally.di.infra
 
 import com.github.rodrigotimoteo.animally.di.IosDatabaseModule
