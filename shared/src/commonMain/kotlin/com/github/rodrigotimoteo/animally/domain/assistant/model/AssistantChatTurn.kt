@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.assistant.model
 
+import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 import kotlin.time.Instant
 
 /** A completed assistant question/answer turn retained for local history. */
@@ -12,4 +13,6 @@ data class AssistantChatTurn(
     val createdAt: Instant,
     /** Stable local boundary used to keep related turns in one conversation. */
     val conversationId: String = "",
+    /** Public references shown with a general medical answer. */
+    val webSources: List<VeterinaryWebSource> = emptyList(),
 )

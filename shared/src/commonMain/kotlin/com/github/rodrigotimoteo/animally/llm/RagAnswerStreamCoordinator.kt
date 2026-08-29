@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collect
@@ -16,6 +17,7 @@ internal data class RagStreamRequest(
     val useTools: Boolean,
     val requiresGrounding: Boolean,
     val grounded: Boolean,
+    val webSources: List<VeterinaryWebSource>,
 )
 
 /**
@@ -38,6 +40,9 @@ internal class RagAnswerStreamCoordinator(
         collector: FlowCollector<RagStreamEvent>,
         request: RagStreamRequest,
     ) {
+        if (request.webSources.isNotEmpty()) {
+            collector.emit(RagStreamEvent.WebSources(request.webSources))
+        }
         val answer = streamGeneratedAnswer(collector, request) ?: return
         val streamedText = answer.text
         emitCitationEvents(collector, request, answer)
@@ -140,6 +145,7 @@ internal class RagAnswerStreamCoordinator(
                 AssistantPrompts.systemPrompt(
                     request.turnStrings,
                     allowGeneralQuestions = request.allowGeneralQuestions,
+                    includeWebReferences = request.webSources.isNotEmpty(),
                 ),
             ).collect { text ->
                 lastEmitted = sanitize(text)
@@ -166,6 +172,7 @@ internal class RagAnswerStreamCoordinator(
                         AssistantPrompts.systemPrompt(
                             request.turnStrings,
                             allowGeneralQuestions = request.allowGeneralQuestions,
+                            includeWebReferences = request.webSources.isNotEmpty(),
                         ) +
                             "\nUse the read-only analysis tools when they improve accuracy. " +
                             "Tool results are authoritative for this app's data. Never invent a source header; " +

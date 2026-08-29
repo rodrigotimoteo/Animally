@@ -348,6 +348,52 @@ final class CloudAiUITests: AnimallyTestCase {
         )
     }
 
+    /// Verifies that a general medical question gets public veterinary
+    /// references separate from the patient's record citations. The test is
+    /// opt-in because it makes a real provider request.
+    func testLiveCloudMedicalWebReferences() throws {
+        try XCTSkipUnless(
+            isLiveCloudRun,
+            "Opt-in live medical-reference test; set ANIMALLY_LIVE_CLOUD=1 when a valid provider key is configured",
+        )
+        let app = TestHelpers.launchApp(arguments: ["-forceFmUnavailable"])
+        try configureLivePaidMimoModelManually(app)
+        openAssistant(app)
+
+        let input = app.textFields["assistant_input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 10), "Assistant input is unavailable")
+        let newChat = app.buttons["assistant_new_chat"].firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat action is unavailable")
+        newChat.tap()
+        XCTAssertTrue(
+            app.staticTexts["What would you like to know?"].waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
+
+        let reply = try askAndWait(
+            app,
+            input: input,
+            question: "What is laminitis in horses?",
+            replyIndex: 0,
+        )
+        assertUsefulCloudAnswer(reply, question: "medical web reference")
+        XCTAssertFalse(
+            reply.localizedCaseInsensitiveContains("not found in records"),
+            "Medical question was incorrectly treated as a record lookup: \(reply)",
+        )
+
+        let webSource = app.descendants(matching: .any)
+            .matching(identifier: "assistant_web_source")
+            .firstMatch
+        XCTAssertTrue(webSource.waitForExistence(timeout: 15), "No trusted web source card was rendered")
+        XCTAssertTrue(
+            webSource.label.localizedCaseInsensitiveContains("MSD") ||
+                webSource.label.localizedCaseInsensitiveContains("Europe PMC") ||
+                webSource.label.localizedCaseInsensitiveContains("PubMed"),
+            "Web source card did not identify an approved veterinary publisher: \(webSource.label)",
+        )
+    }
+
     /// Broader paid-provider coverage. This intentionally mixes a grounded
     /// follow-up conversation, English and European Portuguese, general
     /// knowledge, population analysis, an absent patient, and the explicit

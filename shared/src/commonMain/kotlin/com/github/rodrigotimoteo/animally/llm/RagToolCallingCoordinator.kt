@@ -19,50 +19,111 @@ internal class RagToolCallingCoordinator(
 ) {
     suspend fun run(messages: MutableList<RagChatMessage>): RagToolAnswer {
         val collectedSources = mutableListOf<SearchResult>()
+        val seenCalls = mutableSetOf<String>()
         var successfulToolCalls = 0
+        var completedAnswer: RagToolAnswer? = null
         repeat(MAX_TOOL_ROUNDS) {
-            val turn = requestTurn(messages)
-            if (turn.fallbackToPlainText) {
-                return RagToolAnswer(
-                    sources = collectedSources.distinctBy { it.recordType to it.recordId },
-                    fallbackToPlainText = true,
-                    usedAuthoritativeTool = successfulToolCalls > 0,
-                )
+            if (completedAnswer == null) {
+                val round = processTurn(messages, collectedSources, seenCalls, successfulToolCalls)
+                successfulToolCalls += round.successfulToolCalls
+                completedAnswer = round.answer
             }
-            if (turn.calls.isEmpty()) {
-                val text = sanitize(turn.text)
-                return if (text.isBlank() && successfulToolCalls > 0) {
-                    RagToolAnswer(
-                        sources = collectedSources.distinctBy { it.recordType to it.recordId },
-                        fallbackToPlainText = true,
-                        usedAuthoritativeTool = true,
-                    )
-                } else {
-                    RagToolAnswer(
-                        text = text,
-                        sources = collectedSources.distinctBy { it.recordType to it.recordId },
-                        usedAuthoritativeTool = successfulToolCalls > 0,
-                    )
-                }
-            }
-            check(turn.calls.size <= MAX_TOOL_CALLS_PER_ROUND) {
-                "The analysis requested too many tools at once."
-            }
-            emitText(turnStrings.searchingPlaceholder)
-            messages +=
-                RagChatMessage(
-                    role = RagChatRole.ASSISTANT,
-                    content = turn.text.takeIf(String::isNotBlank),
-                    toolCalls = turn.calls,
-                )
-            successfulToolCalls += executeToolCalls(turn.calls, messages, collectedSources)
         }
-        return RagToolAnswer(
+        return completedAnswer
+            ?: RagToolAnswer(
+                sources = collectedSources.distinctBy { it.recordType to it.recordId },
+                fallbackToPlainText = true,
+                usedAuthoritativeTool = successfulToolCalls > 0,
+            )
+    }
+
+    private suspend fun processTurn(
+        messages: MutableList<RagChatMessage>,
+        collectedSources: MutableList<SearchResult>,
+        seenCalls: MutableSet<String>,
+        successfulToolCalls: Int,
+    ): ProcessedToolTurn {
+        val turn = requestTurn(messages)
+        return when {
+            turn.fallbackToPlainText ->
+                ProcessedToolTurn(
+                    answer = completedAnswer(collectedSources, successfulToolCalls),
+                    successfulToolCalls = 0,
+                )
+            turn.calls.isEmpty() ->
+                ProcessedToolTurn(
+                    answer = completeTextTurn(turn.text, collectedSources, successfulToolCalls),
+                    successfulToolCalls = 0,
+                )
+            else -> executeFreshCalls(turn, messages, collectedSources, seenCalls, successfulToolCalls)
+        }
+    }
+
+    private fun completedAnswer(
+        collectedSources: List<SearchResult>,
+        successfulToolCalls: Int,
+    ): RagToolAnswer =
+        RagToolAnswer(
             sources = collectedSources.distinctBy { it.recordType to it.recordId },
             fallbackToPlainText = true,
             usedAuthoritativeTool = successfulToolCalls > 0,
         )
+
+    private fun completeTextTurn(
+        text: String,
+        collectedSources: List<SearchResult>,
+        successfulToolCalls: Int,
+    ): RagToolAnswer {
+        val sanitized = sanitize(text)
+        return if (sanitized.isBlank() && successfulToolCalls > 0) {
+            completedAnswer(collectedSources, successfulToolCalls)
+        } else {
+            RagToolAnswer(
+                text = sanitized,
+                sources = collectedSources.distinctBy { it.recordType to it.recordId },
+                usedAuthoritativeTool = successfulToolCalls > 0,
+            )
+        }
     }
+
+    private suspend fun executeFreshCalls(
+        turn: ToolTurn,
+        messages: MutableList<RagChatMessage>,
+        collectedSources: MutableList<SearchResult>,
+        seenCalls: MutableSet<String>,
+        successfulToolCalls: Int,
+    ): ProcessedToolTurn {
+        check(turn.calls.size <= MAX_TOOL_CALLS_PER_ROUND) {
+            "The analysis requested too many tools at once."
+        }
+        val freshCalls = turn.calls.filter { seenCalls.add(toolCallFingerprint(it)) }
+        if (freshCalls.isEmpty()) {
+            // Some gateways repeatedly return the same call after its tool
+            // result has already been replayed. Repeating it wastes the
+            // bounded budget and can leave the user with an avoidable
+            // analysis-limit message.
+            return ProcessedToolTurn(
+                answer = completedAnswer(collectedSources, successfulToolCalls),
+                successfulToolCalls = 0,
+            )
+        }
+        emitText(turnStrings.searchingPlaceholder)
+        messages +=
+            RagChatMessage(
+                role = RagChatRole.ASSISTANT,
+                content = turn.text.takeIf(String::isNotBlank),
+                toolCalls = freshCalls,
+            )
+        return ProcessedToolTurn(
+            answer = null,
+            successfulToolCalls = executeToolCalls(freshCalls, messages, collectedSources),
+        )
+    }
+
+    private data class ProcessedToolTurn(
+        val answer: RagToolAnswer?,
+        val successfulToolCalls: Int,
+    )
 
     private suspend fun requestTurn(messages: List<RagChatMessage>): ToolTurn {
         var modelText = ""
@@ -112,6 +173,11 @@ internal class RagToolCallingCoordinator(
     private suspend fun emitText(text: String) {
         onText(text)
         emitChunk(text)
+    }
+
+    private fun toolCallFingerprint(call: RagToolCall): String {
+        val normalizedArguments = call.arguments.replace(Regex("\\s+"), "")
+        return "${call.name.trim().lowercase()}|$normalizedArguments"
     }
 
     private data class ToolTurn(

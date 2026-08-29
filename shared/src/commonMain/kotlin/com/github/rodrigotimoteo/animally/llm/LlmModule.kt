@@ -1,6 +1,10 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.data.vetreference.CompositeVeterinaryWebSourceProvider
+import com.github.rodrigotimoteo.animally.data.vetreference.EuropePmcVeterinaryWebSourceProvider
+import com.github.rodrigotimoteo.animally.data.vetreference.MsdVeterinaryWebSourceProvider
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.vetreference.VeterinaryWebSourceProvider
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmConfig
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmProviderPreset
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudModelCatalog
@@ -49,6 +53,18 @@ val llmModule =
         // Models-list discovery for the Cloud AI settings (GET {baseUrl}/models);
         // shares the engine/timeout wiring with the chat-completions client above.
         single { CloudModelCatalog(get()) }
+        // Public literature lookup for cloud-only general medical questions.
+        // The provider performs the privacy/topic gate before any request and
+        // returns references separately from local patient search results.
+        single<VeterinaryWebSourceProvider> {
+            CompositeVeterinaryWebSourceProvider(
+                providers =
+                    listOf(
+                        MsdVeterinaryWebSourceProvider(get()),
+                        EuropePmcVeterinaryWebSourceProvider(get()),
+                    ),
+            )
+        }
         // Cloud engine: OpenAI-compatible chat completions over Ktor. Config resolved
         // per request from settings, so edits (key/model/URL) apply without restart;
         // the platform service loader picks the transport engine (Android/Darwin/CIO).
@@ -154,6 +170,7 @@ val llmModule =
                 queryPolicyProvider = { routedEngine.queryPolicy() },
                 toolCallingEngine = routedEngine,
                 toolRegistry = analysisToolRegistry,
+                webSourceProvider = get(),
             )
         }
     }

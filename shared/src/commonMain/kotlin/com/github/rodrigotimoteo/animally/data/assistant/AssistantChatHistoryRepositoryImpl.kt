@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.data.assistant
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.domain.assistant.IAssistantChatHistoryRepository
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantChatTurn
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantWebSourcesCodec
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -25,6 +26,7 @@ class AssistantChatHistoryRepositoryImpl(
                     interrupted = row.interrupted,
                     createdAt = row.createdAt,
                     conversationId = row.conversationId.ifBlank { "legacy-${row.id}" },
+                    webSources = AssistantWebSourcesCodec.decode(row.webSourcesJson),
                 )
             }
 
@@ -37,6 +39,7 @@ class AssistantChatHistoryRepositoryImpl(
                 interrupted = turn.interrupted,
                 createdAt = turn.createdAt,
                 conversationId = turn.conversationId,
+                webSourcesJson = AssistantWebSourcesCodec.encode(turn.webSources),
             )
             database.commonQueries.selectLastRowId().executeAsOne()
         }

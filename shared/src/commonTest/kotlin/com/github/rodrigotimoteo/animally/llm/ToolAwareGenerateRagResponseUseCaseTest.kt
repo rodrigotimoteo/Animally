@@ -207,15 +207,15 @@ class ToolAwareGenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `tool loop stops after the safe round limit`() =
+    fun `tool loop stops when the provider repeats a tool call`() =
         runTest {
             val toolEngine = FakeToolEngine(alwaysRequestsTools = true)
             val registry = FakeToolRegistry()
 
             val events = sut(toolEngine, registry)("Analyze the weight data").toList()
 
-            assertEquals(3, toolEngine.calls)
-            assertEquals(3, registry.calls)
+            assertEquals(2, toolEngine.calls)
+            assertEquals(1, registry.calls)
             assertEquals(
                 EnAssistantStrings.analysisLimitReply,
                 events.filterIsInstance<RagStreamEvent.Chunk>().last().text,
@@ -240,8 +240,8 @@ class ToolAwareGenerateRagResponseUseCaseTest {
                     analysisContextBuilder = repos.builder,
                 )("Analyze the weight data").toList()
 
-            assertEquals(3, toolEngine.calls)
-            assertEquals(3, registry.calls)
+            assertEquals(2, toolEngine.calls)
+            assertEquals(1, registry.calls)
             assertEquals(1, plain.calls)
             assertEquals(
                 "I can still answer from the available context.",

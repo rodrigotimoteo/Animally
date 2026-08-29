@@ -626,7 +626,7 @@ internal class ThinkingBlockFilter {
 /**
  * Terminal-state check shared by the stream loop and contract tests. Returns a
  * human-readable failure message when the stream ended abnormally, null when the
- * termination is legitimate ([DONE], or an explicit finish_reason such as `stop`).
+ * termination is legitimate ([DONE], or an allow-listed finish_reason such as `stop`).
  * `length` always means the provider stopped before completing the answer. Partial
  * visible text is retained by the caller and paired with its retry affordance.
  */
@@ -644,11 +644,9 @@ internal fun validateStreamEnd(
             }
         FINISH_CONTENT_FILTER, FINISH_ERROR, FINISH_FAILED, FINISH_CANCELLED, FINISH_CANCELED ->
             "Cloud model ended the answer with finish reason '${finishReason.trim()}'."
-        else ->
-            when {
-                sawDone || finishReason != null -> null
-                else -> "Cloud LLM stream ended before completion"
-            }
+        in FINISH_SUCCESS_REASONS -> null
+        null -> if (sawDone) null else "Cloud LLM stream ended before completion"
+        else -> "Cloud model ended with an unrecognized finish reason '${finishReason.trim()}'."
     }
 
 private const val FINISH_LENGTH = "length"
@@ -657,6 +655,18 @@ private const val FINISH_ERROR = "error"
 private const val FINISH_FAILED = "failed"
 private const val FINISH_CANCELLED = "cancelled"
 private const val FINISH_CANCELED = "canceled"
+
+private val FINISH_SUCCESS_REASONS =
+    setOf(
+        "stop",
+        "tool_calls",
+        "function_call",
+        "end_turn",
+        "completed",
+        "complete",
+        "done",
+        "eos",
+    )
 
 private const val ROLE_SYSTEM = "system"
 private const val ROLE_USER = "user"

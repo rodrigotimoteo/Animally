@@ -496,6 +496,10 @@ private struct ChatBubble: View {
         (message.followUps as? [String]) ?? []
     }
 
+    private var webSources: [VeterinaryWebSource] {
+        (message.webSources as? [VeterinaryWebSource]) ?? []
+    }
+
     var body: some View {
         HStack(alignment: .bottom) {
             if isUser { Spacer(minLength: 48) }
@@ -515,6 +519,9 @@ private struct ChatBubble: View {
                 }
                 if !isUser && !sourceGroups.isEmpty {
                     sourceChips
+                }
+                if !isUser && !webSources.isEmpty {
+                    webReferenceChips
                 }
                 if !isUser && !followUps.isEmpty {
                     followUpChips
@@ -622,6 +629,40 @@ private struct ChatBubble: View {
                     }
                     .accessibilityIdentifier("assistant_followup_chip")
                     .accessibilityLabel("Suggest: \(suggestion)")
+                }
+            }
+        }
+    }
+
+    /// External literature links are visually separate from local record
+    /// chips so a public reference can never look like a patient record.
+    private var webReferenceChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(Array(webSources.enumerated()), id: \.offset) { _, source in
+                    if let url = URL(string: source.url) {
+                        Link(destination: url) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "book.closed")
+                                    .font(.caption2)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(source.title)
+                                        .font(.caption.weight(.medium))
+                                        .lineLimit(2)
+                                    Text(source.publisher)
+                                        .font(.caption2)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.10))
+                            .foregroundStyle(.blue)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .accessibilityIdentifier("assistant_web_source")
+                        .accessibilityLabel("Open veterinary reference: \(source.title), \(source.publisher)")
+                    }
                 }
             }
         }

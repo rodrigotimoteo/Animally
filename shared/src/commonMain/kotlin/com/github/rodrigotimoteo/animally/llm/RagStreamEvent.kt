@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 
 /**
  * One element of the assistant answer stream. Replaces the bare
@@ -24,6 +25,11 @@ sealed interface RagStreamEvent {
      */
     data class Sources(
         val sources: List<SearchResult>,
+    ) : RagStreamEvent
+
+    /** Public veterinary references used for a general medical answer. */
+    data class WebSources(
+        val sources: List<VeterinaryWebSource>,
     ) : RagStreamEvent
 
     /**

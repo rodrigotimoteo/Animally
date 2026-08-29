@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.bridge.NativeFlow
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantChatTurn
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantConversationGrouper
 import com.github.rodrigotimoteo.animally.domain.assistant.model.conversationKey
+import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 import com.github.rodrigotimoteo.animally.llm.EngineType
 import com.github.rodrigotimoteo.animally.llm.LlmAvailability
 import com.github.rodrigotimoteo.animally.presentation.assistant.AssistantChatMessage
@@ -28,6 +29,7 @@ data class AssistantHistoryItem(
     val source: String,
     val interrupted: Boolean,
     val createdAtMillis: Long,
+    val webSources: List<VeterinaryWebSource> = emptyList(),
 )
 
 /** Swift-facing assistant state with a primitive history projection. */
@@ -111,6 +113,7 @@ class AssistantStore(
             source = turn.source,
             interrupted = turn.interrupted,
             createdAtMillis = turn.createdAt.toEpochMilliseconds(),
+            webSources = turn.webSources,
         )
 
     /** Asks the assistant a free-text question about the records. */

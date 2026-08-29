@@ -42,6 +42,12 @@ interface AssistantStrings {
      */
     val searchingPlaceholder: String
 
+    /** Safe response when the trusted veterinary reference service is unavailable. */
+    val webReferenceUnavailable: String
+
+    /** Safe response when no trusted veterinary reference matches the topic. */
+    val webReferenceNoResults: String
+
     /** Follow-up chip: cited Vaccination record. */
     val followUpNextBooster: String
 
@@ -93,6 +99,13 @@ object EnAssistantStrings : AssistantStrings {
 
     override val searchingPlaceholder: String = "Searching your records…"
 
+    override val webReferenceUnavailable: String =
+        "I couldn't reach the trusted veterinary references right now, so I won't guess about this medical topic. " +
+            "Please try again later or check with the treating vet."
+
+    override val webReferenceNoResults: String =
+        "I couldn't find a relevant trusted veterinary reference for that topic, so I won't make up an answer."
+
     override val followUpNextBooster: String = "When is the next booster due?"
 
     override val followUpGestationDay: String = "What day of gestation is she?"
@@ -137,6 +150,15 @@ object PtAssistantStrings : AssistantStrings {
         "Não posso aconselhar sobre doses. Consulte o registo do medicamento ou o veterinário responsável."
 
     override val searchingPlaceholder: String = "A pesquisar nos seus registos…"
+
+    override val webReferenceUnavailable: String =
+        "Não consegui contactar as referências veterinárias de confiança neste momento, por isso não vou " +
+            "adivinhar sobre este tema médico. " +
+            "Tente novamente mais tarde ou confirme com o veterinário responsável."
+
+    override val webReferenceNoResults: String =
+        "Não encontrei uma referência veterinária de confiança relevante para esse tema, por isso não vou " +
+            "inventar uma resposta."
 
     override val followUpNextBooster: String = "Quando é a próxima vacina?"
 

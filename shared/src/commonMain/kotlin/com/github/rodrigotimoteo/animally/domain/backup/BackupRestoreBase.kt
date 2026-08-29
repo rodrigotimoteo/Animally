@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.backup
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.storage.FileStorage
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantWebSourcesCodec
 import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
 
 /** Returns app-owned audio paths referenced by the current dictation rows. */
@@ -60,6 +61,7 @@ internal fun AnimallyDatabase.insertAssistantChatHistory(payload: BackupPayload)
             interrupted = row.interrupted,
             createdAt = row.createdAt,
             conversationId = row.conversationId.ifBlank { "legacy-${row.id}" },
+            webSourcesJson = AssistantWebSourcesCodec.encode(row.webSources),
         )
     }
 }

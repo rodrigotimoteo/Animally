@@ -1,0 +1,3 @@
+-- Keep public-reference cards with their local assistant turn so chat history
+-- remains useful offline. The references contain no patient data.
+ALTER TABLE AssistantChatHistory ADD COLUMN webSourcesJson TEXT NOT NULL DEFAULT '[]';

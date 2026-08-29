@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.domain.assistant.model.conversationKey
 import com.github.rodrigotimoteo.animally.domain.assistant.usecase.GetRecentAssistantChatHistoryUseCase
 import com.github.rodrigotimoteo.animally.domain.assistant.usecase.SaveAssistantChatTurnUseCase
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 import com.github.rodrigotimoteo.animally.llm.AssistantStrings
 import com.github.rodrigotimoteo.animally.llm.GenerateRagResponseUseCase
 import com.github.rodrigotimoteo.animally.llm.LlmAvailability
@@ -43,6 +44,7 @@ data class AssistantChatMessage(
     val text: String,
     val interrupted: Boolean = false,
     val sources: List<SearchResult> = emptyList(),
+    val webSources: List<VeterinaryWebSource> = emptyList(),
     val followUps: List<String> = emptyList(),
     val source: EngineSource = EngineSource.ON_DEVICE,
 ) {
@@ -153,6 +155,8 @@ private fun applyAssistantEvent(
                     )
                 }
             }
+            is RagStreamEvent.WebSources ->
+                state.messages.upsertLast(source) { it.copy(webSources = event.sources) }
             is RagStreamEvent.Interrupted ->
                 state.messages.upsertLast(source) { it.copy(text = event.partialText, interrupted = true) }
         }
@@ -233,7 +237,7 @@ private fun RagStreamEvent.replyText(previous: String): String =
     when (this) {
         is RagStreamEvent.Chunk -> text
         is RagStreamEvent.Interrupted -> partialText
-        is RagStreamEvent.Sources -> previous
+        is RagStreamEvent.Sources, is RagStreamEvent.WebSources -> previous
     }
 
 private fun RagStreamEvent.shouldPublish(
@@ -496,6 +500,7 @@ class AssistantViewModel(
                             interrupted = assistant.interrupted,
                             createdAt = Clock.System.now(),
                             conversationId = conversationId,
+                            webSources = assistant.webSources,
                         ),
                     )
                     getRecentAssistantChatHistory()
@@ -536,6 +541,7 @@ class AssistantViewModel(
                 text = answer,
                 interrupted = interrupted,
                 source = engineSource,
+                webSources = webSources,
             ),
         )
     }

@@ -382,6 +382,10 @@ class CloudRagLlmEngineTest {
             "Cloud model ended the answer with finish reason 'error'.",
             validateStreamEnd(sawDone = true, finishReason = "error", contentLength = 10),
         )
+        assertEquals(
+            "Cloud model ended with an unrecognized finish reason 'mystery'.",
+            validateStreamEnd(sawDone = true, finishReason = "mystery", contentLength = 10),
+        )
     }
 
     @Test

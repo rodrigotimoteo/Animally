@@ -153,6 +153,8 @@ private struct AssistantConversationDetailView: View {
 
                         sourceBadge(for: turn)
 
+                        webReferenceLinks(for: turn)
+
                         if turn.interrupted {
                             Label(
                                 "This response was saved after generation stopped early.",
@@ -224,6 +226,42 @@ private struct AssistantConversationDetailView: View {
         )
         .font(.caption)
         .foregroundStyle(Theme.textSecondary)
+    }
+
+    private func webReferenceLinks(for turn: AssistantHistoryItem) -> some View {
+        let sources = (turn.webSources as? [VeterinaryWebSource]) ?? []
+        return Group {
+            if !sources.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Public veterinary references", systemImage: "book.closed")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Theme.textSecondary)
+                    ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
+                        if let url = URL(string: source.url) {
+                            Link(destination: url) {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.caption)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(source.title)
+                                            .font(.footnote.weight(.medium))
+                                            .multilineTextAlignment(.leading)
+                                        Text(source.publisher)
+                                            .font(.caption2)
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .foregroundStyle(accentColor)
+                            }
+                            .accessibilityIdentifier("assistant_history_web_source")
+                        }
+                    }
+                }
+                .padding(12)
+                .background(Theme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
     }
 
     private var dateRangeText: String {
