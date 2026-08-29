@@ -71,6 +71,176 @@ data class AssistantUiState(
 /** Transform applied to one chat message when updating state immutably. */
 private typealias MessageTransform = (AssistantChatMessage) -> AssistantChatMessage
 
+/** Maximum UI publication rate for cumulative provider stream snapshots. */
+private const val STREAM_UI_UPDATE_INTERVAL_MILLIS = 80L
+
+private class ReplyAccumulator(
+    var reply: String = "",
+    var lastPublishedAt: Long = Long.MIN_VALUE,
+)
+
+private data class AssistantReplyContext(
+    val generateRagResponse: GenerateRagResponseUseCase,
+    val state: MutableStateFlow<AssistantUiState>,
+    val strings: AssistantStrings,
+    val currentSource: () -> EngineSource,
+)
+
+private suspend fun streamAssistantReply(
+    context: AssistantReplyContext,
+    question: String,
+    history: List<RagHistoryEntry>,
+) {
+    val accumulator = ReplyAccumulator()
+    try {
+        // The collector stays off the iOS main dispatcher. Cloud providers
+        // may emit one cumulative snapshot per token; a bounded publish
+        // cadence prevents a fast stream from flooding SwiftUI.
+        context.generateRagResponse(question, history).collect { event ->
+            accumulator.reply = event.replyText(accumulator.reply)
+            if (event.shouldPublish(accumulator.lastPublishedAt, context.strings)) {
+                context.state.update { current ->
+                    applyAssistantEvent(current, event, context.strings, context.currentSource())
+                }
+                accumulator.lastPublishedAt = Clock.System.now().toEpochMilliseconds()
+            }
+        }
+        context.state.update { current ->
+            applyCompletedAssistantReply(
+                current,
+                accumulator.reply,
+                context.strings,
+                context.currentSource(),
+            )
+        }
+    } catch (ce: CancellationException) {
+        throw ce
+    } catch (t: Exception) {
+        // Engine failures normally arrive as Interrupted events; this path
+        // covers anything thrown outside the stream. A blank reply must never
+        // render as an empty bubble.
+        context.state.update { current ->
+            applyAssistantFailure(
+                current,
+                accumulator.reply,
+                t,
+                context.strings,
+                context.currentSource(),
+            )
+        }
+    }
+}
+
+private fun applyAssistantEvent(
+    state: AssistantUiState,
+    event: RagStreamEvent,
+    i18n: AssistantStrings,
+    source: EngineSource,
+): AssistantUiState {
+    val patched =
+        when (event) {
+            is RagStreamEvent.Chunk -> state.messages.upsertLast(source) { it.copy(text = event.text) }
+            is RagStreamEvent.Sources -> {
+                val citedTypes = event.sources.map(SearchResult::recordType)
+                state.messages.upsertLast(source) { message ->
+                    message.copy(
+                        sources = event.sources,
+                        followUps = FollowUpSuggestions.forCitations(citedTypes, i18n),
+                    )
+                }
+            }
+            is RagStreamEvent.Interrupted ->
+                state.messages.upsertLast(source) { it.copy(text = event.partialText, interrupted = true) }
+        }
+    return state.copy(messages = patched, error = (event as? RagStreamEvent.Interrupted)?.error ?: state.error)
+}
+
+private fun applyCompletedAssistantReply(
+    state: AssistantUiState,
+    reply: String,
+    strings: AssistantStrings,
+    source: EngineSource,
+): AssistantUiState {
+    val completed =
+        if (reply.isBlank() || reply == strings.searchingPlaceholder) {
+            applyAssistantBlank(state, strings.blankReplyFallback, source)
+        } else {
+            // A throttled stream may not have published its last cumulative
+            // chunk. Commit the exact final reply before persistence.
+            state.copy(messages = state.messages.upsertLast(source) { it.copy(text = reply) })
+        }
+    return ensureAssistantFollowUps(completed, strings)
+}
+
+private fun applyAssistantFailure(
+    state: AssistantUiState,
+    reply: String,
+    error: Exception,
+    strings: AssistantStrings,
+    source: EngineSource,
+): AssistantUiState {
+    val text = reply.ifBlank { strings.blankReplyFallback }
+    val message = error.message ?: strings.blankReplyFallback
+    val patched = state.messages.upsertLast(source) { it.copy(text = text) }
+    return state.copy(messages = patched, error = message)
+}
+
+private fun applyAssistantBlank(
+    state: AssistantUiState,
+    text: String,
+    source: EngineSource,
+): AssistantUiState {
+    val patched = state.messages.upsertLast(source) { it.copy(text = text) }
+    return state.copy(messages = patched)
+}
+
+/** Gives deterministic exploration prompts to short/fallback answers too. */
+private fun ensureAssistantFollowUps(
+    state: AssistantUiState,
+    i18n: AssistantStrings,
+): AssistantUiState {
+    val last = state.messages.lastOrNull()
+    if (last?.role != AssistantChatMessageRole.ASSISTANT || last.interrupted || last.followUps.isNotEmpty()) {
+        return state
+    }
+    val followUps = FollowUpSuggestions.forCitations(emptyList(), i18n)
+    return state.copy(messages = state.messages.dropLast(1) + last.copy(followUps = followUps))
+}
+
+/** Replaces the trailing assistant turn or appends the first assistant turn. */
+private fun List<AssistantChatMessage>.upsertLast(
+    source: EngineSource,
+    transform: MessageTransform,
+): List<AssistantChatMessage> =
+    when (lastOrNull()?.role) {
+        AssistantChatMessageRole.ASSISTANT -> dropLast(1) + transform(last())
+        else ->
+            this +
+                transform(
+                    AssistantChatMessage(
+                        role = AssistantChatMessageRole.ASSISTANT,
+                        text = "",
+                        source = source,
+                    ),
+                )
+    }
+
+private fun RagStreamEvent.replyText(previous: String): String =
+    when (this) {
+        is RagStreamEvent.Chunk -> text
+        is RagStreamEvent.Interrupted -> partialText
+        is RagStreamEvent.Sources -> previous
+    }
+
+private fun RagStreamEvent.shouldPublish(
+    lastPublishedAt: Long,
+    strings: AssistantStrings,
+): Boolean {
+    if (this !is RagStreamEvent.Chunk) return true
+    if (text == strings.searchingPlaceholder || lastPublishedAt == Long.MIN_VALUE) return true
+    return Clock.System.now().toEpochMilliseconds() - lastPublishedAt >= STREAM_UI_UPDATE_INTERVAL_MILLIS
+}
+
 /**
  * ViewModel behind the AI assistant screen. Answers free-text questions about patient
  * records via retrieval-augmented generation ([GenerateRagResponseUseCase]) on top of
@@ -118,7 +288,7 @@ class AssistantViewModel(
                         if (state.isGenerating &&
                             state.messages.lastOrNull()?.role == AssistantChatMessageRole.ASSISTANT
                         ) {
-                            state.copy(messages = state.messages.upsertLast { it.copy(source = source) })
+                            state.copy(messages = state.messages.upsertLast(source) { it.copy(source = source) })
                         } else {
                             state
                         }
@@ -225,35 +395,21 @@ class AssistantViewModel(
             )
         }
 
-        viewModelScope.launch {
-            var reply = ""
-            try {
-                generateRagResponse(trimmed, history).collect { event ->
-                    reply =
-                        when (event) {
-                            is RagStreamEvent.Chunk -> event.text
-                            is RagStreamEvent.Interrupted -> event.partialText
-                            is RagStreamEvent.Sources -> reply
-                        }
-                    _uiState.update { current -> applyEvent(current, event, strings) }
-                }
-                if (reply.isBlank()) {
-                    _uiState.update { current -> applyBlank(current, strings.blankReplyFallback) }
-                }
-                _uiState.update { current -> ensureFollowUps(current, strings) }
-            } catch (ce: kotlinx.coroutines.CancellationException) {
-                throw ce
-            } catch (t: Exception) {
-                // Engine failures normally arrive as Interrupted events; this
-                // path covers anything thrown outside the stream. A blank
-                // reply must never render as an empty bubble.
-                _uiState.update { current ->
-                    val text = reply.ifBlank { strings.blankReplyFallback }
-                    val message = t.message ?: strings.blankReplyFallback
-                    val patched = current.messages.upsertLast { it.copy(text = text) }
-                    current.copy(messages = patched, error = message)
-                }
-            }
+        // Keep retrieval, parsing, provider streaming, and event reduction on
+        // the injected background dispatcher. The StateFlow remains safe to
+        // observe from SwiftUI, while the iOS main actor only receives the
+        // throttled state snapshots below.
+        viewModelScope.launch(ioDispatcher) {
+            streamAssistantReply(
+                AssistantReplyContext(
+                    generateRagResponse = generateRagResponse,
+                    state = _uiState,
+                    strings = strings,
+                    currentSource = { currentTurnSource },
+                ),
+                question = trimmed,
+                history = history,
+            )
             persistLatestTurn(trimmed, conversationId)
             _uiState.update { state ->
                 state.copy(
@@ -267,72 +423,6 @@ class AssistantViewModel(
     /** Clears the current error message. */
     fun dismissError() {
         _uiState.update { it.copy(error = null, historyError = null) }
-    }
-
-    private fun applyEvent(
-        state: AssistantUiState,
-        event: RagStreamEvent,
-        i18n: AssistantStrings,
-    ): AssistantUiState {
-        val patched =
-            when (event) {
-                is RagStreamEvent.Chunk -> state.messages.upsertLast { it.copy(text = event.text) }
-                is RagStreamEvent.Sources -> {
-                    val citedTypes = event.sources.map(SearchResult::recordType)
-                    state.messages.upsertLast { message ->
-                        message.copy(
-                            sources = event.sources,
-                            followUps = FollowUpSuggestions.forCitations(citedTypes, i18n),
-                        )
-                    }
-                }
-                is RagStreamEvent.Interrupted ->
-                    state.messages.upsertLast { it.copy(text = event.partialText, interrupted = true) }
-            }
-        return state.copy(messages = patched, error = (event as? RagStreamEvent.Interrupted)?.error ?: state.error)
-    }
-
-    private fun applyBlank(
-        state: AssistantUiState,
-        text: String,
-    ): AssistantUiState {
-        val patched = state.messages.upsertLast { it.copy(text = text) }
-        return state.copy(messages = patched)
-    }
-
-    /** Gives deterministic exploration prompts to short/fallback answers too. */
-    private fun ensureFollowUps(
-        state: AssistantUiState,
-        i18n: AssistantStrings,
-    ): AssistantUiState {
-        val last = state.messages.lastOrNull()
-        if (last?.role != AssistantChatMessageRole.ASSISTANT || last.interrupted || last.followUps.isNotEmpty()) {
-            return state
-        }
-        val followUps = FollowUpSuggestions.forCitations(emptyList(), i18n)
-        return state.copy(messages = state.messages.dropLast(1) + last.copy(followUps = followUps))
-    }
-
-    /**
-     * Replaces the trailing assistant turn with [transform]'s result, or
-     * appends a fresh assistant turn when the transcript ends with anything
-     * else (first reply of the conversation).
-     */
-    private fun List<AssistantChatMessage>.upsertLast(transform: MessageTransform): List<AssistantChatMessage> {
-        val replacement =
-            when (lastOrNull()?.role) {
-                AssistantChatMessageRole.ASSISTANT -> dropLast(1) + transform(last())
-                else ->
-                    this +
-                        transform(
-                            AssistantChatMessage(
-                                role = AssistantChatMessageRole.ASSISTANT,
-                                text = "",
-                                source = currentTurnSource,
-                            ),
-                        )
-            }
-        return replacement
     }
 
     /**

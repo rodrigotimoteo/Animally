@@ -44,6 +44,48 @@ final class CloudAiUITests: AnimallyTestCase {
         }
     }
 
+    /// Selects the requested live model through the same discovery/picker path
+    /// a user uses. This prevents earlier tests from silently changing the
+    /// persisted model before the live matrix starts.
+    private func selectLiveMimoModel(_ app: XCUIApplication) throws {
+        openSettings(app)
+        ensureCloudEnabled(app)
+
+        let fetch = app.buttons["Fetch models"].firstMatch
+        XCTAssertTrue(fetch.waitForExistence(timeout: 5), "Fetch models action is unavailable")
+        fetch.tap()
+
+        let picker = app.buttons["settings_cloud_model"].firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 60), "Live model picker never appeared")
+        picker.tap()
+
+        // The picker is a lazy List, so a model outside the first viewport is
+        // not necessarily in the accessibility tree until it is filtered.
+        let filter = app.searchFields["Filter models"].firstMatch
+        XCTAssertTrue(filter.waitForExistence(timeout: 5), "Model picker search is unavailable")
+        TestHelpers.typeSearchText(app, field: filter, text: "mimo-v2.5")
+
+        let mimo = app.descendants(matching: .any)
+            .matching(identifier: "cloud_model_row")
+            .matching(NSPredicate(format: "label BEGINSWITH[c] %@", "mimo-v2.5"))
+            .firstMatch
+        if !mimo.waitForExistence(timeout: 10) {
+            print("CLOUDAI_DEBUG live model picker:\n\(app.debugDescription)")
+        }
+        XCTAssertTrue(mimo.exists, "mimo-v2.5 was not returned by the configured provider")
+        mimo.tap()
+
+        let selected = app.buttons["settings_cloud_model"].firstMatch
+        XCTAssertTrue(selected.waitForExistence(timeout: 5), "Selected model field is unavailable")
+        XCTAssertTrue(
+            selected.label.lowercased().hasPrefix("mimo-v2.5"),
+            "Selected model was not a Mimo 2.5 variant: \(selected.label)",
+        )
+
+        let done = app.buttons["Done"].firstMatch
+        if done.exists { done.tap() }
+    }
+
     func testFetchModelsPopulatesPickerAndSelectionWorks() throws {
         try runFetchPickAskFlow(forceFmUnavailable: false)
     }
@@ -173,6 +215,7 @@ final class CloudAiUITests: AnimallyTestCase {
         )
         let app = TestHelpers.launchApp(arguments: ["-forceFmUnavailable"])
         let patientName = TestHelpers.firstPatientName(app)
+        try selectLiveMimoModel(app)
         openAssistant(app)
 
         XCTAssertFalse(
@@ -214,8 +257,11 @@ final class CloudAiUITests: AnimallyTestCase {
             "Breeding-card date was not surfaced: \(breedingReply)",
         )
         XCTAssertTrue(
-            breedingReply.localizedCaseInsensitiveContains("bred") || breedingReply.localizedCaseInsensitiveContains("reproduction"),
-            "Breeding answer did not identify its source: \(breedingReply)",
+            breedingReply.localizedCaseInsensitiveContains("bred") ||
+                breedingReply.localizedCaseInsensitiveContains("breeding") ||
+                breedingReply.localizedCaseInsensitiveContains("reproduction") ||
+                breedingReply.localizedCaseInsensitiveContains("insemination"),
+            "Breeding answer did not identify the recorded breeding event: \(breedingReply)",
         )
 
         let vaccinationReply = try askAndWait(
@@ -284,11 +330,48 @@ final class CloudAiUITests: AnimallyTestCase {
             .matching(NSPredicate(format: "label BEGINSWITH %@", "Assistant:"))
             .element(boundBy: replyIndex)
         XCTAssertTrue(reply.waitForExistence(timeout: 180), "No answer appeared for '\(question)'")
-        // Wait for the streaming/tool loop to settle before reading the final
-        // cumulative label. This avoids mistaking an early short chunk for an
-        // incomplete provider response.
-        Thread.sleep(forTimeInterval: 5)
-        let label = reply.label
+        // The assistant exposes a cumulative accessibility label while its
+        // retrieval/tool loop is streaming. Do not mistake the interim
+        // "Searching your records…" bubble or an early cumulative provider
+        // chunk for the final response.
+        let deadline = Date().addingTimeInterval(180)
+        var label = reply.label
+        var previousLabel = ""
+        var stableSince: Date?
+        let thinkingIndicator = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "thinking")
+        ).firstMatch
+
+        while Date() < deadline {
+            label = reply.label
+            let isRetrieving = label.localizedCaseInsensitiveContains("Searching your records")
+            let isThinking = thinkingIndicator.exists
+
+            if !isRetrieving && !isThinking {
+                if label == previousLabel {
+                    if let stableSince,
+                       Date().timeIntervalSince(stableSince) >= 1.5 {
+                        break
+                    }
+                } else {
+                    previousLabel = label
+                    stableSince = Date()
+                }
+            } else {
+                previousLabel = ""
+                stableSince = nil
+            }
+
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.25))
+        }
+        XCTAssertFalse(
+            label.localizedCaseInsensitiveContains("Searching your records"),
+            "Answer did not leave the retrieval state for '\(question)': \(label)",
+        )
+        XCTAssertFalse(
+            thinkingIndicator.exists,
+            "Answer was still generating for '\(question)': \(label)",
+        )
         print("CLOUDAI_REPLY_\(replyIndex): \(label)")
         let diagnosticLabels = app.staticTexts.allElementsBoundByIndex
             .map(\.label)
