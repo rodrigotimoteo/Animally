@@ -45,7 +45,11 @@ data class AssistantChatMessage(
     val sources: List<SearchResult> = emptyList(),
     val followUps: List<String> = emptyList(),
     val source: EngineSource = EngineSource.ON_DEVICE,
-)
+) {
+    /** Source chips consolidated to one navigable item per patient. */
+    val sourceGroups: List<AssistantSourceGroup>
+        get() = sourceGroupsForDisplay(sources)
+}
 
 /** Author of an [AssistantChatMessage]. */
 @kotlinx.serialization.Serializable

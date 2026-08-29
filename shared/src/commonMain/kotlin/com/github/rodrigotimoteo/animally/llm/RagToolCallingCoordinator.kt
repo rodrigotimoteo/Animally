@@ -19,19 +19,31 @@ internal class RagToolCallingCoordinator(
 ) {
     suspend fun run(messages: MutableList<RagChatMessage>): RagToolAnswer {
         val collectedSources = mutableListOf<SearchResult>()
-        var executedToolCall = false
         var successfulToolCalls = 0
         repeat(MAX_TOOL_ROUNDS) {
-            val turn = requestTurn(messages, executedToolCall)
+            val turn = requestTurn(messages)
             if (turn.fallbackToPlainText) {
-                return RagToolAnswer(fallbackToPlainText = true)
-            }
-            if (turn.calls.isEmpty()) {
                 return RagToolAnswer(
-                    text = sanitize(turn.text),
                     sources = collectedSources.distinctBy { it.recordType to it.recordId },
+                    fallbackToPlainText = true,
                     usedAuthoritativeTool = successfulToolCalls > 0,
                 )
+            }
+            if (turn.calls.isEmpty()) {
+                val text = sanitize(turn.text)
+                return if (text.isBlank() && successfulToolCalls > 0) {
+                    RagToolAnswer(
+                        sources = collectedSources.distinctBy { it.recordType to it.recordId },
+                        fallbackToPlainText = true,
+                        usedAuthoritativeTool = true,
+                    )
+                } else {
+                    RagToolAnswer(
+                        text = text,
+                        sources = collectedSources.distinctBy { it.recordType to it.recordId },
+                        usedAuthoritativeTool = successfulToolCalls > 0,
+                    )
+                }
             }
             check(turn.calls.size <= MAX_TOOL_CALLS_PER_ROUND) {
                 "The analysis requested too many tools at once."
@@ -44,21 +56,15 @@ internal class RagToolCallingCoordinator(
                     toolCalls = turn.calls,
                 )
             successfulToolCalls += executeToolCalls(turn.calls, messages, collectedSources)
-            executedToolCall = true
         }
-        val limitReply = turnStrings.analysisLimitReply
-        emitText(limitReply)
         return RagToolAnswer(
-            text = limitReply,
             sources = collectedSources.distinctBy { it.recordType to it.recordId },
+            fallbackToPlainText = true,
             usedAuthoritativeTool = successfulToolCalls > 0,
         )
     }
 
-    private suspend fun requestTurn(
-        messages: List<RagChatMessage>,
-        hasExecutedToolCall: Boolean,
-    ): ToolTurn {
+    private suspend fun requestTurn(messages: List<RagChatMessage>): ToolTurn {
         var modelText = ""
         var toolCalls = emptyList<RagToolCall>()
         try {
@@ -73,9 +79,11 @@ internal class RagToolCallingCoordinator(
             }
         } catch (ce: CancellationException) {
             throw ce
-        } catch (t: Throwable) {
-            if (!hasExecutedToolCall) return ToolTurn(modelText, toolCalls, fallbackToPlainText = true)
-            throw t
+        } catch (_: Throwable) {
+            // A provider can fail while replaying a valid tool result. Let
+            // the outer coordinator use the deterministic app context when
+            // it is grounded; the caller still refuses if no grounding exists.
+            return ToolTurn(modelText, toolCalls, fallbackToPlainText = true)
         }
         return ToolTurn(modelText, toolCalls)
     }

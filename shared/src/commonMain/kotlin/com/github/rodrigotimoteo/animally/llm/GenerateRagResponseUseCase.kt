@@ -634,13 +634,33 @@ class GenerateRagResponseUseCase(
         // source of the answer.
         val scopedQuery = appendResolvedPatientScope(query, intent.patientScope.name)
         val scopedEnriched = appendResolvedPatientScope(enriched, intent.patientScope.name)
-        return restrictResults(
-            retrieve(scopedQuery, scopedEnriched, intent.dateRange),
-            intent.patientScope.name,
-            intent.dateRange,
-            intent.patientScope.requiresFilter,
-            intent.patientScope.nameMentioned,
-        )
+        val restricted =
+            restrictResults(
+                retrieve(scopedQuery, scopedEnriched, intent.dateRange),
+                intent.patientScope.name,
+                intent.dateRange,
+                intent.patientScope.requiresFilter,
+                intent.patientScope.nameMentioned,
+            )
+        return restrictToExpectedRecordTypes(restricted, query)
+    }
+
+    /**
+     * A typed question must not feed unrelated record kinds to the model just
+     * because the broad OR retry matched a generic word such as "date" or
+     * "treatment". Keeping this boundary after patient/date filtering also
+     * preserves the honest empty-result path for missing record categories.
+     */
+    private fun restrictToExpectedRecordTypes(
+        results: List<SearchResult>,
+        query: String,
+    ): List<SearchResult> {
+        val expectedTypes = RecordTypeIntent.expectedRecordTypes(query)
+        return if (expectedTypes.isEmpty()) {
+            results
+        } else {
+            results.filter { it.recordType in expectedTypes }
+        }
     }
 
     private fun appendResolvedPatientScope(
@@ -662,6 +682,7 @@ class GenerateRagResponseUseCase(
     ): Boolean =
         when {
             emitPatientDateOfBirthAnswer(query, intent.patientScope.name, patientRepository) -> true
+            emitOwnerContactAnswer(query, intent.patientScope.name, ownerRepository) -> true
             intent.recordQuestion &&
                 emitCurrentGestationAnswer(
                     query = query,
@@ -687,15 +708,33 @@ class GenerateRagResponseUseCase(
         // for the whole herd). Leave it to the normal grounding gate, which
         // will refuse the unsupported lookup honestly.
         val builder = analysisContextBuilder
-        if ((patientNameMentioned && scopedPatient == null) || builder == null) return false
-        val breedingFacts = builder.breedingFacts(query, today)
-        if (!breedingFacts.isNullOrEmpty()) {
-            emitBreedingAnswer(query, breedingFacts)
-            return true
+        if (builder == null) return false
+        if (patientNameMentioned && scopedPatient == null) return false
+        return emitCurrentGestationAnswerFromBuilder(query, scopedPatient, builder)
+    }
+
+    private suspend fun FlowCollector<RagStreamEvent>.emitCurrentGestationAnswerFromBuilder(
+        query: String,
+        scopedPatient: String?,
+        builder: AnalysisContextBuilder,
+    ): Boolean {
+        val outcomeFacts = builder.reproductionOutcomeFacts(query)
+        val breedingFacts = if (outcomeFacts == null) builder.breedingFacts(query, today) else null
+        return when {
+            outcomeFacts != null -> {
+                emitBreedingOutcomeAnswer(query, outcomeFacts)
+                true
+            }
+            !breedingFacts.isNullOrEmpty() -> {
+                emitBreedingAnswer(query, breedingFacts)
+                true
+            }
+            else -> {
+                val facts = builder.gestationFacts(query, today)
+                if (facts != null) emitGestationAnswer(query, facts, scopedPatient)
+                facts != null
+            }
         }
-        val facts = builder.gestationFacts(query, today)
-        if (facts != null) emitGestationAnswer(query, facts, scopedPatient)
-        return facts != null
     }
 
     /**

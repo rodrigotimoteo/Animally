@@ -243,6 +243,63 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given typed lookup when broad retrieval includes unrelated rows then only requested type reaches model`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Bella")
+            val ultrasound =
+                result(
+                    snippet = "ultrasound finding",
+                    recordId = 11L,
+                    patientName = "Thunder",
+                ).copy(recordType = "ULTRASOUND")
+            val vaccination =
+                result(
+                    snippet = "date vaccination",
+                    recordId = 12L,
+                    patientName = "Thunder",
+                )
+            val otherPatientUltrasound =
+                result(
+                    snippet = "ultrasound finding",
+                    recordId = 13L,
+                    patientName = "Bella",
+                ).copy(recordType = "ULTRASOUND")
+            val search =
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String): List<SearchResult> = listOf(ultrasound, vaccination, otherPatientUltrasound)
+                }
+
+            sut(
+                recordSearch = search,
+                patientRepository = patientRepositoryMock,
+                queryPolicyProvider = { RagQueryPolicy.CLOUD },
+            )("What did Thunder's ultrasound show?").chunks()
+
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains("[ULTRASOUND #11] Thunder"), prompt)
+            assertFalse(prompt.contains("[VACCINATION #12]"), prompt)
+            assertFalse(prompt.contains("[ULTRASOUND #13] Bella"), prompt)
+        }
+
+    @Test
+    fun `given typed lookup with no requested record then unrelated rows cannot unlock model`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder")
+            val unrelated = result(snippet = "vaccination date", recordId = 12L)
+            val search = RagRecordSearch { listOf(unrelated) }
+
+            val output =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("What did Thunder's dentistry show?").chunks()
+
+            assertEquals(0, engine.calls)
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+        }
+
+    @Test
     fun `given current month activity question then only dated rows in current month are returned deterministically`() =
         runTest {
             val inMonth = result(recordId = 1L, snippet = "pregnancy confirmed").copy(date = LocalDate(2026, 8, 3))
@@ -306,7 +363,7 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `given named owner question then patient rows are excluded from prompt and sources`() =
+    fun `given named owner contact question then exact owner data bypasses engine`() =
         runTest {
             val owner = ownerResult()
             val patient = result(recordId = 12L, patientName = "Thunder", snippet = "Herdade da Serra")
@@ -325,10 +382,32 @@ class GenerateRagResponseUseCaseTest {
                     queryPolicyProvider = { RagQueryPolicy.CLOUD },
                 )("What is Inês Martins's address?").toList()
 
-            assertTrue(engine.lastPrompt.orEmpty().contains("[OWNER #99] Inês Martins"))
-            assertFalse(engine.lastPrompt.orEmpty().contains("[VACCINATION #12] Thunder"))
             val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals(listOf(99L), sources.sources.map { it.recordId })
+            assertEquals(0, engine.calls, "exact owner contact fields must not be paraphrased by the model")
+            assertEquals(
+                "Inês Martins's address: Herdade da Serra, Évora.",
+                events.filterIsInstance<RagStreamEvent.Chunk>().last().text,
+            )
+        }
+
+    @Test
+    fun `given portuguese owner contact question then exact owner data is localized`() =
+        runTest {
+            val storedOwner = owner().copy(phone = "+351 910 000 101")
+            every { patientRepositoryMock.patientNames() } returns emptyList()
+            every { ownerRepositoryMock.getOwnerList() } returns listOf(storedOwner)
+
+            val output =
+                sut(
+                    recordSearch = RagRecordSearch { emptyList() },
+                    patientRepository = patientRepositoryMock,
+                    ownerRepository = ownerRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("Qual é o telefone da Inês Martins?").chunks()
+
+            assertEquals(0, engine.calls)
+            assertEquals("Telefone de Inês Martins: +351 910 000 101.", output.last())
         }
 
     @Test
@@ -1623,6 +1702,52 @@ class GenerateRagResponseUseCaseTest {
                     .sources
                     .single()
                     .recordId,
+            )
+        }
+
+    @Test
+    fun `given breeding outcome question then reproduction timeline is emitted exactly`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(4, "Brisa"))
+            repos.reproductions.entries =
+                listOf(
+                    testReproductionEvent(
+                        id = 70,
+                        patientId = 4,
+                        eventType = "Pregnancy Check",
+                        date = LocalDate(2025, 5, 12),
+                        details = "Negative; no conceptus visualised",
+                    ),
+                    testReproductionEvent(
+                        id = 71,
+                        patientId = 4,
+                        eventType = "Heat",
+                        date = LocalDate(2025, 7, 20),
+                        details = "Cycle resumed; no breeding performed this cycle",
+                    ),
+                )
+
+            val events =
+                sut(
+                    analysisContextBuilder = repos.builder,
+                    patientRepository = repos.patients,
+                    today = LocalDate(2025, 8, 1),
+                )("What is Brisa's breeding outcome?").toList()
+
+            assertEquals(0, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(answer.contains("Pregnancy Check"), answer)
+            assertTrue(answer.contains("Negative; no conceptus visualised"), answer)
+            assertTrue(answer.contains("Cycle resumed; no breeding performed this cycle"), answer)
+            assertEquals(
+                listOf(70L, 71L),
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .map { it.recordId },
             )
         }
 

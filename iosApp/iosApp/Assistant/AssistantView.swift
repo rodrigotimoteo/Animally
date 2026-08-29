@@ -488,8 +488,8 @@ private struct ChatBubble: View {
         message.role == AssistantChatMessageRole.user
     }
 
-    private var sources: [SearchResult] {
-        (message.sources as? [SearchResult]) ?? []
+    private var sourceGroups: [AssistantSourceGroup] {
+        (message.sourceGroups as? [AssistantSourceGroup]) ?? []
     }
 
     private var followUps: [String] {
@@ -513,7 +513,7 @@ private struct ChatBubble: View {
                 if !isUser && message.source == EngineSource.cloud {
                     cloudSourceFooter
                 }
-                if !isUser && !sources.isEmpty {
+                if !isUser && !sourceGroups.isEmpty {
                     sourceChips
                 }
                 if !isUser && !followUps.isEmpty {
@@ -561,19 +561,28 @@ private struct ChatBubble: View {
         .accessibilityLabel("Answered by cloud model")
     }
 
-    /// Tappable chips for the records cited in this answer.
+    /// Tappable chips consolidated to one item per horse cited in this answer.
     private var sourceChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
+                ForEach(Array(sourceGroups.enumerated()), id: \.offset) { _, group in
+                    let source = group.primarySource
                     Button {
                         onOpenSource(source)
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: source.recordType == "PATIENT" ? "horse" : "doc.text")
                                 .font(.caption2)
-                            Text(source.patientName.isEmpty ? source.recordType : source.patientName)
+                            Text(group.patientName.isEmpty ? source.recordType : group.patientName)
                                 .font(.caption.weight(.medium))
+                            if group.recordCount > 1 {
+                                Text("\(group.recordCount)")
+                                    .font(.caption2.weight(.bold))
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Theme.surfaceElevated.opacity(0.7))
+                                    .clipShape(Capsule())
+                            }
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
@@ -582,7 +591,11 @@ private struct ChatBubble: View {
                         .clipShape(Capsule())
                     }
                     .accessibilityIdentifier("assistant_source_chip")
-                    .accessibilityLabel("Open \(source.recordType) for \(source.patientName)")
+                    .accessibilityLabel(
+                        group.recordCount > 1
+                            ? "Open \(group.recordCount) records for \(group.patientName)"
+                            : "Open record for \(group.patientName)"
+                    )
                 }
             }
         }

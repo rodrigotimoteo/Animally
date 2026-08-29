@@ -39,6 +39,12 @@ internal data class BreedingFact(
     val elapsedDays: Int,
 )
 
+/** Reproduction-card facts used to answer breeding-outcome questions exactly. */
+internal data class BreedingOutcomeFact(
+    val patient: Patient,
+    val event: ReproductionEvent,
+)
+
 /**
  * Deterministic analysis context for the assistant: Kotlin COMPUTES, the
  * model NARRATES. A 4B-parameter on-device model must never do arithmetic,
@@ -197,6 +203,27 @@ class AnalysisContextBuilder(
                         )
                     }
             }.sortedWith(compareByDescending<BreedingFact> { it.event.date }.thenBy { it.patient.name.lowercase() })
+    }
+
+    /** Returns the recorded reproductive timeline for an outcome question. */
+    internal fun reproductionOutcomeFacts(query: String): List<BreedingOutcomeFact>? {
+        if (!AnalysisIntents.wantsBreedingOutcome(query)) return null
+        val repository = reproductionRepository ?: return null
+        val patients = patientRepository.getPatientList()
+        val matchedPatients = patientNameMatches(patients, query)
+        val scoped = matchedPatients.singleOrNull()
+        val careTargets =
+            resolveCareTargets(
+                patients = patients,
+                matchedPatients = matchedPatients,
+                scoped = scoped,
+                hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query),
+                hasLikelyName = RecordQuestionIntent.hasLikelyNamedPatientReference(query),
+            )
+        return careTargets
+            .flatMap { patient ->
+                repository.getByPatient(patient.id).map { event -> BreedingOutcomeFact(patient, event) }
+            }.sortedWith(compareBy<BreedingOutcomeFact> { it.event.date }.thenBy { it.patient.name.lowercase() })
     }
 
     /**
@@ -746,6 +773,7 @@ private const val RESOLVED_STATUS_FOALED = "Foaled"
  * and Portuguese phrasings are covered because the assistant mirrors the
  * user's language per turn.
  */
+@Suppress("TooManyFunctions") // One cohesive classifier exposes each supported analysis intent.
 object AnalysisIntents {
     private val analysisRegex =
         Regex(
@@ -818,6 +846,14 @@ object AnalysisIntents {
                 "parto\\s+previsto|data\\s+do\\s+parto|parição|paricao)\\b",
         )
 
+    private val breedingOutcomeRegex =
+        Regex(
+            "\\b(breeding\\s+(?:outcome|result)|outcome\\s+of\\s+(?:the\\s+)?breeding|" +
+                "resultado\\s+(?:da\\s+)?cobertura|resultado\\s+reprodutivo|" +
+                "desfecho\\s+(?:da\\s+)?cobertura)\\b",
+            RegexOption.IGNORE_CASE,
+        )
+
     private val breedingTimingRegex =
         Regex(
             "\\b(bred|breeding\\s+date|date\\s+(?:was\\s+)?bred|" +
@@ -877,11 +913,16 @@ object AnalysisIntents {
     /** True for status/day/due-date/breeding-timing questions needing live gestation facts. */
     fun wantsCurrentGestation(query: String): Boolean {
         val lowered = query.lowercase()
-        return currentGestationRegex.containsMatchIn(lowered) || breedingTimingRegex.containsMatchIn(lowered)
+        return currentGestationRegex.containsMatchIn(lowered) ||
+            breedingTimingRegex.containsMatchIn(lowered) ||
+            breedingOutcomeRegex.containsMatchIn(lowered)
     }
 
     /** True when the user asks when a recorded breeding happened or how long ago it was. */
     fun wantsBreedingTiming(query: String): Boolean = breedingTimingRegex.containsMatchIn(query.lowercase())
+
+    /** True when the user asks for the recorded result of a breeding cycle. */
+    fun wantsBreedingOutcome(query: String): Boolean = breedingOutcomeRegex.containsMatchIn(query.lowercase())
 
     fun wantsOverdue(query: String): Boolean = overdueRegex.containsMatchIn(query.lowercase())
 

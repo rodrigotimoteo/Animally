@@ -62,7 +62,10 @@ internal class RagAnswerStreamCoordinator(
                     collector.emit(RagStreamEvent.Chunk(request.turnStrings.analysisLimitReply))
                     null
                 } else {
-                    StreamedAnswer(streamPlainText(collector, request) { text -> lastEmitted = text })
+                    StreamedAnswer(
+                        text = streamPlainText(collector, request) { text -> lastEmitted = text },
+                        toolSources = answer.sources,
+                    )
                 }
             } else if (request.requiresGrounding && !request.grounded && !answer.usedAuthoritativeTool) {
                 collector.emit(RagStreamEvent.Chunk(request.turnStrings.analysisLimitReply))

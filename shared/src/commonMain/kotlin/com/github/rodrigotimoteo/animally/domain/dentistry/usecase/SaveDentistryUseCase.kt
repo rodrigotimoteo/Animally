@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -34,13 +35,7 @@ class SaveDentistryUseCase(
                 dentistryRepository.update(dentistry)
                 dentistry.id
             }
-        val searchableText =
-            listOfNotNull(
-                dentistry.findings,
-                dentistry.treatment,
-                dentistry.vetName,
-                dentistry.notes,
-            ).joinToString(" ")
+        val searchableText = SearchableText.dentistry(dentistry)
         searchRepository.indexRecord(
             recordType = RecordType.Dentistry.wireName,
             patientId = dentistry.patientId,

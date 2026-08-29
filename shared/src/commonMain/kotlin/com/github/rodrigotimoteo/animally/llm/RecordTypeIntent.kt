@@ -44,6 +44,12 @@ object RecordTypeIntent {
                     "parição|paricao|parições|paricoes)\\b",
             ) to setOf("GESTATION"),
             Regex(
+                "\\b(pregnancy\\s+check|pregnancy\\s+exam|pregnancy\\s+result|" +
+                    "gestation\\s+check|gestation\\s+exam|gestation\\s+result|" +
+                    "verificação\\s+da\\s+gestação|verificacao\\s+da\\s+gestacao|" +
+                    "avaliação\\s+da\\s+gestação|avaliacao\\s+da\\s+gestacao)\\b",
+            ) to setOf("GESTATION", "REPRODUCTION_EVENT"),
+            Regex(
                 "\\b(bred|breeding|mating|insemination|breeding\\s+event|" +
                     "coberta|cobertura|cobrição|cobricao)\\b",
             ) to setOf("GESTATION", "REPRODUCTION_EVENT"),
@@ -69,6 +75,11 @@ object RecordTypeIntent {
                 "\\b(anamnesis|anamneses|anamnese|antecedentes clínicos|antecedentes clinicos)\\b",
             ) to setOf("ANAMNESE"),
             Regex(
+                "\\b(chronic\\s+conditions?|medical\\s+history|general\\s+history|allerg(?:y|ies)|" +
+                    "condições?\\s+crónicas?|condicoes?\\s+cronicas?|histórico\\s+médico|" +
+                    "historico\\s+medico|alergias?)\\b",
+            ) to setOf("ANAMNESE"),
+            Regex(
                 "\\b(reproduction|reproductive|mating|breeding event|reprodução|reproducao|" +
                     "reprodutivo|reprodutiva|evento reprodutivo|cobertura|cobrição|cobricao)\\b",
             ) to setOf("REPRODUCTION_EVENT"),
@@ -80,6 +91,10 @@ object RecordTypeIntent {
                 "\\b(imaging|image|images|radiograph|radiographs|x-ray|xray|mri|ct scan|" +
                     "imagem|imagens|radiografia|radiografias|raio-x|raiox)\\b",
             ) to setOf("IMAGING"),
+            // Coggins is stored on the patient profile in addition to any
+            // laboratory record, so a Coggins lookup must retain both
+            // sources instead of filtering the patient row away.
+            Regex("\\bcoggins?\\b") to setOf("LAB_RESULT", "PATIENT"),
             Regex(
                 "\\b(reminder|reminders|custom reminder|custom reminders|lembrete|lembretes)\\b",
             ) to setOf("CUSTOM_REMINDER"),

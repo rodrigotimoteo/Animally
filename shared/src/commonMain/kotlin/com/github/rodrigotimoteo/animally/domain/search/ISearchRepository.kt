@@ -155,7 +155,12 @@ interface ISearchRepository {
          * v17: medication indexing includes administration details and
          * medication vocabulary so natural prescription questions retrieve
          * the medication record even when the drug name is not in the query.
+         * v18: all remaining record types use canonical searchable text with
+         * record-category vocabulary and due-date fields; typed assistant
+         * retrieval also ignores generic filler such as "date".
+         * v19: anamnese fields carry explicit labels so free-form history,
+         * chronic-condition, and allergy questions retain field boundaries.
          */
-        const val SEARCH_INDEX_VERSION = "17"
+        const val SEARCH_INDEX_VERSION = "19"
     }
 }

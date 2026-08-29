@@ -49,7 +49,13 @@ class SaveMedicationUseCaseTest {
         verify(VerifyMode.exactly(1)) { medicationRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(0)) { medicationRepositoryMock.update(any()) }
         verify(VerifyMode.exactly(1)) {
-            searchRepositoryMock.indexRecord(ISearchRepository.TYPE_MEDICATION, 1L, 1L, null, "Phenylbutazone 2g")
+            searchRepositoryMock.indexRecord(
+                ISearchRepository.TYPE_MEDICATION,
+                1L,
+                1L,
+                null,
+                "Phenylbutazone 2g start date 2024-05-01 medication medicine drug prescription treatment",
+            )
         }
     }
 
@@ -63,7 +69,13 @@ class SaveMedicationUseCaseTest {
         verify(VerifyMode.exactly(0)) { medicationRepositoryMock.insert(any()) }
         verify(VerifyMode.exactly(1)) { medicationRepositoryMock.update(any()) }
         verify(VerifyMode.exactly(1)) {
-            searchRepositoryMock.indexRecord(ISearchRepository.TYPE_MEDICATION, 1L, 7L, null, "Phenylbutazone 2g")
+            searchRepositoryMock.indexRecord(
+                ISearchRepository.TYPE_MEDICATION,
+                1L,
+                7L,
+                null,
+                "Phenylbutazone 2g start date 2024-05-01 medication medicine drug prescription treatment",
+            )
         }
     }
 }

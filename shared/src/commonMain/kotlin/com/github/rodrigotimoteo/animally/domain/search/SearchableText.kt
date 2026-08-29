@@ -3,17 +3,25 @@ package com.github.rodrigotimoteo.animally.domain.search
 import com.github.rodrigotimoteo.animally.domain.anamnese.model.Anamnese
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomReminder
+import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
+import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
 import com.github.rodrigotimoteo.animally.domain.embryotransfer.model.EmbryoTransfer
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.icsi.model.Icsi
+import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
+import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
 import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
+import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
+import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
+import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 
 /**
  * Canonical searchable text for records that cross the save and re-index paths.
@@ -37,6 +45,14 @@ internal object SearchableText {
             patient.cogginsTestDate?.let { "coggins test date $it" },
             patient.cogginsResult?.let { "coggins result $it" },
             patient.cogginsExpiryDate?.let { "coggins expiry date $it" },
+        ).joinToString(" ")
+
+    fun owner(owner: Owner): String =
+        listOfNotNull(
+            owner.name,
+            owner.email,
+            owner.phone,
+            owner.address,
         ).joinToString(" ")
 
     fun consultation(consultation: Consultation): String =
@@ -68,6 +84,7 @@ internal object SearchableText {
             vaccination.vetName,
             vaccination.site,
             vaccination.notes,
+            vaccination.nextDueDate?.let { "next due $it" },
             "vaccination vaccine booster shot",
         ).joinToString(" ")
 
@@ -78,7 +95,28 @@ internal object SearchableText {
             visit.findings,
             visit.farrier,
             visit.notes,
+            visit.nextDueDate?.let { "next due $it" },
             "farrier visit trim shoeing care",
+        ).joinToString(" ")
+
+    fun deworming(record: Deworming): String =
+        listOfNotNull(
+            record.product,
+            record.dose,
+            record.nextDueDate?.let { "next due $it" },
+            record.vetName,
+            record.notes,
+            "deworming dewormer wormer anthelmintic",
+        ).joinToString(" ")
+
+    fun dentistry(record: Dentistry): String =
+        listOfNotNull(
+            record.findings,
+            record.treatment,
+            record.nextDueDate?.let { "next dental check $it" },
+            record.vetName,
+            record.notes,
+            "dentistry dental tooth teeth oral",
         ).joinToString(" ")
 
     fun lameness(lameness: Lameness): String =
@@ -145,9 +183,21 @@ internal object SearchableText {
                 gestation.status.equals("Foaled", ignoreCase = true)
         val pregnancyVocabulary =
             if (isResolved) null else "pregnant in foal active gestation expected foaling"
+        val dueDateLabel =
+            if (isResolved) {
+                "due ${gestation.expectedDueDate}"
+            } else {
+                "expected foaling ${gestation.expectedDueDate}"
+            }
+        val gestationDayLabel =
+            if (isResolved) null else "gestation day ${gestation.gestationDays}"
         return listOfNotNull(
             gestation.breedingDate.toString(),
+            dueDateLabel,
+            gestationDayLabel,
             gestation.status,
+            gestation.fetalCount?.let { "fetal count $it" },
+            gestation.lastCheckDate?.let { "last pregnancy check $it" },
             gestation.notes,
             pregnancyVocabulary,
         ).joinToString(" ")
@@ -155,18 +205,76 @@ internal object SearchableText {
 
     fun anamnese(anamnese: Anamnese): String =
         listOfNotNull(
-            anamnese.generalHistory,
-            anamnese.chronicConditions,
-            anamnese.allergies,
+            "general history: ${anamnese.generalHistory}",
+            "chronic conditions: ${anamnese.chronicConditions}",
+            "allergies: ${anamnese.allergies}",
             "anamnese medical history",
         ).joinToString(" ")
 
     fun customReminder(reminder: CustomReminder): String =
         listOfNotNull(
             reminder.title,
+            "due ${reminder.dueDate}",
             reminder.linkedRecordType,
             reminder.notes,
             "reminder",
+        ).joinToString(" ")
+
+    fun weight(record: Weight): String =
+        listOfNotNull(
+            record.weightKg.toString(),
+            record.notes,
+            "kg weight measurement bodyweight",
+        ).joinToString(" ")
+
+    fun reproductionEvent(record: ReproductionEvent): String =
+        listOfNotNull(
+            record.eventType,
+            record.details,
+            record.initialExamFindings,
+            record.stallionName,
+            record.breedingType,
+            record.vetName,
+            record.notes,
+            "reproduction reproductive event",
+        ).joinToString(" ")
+
+    fun reproMedication(record: ReproMedication): String =
+        listOfNotNull(
+            record.medication,
+            record.dosage,
+            record.purpose,
+            record.vetName,
+            record.notes,
+            "reproductive medication repro medication",
+        ).joinToString(" ")
+
+    fun labResult(record: LabResult): String {
+        val bloodTestVocabulary =
+            if (record.testType.containsAnyIgnoreCase("blood", "cbc", "hematology", "haematology")) {
+                "bloodwork blood test"
+            } else {
+                null
+            }
+        return listOfNotNull(
+            record.testType,
+            record.results,
+            record.normalRange,
+            record.vetName,
+            record.notes,
+            bloodTestVocabulary,
+            "lab laboratory result",
+        ).joinToString(" ")
+    }
+
+    fun imaging(record: Imaging): String =
+        listOfNotNull(
+            record.type,
+            record.findings,
+            record.imageUris,
+            record.vetName,
+            record.notes,
+            "imaging image diagnostic study",
         ).joinToString(" ")
 
     fun embryoTransfer(record: EmbryoTransfer): String =
@@ -190,3 +298,8 @@ internal object SearchableText {
             "icsi",
         ).joinToString(" ")
 }
+
+private fun String.containsAnyIgnoreCase(vararg values: String): Boolean =
+    values.any { value ->
+        contains(value, ignoreCase = true)
+    }

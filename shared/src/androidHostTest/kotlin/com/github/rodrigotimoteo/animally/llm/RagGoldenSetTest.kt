@@ -1323,33 +1323,42 @@ class RagGoldenSetTest {
             // breadth, clinical phrasings, dates, gaps, disambiguation,
             // PT, typos, analysis intent, punctuation, near-duplicates.
             // =============================================================
-            // --- Type-name vocabulary: record-type words are NOT indexed ---
-            // Except where vocabulary is injected (vaccination/embryo
-            // transfer/pregnancy), the type label itself never appears in
-            // searchableText - rows carry raw field values only.
+            // --- Type-name vocabulary ---
+            // Record-type vocabulary added to the canonical search text must
+            // remain retrievable after the production healing pass.
             Golden("lameness", expected = emptySet(), exact = true),
-            Golden("ultrasound", expected = emptySet(), exact = true),
-            Golden("dentistry", expected = emptySet(), exact = true),
-            Golden("deworming", expected = emptySet(), exact = true),
-            Golden("imaging", expected = emptySet(), exact = true),
-            // Medication save path indexes name+dosage only.
-            Golden("medication", expected = emptySet(), exact = true),
+            Golden("ultrasound", expected = setOf(US_THUNDER_FOLLICLE, US_BELLA_FOLLICLE, US_STORM_TENDON), exact = true),
+            Golden("dentistry", expected = setOf(DENTISTRY_FLOATING, DENTISTRY_WAVE_MOUTH), exact = true),
+            Golden(
+                "deworming",
+                expected = setOf(DEWORM_IVERMECTIN, DEWORM_FENBENDAZOLE, DEWORM_MOXIDECTIN, DEWORM_PYRANTEL),
+                exact = true,
+            ),
+            Golden("imaging", expected = setOf(IMAGING_KNEE), exact = true),
+            Golden(
+                "medication",
+                expected = setOf(REPRO_MEDICATION_DESLORELIN, "MEDICATION#$medicationId", "MEDICATION#$medication2Id"),
+                exact = true,
+            ),
             // Contrast: "surgery" DOES hit - the word occurs in the colic
             // consultation's plan text ("Referral for colic surgery").
             Golden("surgery", expected = setOf(CONSULT_COLIC), exact = true),
             Golden("controlled substance", expected = emptySet(), exact = true),
             // No reminder rows exist in the search index at all.
             Golden("custom reminders", expected = emptySet(), exact = true),
-            // Gender is stored on Patient but never indexed.
-            Golden("gelding", expected = emptySet(), exact = true),
+            // Gender and identity values are part of the canonical patient
+            // text so direct patient questions can be grounded.
+            Golden("gelding", expected = setOf(PATIENT_COMET, PATIENT_TROVOADA), exact = true),
             // Only microchip VALUES (MC...) are indexed, not the field label.
             Golden("microchip", expected = emptySet(), exact = true),
             Golden("ueln", expected = emptySet(), exact = true),
             // --- Record-type breadth: lameness ---
             // FLIPPED (field labels + weak-leg retry): "flexion" is now
             // indexed as a field label, so flexion* unions both lameness
-            // rows; positive* keeps Navicular anchored.
-            Golden("flexion test positive", expected = setOf(LAMENESS_NAVICULAR, LAMENESS_SUSPENSORY), exact = true),
+            // rows; positive* also matches the positive Coggins result in
+            // the raw cross-type baseline. The production type boundary
+            // removes that lab row for a lameness question.
+            Golden("flexion test positive", expected = setOf(LAMENESS_NAVICULAR, LAB_CBC, LAMENESS_SUSPENSORY), exact = true),
             // FLIPPED (field labels + weak-leg retry): flexion* adds the
             // Positive navicular row to the Negative union.
             Golden(
@@ -1372,9 +1381,11 @@ class RagGoldenSetTest {
                         US_THUNDER_FOLLICLE,
                         GESTATION_FAILED,
                         WEIGHT_380,
+                        PATIENT_TROVOADA,
                         OWNER_DANIELA,
                         // Sofia's +351... phone token starts with "3"; Ana has no digit.
                         OWNER_SOFIA,
+                        FARRIER_TRIM_TROV,
                     ),
                 exact = true,
             ),
@@ -1452,7 +1463,10 @@ class RagGoldenSetTest {
             ),
             // --- Record-type breadth: labs ---
             Golden("ELISA", expected = setOf(LAB_COGGINS), exact = true),
-            Golden("fecal egg count", expected = setOf(LAB_FECAL), exact = true),
+            // The shared token "count" also matches the gestation fetal-count
+            // field in the raw baseline; the assistant type boundary keeps
+            // those rows out of a fecal-lab answer.
+            Golden("fecal egg count", expected = setOf(LAB_FECAL, GESTATION_ACTIVE, GESTATION_COMPLETED, GESTATION_FAILED), exact = true),
             Golden("strongyle", expected = setOf(LAB_FECAL), exact = true),
             Golden("ACTH", expected = setOf(LAB_ACTH), exact = true),
             // --- Record-type breadth: dentistry ---
@@ -1594,7 +1608,26 @@ class RagGoldenSetTest {
             // Half of a multi-word synonym member does NOT trigger the group.
             Golden("pain", expected = emptySet(), exact = true),
             Golden("colic surgery recovery", expected = setOf(CONSULT_COLIC, SUBSTANCE_DETOMIDINE), exact = true),
-            Golden("pregnancy check result", expected = setOf(REPRO_PREG_CHECK), exact = true),
+            // Generic words in the raw OR retry still cross-match all
+            // pregnancy-check, gestation, lab, and dentistry rows. The
+            // assistant's typed boundary keeps only the first two kinds.
+            Golden(
+                "pregnancy check result",
+                expected =
+                    setOf(
+                        REPRO_PREG_CHECK,
+                        GESTATION_ACTIVE,
+                        GESTATION_COMPLETED,
+                        GESTATION_FAILED,
+                        LAB_CBC,
+                        LAB_COGGINS,
+                        LAB_FECAL,
+                        LAB_ACTH,
+                        DENTISTRY_FLOATING,
+                        DENTISTRY_WAVE_MOUTH,
+                    ),
+                exact = true,
+            ),
             // FLIPPED (weak-leg retry): skin* unions the dermatitis consult
             // ("Itchy skin and hives").
             Golden("skin wound", expected = setOf(CONSULT_WIRE_CUT, CONSULT_DERMATITIS), exact = true),
@@ -1607,7 +1640,25 @@ class RagGoldenSetTest {
             Golden("hives", expected = setOf(CONSULT_DERMATITIS), exact = true),
             Golden("antihistamine", expected = setOf(CONSULT_DERMATITIS), exact = true),
             Golden("poor appetite", expected = emptySet(), exact = true),
-            Golden("body condition", expected = setOf(CONSULT_QUIDDING), exact = true),
+            // Weight notes carry body-condition observations, so the raw
+            // category query recalls all weight rows plus the quidding
+            // consultation. Patient/type scoping narrows specific questions.
+            Golden(
+                "body condition",
+                expected =
+                    setOf(
+                        CONSULT_QUIDDING,
+                        WEIGHT_512,
+                        WEIGHT_525,
+                        WEIGHT_538,
+                        WEIGHT_COMET,
+                        WEIGHT_495,
+                        WEIGHT_410,
+                        WEIGHT_380,
+                        WEIGHT_290,
+                    ),
+                exact = true,
+            ),
             // FLIPPED (tendon synonym group): "tendon" now triggers the
             // tendon/tendinitis morphology bridge, so the OR retry reaches
             // the tendinitis ultrasound without a stemmer.
@@ -1617,9 +1668,27 @@ class RagGoldenSetTest {
             Golden("fetus", expected = setOf(REPRO_PREG_CHECK), exact = true),
             Golden("viable", expected = setOf(REPRO_PREG_CHECK), exact = true),
             // --- Reproduction phrasings ---
-            Golden("Pregnancy Check", expected = setOf(REPRO_PREG_CHECK), exact = true),
-            // "mare*" prefix-matches "Recipient mares" on the ET row.
-            Golden("pregnant mare", expected = setOf(GESTATION_ACTIVE, ET_BELLA), exact = true),
+            Golden(
+                "Pregnancy Check",
+                expected = setOf(REPRO_PREG_CHECK, GESTATION_ACTIVE, GESTATION_COMPLETED, GESTATION_FAILED),
+                exact = true,
+            ),
+            // "mare*" also reaches the canonical patient gender field; the
+            // production patient-scope filter narrows this before generation.
+            Golden(
+                "pregnant mare",
+                expected =
+                    setOf(
+                        GESTATION_ACTIVE,
+                        ET_BELLA,
+                        PATIENT_THUNDER,
+                        PATIENT_THUNDERSTORM,
+                        PATIENT_BELLA,
+                        PATIENT_BELINHA,
+                        PATIENT_ISABELLA,
+                    ),
+                exact = true,
+            ),
             // "in" is filler, so this reduces to foal* which hits the active
             // gestation's injected vocabulary directly on leg 1.
             Golden("in foal", expected = setOf(GESTATION_ACTIVE), exact = true),
@@ -1637,7 +1706,11 @@ class RagGoldenSetTest {
             // FLIPPED (weak-leg retry): the exact "AI" token also matches the
             // active gestation's notes ("AI with stallion Eclipse").
             Golden("AI breeding", expected = setOf(REPRO_BREEDING, GESTATION_ACTIVE), exact = true),
-            Golden("expected foaling date", expected = setOf(GESTATION_ACTIVE), exact = true),
+            Golden(
+                "expected foaling date",
+                expected = setOf(GESTATION_ACTIVE),
+                exact = true,
+            ),
             Golden("Recipient mares", expected = setOf(ET_BELLA), exact = true),
             Golden("flush", expected = setOf(ET_BELLA), exact = true),
             Golden("ovulation induction", expected = setOf(REPRO_MEDICATION_DESLORELIN), exact = true),
@@ -1669,27 +1742,44 @@ class RagGoldenSetTest {
                 exact = true,
             ),
             Golden("January", expected = emptySet(), exact = true),
-            // Years surface through batch-number text and the recorded
-            // breeding date on gestation rows.
+            // Years surface through batch numbers, date-bearing canonical
+            // fields, and the recorded breeding date on gestation rows.
             Golden(
                 "2026",
                 expected =
                     setOf(
+                        GESTATION_ACTIVE,
+                        GESTATION_COMPLETED,
+                        GESTATION_FAILED,
+                        DEWORM_IVERMECTIN,
+                        DEWORM_FENBENDAZOLE,
+                        DEWORM_MOXIDECTIN,
+                        DEWORM_PYRANTEL,
+                        FARRIER_SHOEING,
+                        FARRIER_TRIM_STORM,
+                        FARRIER_TRIM_TROV,
+                        DENTISTRY_FLOATING,
+                        DENTISTRY_WAVE_MOUTH,
                         VACC_INFLUENZA,
                         VACC_TETANUS,
                         VACC_WEST_NILE,
                         VACC_RABIES,
                         VACC_EHV,
                         VACC_EVA,
-                        GESTATION_ACTIVE,
-                        GESTATION_FAILED,
+                        "MEDICATION#$medicationId",
+                        "MEDICATION#$medication2Id",
                     ),
                 exact = true,
             ),
             // --- Negation / true-absence gaps ---
-            // Comet has no ultrasound row AND "ultrasound" is unindexed;
-            // comet* anchors the patient row so the assistant can say so.
-            Golden("ultrasound for Comet", expected = setOf(PATIENT_COMET), exact = true),
+            // Comet has no ultrasound row. Raw retrieval also sees the
+            // generic ultrasound vocabulary, while production patient scoping
+            // removes those other-patient rows before generation.
+            Golden(
+                "ultrasound for Comet",
+                expected = setOf(PATIENT_COMET, US_STORM_TENDON, US_BELLA_FOLLICLE, US_THUNDER_FOLLICLE),
+                exact = true,
+            ),
             // True absence: both colic records belong to Thunder; the OR
             // retry leaks them next to Comet's patient row (patient scoping
             // is NOT applied inside the fallback leg).
@@ -1759,7 +1849,20 @@ class RagGoldenSetTest {
             Golden("owner of Belinha", expected = setOf(PATIENT_BELINHA), exact = true),
             // --- Vet attribution breadth (new vets, locked old ones) ---
             Golden("Dr. Nunes", expected = setOf(VACC_RABIES, DEWORM_MOXIDECTIN, DEWORM_PYRANTEL, CONSULT_WIRE_CUT, CONSULT_CHOKE, LAB_FECAL), exact = true),
-            Golden("Dr. Pinto", expected = setOf(LAMENESS_SUSPENSORY, US_STORM_TENDON, SUBSTANCE_XYLAZINE, REPRO_PREG_CHECK, LAB_ACTH, VACC_EVA), exact = true),
+            Golden(
+                "Dr. Pinto",
+                expected =
+                    setOf(
+                        LAMENESS_SUSPENSORY,
+                        US_STORM_TENDON,
+                        SUBSTANCE_XYLAZINE,
+                        REPRO_PREG_CHECK,
+                        LAB_ACTH,
+                        VACC_EVA,
+                        "MEDICATION#$medication2Id",
+                    ),
+                exact = true,
+            ),
             Golden("Dr. Almeida", expected = setOf(VACC_EHV, CONSULT_DERMATITIS, DENTISTRY_WAVE_MOUTH, CONSULT_QUIDDING), exact = true),
             Golden("Mendes", expected = setOf(SURGERY_ARTHROSCOPY, ICSI_COMET), exact = true),
             // --- Portuguese (proper-noun anchored via OR retry) ---
@@ -1846,10 +1949,41 @@ class RagGoldenSetTest {
                     ),
                 exact = true,
             ),
-            // Weight rows index bare kg values, so "weight" itself never
-            // matches - only the name anchor survives.
-            Golden("average weight of Thunder", expected = setOf(PATIENT_THUNDER, PATIENT_THUNDERSTORM), exact = true),
-            Golden("how much does Comet weigh", expected = setOf(PATIENT_COMET), exact = true),
+            // Canonical weight text makes the raw query recall every weight
+            // row; patient scoping is applied before cloud generation.
+            Golden(
+                "average weight of Thunder",
+                expected =
+                    setOf(
+                        PATIENT_THUNDER,
+                        PATIENT_THUNDERSTORM,
+                        WEIGHT_512,
+                        WEIGHT_525,
+                        WEIGHT_538,
+                        WEIGHT_COMET,
+                        WEIGHT_495,
+                        WEIGHT_410,
+                        WEIGHT_380,
+                        WEIGHT_290,
+                    ),
+                exact = true,
+            ),
+            Golden(
+                "how much does Comet weigh",
+                expected =
+                    setOf(
+                        PATIENT_COMET,
+                        WEIGHT_512,
+                        WEIGHT_525,
+                        WEIGHT_538,
+                        WEIGHT_COMET,
+                        WEIGHT_495,
+                        WEIGHT_410,
+                        WEIGHT_380,
+                        WEIGHT_290,
+                    ),
+                exact = true,
+            ),
             // FLIPPED (plural folding): "vaccines" singularizes into the
             // vaccination synonym group and recovers every vaccination row.
             Golden(
@@ -1865,8 +1999,29 @@ class RagGoldenSetTest {
                     ),
                 exact = true,
             ),
-            // "count*" leaks onto the Fecal Egg Count test type.
-            Golden("count weight entries Thunderstorm", expected = setOf(PATIENT_THUNDERSTORM, LAB_FECAL), exact = true),
+            // "count*" leaks onto the Fecal Egg Count test and fetal-count
+            // gestation fields; canonical weight vocabulary recalls all
+            // weights in the raw OR baseline.
+            Golden(
+                "count weight entries Thunderstorm",
+                expected =
+                    setOf(
+                        PATIENT_THUNDERSTORM,
+                        LAB_FECAL,
+                        WEIGHT_512,
+                        WEIGHT_525,
+                        WEIGHT_538,
+                        WEIGHT_COMET,
+                        WEIGHT_495,
+                        WEIGHT_410,
+                        WEIGHT_380,
+                        WEIGHT_290,
+                        GESTATION_ACTIVE,
+                        GESTATION_COMPLETED,
+                        GESTATION_FAILED,
+                    ),
+                exact = true,
+            ),
             Golden("How many foals does Daniela have?", expected = setOf(OWNER_DANIELA), exact = true),
             // --- Punctuation / case variants of passing questions ---
             Golden("IVERMECTIN", expected = setOf(DEWORM_IVERMECTIN), exact = true),
@@ -1908,7 +2063,22 @@ class RagGoldenSetTest {
             Golden("250", expected = setOf(LAB_FECAL), exact = true),
             Golden("400", expected = setOf(LAB_CBC, DEWORM_MOXIDECTIN), exact = true),
             Golden("200", expected = setOf(DEWORM_IVERMECTIN, LAB_FECAL), exact = true),
-            Golden("10", expected = setOf(SUBSTANCE_DETOMIDINE, LAB_CBC, DEWORM_FENBENDAZOLE, DEWORM_PYRANTEL, "MEDICATION#$medication2Id"), exact = true),
+            Golden(
+                "10",
+                expected =
+                    setOf(
+                        SUBSTANCE_DETOMIDINE,
+                        LAB_CBC,
+                        DEWORM_FENBENDAZOLE,
+                        DEWORM_MOXIDECTIN,
+                        DEWORM_PYRANTEL,
+                        "MEDICATION#$medication2Id",
+                        PATIENT_THUNDER,
+                        PATIENT_ISABELLA,
+                        VACC_TETANUS,
+                    ),
+                exact = true,
+            ),
             // --- Broad single tokens (recall-breadth documentation) ---
             Golden("rest", expected = setOf(CONSULT_COUGH, LAMENESS_NAVICULAR, SURGERY_ARTHROSCOPY), exact = true),
             // --- Nonsense queries expect empty ---
@@ -1950,16 +2120,16 @@ class RagGoldenSetTest {
         val orderedKeys = retrieve("Wilson").map { it.key() }
         assertEquals(
             listOf(
-                // BM25 relevance, best first: the single term "wilson" appears
-                // once in every hit, so shorter documents score higher; no
-                // date ties occur so the DESC tiebreak stays latent here.
-                IMAGING_KNEE, // Bella - shortest indexed text
-                LAB_COGGINS, // Bella
-                DEWORM_FENBENDAZOLE, // Bella
-                DENTISTRY_FLOATING, // Thunder
-                US_BELLA_FOLLICLE, // Bella
-                VACC_WEST_NILE, // Bella - longest of the short rows (v7 vocabulary)
-                CONSULT_COUGH, // Comet - full SOAP text, lowest rank
+                // BM25 relevance, best first. Canonical field/vocabulary text
+                // changes document length, so this ordering is intentionally
+                // pinned to the current index rather than inferred by type.
+                LAB_COGGINS,
+                IMAGING_KNEE,
+                CONSULT_COUGH,
+                DEWORM_FENBENDAZOLE,
+                US_BELLA_FOLLICLE,
+                DENTISTRY_FLOATING,
+                VACC_WEST_NILE,
             ),
             orderedKeys,
             "relevance order changed - update this baseline deliberately with the ranking change",
@@ -1969,15 +2139,22 @@ class RagGoldenSetTest {
     /** Weight trend for Thunder stays retrievable within its record type. */
     @Test
     fun weightSeriesForThunderRecall() {
-        // Weight snippets carry only the kg value ("512.0"), so the query
-        // targets the values themselves; the type filter scopes to weights.
+        // Weight snippets now carry the measured value plus canonical field
+        // vocabulary; the type filter scopes to weights and the first token
+        // remains the numeric measurement.
         val weights =
             searchUseCase("5", from = null, to = null, recordTypes = listOf(RecordType.Weight.wireName))
                 .sortedBy { it.date }
         assertEquals(listOf(WEIGHT_512, WEIGHT_525, WEIGHT_538), weights.map { it.key() })
         assertEquals(
             listOf(512.0, 525.5, 538.0),
-            weights.map { it.snippet.trim().toDouble() },
+            weights
+                .map {
+                    it.snippet
+                        .trim()
+                        .substringBefore(' ')
+                        .toDouble()
+                },
             "weight series must keep its increasing trend visible to the model",
         )
     }

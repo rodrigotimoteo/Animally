@@ -37,7 +37,7 @@ class CloudRagLlmEngineTest {
         CloudLlmConfig(
             baseUrl = "https://example.test/v1/chat/completions",
             model = "test-model",
-            apiKey = "sk-test",
+            apiKey = "test-key",
         )
 
     private fun engine() = CloudRagLlmEngine(HttpClient()) { config }

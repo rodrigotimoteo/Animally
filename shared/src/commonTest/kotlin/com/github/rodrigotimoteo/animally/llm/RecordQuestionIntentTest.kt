@@ -121,5 +121,20 @@ class RecordQuestionIntentTest {
             setOf("GESTATION", "REPRODUCTION_EVENT"),
             RecordTypeIntent.expectedRecordTypes("How long ago was Descarada bred?"),
         )
+        assertEquals(
+            setOf("GESTATION", "REPRODUCTION_EVENT"),
+            RecordTypeIntent.expectedRecordTypes("What did Thunder's pregnancy check show?"),
+        )
+        assertEquals(
+            setOf("LAB_RESULT", "PATIENT"),
+            RecordTypeIntent.expectedRecordTypes("What is Thunder's Coggins result and expiry?"),
+        )
+        assertTrue(RecordTypeIntent.expectedRecordTypes("What chronic conditions are recorded for Orion?").contains("ANAMNESE"))
+    }
+
+    @Test
+    fun `breeding outcome is a current reproductive question`() {
+        assertTrue(AnalysisIntents.wantsBreedingOutcome("What is Brisa's breeding outcome?"))
+        assertTrue(AnalysisIntents.wantsCurrentGestation("What is Brisa's breeding outcome?"))
     }
 }

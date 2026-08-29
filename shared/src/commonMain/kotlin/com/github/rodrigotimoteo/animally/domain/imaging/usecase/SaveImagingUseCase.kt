@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -34,13 +35,7 @@ class SaveImagingUseCase(
                 imagingRepository.update(imaging)
                 imaging.id
             }
-        val searchableText =
-            listOfNotNull(
-                imaging.type,
-                imaging.findings,
-                imaging.vetName,
-                imaging.notes,
-            ).joinToString(" ")
+        val searchableText = SearchableText.imaging(imaging)
         searchRepository.indexRecord(
             recordType = RecordType.Imaging.wireName,
             patientId = imaging.patientId,

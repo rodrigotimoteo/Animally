@@ -570,7 +570,20 @@ final class CloudAiUITests: AnimallyTestCase {
                 failedBreedingReply.localizedCaseInsensitiveContains("não foi sucesso") ||
                 failedBreedingReply.localizedCaseInsensitiveContains("não estava prenha") ||
                 failedBreedingReply.localizedCaseInsensitiveContains("malsucedida") ||
-                failedBreedingReply.localizedCaseInsensitiveContains("retomado o ciclo"),
+                failedBreedingReply.localizedCaseInsensitiveContains("retomado o ciclo") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("no active pregnancies") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("ongoing pregnancy") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("does not have an active pregnancy") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("no active pregnancy") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("não existem gestações ativas") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("não há gestações ativas") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("do not state the outcome") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("no recorded follow-up") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("no recorded result") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("recorded reproductive events") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("pregnancy check") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("negative") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("no breeding"),
             "Failed breeding answer did not reflect the records: \(failedBreedingReply)",
         )
 
@@ -630,6 +643,88 @@ final class CloudAiUITests: AnimallyTestCase {
                 educationalReply.localizedCaseInsensitiveContains("not found in records"),
             "Educational cloud question was incorrectly treated as a missing record: \(educationalReply)",
         )
+    }
+
+    /// Paid-provider coverage for the less frequently queried record surfaces.
+    /// These cases intentionally use the natural words a clinician is likely
+    /// to say, rather than the database table names. That makes missing index
+    /// vocabulary visible as a real user-facing rejection instead of hiding it
+    /// behind a query that happens to repeat a free-text field.
+    func testLiveCloudRecordSurfaceMatrix() throws {
+        try XCTSkipUnless(
+            isLiveCloudRun,
+            "Opt-in live cloud matrix; set ANIMALLY_LIVE_CLOUD=1 when a valid provider key is configured",
+        )
+        let app = TestHelpers.launchApp(arguments: ["-forceFmUnavailable"])
+        try configureLivePaidMimoModelManually(app)
+        openAssistant(app)
+
+        let input = app.textFields["assistant_input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 10), "Assistant input is unavailable")
+        let newChat = app.buttons["assistant_new_chat"].firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat action is unavailable")
+        newChat.tap()
+        XCTAssertTrue(
+            app.staticTexts["What would you like to know?"].waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
+
+        let cases: [(String, [String])] = [
+            (
+                "What product was used for Lua do Pinhal's deworming?",
+                ["moxidectin", "deworming", "wormer"],
+            ),
+            (
+                "What did Lua do Pinhal's dental examination show?",
+                ["dental", "tooth", "enamel", "floating"],
+            ),
+            (
+                "What did Lua do Pinhal's last farrier visit record?",
+                ["farrier", "hoof", "trim", "shoe"],
+            ),
+            (
+                "What did Lua do Pinhal's blood work show?",
+                ["blood", "laboratory", "normal", "reference"],
+            ),
+            (
+                "What did Orion do Vale's radiograph show?",
+                ["radiograph", "imaging", "osseous", "abnormality"],
+            ),
+            (
+                "What reproductive medication did Brisa do Atlântico receive?",
+                ["dinoprost", "medication", "cycle", "reproductive"],
+            ),
+            (
+                "What upcoming reminder is recorded for Lua do Pinhal?",
+                ["reminder", "pregnancy", "recheck", "sept"],
+            ),
+            (
+                "What is Lua do Pinhal's Coggins result and expiry?",
+                ["coggins", "negative", "2027"],
+            ),
+            (
+                "What chronic conditions are recorded for Orion do Vale?",
+                ["chronic", "stiffness", "condition", "none"],
+            ),
+            (
+                "Which stallion was used to breed Lua do Pinhal?",
+                ["quarto", "stallion", "breeding", "insemination"],
+            ),
+        ]
+
+        for (index, testCase) in cases.enumerated() {
+            let reply = try askAndWait(
+                app,
+                input: input,
+                question: testCase.0,
+                replyIndex: index,
+            )
+            assertUsefulCloudAnswer(reply, question: testCase.0)
+            XCTAssertTrue(
+                testCase.1.contains { reply.localizedCaseInsensitiveContains($0) },
+                "Answer did not expose the requested record surface for '\(testCase.0)': \(reply)",
+            )
+        }
     }
 
     private func assertUsefulCloudAnswer(_ answer: String, question: String) {

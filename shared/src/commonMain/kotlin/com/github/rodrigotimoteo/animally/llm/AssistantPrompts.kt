@@ -120,6 +120,7 @@ object AssistantPrompts {
             "year",
             "today",
             "yesterday",
+            "date",
             "happened",
             "occurred",
             "recent",
@@ -210,6 +211,57 @@ object AssistantPrompts {
 
     // Any PT diacritic strongly signals Portuguese in a Latin-script query.
     private val portugueseDiacriticRegex = Regex("[áâãàçéêíóôõú]")
+
+    /**
+     * English question cues take precedence over accents in proper names.
+     * "What is Inês's address?" and "What did Brisa do Atlântico receive?"
+     * are English turns even though the stored names contain Portuguese
+     * diacritics. Portuguese grammar markers are checked separately first so
+     * a genuine question such as "Está prenhe?" still wins.
+     */
+    private val englishQuestionCueRegex =
+        Regex(
+            "\\b(?:what|when|which|who|where|how|why|is|are|was|were|did|do|does|can|could|would|should|" +
+                "tell|explain|please|give|show|list|compare|describe|summari[sz]e|analyse|analyze)\\b",
+            RegexOption.IGNORE_CASE,
+        )
+
+    private val portugueseQuestionMarkers =
+        setOf(
+            "que",
+            "qual",
+            "quais",
+            "quanto",
+            "quantos",
+            "quantas",
+            "quando",
+            "quem",
+            "onde",
+            "como",
+            "porque",
+            "porquê",
+            "tenho",
+            "tem",
+            "teve",
+            "está",
+            "esta",
+            "estão",
+            "estao",
+            "há",
+            "ha",
+            "foi",
+            "pode",
+            "podes",
+            "poderia",
+            "é",
+            "são",
+            "sao",
+            "recebeu",
+            "registado",
+            "registada",
+            "aconteceu",
+            "ocorreu",
+        )
 
     /**
      * Domain synonym groups for retrieval recall: when a query token matches
@@ -332,16 +384,23 @@ object AssistantPrompts {
     }
 
     /**
-     * True when [query] reads as Portuguese: any PT marker token or any PT
-     * diacritic. Used to mirror the user's language per question so a PT
-     * question gets a PT reply even on an EN-locale device.
+     * True when [query] reads as Portuguese. Question grammar wins over
+     * accents in proper names, so a name such as "Inês" or "Atlântico" does
+     * not switch an otherwise English turn. Used to mirror the user's
+     * language per question so a PT question gets a PT reply even on an
+     * EN-locale device.
      */
     fun isPortugueseQuery(query: String): Boolean {
-        if (portugueseDiacriticRegex.containsMatchIn(query)) return true
-        return query
-            .split(Regex("\\s+"))
-            .map(::clean)
-            .any { it.lowercase() in PORTUGUESE_MARKERS }
+        val tokens =
+            query
+                .split(Regex("\\s+"))
+                .map(::clean)
+                .map(String::lowercase)
+        val hasPortugueseQuestionFrame = tokens.any { it in portugueseQuestionMarkers }
+        if (hasPortugueseQuestionFrame) return true
+        if (englishQuestionCueRegex.containsMatchIn(query)) return false
+        return portugueseDiacriticRegex.containsMatchIn(query) ||
+            tokens.any { it in PORTUGUESE_MARKERS }
     }
 
     /**
@@ -458,8 +517,9 @@ private fun cloudCommonGuidance(): String =
     Use contractions and a name naturally when it is relevant; do not force either one.
     Do not begin every answer with "According to the records" or "Based on the context".
     Avoid canned headings, robotic summaries, and unnecessary restatement of the question.
+    Copy patient names, owner names, dates, units, and identifiers exactly as they appear in the records; never correct, translate, or replace a stored name with a similar one.
     A brief friendly opener is fine when it fits, but lead with the useful answer.
-    Be concise without sounding abrupt; explain uncertainty plainly.
+    Be concise without sounding abrupt; explain uncertainty plainly. Finish every response with a complete sentence. Never stop on a dangling preposition, conjunction, colon, or half-written citation; if the records are incomplete, finish with a complete statement about what is missing.
     """.trimIndent()
 
 private fun deviceCommonGuidance(): String =

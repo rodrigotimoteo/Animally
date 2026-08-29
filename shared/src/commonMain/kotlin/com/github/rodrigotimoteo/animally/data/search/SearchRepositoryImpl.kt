@@ -4,19 +4,27 @@ import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.anamnese.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.consultation.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.customreminder.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.dentistry.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.deworming.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.embryotransfer.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.farrier.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.gestation.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.icsi.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.imaging.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.labresult.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.lameness.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.medication.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.owner.OwnerQueries
+import com.github.rodrigotimoteo.animally.data.owner.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.patient.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.reproduction.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.repromedication.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.search.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.substance.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.surgery.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.ultrasound.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.vaccination.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.weight.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.SearchableText
@@ -151,9 +159,7 @@ class SearchRepositoryImpl(
             .selectAll()
             .executeAsList()
             .forEach { owner ->
-                val searchableText =
-                    listOfNotNull(owner.name, owner.email, owner.phone, owner.address)
-                        .joinToString(" ")
+                val searchableText = SearchableText.owner(owner.toDomain())
                 indexRecord(
                     recordType = ISearchRepository.TYPE_OWNER,
                     patientId = 0L,
@@ -257,7 +263,7 @@ class SearchRepositoryImpl(
 
     private val reindexDewormingRows: () -> Unit = {
         database.dewormingQueries.selectAll().executeAsList().forEach {
-            val searchableText = listOfNotNull(it.product, it.dose, it.vetName, it.notes).joinToString(" ")
+            val searchableText = SearchableText.deworming(it.toDomain())
             indexRecord(
                 recordType = RecordType.Deworming.wireName,
                 patientId = it.patientId,
@@ -270,7 +276,7 @@ class SearchRepositoryImpl(
 
     private val reindexDentistryRows: () -> Unit = {
         database.dentistryQueries.selectAll().executeAsList().forEach {
-            val searchableText = listOfNotNull(it.findings, it.treatment, it.vetName, it.notes).joinToString(" ")
+            val searchableText = SearchableText.dentistry(it.toDomain())
             indexRecord(
                 recordType = RecordType.Dentistry.wireName,
                 patientId = it.patientId,
@@ -335,7 +341,7 @@ class SearchRepositoryImpl(
 
     private val reindexWeightRows: () -> Unit = {
         database.weightQueries.selectAll().executeAsList().forEach {
-            val searchableText = listOfNotNull(it.weightKg.toString(), it.notes).joinToString(" ")
+            val searchableText = SearchableText.weight(it.toDomain())
             indexRecord(
                 recordType = RecordType.Weight.wireName,
                 patientId = it.patientId,
@@ -348,16 +354,7 @@ class SearchRepositoryImpl(
 
     private val reindexReproductionEventRows: () -> Unit = {
         database.reproductionQueries.selectAll().executeAsList().forEach {
-            val searchableText =
-                listOfNotNull(
-                    it.eventType,
-                    it.details,
-                    it.initialExamFindings,
-                    it.stallionName,
-                    it.breedingType,
-                    it.vetName,
-                    it.notes,
-                ).joinToString(" ")
+            val searchableText = SearchableText.reproductionEvent(it.toDomain())
             indexRecord(
                 recordType = RecordType.ReproductionEvent.wireName,
                 patientId = it.patientId,
@@ -396,14 +393,7 @@ class SearchRepositoryImpl(
 
     private val reindexReproMedicationRows: () -> Unit = {
         database.reproMedicationQueries.selectAll().executeAsList().forEach {
-            val searchableText =
-                listOfNotNull(
-                    it.medication,
-                    it.dosage,
-                    it.purpose,
-                    it.vetName,
-                    it.notes,
-                ).joinToString(" ")
+            val searchableText = SearchableText.reproMedication(it.toDomain())
             indexRecord(
                 recordType = RecordType.ReproMedication.wireName,
                 patientId = it.patientId,
@@ -416,14 +406,7 @@ class SearchRepositoryImpl(
 
     private val reindexLabResultRows: () -> Unit = {
         database.labResultQueries.selectAll().executeAsList().forEach {
-            val searchableText =
-                listOfNotNull(
-                    it.testType,
-                    it.results,
-                    it.normalRange,
-                    it.vetName,
-                    it.notes,
-                ).joinToString(" ")
+            val searchableText = SearchableText.labResult(it.toDomain())
             indexRecord(
                 recordType = RecordType.LabResult.wireName,
                 patientId = it.patientId,
@@ -436,7 +419,7 @@ class SearchRepositoryImpl(
 
     private val reindexImagingRows: () -> Unit = {
         database.imagingQueries.selectAll().executeAsList().forEach {
-            val searchableText = listOfNotNull(it.type, it.findings, it.vetName, it.notes).joinToString(" ")
+            val searchableText = SearchableText.imaging(it.toDomain())
             indexRecord(
                 recordType = RecordType.Imaging.wireName,
                 patientId = it.patientId,

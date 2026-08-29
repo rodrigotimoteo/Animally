@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.domain.owner.usecase
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -34,8 +35,7 @@ class SaveOwnerUseCase(
                 ownerRepository.updateOwner(owner)
                 owner.id
             }
-        val searchableText =
-            listOfNotNull(owner.name, owner.email, owner.phone, owner.address).joinToString(" ")
+        val searchableText = SearchableText.owner(owner)
         searchRepository.indexRecord(
             recordType = ISearchRepository.TYPE_OWNER,
             patientId = 0L,

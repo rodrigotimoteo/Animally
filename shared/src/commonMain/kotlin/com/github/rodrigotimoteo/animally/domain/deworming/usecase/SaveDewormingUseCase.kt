@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -34,13 +35,7 @@ class SaveDewormingUseCase(
                 dewormingRepository.update(deworming)
                 deworming.id
             }
-        val searchableText =
-            listOfNotNull(
-                deworming.product,
-                deworming.dose,
-                deworming.vetName,
-                deworming.notes,
-            ).joinToString(" ")
+        val searchableText = SearchableText.deworming(deworming)
         searchRepository.indexRecord(
             recordType = RecordType.Deworming.wireName,
             patientId = deworming.patientId,

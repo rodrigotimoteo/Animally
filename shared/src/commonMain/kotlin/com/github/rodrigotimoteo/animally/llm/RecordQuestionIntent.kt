@@ -314,6 +314,7 @@ internal object RecordQuestionIntent {
             "currently",
             "now",
             "today",
+            "date",
             "day",
             "days",
             "along",

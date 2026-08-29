@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -34,14 +35,7 @@ class SaveReproMedicationUseCase(
                 reproMedicationRepository.update(reproMedication)
                 reproMedication.id
             }
-        val searchableText =
-            listOfNotNull(
-                reproMedication.medication,
-                reproMedication.dosage,
-                reproMedication.purpose,
-                reproMedication.vetName,
-                reproMedication.notes,
-            ).joinToString(" ")
+        val searchableText = SearchableText.reproMedication(reproMedication)
         searchRepository.indexRecord(
             recordType = RecordType.ReproMedication.wireName,
             patientId = reproMedication.patientId,

@@ -143,6 +143,13 @@ class AssistantPromptsTest {
     }
 
     @Test
+    fun `proper name accents do not switch an english question to portuguese`() {
+        assertTrue(!AssistantPrompts.isPortugueseQuery("What is Inês Martins's address?"))
+        assertTrue(!AssistantPrompts.isPortugueseQuery("What did Brisa do Atlântico receive?"))
+        assertTrue(AssistantPrompts.isPortugueseQuery("Que resultado teve a Inês?"))
+    }
+
+    @Test
     fun `given question language then turn instruction is explicit and stable`() {
         assertEquals(
             "LANGUAGE FOR THIS TURN: Answer only in European Portuguese. Do not switch languages because the records use another language.",
@@ -178,6 +185,8 @@ class AssistantPromptsTest {
         assertTrue(prompt.contains("patient-specific"))
         assertTrue(prompt.contains("European Portuguese"))
         assertTrue(prompt.contains("separate observations from interpretation"))
+        assertTrue(prompt.contains("Copy patient names, owner names, dates, units, and identifiers exactly"))
+        assertTrue(prompt.contains("Finish every response with a complete sentence"))
         assertTrue(!prompt.contains("ANSWER ONLY FROM THE CONTEXT BELOW"))
     }
 }

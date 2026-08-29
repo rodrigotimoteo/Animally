@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -34,14 +35,7 @@ class SaveLabResultUseCase(
                 labResultRepository.update(labResult)
                 labResult.id
             }
-        val searchableText =
-            listOfNotNull(
-                labResult.testType,
-                labResult.results,
-                labResult.normalRange,
-                labResult.vetName,
-                labResult.notes,
-            ).joinToString(" ")
+        val searchableText = SearchableText.labResult(labResult)
         searchRepository.indexRecord(
             recordType = RecordType.LabResult.wireName,
             patientId = labResult.patientId,

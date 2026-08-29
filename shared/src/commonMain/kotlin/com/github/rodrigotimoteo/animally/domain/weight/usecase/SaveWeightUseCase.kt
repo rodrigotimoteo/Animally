@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.weight.usecase
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 import org.koin.core.annotation.Provided
@@ -39,7 +40,7 @@ class SaveWeightUseCase(
             patientId = weight.patientId,
             recordId = savedId,
             date = weight.date,
-            searchableText = listOfNotNull(weight.weightKg.toString(), weight.notes).joinToString(" "),
+            searchableText = SearchableText.weight(weight),
         )
         return savedId
     }

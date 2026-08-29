@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 
@@ -34,16 +35,7 @@ class SaveReproductionEventUseCase(
                 reproductionRepository.update(reproductionEvent)
                 reproductionEvent.id
             }
-        val searchableText =
-            listOfNotNull(
-                reproductionEvent.eventType,
-                reproductionEvent.details,
-                reproductionEvent.initialExamFindings,
-                reproductionEvent.stallionName,
-                reproductionEvent.breedingType,
-                reproductionEvent.vetName,
-                reproductionEvent.notes,
-            ).joinToString(" ")
+        val searchableText = SearchableText.reproductionEvent(reproductionEvent)
         searchRepository.indexRecord(
             recordType = RecordType.ReproductionEvent.wireName,
             patientId = reproductionEvent.patientId,

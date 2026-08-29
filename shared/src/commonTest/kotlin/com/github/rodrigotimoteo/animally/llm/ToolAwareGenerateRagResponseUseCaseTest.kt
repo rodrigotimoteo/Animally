@@ -102,6 +102,7 @@ class ToolAwareGenerateRagResponseUseCaseTest {
         registry: RagToolRegistry,
         plainEngine: RagLlmEngine = PlainFallbackEngine(),
         recordSearch: RagRecordSearch = RagRecordSearch { emptyList() },
+        analysisContextBuilder: AnalysisContextBuilder? = null,
     ): GenerateRagResponseUseCase =
         GenerateRagResponseUseCase(
             searchUseCase = SearchUseCase(searchRepository),
@@ -109,6 +110,7 @@ class ToolAwareGenerateRagResponseUseCaseTest {
             recordSearch = recordSearch,
             toolCallingEngine = toolEngine,
             toolRegistry = registry,
+            analysisContextBuilder = analysisContextBuilder,
             today = LocalDate(2025, 5, 11),
         )
 
@@ -216,6 +218,33 @@ class ToolAwareGenerateRagResponseUseCaseTest {
             assertEquals(3, registry.calls)
             assertEquals(
                 EnAssistantStrings.analysisLimitReply,
+                events.filterIsInstance<RagStreamEvent.Chunk>().last().text,
+            )
+        }
+
+    @Test
+    fun `grounded tool loop falls back to plain cloud completion after the safe limit`() =
+        runTest {
+            val toolEngine = FakeToolEngine(alwaysRequestsTools = true)
+            val registry = FakeToolRegistry()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Bella"))
+            repos.weights.entries = listOf(testWeight(7, 1, 505.0, LocalDate(2025, 2, 1)))
+            val plain = PlainFallbackEngine()
+
+            val events =
+                sut(
+                    toolEngine = toolEngine,
+                    registry = registry,
+                    plainEngine = plain,
+                    analysisContextBuilder = repos.builder,
+                )("Analyze the weight data").toList()
+
+            assertEquals(3, toolEngine.calls)
+            assertEquals(3, registry.calls)
+            assertEquals(1, plain.calls)
+            assertEquals(
+                "I can still answer from the available context.",
                 events.filterIsInstance<RagStreamEvent.Chunk>().last().text,
             )
         }
