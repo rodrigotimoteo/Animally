@@ -39,10 +39,14 @@ object RecordTypeIntent {
                     "vacinado|vacinada|reforço|reforco|tétano|tetano|raiva)\\b",
             ) to setOf("VACCINATION"),
             Regex(
-                "\\b(pregnant|pregnancy|gestation|gestations|foaling|in\\s+foal|bred|breeding|" +
+                "\\b(pregnant|pregnancy|gestation|gestations|foaling|in\\s+foal|" +
                     "prenha|prenhe|prenhez|gravidez|gestação|gestacao|gestacoes|gestações|" +
                     "parição|paricao|parições|paricoes)\\b",
             ) to setOf("GESTATION"),
+            Regex(
+                "\\b(bred|breeding|mating|insemination|breeding\\s+event|" +
+                    "coberta|cobertura|cobrição|cobricao)\\b",
+            ) to setOf("GESTATION", "REPRODUCTION_EVENT"),
             Regex(
                 "\\b(weight|weights|weigh|weighs|weighed|weighing|kg|peso|pesos|" +
                     "pesada|pesado|pesagem)\\b",
@@ -50,6 +54,51 @@ object RecordTypeIntent {
             Regex(
                 "\\b(ultrasound|ultrasonography|ecografia|ecografias|ultrassom|ultrassons)\\b",
             ) to setOf("ULTRASOUND"),
+            Regex(
+                "\\b(consultation|consultations|consult|consults|appointment|appointments|visit|visits|" +
+                    "consulta|consultas|marcação|marcacao|marcações|marcacoes|visita|visitas)\\b",
+            ) to setOf("CONSULTATION"),
+            Regex(
+                "\\b(lameness|lame|limping|gait|claudication|claudicante|coxeira|mancar|manca)\\b",
+            ) to setOf("LAMENESS"),
+            Regex(
+                "\\b(surgery|surgeries|surgical|operation|operations|castration|ovariectomy|" +
+                    "cirurgia|cirurgias|cirúrgico|cirurgico|operação|operacao|castração|castracao)\\b",
+            ) to setOf("SURGERY"),
+            Regex(
+                "\\b(anamnesis|anamneses|anamnese|antecedentes clínicos|antecedentes clinicos)\\b",
+            ) to setOf("ANAMNESE"),
+            Regex(
+                "\\b(reproduction|reproductive|mating|breeding event|reprodução|reproducao|" +
+                    "reprodutivo|reprodutiva|evento reprodutivo|cobertura|cobrição|cobricao)\\b",
+            ) to setOf("REPRODUCTION_EVENT"),
+            Regex(
+                "\\b(lab|laboratory|laboratories|bloodwork|blood test|fecal|faecal|coggins|" +
+                    "laboratório|laboratorio|análise laboratorial|analise laboratorial|resultado laboratorial)\\b",
+            ) to setOf("LAB_RESULT"),
+            Regex(
+                "\\b(imaging|image|images|radiograph|radiographs|x-ray|xray|mri|ct scan|" +
+                    "imagem|imagens|radiografia|radiografias|raio-x|raiox)\\b",
+            ) to setOf("IMAGING"),
+            Regex(
+                "\\b(reminder|reminders|custom reminder|custom reminders|lembrete|lembretes)\\b",
+            ) to setOf("CUSTOM_REMINDER"),
+            Regex(
+                "\\b(embryo transfer|embryo transfers|transferência de embrião|transferencia de embriao)\\b",
+            ) to setOf("EMBRYO_TRANSFER"),
+            Regex("\\b(icsi)\\b", RegexOption.IGNORE_CASE) to setOf("ICSI"),
+            Regex(
+                "\\b(controlled substance|controlled substances|substância controlada|substancias controladas)\\b",
+            ) to setOf("CONTROLLED_SUBSTANCE"),
+            Regex(
+                "\\b(repro medication|reproductive medication|medicação reprodutiva|medicacao reprodutiva)\\b",
+            ) to setOf("REPRO_MEDICATION"),
+            Regex(
+                "\\b(medication|medications|medicine|medicines|drug|drugs|prescription|prescriptions|" +
+                    "dose|doses|dosage|dosages|metronidazole|antibiotic|antibiotics|" +
+                    "medicamento|medicamentos|medicação|medicacao|fármaco|farmaco|" +
+                    "receita|receitas|dose|doses)\\b",
+            ) to setOf("MEDICATION", "CONTROLLED_SUBSTANCE", "REPRO_MEDICATION"),
         )
 
     /** "when was his last..." / "most recent farrier visit" / "last ... date" shapes. */

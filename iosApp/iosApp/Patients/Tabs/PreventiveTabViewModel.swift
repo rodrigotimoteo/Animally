@@ -14,6 +14,7 @@ final class PreventiveTabViewModel: ObservableObject {
     /// Waits for every child store's initial state so an empty first store does
     /// not hide the loading indicator while another store is still querying.
     private var receivedStoreKeys = Set<String>()
+    private var pendingExpansionStates = [SectionID: Bool]()
 
     private var cancellables: [NativeCancellable] = []
 
@@ -30,7 +31,10 @@ final class PreventiveTabViewModel: ObservableObject {
 
         cancellables.append(vaccinationStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
-                self?.vaccinations = RecordListState(
+                guard let self, self.acceptExpansionState(state.displayState.isExpanded, for: .vaccinations) else {
+                    return
+                }
+                self.vaccinations = RecordListState(
                     allItems: state.vaccinations,
                     visibleItems: state.visibleVaccinations,
                     matchingCount: state.filteredVaccinations.count,
@@ -42,7 +46,10 @@ final class PreventiveTabViewModel: ObservableObject {
         }))
         cancellables.append(dewormingStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
-                self?.dewormings = Self.recordListState(
+                guard let self, self.acceptExpansionState(state.displayState.isExpanded, for: .dewormings) else {
+                    return
+                }
+                self.dewormings = Self.recordListState(
                     allItems: state.records,
                     visibleItems: state.visibleRecords,
                     matchingCount: state.filteredRecords.count,
@@ -54,7 +61,10 @@ final class PreventiveTabViewModel: ObservableObject {
         }))
         cancellables.append(dentistryStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
-                self?.dentistryRecords = Self.recordListState(
+                guard let self, self.acceptExpansionState(state.displayState.isExpanded, for: .dentistry) else {
+                    return
+                }
+                self.dentistryRecords = Self.recordListState(
                     allItems: state.records,
                     visibleItems: state.visibleRecords,
                     matchingCount: state.filteredRecords.count,
@@ -66,7 +76,10 @@ final class PreventiveTabViewModel: ObservableObject {
         }))
         cancellables.append(farrierStore.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
-                self?.farrierVisits = Self.recordListState(
+                guard let self, self.acceptExpansionState(state.displayState.isExpanded, for: .farrier) else {
+                    return
+                }
+                self.farrierVisits = Self.recordListState(
                     allItems: state.records,
                     visibleItems: state.visibleRecords,
                     matchingCount: state.filteredRecords.count,
@@ -104,7 +117,7 @@ final class PreventiveTabViewModel: ObservableObject {
         farrierStore.delete(recordId: recordId)
     }
 
-    enum SectionID {
+    enum SectionID: Hashable {
         case vaccinations, dewormings, dentistry, farrier
     }
 
@@ -137,10 +150,22 @@ final class PreventiveTabViewModel: ObservableObject {
 
     func toggleExpanded(for section: SectionID) {
         switch section {
-        case .vaccinations: vaccinationStore.toggleExpanded()
-        case .dewormings: dewormingStore.toggleExpanded()
-        case .dentistry: dentistryStore.toggleExpanded()
-        case .farrier: farrierStore.toggleExpanded()
+        case .vaccinations:
+            pendingExpansionStates[section] = !vaccinations.isExpanded
+            vaccinationStore.toggleExpanded()
+            vaccinations = Self.recordListState(from: vaccinationStore.state.current)
+        case .dewormings:
+            pendingExpansionStates[section] = !dewormings.isExpanded
+            dewormingStore.toggleExpanded()
+            dewormings = Self.recordListState(from: dewormingStore.state.current)
+        case .dentistry:
+            pendingExpansionStates[section] = !dentistryRecords.isExpanded
+            dentistryStore.toggleExpanded()
+            dentistryRecords = Self.recordListState(from: dentistryStore.state.current)
+        case .farrier:
+            pendingExpansionStates[section] = !farrierVisits.isExpanded
+            farrierStore.toggleExpanded()
+            farrierVisits = Self.recordListState(from: farrierStore.state.current)
         }
     }
 
@@ -191,6 +216,61 @@ final class PreventiveTabViewModel: ObservableObject {
             searchQuery: searchQuery,
             isExpanded: isExpanded
         )
+    }
+
+    /// Applies the latest Kotlin state synchronously after an action.
+    ///
+    /// StateFlow callbacks are delivered asynchronously across the Kotlin/
+    /// Swift boundary. Keeping this immediate snapshot avoids a stale SwiftUI
+    /// projection during an animated list update; Kotlin remains the source of
+    /// truth for filtering, expansion, and the visible item projection.
+    private static func recordListState(from state: VaccinationListUiState) -> RecordListState<Vaccination_> {
+        recordListState(
+            allItems: state.vaccinations,
+            visibleItems: state.visibleVaccinations,
+            matchingCount: state.filteredVaccinations.count,
+            searchQuery: state.displayState.searchQuery,
+            isExpanded: state.displayState.isExpanded
+        )
+    }
+
+    private static func recordListState(from state: DewormingListUiState) -> RecordListState<Deworming_> {
+        recordListState(
+            allItems: state.records,
+            visibleItems: state.visibleRecords,
+            matchingCount: state.filteredRecords.count,
+            searchQuery: state.displayState.searchQuery,
+            isExpanded: state.displayState.isExpanded
+        )
+    }
+
+    private static func recordListState(from state: DentistryListUiState) -> RecordListState<Dentistry_> {
+        recordListState(
+            allItems: state.records,
+            visibleItems: state.visibleRecords,
+            matchingCount: state.filteredRecords.count,
+            searchQuery: state.displayState.searchQuery,
+            isExpanded: state.displayState.isExpanded
+        )
+    }
+
+    private static func recordListState(from state: FarrierVisitListUiState) -> RecordListState<FarrierVisit_> {
+        recordListState(
+            allItems: state.records,
+            visibleItems: state.visibleRecords,
+            matchingCount: state.filteredRecords.count,
+            searchQuery: state.displayState.searchQuery,
+            isExpanded: state.displayState.isExpanded
+        )
+    }
+
+    /// Rejects an older callback that would undo a just-issued expansion
+    /// action while the Kotlin state crosses the native boundary.
+    private func acceptExpansionState(_ isExpanded: Bool, for section: SectionID) -> Bool {
+        guard let expected = pendingExpansionStates[section] else { return true }
+        guard expected == isExpanded else { return false }
+        pendingExpansionStates.removeValue(forKey: section)
+        return true
     }
 
     private func markFirstEmission(_ key: String) {

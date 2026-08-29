@@ -27,10 +27,10 @@ final class NavigationUITests: AnimallyTestCase {
         }
     }
 
-    func testAssistantShowsEmptyState() throws {
+    func testAssistantShowsInput() throws {
         let app = TestHelpers.launchApp()
         app.tabBars.buttons["Assistant"].tap()
-        XCTAssertTrue(app.staticTexts["What would you like to know?"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["Send message"].exists)
+        XCTAssertTrue(app.textFields["assistant_input"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["assistant_send"].exists)
     }
 }

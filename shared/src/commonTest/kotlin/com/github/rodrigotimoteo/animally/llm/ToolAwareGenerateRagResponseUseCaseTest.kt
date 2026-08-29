@@ -53,6 +53,7 @@ private class FakeToolEngine(
 }
 
 private class FakeToolRegistry : RagToolRegistry {
+    var returnsError: Boolean = false
     override val definitions: List<RagToolDefinition> = AnalysisToolSchemas.definitions
     var calls: Int = 0
 
@@ -75,6 +76,7 @@ private class FakeToolRegistry : RagToolRegistry {
                         snippet = "Weight 505 kg.",
                     ),
                 ),
+            isError = returnsError,
         )
     }
 }
@@ -137,7 +139,7 @@ class ToolAwareGenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `provider tool rejection falls back to the existing text path`() =
+    fun `provider tool rejection does not invent an analysis`() =
         runTest {
             val plain = PlainFallbackEngine()
             val events =
@@ -147,9 +149,26 @@ class ToolAwareGenerateRagResponseUseCaseTest {
                     plainEngine = plain,
                 )("Analyze the weight data").toList()
 
-            assertEquals(1, plain.calls)
-            assertEquals("I can still answer from the available context.", events.filterIsInstance<RagStreamEvent.Chunk>().last().text)
+            assertEquals(0, plain.calls)
+            assertEquals(EnAssistantStrings.analysisLimitReply, events.filterIsInstance<RagStreamEvent.Chunk>().last().text)
             assertTrue(events.none { it is RagStreamEvent.Interrupted })
+        }
+
+    @Test
+    fun `failed authoritative tool result does not unlock an invented analysis`() =
+        runTest {
+            val plain = PlainFallbackEngine()
+            val registry = FakeToolRegistry().apply { returnsError = true }
+            val events =
+                sut(
+                    toolEngine = FakeToolEngine(),
+                    registry = registry,
+                    plainEngine = plain,
+                )("Analyze the weight data").toList()
+
+            assertEquals(0, plain.calls)
+            assertEquals(EnAssistantStrings.analysisLimitReply, events.filterIsInstance<RagStreamEvent.Chunk>().last().text)
+            assertTrue(events.none { it is RagStreamEvent.Sources })
         }
 
     @Test

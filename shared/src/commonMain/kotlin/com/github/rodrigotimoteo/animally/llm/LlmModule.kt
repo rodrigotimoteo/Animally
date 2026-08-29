@@ -129,6 +129,7 @@ val llmModule =
                     dewormingRepository = get(),
                     farrierVisitRepository = get(),
                     gestationRepository = get(),
+                    reproductionRepository = get(),
                     calculateGestationUseCase = get(),
                 )
             val analysisToolRegistry =

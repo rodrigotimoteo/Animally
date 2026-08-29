@@ -90,6 +90,7 @@ struct FarrierVisitEditView: View {
                 ), axis: .vertical)
                 .lineLimit(3...6)
                 .textCase(nil)
+                .accessibilityIdentifier("Findings")
             } header: {
                 RecordFormStyle.sectionHeader("Work Performed")
             }

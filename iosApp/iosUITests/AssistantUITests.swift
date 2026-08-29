@@ -28,6 +28,17 @@ final class AssistantUITests: AnimallyTestCase {
             throw XCTSkip("Foundation Models unavailable on this device")
         }
         XCTAssertTrue(app.textFields["assistant_input"].waitForExistence(timeout: 10))
+
+        // Chat history is intentionally restored on launch. Clear only the
+        // visible conversation so this test reads the reply it just created,
+        // while the persisted archive remains available to the product.
+        let newChat = app.buttons["assistant_new_chat"]
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat control missing")
+        let ready = NSPredicate(format: "isEnabled == true")
+        expectation(for: ready, evaluatedWith: newChat)
+        waitForExpectations(timeout: 10)
+        newChat.tap()
+        XCTAssertTrue(app.textFields["assistant_input"].exists)
     }
 
     /// Types a question into the chat input using chunked typing with
@@ -423,14 +434,19 @@ final class AssistantRealFmUITests: AnimallyTestCase {
 
     func testPatientQuestionAnswersWithCitationAndNoScaffold() throws {
         let app = TestHelpers.launchApp()
+        let patientName = TestHelpers.firstPatientName(app)
         openAssistant(app)
         try requireAvailableModel(app)
 
-        ask(app, "Tell me about Thunder")
+        ask(app, "Tell me about \(patientName)")
         let label = completedReplyLabel(app)
 
-        XCTAssertTrue(label.contains("Thunder"), "Answer lost the subject: \(label)")
-        XCTAssertTrue(label.contains("[PATIENT #") || label.contains("["), "No citation in answer: \(label)")
+        XCTAssertTrue(label.localizedCaseInsensitiveContains(patientName), "Answer lost the subject: \(label)")
+        let sourceChip = app.buttons["assistant_source_chip"].firstMatch
+        XCTAssertTrue(
+            sourceChip.waitForExistence(timeout: 10) || label.contains("["),
+            "No source card or citation in answer: \(label)"
+        )
         XCTAssertFalse(label.contains("---"), "Scaffold separator leaked: \(label)")
         XCTAssertFalse(label.contains("Question:"), "Prompt echo leaked: \(label)")
         XCTAssertFalse(label.lowercased().contains("http"), "External URL fabricated: \(label)")
@@ -452,10 +468,11 @@ final class AssistantRealFmUITests: AnimallyTestCase {
         // Every completed answer carries at least the default suggestion set,
         // so the chips must exist regardless of what the model cited.
         let app = TestHelpers.launchApp()
+        let patientName = TestHelpers.firstPatientName(app)
         openAssistant(app)
         try requireAvailableModel(app)
 
-        ask(app, "Tell me about Thunder")
+        ask(app, "Tell me about \(patientName)")
         _ = completedReplyLabel(app)
 
         let chip = app.buttons["assistant_followup_chip"].firstMatch

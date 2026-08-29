@@ -49,28 +49,38 @@ internal class AnalysisToolSupport(
             args.optionalString(AnalysisToolArguments.PATIENT_NAME)
                 ?: return patientRepository.getPatientList()
         val patients = patientRepository.getPatientList()
-        val normalized = requestedName.lowercase()
-        val exact = patients.filter { it.name.trim().lowercase() == normalized }
-        if (exact.size == 1) return exact
-        if (exact.size > 1) {
+        val normalized = normalizePatientName(requestedName)
+        val matches = patients.filter { normalizePatientName(it.name) == normalized }
+        if (matches.size == 1) return matches
+        if (matches.size > 1) {
             throw AnalysisToolInputException("More than one active patient is named $requestedName.")
         }
-        val prefixes =
-            patients.filter { patient ->
-                patient.name
-                    .trim()
-                    .lowercase()
-                    .startsWith(normalized)
+        val ambiguousTokenMatches =
+            if (' ' !in normalized) {
+                patients.filter { patient ->
+                    normalizePatientName(patient.name).split(' ').contains(normalized)
+                }
+            } else {
+                emptyList()
             }
-        return when {
-            prefixes.size == 1 -> prefixes
-            prefixes.size > 1 -> throw AnalysisToolInputException(
-                "Patient name is ambiguous. Choose one of: ${prefixes.joinToString { it.name }}.",
+        if (ambiguousTokenMatches.size > 1) {
+            throw AnalysisToolInputException(
+                "Patient name is ambiguous. Choose one of: ${ambiguousTokenMatches.joinToString { it.name }}.",
             )
-            else -> throw AnalysisToolInputException("No active patient matches $requestedName.")
         }
+        // Tool arguments are untrusted model output. A unique prefix is not
+        // enough to establish identity: "Ann" could silently select
+        // "Annabelle" and contaminate an otherwise grounded answer.
+        throw AnalysisToolInputException("No active patient matches $requestedName.")
     }
 }
+
+private fun normalizePatientName(value: String): String =
+    value
+        .trim()
+        .split(Regex("\\s+"))
+        .joinToString(" ")
+        .lowercase()
 
 internal fun JsonObject.optionalString(key: String): String? {
     val element = this[key] ?: return null

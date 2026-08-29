@@ -37,7 +37,7 @@ class AnalysisContextBuilderTest {
 
         val summary = builder.build("Quantos pacientes tenho?", today)
 
-        assertTrue(summary.orEmpty().contains("PATIENT CENSUS: 1 active patients: Thunder."))
+        assertTrue(summary.orEmpty().contains("PATIENT CENSUS: 1 active patient: Thunder."))
     }
 
     // --- Weight trend math ---
@@ -69,7 +69,19 @@ class AnalysisContextBuilderTest {
         val summary = builder.build("What is Bella's weight trend?", today)
 
         val line = summary.orEmpty().lineSequence().first { it.startsWith("- Weight") }
-        assertTrue(line.contains("single measurement 512.0 kg on 2025-01-15."), line)
+        assertTrue(line.contains("single measurement 512.0 kg on 15 Jan 2025."), line)
+    }
+
+    @Test
+    fun `given a population weight question then totals include every patient and detail cap is explicit`() {
+        repos.patients.patients = (1L..12L).map { id -> testPatient(id, "Horse $id") }
+        repos.weights.entries = (1L..12L).map { id -> testWeight(id, id, 500.0 + id, LocalDate(2025, 1, id.toInt())) }
+
+        val summary = builder.build("Analyze the average weight in my dataset", today).orEmpty()
+
+        assertTrue(summary.contains("WEIGHT SUMMARY: 12 measurements across 12 patients"), summary)
+        assertTrue(summary.contains("average 506.5 kg"), summary)
+        assertTrue(summary.contains("WEIGHT DETAILS TRUNCATED: 2"), summary)
     }
 
     @Test
@@ -91,6 +103,16 @@ class AnalysisContextBuilderTest {
         repos.patients.patients = listOf(testPatient(1, "Bella"))
 
         val summary = builder.build("What is Storm's weight trend?", today)
+
+        assertNull(summary)
+    }
+
+    @Test
+    fun `given a patient name prefix when built then a longer name is not selected`() {
+        repos.patients.patients = listOf(testPatient(1, "Annabelle"))
+        repos.weights.entries = listOf(testWeight(10, 1, kg = 512.0, date = LocalDate(2025, 1, 15)))
+
+        val summary = builder.build("What is Ann's weight trend?", today)
 
         assertNull(summary)
     }
@@ -121,6 +143,40 @@ class AnalysisContextBuilderTest {
         assertFalse(text.contains("- Care Ghost"), "patients without records must be omitted")
     }
 
+    @Test
+    fun `given a population care question then totals include patients beyond detail cap`() {
+        repos.patients.patients = (1L..12L).map { id -> testPatient(id, "Horse $id") }
+        repos.vaccinations.entries =
+            (1L..12L).map { id ->
+                testVaccination(id, id, "Tetanus", administered = LocalDate(2025, 1, id.toInt()))
+            }
+
+        val summary = builder.build("Analyze my care data", today).orEmpty()
+
+        assertTrue(summary.contains("CARE TOTALS: 12 vaccinations"), summary)
+        assertTrue(summary.contains("across 12 patients with records"), summary)
+        assertTrue(summary.contains("CARE DETAILS TRUNCATED: 2"), summary)
+    }
+
+    @Test
+    fun `given a relative care period then older records do not enter the summary`() {
+        repos.patients.patients = listOf(testPatient(1, "Bella"))
+        repos.vaccinations.entries =
+            listOf(
+                testVaccination(
+                    id = 21,
+                    patientId = 1,
+                    vaccineName = "Tetanus",
+                    administered = LocalDate(2024, 5, 1),
+                ),
+            )
+
+        val summary = builder.build("What vaccination did Bella receive this month?", today).orEmpty()
+
+        assertTrue(summary.contains("no care records found"), summary)
+        assertFalse(summary.contains("1 vaccinations"), summary)
+    }
+
     // --- Gestation day count ---
 
     @Test
@@ -136,6 +192,7 @@ class AnalysisContextBuilderTest {
 
         val text = summary.orEmpty()
         assertTrue(text.contains("GESTATIONS:"), text)
+        assertTrue(text.contains("GESTATION TOTALS: 1 active pregnancy across 1 patient."), text)
         val line = text.lineSequence().first { it.startsWith("- Gestation") }
         // 2025-01-01 -> 2025-05-11 is exactly 130 days.
         assertTrue(line.contains("bred 1 Jan 2025"), line)
@@ -210,6 +267,33 @@ class AnalysisContextBuilderTest {
     }
 
     @Test
+    fun `given breeding card then breeding facts use its date and ignore pregnancy checks`() {
+        repos.patients.patients = listOf(testPatient(1, "Lua"))
+        repos.reproductions.entries =
+            listOf(
+                testReproductionEvent(
+                    id = 61,
+                    patientId = 1,
+                    eventType = "Pregnancy Check",
+                    date = LocalDate(2025, 4, 20),
+                ),
+                testReproductionEvent(
+                    id = 60,
+                    patientId = 1,
+                    date = LocalDate(2025, 4, 1),
+                ),
+            )
+
+        val query = "How long ago was Lua bred?"
+        val facts = builder.breedingFacts(query, today)
+
+        assertEquals(1, facts?.size)
+        assertEquals(60L, facts?.single()?.event?.id)
+        assertEquals(LocalDate(2025, 4, 1), facts?.single()?.event?.date)
+        assertEquals(40, facts?.single()?.elapsedDays)
+    }
+
+    @Test
     fun `given named gestation question then summary excludes other patients`() {
         repos.patients.patients = listOf(testPatient(1, "Thunder"), testPatient(2, "Bella"))
         repos.gestations.entries =
@@ -238,7 +322,9 @@ class AnalysisContextBuilderTest {
                 ),
             )
 
-        assertNull(builder.build("Which mares are pregnant?", today))
+        val summary = builder.build("Which mares are pregnant?", today)
+
+        assertTrue(summary.orEmpty().contains("no active pregnancies found"), summary)
     }
 
     // --- Overdue filter ---
@@ -275,16 +361,16 @@ class AnalysisContextBuilderTest {
 
         val summary = builder.build("Is any care overdue?", today)
 
-        val lines = summary.orEmpty().lineSequence().count { it.startsWith("- OVERDUE") }
+        val lines = summary.orEmpty().lineSequence().count { it.startsWith("- OVERDUE ") && "TRUNCATED" !in it }
         assertEquals(12, lines)
     }
 
     @Test
-    fun `given no overdue items when built then overdue block absent`() {
+    fun `given no overdue items when built then explicit empty overdue block is emitted`() {
         repos.patients.patients = listOf(testPatient(1, "Bella"))
 
         val summary = builder.build("Is any care overdue?", today)
 
-        assertNull(summary)
+        assertTrue(summary.orEmpty().contains("no overdue care found"), summary)
     }
 }

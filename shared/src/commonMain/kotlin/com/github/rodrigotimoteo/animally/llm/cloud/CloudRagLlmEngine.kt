@@ -66,7 +66,7 @@ data class CloudLlmConfig(
         const val DEFAULT_MODEL = "gpt-4o-mini"
         const val DEFAULT_SOCKET_TIMEOUT_MILLIS = 120_000L
         const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000L
-        const val DEFAULT_REQUEST_TIMEOUT_MILLIS = 90_000L
+        const val DEFAULT_REQUEST_TIMEOUT_MILLIS = 180_000L
 
         /** Default output budget for local OpenAI-compatible runtimes. */
         const val DEFAULT_MAX_TOKENS = 2048
@@ -337,8 +337,15 @@ class CloudRagLlmEngine(
                 delta?.content,
                 message?.content,
                 text,
-            ).map { element -> element.textContent() }
-        return candidates.firstOrNull(String::isNotEmpty).orEmpty()
+            ).map { element -> element.textContent() }.filter(String::isNotEmpty).distinct()
+        if (candidates.isEmpty()) return ""
+        if (candidates.size == 1) return candidates.single()
+        val longest = candidates.maxBy { it.length }
+        return if (candidates.any { it != longest && longest.contains(it) }) {
+            longest
+        } else {
+            candidates.joinToString(separator = "")
+        }
     }
 
     /** Converts string or structured text content into one provider-neutral string. */
@@ -351,7 +358,7 @@ class CloudRagLlmEngine(
                 if (type in THINKING_CONTENT_TYPES) {
                     ""
                 } else {
-                    (this["text"] ?: this["content"])?.textContent().orEmpty()
+                    (this["text"] ?: this["content"] ?: this["value"])?.textContent().orEmpty()
                 }
             }
         }
@@ -411,12 +418,16 @@ class CloudRagLlmEngine(
                 "reasoning",
                 "reasoning_content",
                 "reasoning_details",
+                "reasoning_detail",
+                "reasoning_summary",
                 "redacted_reasoning",
                 "redacted_thinking",
                 "thinking",
                 "thinking_block",
+                "thinking_details",
                 "thought",
                 "thoughts",
+                "thought_summary",
             )
     }
 }
@@ -624,16 +635,28 @@ internal fun validateStreamEnd(
     finishReason: String?,
     contentLength: Int,
 ): String? =
-    when {
-        finishReason == FINISH_LENGTH && contentLength == 0 ->
-            "Cloud model spent its entire token budget on reasoning and returned no answer"
-        finishReason == FINISH_LENGTH ->
-            "Cloud model reached its output limit before completing the answer"
-        sawDone || finishReason != null -> null
-        else -> "Cloud LLM stream ended before completion"
+    when (finishReason?.trim()?.lowercase()) {
+        FINISH_LENGTH ->
+            if (contentLength == 0) {
+                "Cloud model spent its entire token budget on reasoning and returned no answer"
+            } else {
+                "Cloud model reached its output limit before completing the answer"
+            }
+        FINISH_CONTENT_FILTER, FINISH_ERROR, FINISH_FAILED, FINISH_CANCELLED, FINISH_CANCELED ->
+            "Cloud model ended the answer with finish reason '${finishReason.trim()}'."
+        else ->
+            when {
+                sawDone || finishReason != null -> null
+                else -> "Cloud LLM stream ended before completion"
+            }
     }
 
 private const val FINISH_LENGTH = "length"
+private const val FINISH_CONTENT_FILTER = "content_filter"
+private const val FINISH_ERROR = "error"
+private const val FINISH_FAILED = "failed"
+private const val FINISH_CANCELLED = "cancelled"
+private const val FINISH_CANCELED = "canceled"
 
 private const val ROLE_SYSTEM = "system"
 private const val ROLE_USER = "user"
@@ -788,6 +811,11 @@ internal data class ChunkChoice(
 internal data class CompletionMessage(
     val content: JsonElement? = null,
     @SerialName("tool_calls") val toolCalls: List<ChatToolCall>? = null,
+    @SerialName("reasoning_content") val reasoningContent: JsonElement? = null,
+    @SerialName("reasoning_details") val reasoningDetails: JsonElement? = null,
+    val reasoning: JsonElement? = null,
+    val thinking: JsonElement? = null,
+    val analysis: JsonElement? = null,
 )
 
 @Serializable
@@ -844,10 +872,20 @@ private data class MutableCloudToolCall(
     fun toRagToolCall(index: Int): RagToolCall? {
         val toolName = name.toString().trim()
         if (toolName.isEmpty()) return null
+        val argumentText = arguments.toString().trim().ifBlank { "{}" }
+        if (runCatching { TOOL_ARGUMENTS_JSON.parseToJsonElement(argumentText) as? JsonObject }.getOrNull() == null) {
+            return null
+        }
         return RagToolCall(
             id = id.ifBlank { "tool_call_$index" },
             name = toolName,
-            arguments = arguments.toString().ifBlank { "{}" },
+            arguments = argumentText,
         )
     }
 }
+
+private val TOOL_ARGUMENTS_JSON =
+    Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }

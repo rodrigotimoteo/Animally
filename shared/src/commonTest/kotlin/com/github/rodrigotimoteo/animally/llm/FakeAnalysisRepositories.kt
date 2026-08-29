@@ -8,6 +8,8 @@ import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
@@ -133,6 +135,23 @@ internal class FakeGestationRepository(
     ): Long = error("unused in tests")
 }
 
+internal class FakeReproductionRepository(
+    var entries: List<ReproductionEvent> = emptyList(),
+) : IReproductionRepository {
+    override fun getByPatient(patientId: Long): List<ReproductionEvent> = entries.filter { it.patientId == patientId }
+
+    override fun getById(id: Long): ReproductionEvent? = entries.firstOrNull { it.id == id }
+
+    override fun insert(reproductionEvent: ReproductionEvent): Long = error("unused in tests")
+
+    override fun update(reproductionEvent: ReproductionEvent): Long = error("unused in tests")
+
+    override fun setInactive(
+        id: Long,
+        updatedAt: Instant,
+    ): Long = error("unused in tests")
+}
+
 /** Bundle of fakes wired into one AnalysisContextBuilder for tests. */
 internal class FakeAnalysisRepos {
     val patients = FakePatientRepository()
@@ -141,6 +160,7 @@ internal class FakeAnalysisRepos {
     val dewormings = FakeDewormingRepository()
     val farrierVisits = FakeFarrierVisitRepository()
     val gestations = FakeGestationRepository()
+    val reproductions = FakeReproductionRepository()
 
     // Positional ctor args keep each fixture a single expression line, which
     // is what the ktlint function-signature/multiline-expression rules want.
@@ -152,6 +172,7 @@ internal class FakeAnalysisRepos {
             dewormingRepository = dewormings,
             farrierVisitRepository = farrierVisits,
             gestationRepository = gestations,
+            reproductionRepository = reproductions,
         )
 }
 
@@ -197,3 +218,22 @@ internal fun testGestation(
     expectedDueDate: LocalDate,
     status: String = "Active",
 ): Gestation = Gestation(id, patientId, breedingDate, expectedDueDate, 0, status, null, null, null, true, FIXTURE_INSTANT, FIXTURE_INSTANT)
+
+internal fun testReproductionEvent(
+    id: Long,
+    patientId: Long,
+    eventType: String = "Breeding",
+    date: LocalDate,
+    details: String? = null,
+    isActive: Boolean = true,
+): ReproductionEvent =
+    ReproductionEvent(
+        id = id,
+        patientId = patientId,
+        eventType = eventType,
+        date = date,
+        details = details,
+        isActive = isActive,
+        createdAt = FIXTURE_INSTANT,
+        updatedAt = FIXTURE_INSTANT,
+    )

@@ -20,6 +20,7 @@ internal class RagToolCallingCoordinator(
     suspend fun run(messages: MutableList<RagChatMessage>): RagToolAnswer {
         val collectedSources = mutableListOf<SearchResult>()
         var executedToolCall = false
+        var successfulToolCalls = 0
         repeat(MAX_TOOL_ROUNDS) {
             val turn = requestTurn(messages, executedToolCall)
             if (turn.fallbackToPlainText) {
@@ -29,6 +30,7 @@ internal class RagToolCallingCoordinator(
                 return RagToolAnswer(
                     text = sanitize(turn.text),
                     sources = collectedSources.distinctBy { it.recordType to it.recordId },
+                    usedAuthoritativeTool = successfulToolCalls > 0,
                 )
             }
             check(turn.calls.size <= MAX_TOOL_CALLS_PER_ROUND) {
@@ -41,7 +43,7 @@ internal class RagToolCallingCoordinator(
                     content = turn.text.takeIf(String::isNotBlank),
                     toolCalls = turn.calls,
                 )
-            executeToolCalls(turn.calls, messages, collectedSources)
+            successfulToolCalls += executeToolCalls(turn.calls, messages, collectedSources)
             executedToolCall = true
         }
         val limitReply = turnStrings.analysisLimitReply
@@ -49,6 +51,7 @@ internal class RagToolCallingCoordinator(
         return RagToolAnswer(
             text = limitReply,
             sources = collectedSources.distinctBy { it.recordType to it.recordId },
+            usedAuthoritativeTool = successfulToolCalls > 0,
         )
     }
 
@@ -81,10 +84,12 @@ internal class RagToolCallingCoordinator(
         calls: List<RagToolCall>,
         messages: MutableList<RagChatMessage>,
         collectedSources: MutableList<SearchResult>,
-    ) {
+    ): Int {
+        var successfulCalls = 0
         calls.forEach { call ->
             val result = registry.execute(call)
             collectedSources += result.sources
+            if (!result.isError) successfulCalls++
             messages +=
                 RagChatMessage(
                     role = RagChatRole.TOOL,
@@ -93,6 +98,7 @@ internal class RagToolCallingCoordinator(
                     name = call.name,
                 )
         }
+        return successfulCalls
     }
 
     private suspend fun emitText(text: String) {
@@ -116,4 +122,5 @@ internal data class RagToolAnswer(
     val text: String = "",
     val sources: List<SearchResult> = emptyList(),
     val fallbackToPlainText: Boolean = false,
+    val usedAuthoritativeTool: Boolean = false,
 )

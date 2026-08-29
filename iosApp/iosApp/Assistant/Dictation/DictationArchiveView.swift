@@ -89,16 +89,14 @@ struct DictationArchiveView: View {
             Section {
                 ForEach(captures, id: \.id) { capture in
                     captureRow(capture)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                if playback.playingCaptureId == capture.id {
-                                    stopPlayback()
-                                }
-                                viewModel.deleteCapture(id: capture.id)
-                            } label: {
-                                Text("Delete")
+                        .confirmationSwipeDelete(
+                            title: "Saved dictation",
+                            message: "The transcript and original audio will be removed from this device."
+                        ) {
+                            if playback.playingCaptureId == capture.id {
+                                stopPlayback()
                             }
-                            .tint(.red)
+                            viewModel.deleteCapture(id: capture.id)
                         }
                 }
             } header: {

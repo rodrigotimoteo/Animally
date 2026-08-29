@@ -7,7 +7,6 @@ import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.search.usecase.RetrievalPolicy
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
@@ -103,10 +102,12 @@ private fun hasRelevantHistory(
 private fun canUseHistoryAsGrounding(
     query: String,
     recordQuestion: Boolean,
+    analysisQuery: Boolean,
     dateRange: RagDateRange?,
     historyRelevant: Boolean,
 ): Boolean {
-    if (!historyRelevant || !recordQuestion) return historyRelevant
+    if (!historyRelevant || (!recordQuestion && !analysisQuery)) return historyRelevant
+    if (analysisQuery && !recordQuestion) return false
     val asksForTypedRecord = RecordTypeIntent.expectedRecordTypes(query).isNotEmpty()
     val asksForDatedActivity = dateRange != null && RecentActivityIntent.matches(query, dateRange)
     return !asksForTypedRecord && !asksForDatedActivity
@@ -116,15 +117,17 @@ private fun canUseHistoryAsGrounding(
 private fun shouldUseHonestFallback(
     query: String,
     recordQuestion: Boolean,
+    analysisQuery: Boolean,
     dateRange: RagDateRange?,
     historyRelevant: Boolean,
     policy: RagQueryPolicy,
     grounded: Boolean,
+    canAttemptToolGrounding: Boolean,
 ): Boolean =
     shouldUseNoResultsFallback(
         policy,
-        grounded,
-        canUseHistoryAsGrounding(query, recordQuestion, dateRange, historyRelevant),
+        grounded || canAttemptToolGrounding,
+        canUseHistoryAsGrounding(query, recordQuestion, analysisQuery, dateRange, historyRelevant),
     )
 
 private fun shouldUseAnalysisTools(
@@ -187,28 +190,53 @@ class GenerateRagResponseUseCase(
     private val toolCallingEngine: RagToolCallingEngine? = null,
     private val toolRegistry: RagToolRegistry? = null,
 ) {
-    private data class StreamAnswerRequest(
-        val context: String,
-        val turnStrings: AssistantStrings,
-        val selected: List<String>,
-        val contextResults: List<SearchResult>,
-        val usedDeterministicSummary: Boolean,
-        val allowGeneralQuestions: Boolean,
-        val useTools: Boolean,
-    )
-
     private data class PatientScope(
         val name: String?,
         val requiresFilter: Boolean,
         val nameMentioned: Boolean,
     )
 
+    private data class AnswerIntent(
+        val dateRange: RagDateRange?,
+        val patientScope: PatientScope,
+        val recordQuestion: Boolean,
+        val analysisQuery: Boolean,
+    )
+
+    private data class AnswerContext(
+        val deterministicSummary: String?,
+        val recentConversation: String,
+        val selected: List<String>,
+        val contextResults: List<SearchResult>,
+        val grounded: Boolean,
+        val historyGrounding: Boolean,
+        val useTools: Boolean,
+    )
+
+    private data class ModelAnswerPlan(
+        val request: RagStreamRequest?,
+        val useFallback: Boolean,
+    )
+
+    private data class ModelAnswerInput(
+        val query: String,
+        val results: List<SearchResult>,
+        val intent: AnswerIntent,
+        val history: List<RagHistoryEntry>,
+        val turnStrings: AssistantStrings,
+        val queryPolicy: RagQueryPolicy,
+    )
+
+    private val answerStreamCoordinator =
+        RagAnswerStreamCoordinator(
+            llmEngine = llmEngine,
+            toolCallingEngine = toolCallingEngine,
+            toolRegistry = toolRegistry,
+        )
+
     /** Rough token estimate: ~4 characters per token (see RAG budget in CONTEXT docs). */
     private companion object {
         const val CHARS_PER_TOKEN = 4.0
-
-        // Markdown link: [any text without ]]( any url without ) )
-        val linkRegex = Regex("\\[([^\\]]*)]\\(([^)]*)\\)")
 
         const val MIN_QUERY_CHARS = 2
 
@@ -367,35 +395,6 @@ class GenerateRagResponseUseCase(
                 "registos",
             )
 
-        // Model sometimes regurgitates prompt scaffolding (--- separators,
-        // "Question: ..." echoes). Stripped defensively from every chunk.
-        val scaffoldLineRegex = Regex("(?m)^\\s*(?:-{3,}|Question:.*|Context:.*|You are .*)\\s*\\n?")
-
-        // Bracketed citation header in the final answer text: [TYPE #id].
-        val citationRegex = Regex("\\[([A-Z_]+) #(\\d+)]")
-
-        // Literal non-record citation tags: the computed-facts tag, the
-        // system prompt's FORMAT placeholder ([RECORD_TYPE #ID] - "ID" is
-        // not digits, so citationRegex cannot catch it), and headings from
-        // deterministic analysis context. Small models sometimes echo these
-        // internal labels verbatim; none may reach the user-facing bubble.
-        val literalTagRegex =
-            Regex(
-                """\[(?:Summary|RECORD_TYPE #ID|PATIENT CENSUS|CARE COUNTS|GESTATIONS|OVERDUE CARE[^]]*)]""",
-            )
-
-        // Whitespace damage left behind by a stripped citation: doubled
-        // spaces, a space before punctuation ("in ." -> "in."), line-leading
-        // spaces, and blank-line runs where a standalone citation line sat.
-        val multiSpaceRegex = Regex("[ \\t]{2,}")
-        val spaceBeforePunctuationRegex = Regex("[ \\t]+([.,;:!?])")
-        val spacedRepeatedPunctuationRegex = Regex("([.!?])([ \\t]+\\1)+")
-        val lineLeadingSpaceRegex = Regex("(?m)^[ \\t]+")
-        val blankLineRunRegex = Regex("\\n{3,}")
-
-        // Citation-enforcement fallback caps appended headers: a ten-record
-        // answer must not gain ten noise lines when the model cites nothing.
-        const val MAX_ENFORCED_SOURCES = 3
         const val MAX_RECENT_ACTIVITY_ROWS = 12
         const val MAX_ACTIVITY_DETAIL_CHARS = 180
 
@@ -459,7 +458,6 @@ class GenerateRagResponseUseCase(
             )
         }
 
-    @Suppress("LongMethod")
     private suspend fun FlowCollector<RagStreamEvent>.emitAnswer(
         query: String,
         enriched: String,
@@ -467,23 +465,9 @@ class GenerateRagResponseUseCase(
         turnStrings: AssistantStrings,
         queryPolicy: RagQueryPolicy,
     ) {
-        val dateRange = RagDateRangeIntent.resolve(query, today)
-        val patientScope = resolvePatientScope(query, dateRange)
-        val scopedPatient = patientScope.name
-        val recordQuestion =
-            RecordQuestionIntent.isRecordQuestion(
-                query,
-                scopedPatient,
-                dateRange,
-                patientNameMentioned = patientScope.nameMentioned,
-            )
-        val results =
-            restrictResults(
-                retrieve(query, enriched, dateRange),
-                scopedPatient,
-                dateRange,
-                patientScope.requiresFilter,
-            )
+        val intent = classifyQuery(query, history)
+        val results = retrieveRelevantResults(query, enriched, intent)
+        val scopedPatient = intent.patientScope.name
         // Dosage guardrail: a how-much-drug question answered without any
         // medication record in context must be refused deterministically -
         // a small model with no grounding will hallucinate a dose. Checked
@@ -493,238 +477,224 @@ class GenerateRagResponseUseCase(
             emit(RagStreamEvent.Chunk(turnStrings.dosageRefusal))
             return
         }
-        val deterministicHandled =
-            (recordQuestion && emitCurrentGestationAnswer(query, scopedPatient)) ||
-                emitDeterministicAnswer(query, results, scopedPatient, dateRange, turnStrings)
-        if (deterministicHandled) {
+        if (
+            emitDeterministicAnswer(
+                query = query,
+                results = results,
+                intent = intent,
+                turnStrings = turnStrings,
+            )
+        ) {
             return
         }
 
-        val deterministicSummary = analysisContextBuilder?.build(query, today)
-        val recentConversation = formatHistory(history)
-        val chunks = results.map(::formatChunk)
-        val reservedTokens =
-            estimateTokens(recentConversation) + estimateTokens(deterministicSummary.orEmpty())
-        val selectedIndices =
-            selectWithinBudget(
-                chunks,
-                maxContextTokens = queryPolicy.maxContextTokens ?: config.maxContextTokens,
-                reservedTokens = reservedTokens,
+        val plan =
+            prepareModelAnswer(
+                ModelAnswerInput(
+                    query = query,
+                    results = results,
+                    intent = intent,
+                    history = history,
+                    turnStrings = turnStrings,
+                    queryPolicy = queryPolicy,
+                ),
             )
-        val historyRelevant = hasRelevantHistory(query, recentConversation)
-        val grounded = hasGrounding(query, selectedIndices, results, deterministicSummary, dateRange)
-        val useTools = shouldUseAnalysisTools(query, toolCallingEngine, toolRegistry)
-        val effectiveAllowGeneralQuestions = !recordQuestion && (queryPolicy.allowGeneralQuestions || useTools)
-        val effectiveGrounding = grounded || (recordQuestion && useTools)
-        val fallbackPolicy = queryPolicy.copy(allowGeneralQuestions = effectiveAllowGeneralQuestions)
-        if (
-            shouldUseHonestFallback(
-                query = query,
-                recordQuestion = recordQuestion,
-                dateRange = dateRange,
-                historyRelevant = historyRelevant,
-                policy = fallbackPolicy,
-                grounded = effectiveGrounding,
-            )
-        ) {
+        if (plan.useFallback) {
             emit(RagStreamEvent.Chunk(turnStrings.noResultsFallback))
             return
         }
-        val selected = selectedIndices.map(chunks::get)
-        streamAnswer(
-            StreamAnswerRequest(
-                context = buildContext(selected, query, recentConversation, deterministicSummary),
-                turnStrings = turnStrings,
-                selected = selected,
-                contextResults = selectedIndices.map(results::get),
-                usedDeterministicSummary = deterministicSummary != null,
-                allowGeneralQuestions = effectiveAllowGeneralQuestions,
-                useTools = useTools,
-            ),
+        if (plan.request != null) {
+            answerStreamCoordinator.stream(this, plan.request)
+        }
+    }
+
+    private fun prepareModelAnswer(input: ModelAnswerInput): ModelAnswerPlan {
+        val context = buildAnswerContext(input)
+        val intent = input.intent
+        val requiresGrounding = intent.recordQuestion || intent.analysisQuery
+        val grounded = context.grounded || context.historyGrounding
+        val canAttemptToolGrounding = intent.analysisQuery && context.useTools
+        // A cloud policy permits general knowledge, not unsupported patient
+        // facts. Tool availability is only a possible route to grounding; the
+        // coordinator must prove a successful result after the model calls it.
+        val fallbackPolicy =
+            input.queryPolicy.copy(
+                allowGeneralQuestions = input.queryPolicy.allowGeneralQuestions && !requiresGrounding,
+            )
+        val useFallback =
+            shouldUseHonestFallback(
+                query = input.query,
+                recordQuestion = intent.recordQuestion,
+                analysisQuery = intent.analysisQuery,
+                dateRange = intent.dateRange,
+                historyRelevant = hasRelevantHistory(input.query, context.recentConversation),
+                policy = fallbackPolicy,
+                grounded = grounded,
+                canAttemptToolGrounding = canAttemptToolGrounding,
+            )
+        if (useFallback) return ModelAnswerPlan(request = null, useFallback = true)
+
+        return ModelAnswerPlan(
+            request =
+                RagStreamRequest(
+                    context =
+                        buildContext(
+                            context.selected,
+                            input.query,
+                            context.recentConversation,
+                            context.deterministicSummary,
+                        ),
+                    turnStrings = input.turnStrings,
+                    selected = context.selected,
+                    contextResults = context.contextResults,
+                    usedDeterministicSummary = context.deterministicSummary != null,
+                    allowGeneralQuestions = input.queryPolicy.allowGeneralQuestions || context.useTools,
+                    useTools = context.useTools,
+                    requiresGrounding = requiresGrounding,
+                    grounded = grounded,
+                ),
+            useFallback = false,
         )
     }
+
+    private fun buildAnswerContext(input: ModelAnswerInput): AnswerContext {
+        val deterministicSummary = analysisContextBuilder?.build(input.query, today)
+        val recentConversation = formatHistory(input.history)
+        val historyGrounding =
+            canUseHistoryAsGrounding(
+                query = input.query,
+                recordQuestion = input.intent.recordQuestion,
+                analysisQuery = input.intent.analysisQuery,
+                dateRange = input.intent.dateRange,
+                historyRelevant = hasRelevantHistory(input.query, recentConversation),
+            )
+        val chunks = input.results.map(::formatChunk)
+        val selectedIndices =
+            selectWithinBudget(
+                chunks,
+                maxContextTokens = input.queryPolicy.maxContextTokens ?: config.maxContextTokens,
+                reservedTokens =
+                    estimateTokens(recentConversation) + estimateTokens(deterministicSummary.orEmpty()),
+            )
+        return AnswerContext(
+            deterministicSummary = deterministicSummary,
+            recentConversation = recentConversation,
+            selected = selectedIndices.map(chunks::get),
+            contextResults = selectedIndices.map(input.results::get),
+            grounded =
+                hasGrounding(
+                    input.query,
+                    selectedIndices,
+                    input.results,
+                    deterministicSummary,
+                    input.intent.dateRange,
+                ),
+            historyGrounding = historyGrounding,
+            useTools = shouldUseAnalysisTools(input.query, toolCallingEngine, toolRegistry),
+        )
+    }
+
+    private fun classifyQuery(
+        query: String,
+        history: List<RagHistoryEntry>,
+    ): AnswerIntent {
+        val dateRange = RagDateRangeIntent.resolve(query, today)
+        val patientScope = resolvePatientScope(query, dateRange, history)
+        val recordQuestion =
+            RecordQuestionIntent.isRecordQuestion(
+                query = query,
+                scopedPatientName = patientScope.name,
+                dateRange = dateRange,
+                patientNameMentioned = patientScope.nameMentioned,
+            )
+        return AnswerIntent(
+            dateRange = dateRange,
+            patientScope = patientScope,
+            recordQuestion = recordQuestion,
+            analysisQuery = AnalysisIntents.isAnalysisQuery(query),
+        )
+    }
+
+    private fun retrieveRelevantResults(
+        query: String,
+        enriched: String,
+        intent: AnswerIntent,
+    ): List<SearchResult> {
+        if (!intent.recordQuestion && !intent.analysisQuery) {
+            // Do not leak incidental patient rows into a general cloud answer
+            // just because a word such as "colic" or "vaccine" matches the index.
+            return emptyList()
+        }
+        // A short follow-up such as "How old is she?" contains no searchable
+        // patient token. The classifier may have resolved the pronoun against
+        // the latest conversation turn; carry that resolved name into both
+        // retrieval legs so the database, rather than the model, remains the
+        // source of the answer.
+        val scopedQuery = appendResolvedPatientScope(query, intent.patientScope.name)
+        val scopedEnriched = appendResolvedPatientScope(enriched, intent.patientScope.name)
+        return restrictResults(
+            retrieve(scopedQuery, scopedEnriched, intent.dateRange),
+            intent.patientScope.name,
+            intent.dateRange,
+            intent.patientScope.requiresFilter,
+            intent.patientScope.nameMentioned,
+        )
+    }
+
+    private fun appendResolvedPatientScope(
+        query: String,
+        patientName: String?,
+    ): String =
+        if (patientName != null && RecordQuestionIntent.hasIndividualPatientReference(query)) {
+            "$query $patientName"
+        } else {
+            query
+        }
 
     /** Handles answers that are safer as direct projections of stored data. */
     private suspend fun FlowCollector<RagStreamEvent>.emitDeterministicAnswer(
         query: String,
         results: List<SearchResult>,
-        scopedPatient: String?,
-        dateRange: RagDateRange?,
+        intent: AnswerIntent,
         turnStrings: AssistantStrings,
     ): Boolean {
+        if (
+            intent.recordQuestion &&
+            emitCurrentGestationAnswer(
+                query = query,
+                scopedPatient = intent.patientScope.name,
+                patientNameMentioned = intent.patientScope.nameMentioned,
+            )
+        ) {
+            return true
+        }
         // "When was the last <type> visit?" is answered from the retrieved
         // record dates so a model cannot drift to a plausible but false date.
-        if (emitLatestRecordAnswer(query, results, scopedPatient)) return true
-        return RecentActivityIntent.matches(query, dateRange) &&
-            emitRecentActivityAnswer(results, dateRange, turnStrings)
+        if (emitLatestRecordAnswer(query, results, intent.patientScope.name)) return true
+        return RecentActivityIntent.matches(query, intent.dateRange) &&
+            emitRecentActivityAnswer(results, intent.dateRange, turnStrings)
     }
 
     /** Emits live pregnancy facts before any model can recalculate or invent them. */
     private suspend fun FlowCollector<RagStreamEvent>.emitCurrentGestationAnswer(
         query: String,
         scopedPatient: String?,
+        patientNameMentioned: Boolean,
     ): Boolean {
-        val facts = analysisContextBuilder?.gestationFacts(query, today) ?: return false
-        emitGestationAnswer(query, facts, scopedPatient)
-        return true
-    }
-
-    /**
-     * Streams the model answer for [context], then applies citation
-     * enforcement and emits the cited-sources event. A mid-stream failure
-     * (anything but user cancellation) becomes an
-     * [RagStreamEvent.Interrupted] marker carrying the partial text instead
-     * of tearing down the whole turn.
-     */
-    @Suppress("CyclomaticComplexMethod")
-    private suspend fun FlowCollector<RagStreamEvent>.streamAnswer(request: StreamAnswerRequest) {
-        // Streaming emits cumulative snapshots; sanitize() is idempotent, so
-        // re-sanitizing the growing text each step is safe and downstream
-        // consumers replace their buffer with each emission.
-        var lastEmitted = ""
-        var toolSources = emptyList<SearchResult>()
-        try {
-            val answer = streamModelAnswer(request) { text -> lastEmitted = text }
-            if (answer.fallbackToPlainText) {
-                lastEmitted = streamPlainText(request) { text -> lastEmitted = text }
-            } else {
-                lastEmitted = answer.text
-                toolSources = answer.sources
-            }
-        } catch (ce: CancellationException) {
-            throw ce
-        } catch (t: Throwable) {
-            // Mid-stream failure (engine error, not user cancellation):
-            // surface a typed marker carrying the partial text so the UI
-            // can offer a retry instead of showing a dead bubble.
-            emit(RagStreamEvent.Interrupted(partialText = lastEmitted, error = t.message))
-            return
+        // An unresolved or ambiguous explicit name must never be converted
+        // into a deterministic "no pregnancy" answer for another horse (or
+        // for the whole herd). Leave it to the normal grounding gate, which
+        // will refuse the unsupported lookup honestly.
+        val builder = analysisContextBuilder
+        if ((patientNameMentioned && scopedPatient == null) || builder == null) return false
+        val breedingFacts = builder.breedingFacts(query, today)
+        if (!breedingFacts.isNullOrEmpty()) {
+            emitBreedingAnswer(query, breedingFacts)
+            return true
         }
-        // Snapshot BEFORE enforcement: appended citation headers below exist
-        // for the Sources channel only - the bubble must never show them
-        // (nor their bracket-stripped residue).
-        val streamedText = lastEmitted
-        // Citation enforcement: the system prompt mandates citing bracketed
-        // headers, but the model skips them often enough that the guarantee
-        // is enforced here - when records were used and the reply carries
-        // none, append the ACTUAL retrieved headers (never invented ones).
-        // The trigger is MAPPED citations, not bare "[": a fabricated or
-        // stale header the model invented ([Giraffe #1], a deleted id)
-        // satisfies the eye but maps to no source card, so the guarantee
-        // needs the real headers appended anyway.
-        val allContextResults = (request.contextResults + toolSources).distinctBy { it.recordType to it.recordId }
-        var mappedCitations = citedResults(lastEmitted, allContextResults)
-        if (mappedCitations.isEmpty()) {
-            // Prefer tool-backed headers because they identify the authoritative
-            // database rows used by an analysis. Fall back to retrieval headers
-            // for ordinary RAG answers; cap both paths to avoid citation noise.
-            val candidateSources =
-                if (toolSources.isNotEmpty()) {
-                    toolSources.map(::sourceHeader)
-                } else {
-                    request.selected.mapNotNull(::sourceHeader)
-                }
-            val sources =
-                candidateSources.distinct().take(MAX_ENFORCED_SOURCES)
-            if (sources.isNotEmpty()) {
-                lastEmitted =
-                    listOf(lastEmitted.takeIf(String::isNotBlank), sources.joinToString("\n"))
-                        .filterNotNull()
-                        .joinToString("\n\n")
-                mappedCitations = citedResults(lastEmitted, allContextResults)
-                emit(RagStreamEvent.Chunk(lastEmitted))
-            }
-        }
-        // Summary-only answers: when retrieval came back empty but the
-        // deterministic summary carried the facts, there are no record
-        // headers to append - and an uncited confident answer is exactly
-        // what the citation guarantee forbids. The system prompt tells the
-        // model to cite the summary as [Summary]; when it skips that too,
-        // the tag is enforced here. The guard keys on the LITERAL [Summary]
-        // tag, not bare "[": a fabricated bracket the model invented
-        // ([Giraffe #1]) satisfies the eye but maps to no source card, so it
-        // must not block the append either.
-        if (request.usedDeterministicSummary && mappedCitations.isEmpty() && "[Summary]" !in lastEmitted) {
-            lastEmitted =
-                listOf(lastEmitted.takeIf(String::isNotBlank), "[Summary]")
-                    .filterNotNull()
-                    .joinToString("\n\n")
-            emit(RagStreamEvent.Chunk(lastEmitted))
-        }
-        citedResults(lastEmitted, allContextResults).takeIf { it.isNotEmpty() }?.let {
-            emit(RagStreamEvent.Sources(it))
-        }
-        // Display split: citations are parsed from the bracketed text FIRST
-        // (above), then the bubble is re-emitted from the PRE-enforcement
-        // snapshot with every citation token stripped - mapped, fabricated,
-        // and prompt-placeholder brackets alike. The references live on as
-        // Sources chips; the prose carries none of them.
-        val displayText = stripCitationTokens(streamedText)
-        if (displayText != lastEmitted) {
-            lastEmitted = displayText
-            emit(RagStreamEvent.Chunk(lastEmitted))
-        }
-    }
-
-    /** Streams a normal text-only model request and returns its final snapshot. */
-    private suspend fun FlowCollector<RagStreamEvent>.streamPlainText(
-        request: StreamAnswerRequest,
-        onText: (String) -> Unit = {},
-    ): String {
-        var lastEmitted = ""
-        llmEngine
-            .generateStreaming(
-                request.context,
-                AssistantPrompts.systemPrompt(
-                    request.turnStrings,
-                    allowGeneralQuestions = request.allowGeneralQuestions,
-                ),
-            ).collect { text ->
-                lastEmitted = sanitize(text)
-                onText(lastEmitted)
-                emit(RagStreamEvent.Chunk(lastEmitted))
-            }
-        return lastEmitted
-    }
-
-    /** Streams either a normal answer or a bounded native-tool answer. */
-    private suspend fun FlowCollector<RagStreamEvent>.streamModelAnswer(
-        request: StreamAnswerRequest,
-        onText: (String) -> Unit = {},
-    ): RagToolAnswer {
-        val toolAnswer =
-            if (request.useTools) {
-                val engine = toolCallingEngine
-                val registry = toolRegistry
-                if (engine == null || registry == null) {
-                    null
-                } else {
-                    val systemPrompt =
-                        AssistantPrompts.systemPrompt(
-                            request.turnStrings,
-                            allowGeneralQuestions = request.allowGeneralQuestions,
-                        ) +
-                            "\nUse the read-only analysis tools when they improve accuracy. " +
-                            "Tool results are authoritative for this app's data. Never invent a source header; " +
-                            "when a tool result includes a source field, cite that exact [TYPE #ID] value."
-                    val messages =
-                        mutableListOf(
-                            RagChatMessage(RagChatRole.SYSTEM, content = systemPrompt),
-                            RagChatMessage(RagChatRole.USER, content = request.context),
-                        )
-                    RagToolCallingCoordinator(
-                        engine = engine,
-                        registry = registry,
-                        turnStrings = request.turnStrings,
-                        sanitize = ::sanitize,
-                        onText = onText,
-                        emitChunk = { chunk -> emit(RagStreamEvent.Chunk(chunk)) },
-                    ).run(messages)
-                }
-            } else {
-                null
-            }
-        return toolAnswer ?: RagToolAnswer(streamPlainText(request, onText), emptyList())
+        val facts = builder.gestationFacts(query, today)
+        if (facts != null) emitGestationAnswer(query, facts, scopedPatient)
+        return facts != null
     }
 
     /**
@@ -776,16 +746,21 @@ class GenerateRagResponseUseCase(
         scopedPatient: String?,
         dateRange: RagDateRange?,
         requiresPatientFilter: Boolean,
+        patientNameMentioned: Boolean,
     ): List<SearchResult> =
         if (requiresPatientFilter && scopedPatient == null) {
-            // Test/alternate seams may not have an IPatientRepository. A
-            // pronoun can still be safely resolved when retrieval itself has
-            // returned records for exactly one patient; never allow a mixed
-            // result set to cross patient boundaries without an explicit
-            // scope.
-            results
-                .takeIf { rows -> rows.map(SearchResult::patientId).distinct().size <= 1 }
-                .orEmpty()
+            if (patientNameMentioned) {
+                emptyList()
+            } else {
+                // Test/alternate seams may not have an IPatientRepository. A
+                // pronoun can still be safely resolved when retrieval itself has
+                // returned records for exactly one patient; never allow a mixed
+                // result set to cross patient boundaries without an explicit
+                // scope.
+                results
+                    .takeIf { rows -> rows.map(SearchResult::patientId).distinct().size <= 1 }
+                    .orEmpty()
+            }
         } else {
             results.filter { result ->
                 val patientMatches = scopedPatient == null || result.patientName.lowercase() == scopedPatient
@@ -798,35 +773,107 @@ class GenerateRagResponseUseCase(
     private fun resolvePatientScope(
         query: String,
         dateRange: RagDateRange?,
+        history: List<RagHistoryEntry>,
     ): PatientScope {
         val activeNames = patientRepository?.patientNames().orEmpty()
-        val tokens = patientScopeTokens(query)
-        val matchedNames =
-            activeNames.filter { name ->
-                val lowered = name.lowercase()
-                tokens.any { token -> lowered.startsWith(token) }
-            }
+        val matchedNames = matchingPatientNames(activeNames, query)
         val hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query)
-        val hasLikelyName =
-            patientRepository != null &&
-                (
-                    !RecordQuestionIntent.isEducationalQuestion(query) ||
-                        RecordQuestionIntent.isRecordQuestion(query, null, dateRange)
-                ) &&
-                RecordQuestionIntent.hasLikelyNamedPatientReference(query)
-        val name =
-            when {
-                matchedNames.size == 1 -> matchedNames.single().lowercase()
-                matchedNames.isEmpty() && hasIndividualReference && activeNames.size == 1 ->
-                    activeNames.single().lowercase()
-                else -> null
-            }
+        val hasLikelyName = hasLikelyPatientName(query, dateRange)
+        val historyPatientName = resolveHistoryPatientName(query, activeNames, matchedNames, hasLikelyName, history)
+        val name = selectPatientName(matchedNames, historyPatientName, hasIndividualReference, activeNames)
         return PatientScope(
             name = name,
-            requiresFilter = matchedNames.isNotEmpty() || hasIndividualReference || hasLikelyName,
+            requiresFilter =
+                requiresPatientFilter(
+                    matchedNames,
+                    hasIndividualReference,
+                    hasLikelyName,
+                    historyPatientName,
+                ),
             nameMentioned = matchedNames.isNotEmpty() || hasLikelyName,
         )
     }
+
+    private fun matchingPatientNames(
+        activeNames: List<String>,
+        query: String,
+    ): List<String> {
+        val tokens = patientScopeTokens(query)
+        return activeNames.filter { name ->
+            val nameTokens = patientScopeTokens(name)
+            tokens.any { token -> token in nameTokens }
+        }
+    }
+
+    private fun hasLikelyPatientName(
+        query: String,
+        dateRange: RagDateRange?,
+    ): Boolean {
+        if (patientRepository == null) return false
+        val isEducational = RecordQuestionIntent.isEducationalQuestion(query)
+        val isRecordQuestion = RecordQuestionIntent.isRecordQuestion(query, null, dateRange)
+        return (!isEducational || isRecordQuestion) && RecordQuestionIntent.hasLikelyNamedPatientReference(query)
+    }
+
+    private fun resolveHistoryPatientName(
+        query: String,
+        activeNames: List<String>,
+        matchedNames: List<String>,
+        hasLikelyName: Boolean,
+        history: List<RagHistoryEntry>,
+    ): String? =
+        if (matchedNames.isEmpty() && !hasLikelyName && RecordQuestionIntent.hasIndividualPatientReference(query)) {
+            resolvePatientFromHistory(activeNames, history)
+        } else {
+            null
+        }
+
+    private fun selectPatientName(
+        matchedNames: List<String>,
+        historyPatientName: String?,
+        hasIndividualReference: Boolean,
+        activeNames: List<String>,
+    ): String? =
+        when {
+            matchedNames.size == 1 -> matchedNames.single().lowercase()
+            historyPatientName != null -> historyPatientName.lowercase()
+            matchedNames.isEmpty() && hasIndividualReference && activeNames.size == 1 ->
+                activeNames.single().lowercase()
+            else -> null
+        }
+
+    private fun requiresPatientFilter(
+        matchedNames: List<String>,
+        hasIndividualReference: Boolean,
+        hasLikelyName: Boolean,
+        historyPatientName: String?,
+    ): Boolean = matchedNames.isNotEmpty() || hasIndividualReference || hasLikelyName || historyPatientName != null
+
+    /**
+     * Resolves a singular pronoun only from a patient name that appears in the
+     * most recent unambiguous conversation turn. A turn mentioning multiple
+     * active patients deliberately stays unresolved rather than silently
+     * selecting one.
+     */
+    private fun resolvePatientFromHistory(
+        activeNames: List<String>,
+        history: List<RagHistoryEntry>,
+    ): String? {
+        for (entry in history.asReversed()) {
+            // Resolve from the user's prior wording only. An assistant answer
+            // is useful context for generation, but it is not authoritative
+            // enough to establish which patient a factual follow-up targets.
+            val matches = activeNames.filter { entry.question.containsPatientName(it) }
+            if (matches.isNotEmpty()) return matches.singleOrNull()
+        }
+        return null
+    }
+
+    private fun String.containsPatientName(patientName: String): Boolean =
+        Regex(
+            "(?<![\\p{L}\\p{N}_])${Regex.escape(patientName)}(?![\\p{L}\\p{N}_])",
+            RegexOption.IGNORE_CASE,
+        ).containsMatchIn(this)
 
     private fun patientScopeTokens(query: String): Set<String> =
         query
@@ -966,41 +1013,6 @@ class GenerateRagResponseUseCase(
     private fun estimateTokens(text: String): Int = ceil(text.length / CHARS_PER_TOKEN).toInt()
 
     /**
-     * Extracts the citable header ("[TYPE #id] Name") from a formatted chunk,
-     * or null when the chunk has no header line. Used by the citation
-     * enforcement fallback - only headers of chunks actually retrieved are
-     * ever appended.
-     */
-    private fun sourceHeader(chunk: String): String? =
-        chunk
-            .lineSequence()
-            .firstOrNull()
-            ?.substringBefore(" |")
-            ?.takeIf { it.startsWith("[") }
-
-    /** Formats a tool-backed record as the same citation token used by RAG chunks. */
-    private fun sourceHeader(result: SearchResult): String = "[${result.recordType} #${result.recordId}]"
-
-    /**
-     * Maps the `[TYPE #id]` citations actually present in [answerText] back
-     * to their retrieved records, in citation order, deduplicated. Only
-     * records that were selected into the context count - a citation naming
-     * an unselected (or invented) record yields no source card.
-     */
-    private fun citedResults(
-        answerText: String,
-        contextResults: List<SearchResult>,
-    ): List<SearchResult> {
-        if (contextResults.isEmpty()) return emptyList()
-        val byKey = contextResults.associateBy { "${it.recordType}#${it.recordId}" }
-        return citationRegex
-            .findAll(answerText)
-            .mapNotNull { match -> byKey["${match.groupValues[1]}#${match.groupValues[2]}"] }
-            .distinct()
-            .toList()
-    }
-
-    /**
      * True when [result] is a medication-bearing record (prescription,
      * controlled substance, or repro medication) - the only grounding that
      * unlocks dosage questions past the guardrail.
@@ -1047,40 +1059,4 @@ class GenerateRagResponseUseCase(
         prompt.append("Question: ").append(query)
         return prompt.toString()
     }
-
-    /**
-     * Removes citation tokens from answer text AFTER the Sources event has
-     * been derived from them: the bubble renders prose only, while the
-     * bracketed references live on as source-card chips. Mapped and
-     * fabricated brackets are stripped alike, and the whitespace the removal
-     * leaves behind is repaired (doubled spaces, space before punctuation,
-     * orphaned blank lines).
-     */
-    private val stripCitationTokens: (String) -> String =
-        { text ->
-            text
-                .replace(citationRegex, "")
-                .replace(literalTagRegex, "")
-                .replace(multiSpaceRegex, " ")
-                .replace(spacedRepeatedPunctuationRegex, "$1")
-                .replace(spaceBeforePunctuationRegex, "$1")
-                .replace(lineLeadingSpaceRegex, "")
-                .replace(blankLineRunRegex, "\n\n")
-                .trim()
-        }
-
-    /**
-     * Strips markdown the model was told not to produce but sometimes does:
-     * bold markers (** and __), backticks, and [text](url) links reduced to
-     * their text. Applied to every emitted chunk before it reaches the UI.
-     */
-    private fun sanitize(text: String): String =
-        text
-            .replace(scaffoldLineRegex, "")
-            .replace(linkRegex, "$1")
-            .replace("**", "")
-            .replace("__", "")
-            .replace("`", "")
-            .replace(Regex("\\n{3,}"), "\n\n")
-            .trim()
 }

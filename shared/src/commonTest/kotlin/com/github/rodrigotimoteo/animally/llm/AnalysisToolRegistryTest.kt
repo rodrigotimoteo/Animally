@@ -172,4 +172,18 @@ class AnalysisToolRegistryTest {
             assertTrue(unknown.isError)
             assertTrue(unknown.content.contains("Unknown analysis tool"))
         }
+
+    @Test
+    fun `unique patient prefixes return a safe error instead of selecting another patient`() =
+        runTest {
+            repos.patients.patients = listOf(testPatient(1, "Annabelle"))
+
+            val result =
+                registry.execute(
+                    RagToolCall("call-prefix", AnalysisToolNames.WEIGHT_SUMMARY, """{"patient_name":"Ann"}"""),
+                )
+
+            assertTrue(result.isError)
+            assertTrue(result.content.contains("No active patient matches Ann"))
+        }
 }

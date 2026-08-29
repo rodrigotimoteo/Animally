@@ -6,6 +6,40 @@ package com.github.rodrigotimoteo.animally.llm
  * flexibility as an excuse to fill a missing record with a guess.
  */
 internal object RecordQuestionIntent {
+    private data class RecordQuestionSignals(
+        val scopedPatientName: String?,
+        val patientNameMentioned: Boolean,
+        val hasPatientReference: Boolean,
+        val hasRecordType: Boolean,
+        val hasRecordAction: Boolean,
+        val hasNamedRecordCue: Boolean,
+        val hasPatientSubjectCue: Boolean,
+        val hasDirectReference: Boolean,
+        val hasRecentActivity: Boolean,
+        val hasCorpusReference: Boolean,
+    ) {
+        val hasDirectScope: Boolean
+            get() =
+                scopedPatientName != null ||
+                    patientNameMentioned ||
+                    hasPatientReference ||
+                    hasDirectReference ||
+                    hasRecentActivity
+
+        val hasTypedScope: Boolean
+            get() =
+                hasRecordType &&
+                    (
+                        hasPatientReference ||
+                            hasRecordAction ||
+                            hasNamedRecordCue ||
+                            hasPatientSubjectCue ||
+                            hasCorpusReference
+                    ) ||
+                    hasNamedRecordCue &&
+                    hasCorpusReference
+    }
+
     private val directRecordReferenceRegex =
         Regex(
             "\\b(my|our|your|active|current)\\s+(records?|patients?|horses?|history|timeline|data|dataset)\\b|" +
@@ -57,10 +91,45 @@ internal object RecordQuestionIntent {
     private val educationalQuestionRegex =
         Regex(
             "^(?:what\\s+(?:is|are)|define|(?:can|could)\\s+you\\s+explain|explain|" +
-                "o\\s+que\\s+(?:é|e|são|sao)|(?:podes?|poderia)\\s+explicar|explica|explique)" +
+                "(?:can|could)\\s+you\\s+tell\\s+me\\s+about|tell\\s+me\\s+about|" +
+                "how\\s+(?:does|do)\\s+.+\\b(?:work|affect|develop|happen)\\b|" +
+                "what\\s+causes|why\\s+(?:does|do|is|are)|" +
+                "o\\s+que\\s+(?:é|e|são|sao)|(?:podes?|poderia)\\s+explicar|" +
+                "(?:podes?|poderia)\\s+falar[- ]me\\s+sobre|fala[- ]me\\s+sobre|" +
+                "como\\s+(?:funciona|funcionam)|o\\s+que\\s+causa|" +
+                "porque\\s+(?:é|e)|explica|explique)" +
                 "(?=$|[^\\p{L}\\p{N}_])",
             RegexOption.IGNORE_CASE,
         )
+    private val generalKnowledgeQuestionRegex =
+        Regex(
+            "^(?:who\\s+(?:wrote|invented|discovered|directed|painted|founded|created|composed|" +
+                "designed|played)|where\\s+(?:is|are|was|were)|when\\s+did\\s+.+\\b(?:happen|occur|begin|end)\\b|" +
+                "how\\s+do\\s+i\\s+(?:care\\s+for|feed|look\\s+after|help|manage|train)\\s+" +
+                "(?:a|an|the)?\\s*(?:horse|horses|mare|mares|foal|foals|cavalo|cavalos|egua|égua|éguas|" +
+                "eguas)|what\\s+should\\s+i\\s+(?:feed|know|do)\\s+(?:for|with)\\s+" +
+                "(?:a|an|the)?\\s*(?:horse|horses|mare|mares|foal|foals|cavalo|cavalos|egua|égua|éguas|eguas)|" +
+                "can\\s+(?:a|an|the)?\\s*(?:horse|horses|mare|mares|foal|foals|cavalo|cavalos|" +
+                "egua|égua|éguas|eguas)\\s+" +
+                "(?:eat|drink|have|be|sleep|run)|como\\s+posso\\s+(?:cuidar|alimentar|ajudar)\\s+" +
+                "(?:um|uma|o|a)?\\s*(?:cavalo|cavalos|égua|éguas|potro|potros))(?=$|[^\\p{L}\\p{N}_])",
+            RegexOption.IGNORE_CASE,
+        )
+    private val recordCorpusReferenceRegex =
+        Regex(
+            "\\b(records?|notes?|entries?|cards?|files?|timeline|dataset|" +
+                "registos?|notas?|entradas?|ficha|linha\\s+do\\s+tempo|" +
+                "aplicação|aplicacao)\\b|" +
+                "\\b(?:my|our|your|patient|horse|mare|clinical|medical)\\s+(?:history|data)\\b|" +
+                "\\b(?:meu|minha|meus|minhas|nosso|nossa|paciente|cavalo|égua|egua|clínico|clinico|" +
+                "histórico|historico)\\s+(?:histórico|historico|dados|data)\\b|" +
+                "\\b(?:history|histórico|historico|data|dados)\\s+(?:of|for|from|in|do|da|dos|das|" +
+                "no|na|nos|nas)\\s+(?:my|our|your|patient|horse|mare|meu|minha|meus|minhas|" +
+                "nosso|nossa|paciente|cavalo|cavalos|égua|éguas|egua|eguas)\\b|" +
+                "\\b[\\p{L}][\\p{L}\\p{N}_-]{1,}['’]s\\s+(?:history|data|histórico|historico)\\b",
+        )
+    private val namedPatientPossessiveRegex =
+        Regex("\\b[\\p{L}][\\p{L}\\p{N}_-]{1,}['’]s\\b")
     private val gestationPopulationReferenceRegex =
         Regex(
             "\\b(which|what|how many|are any|are there|do any)\\s+(?:of\\s+)?" +
@@ -75,6 +144,24 @@ internal object RecordQuestionIntent {
         Regex(
             "\\b(pregnant|pregnancy|pregnancies|gestation|gestations|in\\s+foal|foaling|" +
                 "prenha|prenhe|prenhes|prenhez|gestação|gestacoes|gestações|parição|parições)\\b",
+        )
+    private val patientSubjectRecordCueRegex =
+        Regex(
+            "\\b(?:is|are|was|were|está|esta|estão|estao)\\s+(?:the|a|o)?\\s*" +
+                "(?!she\\b|he\\b|her\\b|his\\b|they\\b|their\\b|ela\\b|ele\\b|dela\\b|dele\\b|" +
+                "currently\\b|current\\b|now\\b|already\\b|still\\b|equine\\b|" +
+                "horse\\b|horses\\b|mare\\b|mares\\b|foal\\b|foals\\b|patient\\b|patients\\b|" +
+                "cavalo\\b|cavalos\\b|égua\\b|éguas\\b|egua\\b|eguas\\b|paciente\\b|pacientes\\b)" +
+                "[\\p{L}][\\p{L}\\p{N}_-]{1,}\\s+" +
+                "(?:pregnant|pregnancy|gestation|in\\s+foal|prenha|prenhe|prenhez|gestação|gestacao)\\b|" +
+                "\\b(?:did|receiv(?:e|ed)|received|teve|recebeu|receberam)\\s+" +
+                "(?:the|a|o)?\\s*" +
+                "(?!she\\b|he\\b|her\\b|his\\b|they\\b|their\\b|ela\\b|ele\\b|dela\\b|dele\\b|" +
+                "currently\\b|current\\b|now\\b|already\\b|still\\b|equine\\b|" +
+                "horse\\b|horses\\b|mare\\b|mares\\b|foal\\b|foals\\b|patient\\b|patients\\b|" +
+                "cavalo\\b|cavalos\\b|égua\\b|éguas\\b|egua\\b|eguas\\b|paciente\\b|pacientes\\b)" +
+                "[\\p{L}][\\p{L}\\p{N}_-]{1,}\\b",
+            RegexOption.IGNORE_CASE,
         )
 
     private val patientNameStopWords =
@@ -122,6 +209,31 @@ internal object RecordQuestionIntent {
             "tell",
             "me",
             "about",
+            "explain",
+            "analyse",
+            "analyze",
+            "compare",
+            "show",
+            "list",
+            "give",
+            "summarize",
+            "summarise",
+            "calculate",
+            "compute",
+            "find",
+            "describe",
+            "faz",
+            "fazer",
+            "analisa",
+            "analise",
+            "compara",
+            "mostra",
+            "lista",
+            "podes",
+            "poderia",
+            "fala",
+            "fala-me",
+            "explique",
             "please",
             "patient",
             "patients",
@@ -243,10 +355,68 @@ internal object RecordQuestionIntent {
             "recentes",
             "registo",
             "registos",
+            "receive",
+            "received",
+            "receives",
+            "care",
+            "feed",
+            "give",
+            "given",
+            "metronidazole",
+            "antibiotic",
+            "antibiotics",
+            "medication",
+            "medications",
+            "medicine",
+            "medicines",
+            "drug",
+            "drugs",
+            "prescription",
+            "prescriptions",
+            "dose",
+            "doses",
+            "dosage",
+            "dosages",
+            "história",
+            "historia",
+            "histórico",
+            "historico",
         )
 
     private val questionStartWords =
-        setOf("what", "when", "which", "who", "how", "why", "where", "qual", "quais", "quantos", "quantas")
+        setOf(
+            "what",
+            "when",
+            "which",
+            "who",
+            "how",
+            "why",
+            "where",
+            "qual",
+            "quais",
+            "quantos",
+            "quantas",
+            "explain",
+            "analyse",
+            "analyze",
+            "compare",
+            "show",
+            "list",
+            "give",
+            "summarize",
+            "summarise",
+            "calculate",
+            "compute",
+            "find",
+            "describe",
+            "faz",
+            "fazer",
+            "analisa",
+            "analise",
+            "compara",
+            "mostra",
+            "lista",
+        )
 
     fun isRecordQuestion(
         query: String,
@@ -258,13 +428,23 @@ internal object RecordQuestionIntent {
         val hasRecordType = RecordTypeIntent.expectedRecordTypes(query).isNotEmpty()
         val hasPatientReference = patientPronounRegex.containsMatchIn(lowered)
         val hasRecordAction = recordActionRegex.containsMatchIn(lowered)
-        return scopedPatientName != null ||
-            patientNameMentioned ||
-            hasPatientReference ||
-            directRecordReferenceRegex.containsMatchIn(lowered) ||
-            (dateRange != null && RecentActivityIntent.matches(query, dateRange)) ||
-            hasRecordType &&
-            (hasPatientReference || hasRecordAction) ||
+        val hasNamedRecordCue = hasNamedPatientRecordCue(query)
+        val hasPatientSubjectCue = hasPatientSubjectRecordCue(query)
+        val signals =
+            RecordQuestionSignals(
+                scopedPatientName = scopedPatientName,
+                patientNameMentioned = patientNameMentioned,
+                hasPatientReference = hasPatientReference,
+                hasRecordType = hasRecordType,
+                hasRecordAction = hasRecordAction,
+                hasNamedRecordCue = hasNamedRecordCue,
+                hasPatientSubjectCue = hasPatientSubjectCue,
+                hasDirectReference = directRecordReferenceRegex.containsMatchIn(lowered),
+                hasRecentActivity = dateRange != null && RecentActivityIntent.matches(query, dateRange),
+                hasCorpusReference = recordCorpusReferenceRegex.containsMatchIn(lowered),
+            )
+        return signals.hasDirectScope ||
+            signals.hasTypedScope ||
             hasGestationPopulationReference(query)
     }
 
@@ -288,9 +468,35 @@ internal object RecordQuestionIntent {
     /** True for definition/explanation prompts whose title case is usually a clinical term, not a patient name. */
     fun isEducationalQuestion(query: String): Boolean = educationalQuestionRegex.containsMatchIn(query.trim())
 
+    /**
+     * True when an educational-looking question is about general knowledge,
+     * rather than an Animally record. A known patient scope still wins in the
+     * caller through [isRecordQuestion]; this helper is for deciding whether
+     * incidental database hits should be kept out of a cloud answer.
+     */
+    fun isGeneralKnowledgeQuestion(query: String): Boolean {
+        if (!isEducationalQuestion(query) && !generalKnowledgeQuestionRegex.containsMatchIn(query.trim())) return false
+        val lowered = query.lowercase()
+        return !patientPronounRegex.containsMatchIn(lowered) &&
+            !directRecordReferenceRegex.containsMatchIn(lowered) &&
+            !recordCorpusReferenceRegex.containsMatchIn(lowered) &&
+            !hasNamedPatientRecordCue(query) &&
+            !hasGestationPopulationReference(query)
+    }
+
     /** True when title-cased query text likely names a patient not in the active list. */
-    fun hasLikelyNamedPatientReference(query: String): Boolean =
-        query
+    fun hasLikelyNamedPatientReference(query: String): Boolean {
+        if (isGeneralKnowledgeQuestion(query)) return false
+        val lowered = query.lowercase()
+        val hasRecordCue =
+            RecordTypeIntent.expectedRecordTypes(query).isNotEmpty() ||
+                directRecordReferenceRegex.containsMatchIn(lowered) ||
+                patientPronounRegex.containsMatchIn(lowered) ||
+                recordCorpusReferenceRegex.containsMatchIn(lowered) ||
+                hasNamedPatientRecordCue(query) ||
+                patientSubjectRecordCueRegex.containsMatchIn(lowered)
+        if (!hasRecordCue) return false
+        return query
             .split(Regex("\\s+"))
             .mapIndexed { index, token -> index to cleanNameCandidate(token) }
             .any { (index, token) ->
@@ -299,7 +505,35 @@ internal object RecordQuestionIntent {
                     token.first().isUpperCase() &&
                     lowered !in patientNameStopWords &&
                     (index > 0 || lowered !in questionStartWords)
-            }
+            } ||
+            patientSubjectRecordCueRegex.containsMatchIn(lowered)
+    }
+
+    /** Title-cased patient-like text paired with an explicit record signal. */
+    private fun hasNamedPatientRecordCue(query: String): Boolean {
+        if (isEducationalQuestion(query) && !namedPatientPossessiveRegex.containsMatchIn(query)) return false
+        val lowered = query.lowercase()
+        val hasTitleCasedCandidate =
+            query
+                .split(Regex("\\s+"))
+                .mapIndexed { index, token -> index to cleanNameCandidate(token) }
+                .any { (index, token) ->
+                    val candidate = token.lowercase()
+                    token.length >= 2 &&
+                        token.first().isUpperCase() &&
+                        candidate !in patientNameStopWords &&
+                        (index > 0 || candidate !in questionStartWords)
+                }
+        if (!hasTitleCasedCandidate) return false
+        return namedPatientPossessiveRegex.containsMatchIn(query) ||
+            RecordTypeIntent.expectedRecordTypes(query).isNotEmpty() ||
+            recordActionRegex.containsMatchIn(lowered)
+    }
+
+    private fun hasPatientSubjectRecordCue(query: String): Boolean =
+        patientSubjectRecordCueRegex.containsMatchIn(
+            query.lowercase(),
+        )
 
     private fun cleanNameCandidate(token: String): String =
         token

@@ -1,14 +1,19 @@
 package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
+import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
+import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.CalculateGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GestationProgress
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
+import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
 import kotlinx.datetime.LocalDate
@@ -24,6 +29,14 @@ internal data class GestationFact(
     /** Elapsed days from the recorded breeding date to the turn's reference date. */
     val elapsedDays: Int,
     val isActive: Boolean,
+)
+
+/** Database-backed breeding-card fact projected for a single assistant turn. */
+internal data class BreedingFact(
+    val patient: Patient,
+    val event: ReproductionEvent,
+    /** Elapsed days from the recorded breeding-card date to the turn date. */
+    val elapsedDays: Int,
 )
 
 /**
@@ -46,8 +59,29 @@ class AnalysisContextBuilder(
     private val dewormingRepository: IDewormingRepository,
     private val farrierVisitRepository: IFarrierVisitRepository,
     private val gestationRepository: IGestationRepository,
+    private val reproductionRepository: IReproductionRepository? = null,
     private val calculateGestationUseCase: CalculateGestationUseCase = CalculateGestationUseCase(),
 ) {
+    private data class AnalysisWeightRow(
+        val patient: Patient,
+        val weight: Weight,
+    )
+
+    private data class CarePatientSummary(
+        val patient: Patient,
+        val vaccinations: List<Vaccination>,
+        val dewormings: List<Deworming>,
+        val farrierVisits: List<FarrierVisit>,
+    ) {
+        val hasRecords: Boolean
+            get() = vaccinations.isNotEmpty() || dewormings.isNotEmpty() || farrierVisits.isNotEmpty()
+    }
+
+    private data class GestationSummaryRow(
+        val patient: Patient,
+        val gestation: Gestation,
+    )
+
     /**
      * Builds the deterministic summary for [query], or null when the query
      * carries no analysis intent. [today] anchors overdue filtering and
@@ -62,6 +96,7 @@ class AnalysisContextBuilder(
         val patients = patientRepository.getPatientList()
         val matchedPatients = patientNameMatches(patients, query)
         val scoped = matchedPatients.singleOrNull()
+        val dateRange = RagDateRangeIntent.resolve(query, today)
         val hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query)
         val hasLikelyName = RecordQuestionIntent.hasLikelyNamedPatientReference(query)
         val careTargets =
@@ -75,8 +110,8 @@ class AnalysisContextBuilder(
         val blocks =
             buildList {
                 if (AnalysisIntents.wantsCensus(query)) add(censusBlock(patients))
-                if (scoped != null && AnalysisIntents.wantsWeight(query)) weightTrendBlock(scoped)?.let(::add)
-                if (AnalysisIntents.wantsCareCounts(query)) careBlock(careTargets)?.let(::add)
+                if (AnalysisIntents.wantsWeight(query)) weightTrendBlock(careTargets, dateRange)?.let(::add)
+                if (AnalysisIntents.wantsCareCounts(query)) careBlock(careTargets, dateRange)?.let(::add)
                 if (AnalysisIntents.wantsGestation(query)) gestationBlock(careTargets, today)?.let(::add)
                 if (AnalysisIntents.wantsOverdue(query)) overdueBlock(careTargets, today)?.let(::add)
             }
@@ -106,7 +141,6 @@ class AnalysisContextBuilder(
                 hasLikelyName = RecordQuestionIntent.hasLikelyNamedPatientReference(query),
             )
         return careTargets
-            .take(MAX_PATIENTS_SCANNED)
             .flatMap { patient ->
                 gestationRepository.getByPatient(patient.id).map { gestation ->
                     val active = gestation.isActiveGestation()
@@ -128,9 +162,49 @@ class AnalysisContextBuilder(
     }
 
     /**
-     * Patients whose names prefix-match a query token (case-insensitive,
+     * Returns breeding-card facts for timing questions. Reproduction events
+     * are checked before gestation rows because the card is the source of
+     * truth for the actual breeding date; the two records can differ by a
+     * day when a pregnancy was entered or corrected later.
+     */
+    internal fun breedingFacts(
+        query: String,
+        today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
+    ): List<BreedingFact>? {
+        if (!AnalysisIntents.wantsBreedingTiming(query)) return null
+        val repository = reproductionRepository ?: return emptyList()
+        val patients = patientRepository.getPatientList()
+        val matchedPatients = patientNameMatches(patients, query)
+        val scoped = matchedPatients.singleOrNull()
+        val careTargets =
+            resolveCareTargets(
+                patients = patients,
+                matchedPatients = matchedPatients,
+                scoped = scoped,
+                hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query),
+                hasLikelyName = RecordQuestionIntent.hasLikelyNamedPatientReference(query),
+            )
+        return careTargets
+            .flatMap { patient ->
+                repository
+                    .getByPatient(patient.id)
+                    .filter { event -> event.isActive && event.isBreedingEvent() }
+                    .map { event ->
+                        BreedingFact(
+                            patient = patient,
+                            event = event,
+                            elapsedDays = calculateGestationUseCase(event.date, today).gestationDays,
+                        )
+                    }
+            }.sortedWith(compareByDescending<BreedingFact> { it.event.date }.thenBy { it.patient.name.lowercase() })
+    }
+
+    /**
+     * Patients whose names contain an exact query token (case-insensitive,
      * possessives stripped). The caller treats multiple matches as ambiguous
      * so summaries and retrieval agree on which patient the question is about.
+     * Prefix matching is intentionally avoided: "Ann" must not select
+     * "Annabelle" and expose the wrong patient's measurements.
      */
     private fun patientNameMatches(
         patients: List<Patient>,
@@ -149,7 +223,19 @@ class AnalysisContextBuilder(
                 .toSet()
         if (tokens.isEmpty()) return emptyList()
         return patients
-            .filter { patient -> tokens.any { token -> patient.name.lowercase().startsWith(token) } }
+            .filter { patient ->
+                val nameTokens =
+                    patient.name
+                        .split(Regex("\\s+"))
+                        .map {
+                            it
+                                .trim('?', ',', '.', '!', ':', ';', '\'')
+                                .removeSuffix("'s")
+                                .removeSuffix("’s")
+                                .lowercase()
+                        }.toSet()
+                tokens.any { token -> token in nameTokens }
+            }
     }
 
     private fun resolveCareTargets(
@@ -171,7 +257,7 @@ class AnalysisContextBuilder(
     private fun censusBlock(patients: List<Patient>): String {
         val names = patients.take(MAX_NAMES_IN_CENSUS).joinToString(", ") { it.name }
         val overflow = if (patients.size > MAX_NAMES_IN_CENSUS) " …" else ""
-        return "PATIENT CENSUS: ${patients.size} active patients: $names$overflow."
+        return "PATIENT CENSUS: ${patients.size} active ${pluralize("patient", patients.size)}: $names$overflow."
     }
 
     /**
@@ -180,18 +266,82 @@ class AnalysisContextBuilder(
      * entry has no trend, so it is reported as one measurement instead of
      * inventing min == max == latest noise.
      */
-    private fun weightTrendBlock(patient: Patient): String? {
-        val series = weightRepository.getByPatient(patient.id).sortedBy(Weight::date)
-        val latest = series.lastOrNull() ?: return null
-        if (series.size == 1) {
-            return "- Weight ${patient.name}: single measurement ${latest.weightKg} kg on ${latest.date}."
+    private fun weightTrendBlock(
+        targets: List<Patient>,
+        dateRange: RagDateRange?,
+    ): String? {
+        val rows =
+            targets
+                .flatMap { patient ->
+                    weightRepository
+                        .getByPatient(patient.id)
+                        .filter { weight -> dateRange?.contains(weight.date) != false }
+                        .map { weight -> AnalysisWeightRow(patient, weight) }
+                }.sortedWith(compareBy({ it.weight.date }, { it.patient.name.lowercase() }, { it.weight.id }))
+        if (rows.isEmpty()) return null
+        val rowsByPatient = rows.groupBy { it.patient.id }
+        if (rowsByPatient.size == 1) {
+            return weightTrendLine(rows.first().patient, rows.map(AnalysisWeightRow::weight))
         }
-        val previous = series[series.lastIndex - 1]
-        val min = series.minBy(Weight::weightKg)
-        val max = series.maxBy(Weight::weightKg)
+
+        val values = rows.map { it.weight.weightKg }
+        val minimum = rows.minBy { it.weight.weightKg }
+        val maximum = rows.maxBy { it.weight.weightKg }
+        val details =
+            rowsByPatient
+                .values
+                .sortedBy {
+                    it
+                        .first()
+                        .patient.name
+                        .lowercase()
+                }.take(MAX_PATIENTS_SCANNED)
+                .map { patientRows ->
+                    weightTrendLine(patientRows.first().patient, patientRows.map(AnalysisWeightRow::weight))
+                }
+        val omitted = rowsByPatient.size - details.size
+        return buildString {
+            appendLine(
+                "WEIGHT SUMMARY: ${rows.size} measurements across ${rowsByPatient.size} patients; " +
+                    "average ${values.average()} kg, median ${median(values)} kg, " +
+                    "minimum ${minimum.weight.weightKg} kg (${minimum.patient.name}, " +
+                    "${formatHumanDate(minimum.weight.date)}), maximum ${maximum.weight.weightKg} kg " +
+                    "(${maximum.patient.name}, ${formatHumanDate(maximum.weight.date)}).",
+            )
+            appendLine("WEIGHT DETAILS:")
+            details.forEach(::appendLine)
+            if (omitted > 0) {
+                appendLine("- WEIGHT DETAILS TRUNCATED: $omitted more patients are included in the totals above.")
+            }
+        }.trimEnd()
+    }
+
+    private fun weightTrendLine(
+        patient: Patient,
+        series: List<Weight>,
+    ): String {
+        val ordered = series.sortedBy(Weight::date)
+        val latest = ordered.last()
+        if (ordered.size == 1) {
+            return "- Weight ${patient.name}: single measurement ${latest.weightKg} kg " +
+                "on ${formatHumanDate(latest.date)}."
+        }
+        val previous = ordered[ordered.lastIndex - 1]
+        val min = ordered.minBy(Weight::weightKg)
+        val max = ordered.maxBy(Weight::weightKg)
         val direction = weightDirection(latest.weightKg, previous.weightKg)
         return "- Weight ${patient.name}: min ${min.weightKg} kg (${min.date}), max ${max.weightKg} kg " +
             "(${max.date}), latest ${latest.weightKg} kg (${latest.date}) - $direction."
+    }
+
+    private fun median(values: List<Double>): Double {
+        val sorted = values.sorted()
+        val middle = sorted.size / 2
+        return if (sorted.size % 2 == 0) {
+            (sorted[middle - 1] + sorted[middle]) / 2.0
+        } else {
+            sorted[middle]
+        }
     }
 
     /** |delta| at or below this reads as stable between the two latest weights. */
@@ -205,29 +355,70 @@ class AnalysisContextBuilder(
             else -> "stable"
         }
 
-    /** Per-patient vaccination/deworming/farrier counts with last-done dates. */
-    private fun careBlock(targets: List<Patient>): String? {
-        val lines = targets.take(MAX_PATIENTS_SCANNED).mapNotNull(::careLineForPatient)
-        if (lines.isEmpty()) return null
+    /** Full-dataset vaccination/deworming/farrier totals with bounded detail lines. */
+    private fun careBlock(
+        targets: List<Patient>,
+        dateRange: RagDateRange?,
+    ): String? {
+        if (targets.isEmpty()) return null
+        val summaries = targets.map { patient -> careSummaryForPatient(patient, dateRange) }
+        val withRecords = summaries.filter(CarePatientSummary::hasRecords)
+        if (withRecords.isEmpty()) return "CARE COUNTS: no care records found for the selected patients."
+        val lines = withRecords.take(MAX_PATIENTS_SCANNED).map(::careLineForPatient)
+        val omitted = withRecords.size - lines.size
+        val vaccinationCount = withRecords.sumOf { it.vaccinations.size }
+        val dewormingCount = withRecords.sumOf { it.dewormings.size }
+        val farrierCount = withRecords.sumOf { it.farrierVisits.size }
         return buildString {
+            appendLine(
+                "CARE TOTALS: $vaccinationCount vaccinations, $dewormingCount dewormings, " +
+                    "$farrierCount farrier visits across ${withRecords.size} patients with records.",
+            )
             appendLine("CARE COUNTS:")
-            appendLine(lines.joinToString("\n"))
+            lines.forEach(::appendLine)
+            if (omitted > 0) {
+                appendLine("- CARE DETAILS TRUNCATED: $omitted more patients are included in the totals above.")
+            }
         }.trimEnd()
     }
 
-    /** One patient's care line, or null when the patient has no care records. */
-    private fun careLineForPatient(patient: Patient): String? {
-        val vaccinations = vaccinationRepository.getByPatient(patient.id)
-        val dewormings = dewormingRepository.getByPatient(patient.id)
-        val farrierVisits = farrierVisitRepository.getByPatient(patient.id)
-        if (vaccinations.isEmpty() && dewormings.isEmpty() && farrierVisits.isEmpty()) return null
+    private fun careSummaryForPatient(
+        patient: Patient,
+        dateRange: RagDateRange?,
+    ): CarePatientSummary =
+        CarePatientSummary(
+            patient = patient,
+            vaccinations =
+                vaccinationRepository
+                    .getByPatient(patient.id)
+                    .filter { vaccination -> dateRange?.contains(vaccination.dateAdministered) != false },
+            dewormings =
+                dewormingRepository
+                    .getByPatient(patient.id)
+                    .filter { deworming -> dateRange?.contains(deworming.dateAdministered) != false },
+            farrierVisits =
+                farrierVisitRepository
+                    .getByPatient(patient.id)
+                    .filter { farrierVisit -> dateRange?.contains(farrierVisit.date) != false },
+        )
+
+    /** One patient's care line; callers filter out patients without records. */
+    private fun careLineForPatient(summary: CarePatientSummary): String {
         val parts =
             listOf(
-                carePart(vaccinations.size, "vaccinations", vaccinations.maxOfOrNull { it.dateAdministered }),
-                carePart(dewormings.size, "dewormings", dewormings.maxOfOrNull { it.dateAdministered }),
-                carePart(farrierVisits.size, "farrier visits", farrierVisits.maxOfOrNull { it.date }),
+                carePart(
+                    summary.vaccinations.size,
+                    "vaccinations",
+                    summary.vaccinations.maxOfOrNull { it.dateAdministered },
+                ),
+                carePart(
+                    summary.dewormings.size,
+                    "dewormings",
+                    summary.dewormings.maxOfOrNull { it.dateAdministered },
+                ),
+                carePart(summary.farrierVisits.size, "farrier visits", summary.farrierVisits.maxOfOrNull { it.date }),
             )
-        return "- Care ${patient.name}: ${parts.joinToString(", ")}."
+        return "- Care ${summary.patient.name}: ${parts.joinToString(", ")}."
     }
 
     private fun carePart(
@@ -241,19 +432,34 @@ class AnalysisContextBuilder(
         patients: List<Patient>,
         today: LocalDate,
     ): String? {
-        val lines =
+        val rows =
             patients
-                .take(MAX_PATIENTS_SCANNED)
                 .flatMap { patient ->
                     gestationRepository
                         .getByPatient(patient.id)
                         .filter { it.isActiveGestation() }
-                        .map { gestation -> gestationLine(patient, gestation, today) }
+                        .map { gestation -> GestationSummaryRow(patient, gestation) }
                 }
-        if (lines.isEmpty()) return null
+        if (rows.isEmpty()) {
+            return if (patients.isEmpty()) {
+                null
+            } else {
+                "GESTATIONS: no active pregnancies found for the selected patients."
+            }
+        }
+        val visible = rows.take(MAX_PATIENTS_SCANNED)
+        val omitted = rows.size - visible.size
+        val patientCount = rows.map { it.patient.id }.distinct().size
         return buildString {
+            appendLine(
+                "GESTATION TOTALS: ${rows.size} active ${pluralize("pregnancy", rows.size)} " +
+                    "across $patientCount ${pluralize("patient", patientCount)}.",
+            )
             appendLine("GESTATIONS:")
-            appendLine(lines.joinToString("\n"))
+            visible.forEach { row -> appendLine(gestationLine(row.patient, row.gestation, today)) }
+            if (omitted > 0) {
+                appendLine("- GESTATION DETAILS TRUNCATED: $omitted more pregnancies are included in the total above.")
+            }
         }.trimEnd()
     }
 
@@ -274,15 +480,20 @@ class AnalysisContextBuilder(
         patients: List<Patient>,
         today: LocalDate,
     ): String? {
-        val lines =
+        val allLines =
             patients
-                .take(MAX_PATIENTS_SCANNED)
                 .flatMap { overdueLinesForPatient(it, today) }
-                .take(MAX_OVERDUE_ITEMS)
-        if (lines.isEmpty()) return null
+        if (allLines.isEmpty()) {
+            return if (patients.isEmpty()) null else "OVERDUE CARE (due before $today): no overdue care found."
+        }
+        val lines = allLines.take(MAX_OVERDUE_ITEMS)
         return buildString {
             appendLine("OVERDUE CARE (due before $today):")
             appendLine(lines.joinToString("\n"))
+            val omitted = allLines.size - lines.size
+            if (omitted > 0) {
+                appendLine("- OVERDUE DETAILS TRUNCATED: $omitted more overdue items are included in the total above.")
+            }
         }.trimEnd()
     }
 
@@ -497,6 +708,11 @@ private fun formatHumanDate(date: LocalDate): String {
     return "${date.day} $month ${date.year}"
 }
 
+private fun pluralize(
+    word: String,
+    count: Int,
+): String = if (count == 1) word else "${word}s"
+
 /** True when the pregnancy has ended (foaled or failed): nothing active to report. */
 private fun Gestation.isResolved(): Boolean =
     status.equals(RESOLVED_STATUS_COMPLETED, ignoreCase = true) ||
@@ -505,6 +721,17 @@ private fun Gestation.isResolved(): Boolean =
 
 /** True only for a pregnancy that should still contribute current progress. */
 private fun Gestation.isActiveGestation(): Boolean = isActive && !isResolved()
+
+/** Matches the event types offered by the reproduction-card editor. */
+private fun ReproductionEvent.isBreedingEvent(): Boolean {
+    val normalized = eventType.trim().lowercase()
+    return normalized == "breeding" ||
+        normalized == "mating" ||
+        normalized == "insemination" ||
+        normalized == "cobertura" ||
+        normalized == "cobrição" ||
+        normalized == "cobricao"
+}
 
 // Same resolved-status vocabulary as GetUpcomingRemindersUseCase: foaled
 // ("Completed") or failed pregnancies are not active gestations.
@@ -538,7 +765,7 @@ object AnalysisIntents {
         Regex(
             "\\b(vaccinations?|vaccines?|boosters?|dewormings?|dewormed|dewormer|farriers?|shod|shoeing|trims?|" +
                 "vacinações?|vacinacoes?|vacinas?|desparasitações?|desparasitacoes?|" +
-                "ferrageamentos?|ferrador|ferragem)\\b",
+                "ferrageamentos?|ferrador|ferragem|care|cuidados?)\\b",
         )
 
     private val lastDoneRegex =
@@ -556,6 +783,31 @@ object AnalysisIntents {
 
     private val overdueRegex =
         Regex("\\b(overdue|due|upcoming|reminders?|atrasad[oa]s?|pendentes?|vencid[oa]s?)\\b")
+
+    private val datasetReferenceRegex =
+        Regex(
+            "\\b(my|our|your)\\s+(patients?|horses?|mares?|records?|data|dataset|" +
+                "weights?|vaccinations?|gestations?|care|history|timeline)\\b|" +
+                "\\b(in|from|across|between|within)\\s+(?:my|our|the)\\s+" +
+                "(records?|data|dataset|patients?|horses?|mares?|history|timeline)\\b|" +
+                "\\b(?:meus|minhas|nossos|nossas)\\s+(pacientes?|cavalos?|éguas?|eguas?)\\b|" +
+                "\\b(?:nos|nas)\\s+(?:meus|minhas|nossos|nossas)\\s+" +
+                "(registos?|dados|pacientes?|cavalos?|éguas?|eguas?)\\b|" +
+                "\\b(records?|dataset|data|statistics?|statistical|analysis|" +
+                "compare|comparison|correlation|distribution|regression|outliers?|" +
+                "by\\s+month|per\\s+month|over\\s+time|por\\s+m[eê]s|" +
+                "por\\s+raça|por\\s+esp[eé]cie|dados|estatística|estatistica)\\b",
+        )
+    private val recordAnalysisTopicRegex =
+        Regex(
+            "\\b(overdue|upcoming|reminders?|" +
+                "assistência|assistencia|atrasad[oa]s?|pendentes?|vencid[oa]s?)\\b",
+        )
+    private val careAnalysisReferenceRegex =
+        Regex(
+            "\\b(care|cuidados?)\\s+(?:records?|data|dataset|history|timeline|" +
+                "registos?|dados|histórico|historico)\\b",
+        )
 
     private val currentGestationRegex =
         Regex(
@@ -599,15 +851,18 @@ object AnalysisIntents {
      */
     fun isAnalysisQuery(query: String): Boolean {
         val lowered = query.lowercase()
-        if (analysisRegex.containsMatchIn(lowered)) return true
-        return anyTopic(lowered)
+        val isGeneralQuestion = RecordQuestionIntent.isGeneralKnowledgeQuestion(query)
+        val hasScope = hasRecordAnalysisScope(query, lowered)
+        return !isGeneralQuestion &&
+            hasScope &&
+            (analysisRegex.containsMatchIn(lowered) || hasAnalysisTopic(lowered))
     }
 
     /** Census block: explicit patient/horse listing, or a generic count with no topic. */
     fun wantsCensus(query: String): Boolean {
         val lowered = query.lowercase()
         if (censusRegex.containsMatchIn(lowered)) return true
-        return !anyTopic(lowered)
+        return !hasAnalysisTopic(lowered)
     }
 
     fun wantsWeight(query: String): Boolean = weightRegex.containsMatchIn(query.lowercase())
@@ -631,11 +886,25 @@ object AnalysisIntents {
     fun wantsOverdue(query: String): Boolean = overdueRegex.containsMatchIn(query.lowercase())
 
     /** True when the question asks for a broader, multi-record analysis pass. */
-    fun requiresTools(query: String): Boolean = toolAnalysisRegex.containsMatchIn(query.lowercase())
+    fun requiresTools(query: String): Boolean =
+        isAnalysisQuery(query) &&
+            toolAnalysisRegex.containsMatchIn(query.lowercase())
 
-    private fun anyTopic(lowered: String): Boolean =
-        wantsWeight(lowered) ||
-            wantsCareCounts(lowered) ||
-            wantsGestation(lowered) ||
-            wantsOverdue(lowered)
+    private fun hasRecordAnalysisScope(
+        query: String,
+        lowered: String,
+    ): Boolean =
+        datasetReferenceRegex.containsMatchIn(lowered) ||
+            RecordQuestionIntent.hasIndividualPatientReference(query) ||
+            RecordQuestionIntent.hasLikelyNamedPatientReference(query) ||
+            RecordQuestionIntent.hasGestationPopulationReference(query) ||
+            RecordQuestionIntent.isRecordQuestion(query, null, null) ||
+            recordAnalysisTopicRegex.containsMatchIn(lowered) ||
+            careAnalysisReferenceRegex.containsMatchIn(lowered)
 }
+
+private fun hasAnalysisTopic(lowered: String): Boolean =
+    AnalysisIntents.wantsWeight(lowered) ||
+        AnalysisIntents.wantsCareCounts(lowered) ||
+        AnalysisIntents.wantsGestation(lowered) ||
+        AnalysisIntents.wantsOverdue(lowered)

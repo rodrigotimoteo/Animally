@@ -161,6 +161,29 @@ class CloudRagLlmEngineTest {
     }
 
     @Test
+    fun `visible content combines compatible fields without duplicating cumulative text`() {
+        val engine = engine()
+        val cumulative = StringBuilder()
+
+        assertEquals(
+            "Hello world",
+            engine.appendSseDelta(
+                """data: {"choices":[{"delta":{"content":"Hello"},"message":{"content":" world"}}]}""",
+                cumulative,
+            ),
+        )
+        assertEquals("Hello world", cumulative.toString())
+
+        assertEquals(
+            "Complete answer",
+            engine.appendSseDelta(
+                """data: {"choices":[{"delta":{"content":"Complete"},"message":{"content":"Complete answer"}}]}""",
+                cumulative = StringBuilder(),
+            ),
+        )
+    }
+
+    @Test
     fun `recognizes OpenCode cost trailer as a terminal frame`() {
         val engine = engine()
 
@@ -198,6 +221,13 @@ class CloudRagLlmEngineTest {
         assertNull(
             engine.appendSseDelta(
                 "data: {\"choices\":[{\"delta\":{\"content\":[{\"type\":\"reasoning_details\",\"text\":\"also private\"}]}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertNull(
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":[{\"type\":\"thinking_details\",\"text\":\"still private\"}]}}]}",
                 cumulative,
                 filter,
             ),
@@ -315,6 +345,14 @@ class CloudRagLlmEngineTest {
                     """{"choices":[{"delta":{},"finish_reason":"length"}]}""",
                 )
         assertEquals("length", terminal.choices.first().finishReason)
+
+        val completed =
+            Json.decodeFromString<ChatCompletionChunk>(
+                """{"choices":[{"message":{"content":"answer","reasoning_content":"private"}}]}""",
+            )
+        val completedMessage = completed.choices.first().message
+        assertEquals("answer", completedMessage?.content?.jsonPrimitive?.content)
+        assertEquals("private", completedMessage?.reasoningContent?.jsonPrimitive?.content)
     }
 
     @Test
@@ -335,6 +373,14 @@ class CloudRagLlmEngineTest {
         assertEquals(
             "Cloud model spent its entire token budget on reasoning and returned no answer",
             validateStreamEnd(sawDone = true, finishReason = "length", contentLength = 0),
+        )
+        assertEquals(
+            "Cloud model ended the answer with finish reason 'content_filter'.",
+            validateStreamEnd(sawDone = true, finishReason = "content_filter", contentLength = 10),
+        )
+        assertEquals(
+            "Cloud model ended the answer with finish reason 'error'.",
+            validateStreamEnd(sawDone = true, finishReason = "error", contentLength = 10),
         )
     }
 
@@ -424,6 +470,39 @@ class CloudRagLlmEngineTest {
                             messages = listOf(RagChatMessage(RagChatRole.USER, "Analyze weights")),
                             tools = listOf(tool),
                         ).toList(),
+                )
+            } finally {
+                client.close()
+            }
+        }
+
+    @Test
+    fun `malformed fragmented tool arguments are not forwarded to the registry`() =
+        runTest {
+            val client =
+                mockClient(
+                    """
+                    data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"weight_summary","arguments":"{\"patient_name\":"}}]}}]}
+                    data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
+                    data: [DONE]
+                    """.trimIndent(),
+                )
+            try {
+                val streamingEngine = CloudRagLlmEngine(client) { config }
+                val tool =
+                    RagToolDefinition(
+                        name = "weight_summary",
+                        description = "Summarize weights.",
+                        parameters = Json.parseToJsonElement("""{"type":"object","properties":{}}""").jsonObject,
+                    )
+
+                assertTrue(
+                    streamingEngine
+                        .generateStreamingWithTools(
+                            messages = listOf(RagChatMessage(RagChatRole.USER, "Analyze weights")),
+                            tools = listOf(tool),
+                        ).toList()
+                        .isEmpty(),
                 )
             } finally {
                 client.close()

@@ -297,6 +297,13 @@ func recordSection<Item>(
     ) {
         RecordSectionRows(spec: spec, onOpenRecord: onOpenRecord)
     }
+    .id(sectionIdentity(for: spec))
+}
+
+private func sectionIdentity<Item>(for spec: RecordSectionSpec<Item>) -> String {
+    let query = spec.display?.searchQuery ?? "<closed>"
+    let expanded = spec.display?.isExpanded == true
+    return "\(spec.title)|\(expanded)|\(query)"
 }
 
 /// Collapse threshold shared by every section: sections with more rows show
@@ -335,6 +342,8 @@ private struct RecordSectionRows<Item>: View {
                         Image(systemName: display.isExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption.weight(.semibold))
                     }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .contentShape(Rectangle())
                     .foregroundStyle(Theme.forestGreen)
                     .padding(.vertical, 6)
                 }
@@ -370,6 +379,8 @@ private struct RecordSectionRows<Item>: View {
             }
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("record_row_\(spec.displayType)_\(spec.recordId(item))")
         .onTapGesture {
             onOpenRecord?(spec.displayType, spec.recordId(item), spec.fields(item).filter { !$0.value.isEmpty })
         }

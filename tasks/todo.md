@@ -119,3 +119,15 @@
 - [x] Run focused and full shared tests, ktlint, detekt, and native simulator build/UI tests
 - [x] Review the complete diff for architecture, style, and regressions
 - [x] Commit the complete slice and confirm a clean worktree
+
+## Current slice: cloud assistant quality and grounded analysis
+
+- [x] Audit and document cloud/general-vs-record routing contracts
+- [x] Improve intent classification without weakening patient-fact grounding
+- [x] Extend deterministic Kotlin analysis summaries/tools and empty-data behavior
+- [x] Make cloud answers useful, cautious, and naturally conversational
+- [x] Add a 100+ case adversarial assistant contract matrix
+- [x] Exercise compatible free cloud models and provider fallbacks without leaking keys
+- [x] Run shared/native/simulator verification and review the diff
+- [x] Resolve breeding timing from the reproduction card before gestation fallback
+- [x] Commit the complete slice and confirm a clean worktree

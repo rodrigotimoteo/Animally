@@ -50,7 +50,7 @@ final class PatientUITests: AnimallyTestCase {
 
     func testOpenPatientDetailShowsOverview() throws {
         let app = TestHelpers.launchApp()
-        TestHelpers.openThunderDetail(app)
+        _ = TestHelpers.openPatientDetail(app)
 
         XCTAssertTrue(app.staticTexts["Basic Information"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Breed"].exists)
@@ -64,7 +64,7 @@ final class PatientUITests: AnimallyTestCase {
 
     func testDetailTabsSwitchContent() throws {
         let app = TestHelpers.launchApp()
-        TestHelpers.openThunderDetail(app)
+        _ = TestHelpers.openPatientDetail(app)
 
         app.buttons["Medical"].firstMatch.tap()
         sleep(1)
@@ -76,11 +76,13 @@ final class PatientUITests: AnimallyTestCase {
 
     func testEditPatientOpensPrefilledForm() throws {
         let app = TestHelpers.launchApp()
-        TestHelpers.openThunderDetail(app)
+        let patientName = TestHelpers.openPatientDetail(app)
 
         app.buttons["Edit patient"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 8))
         // The form should carry the existing name.
-        XCTAssertTrue(app.textFields["Thunder"].firstMatch.waitForExistence(timeout: 8))
+        let nameField = app.textFields["Name"].firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 8))
+        XCTAssertEqual(nameField.value as? String, patientName)
     }
 }

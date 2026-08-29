@@ -28,6 +28,17 @@ final class AssistantRealFmEdgeUITests: AnimallyTestCase {
             throw XCTSkip("Foundation Models unavailable on this device")
         }
         XCTAssertTrue(app.textFields["assistant_input"].waitForExistence(timeout: 10))
+
+        // Each launch restores the latest persisted conversation. Start the
+        // test from a blank visible chat so reply queries cannot match stale
+        // bubbles from a previous test run.
+        let newChat = app.buttons["assistant_new_chat"]
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat control missing")
+        let ready = NSPredicate(format: "isEnabled == true")
+        expectation(for: ready, evaluatedWith: newChat)
+        waitForExpectations(timeout: 10)
+        newChat.tap()
+        XCTAssertTrue(app.textFields["assistant_input"].exists)
     }
 
     /// Types a question into the chat input using chunked typing with
@@ -138,10 +149,14 @@ final class AssistantRealFmEdgeUITests: AnimallyTestCase {
 
     func testFollowUpUsesContextOrAsksClarification() throws {
         let app = TestHelpers.launchApp()
+        let patientName = TestHelpers.firstPatientName(app)
         openAssistant(app)
         try requireAvailableModel(app)
 
-        ask(app, "Tell me about Thunder")
+        // Keep this test tied to the current simulator data rather than to a
+        // removed demo patient. The behavior under test is conversational
+        // subject resolution, not a specific fixture name.
+        ask(app, "Tell me about \(patientName)")
         _ = waitForReply(app)
         ask(app, "How old is she?")
         let labels = waitForReply(app, minCount: 2)
@@ -160,10 +175,11 @@ final class AssistantRealFmEdgeUITests: AnimallyTestCase {
 
     func testStreamingReplyGrowsOverTime() throws {
         let app = TestHelpers.launchApp()
+        let patientName = TestHelpers.firstPatientName(app)
         openAssistant(app)
         try requireAvailableModel(app)
 
-        ask(app, "What vaccinations does Thunder need this year?")
+        ask(app, "What vaccinations does \(patientName) need this year?")
         let query = replyQuery(app)
         let reply = query.firstMatch
         XCTAssertTrue(reply.waitForExistence(timeout: 180), "Assistant reply never appeared")

@@ -715,3 +715,113 @@ capture lifecycle from Phase 1, Phase 3 depends on the authoritative transcript,
 and Phase 4 should not obscure extraction debugging. Review this plan before
 implementation continues; after approval, each phase will be implemented and
 verified before the next one starts.
+
+## Current slice: cloud assistant quality, grounded analysis, and broad evaluation
+
+### Goal and boundaries
+
+Make the assistant useful for ordinary questions, veterinary education, and
+multi-patient data analysis while preserving a hard boundary around facts that
+belong to Animally records. Cloud models may answer general questions with
+appropriate uncertainty; they must never fill a missing patient fact, dosage,
+date, owner detail, or clinical event with a guess. Computation and record
+selection remain in shared Kotlin. Swift remains presentation/platform glue.
+
+### Phase 1: audit and intent contract
+
+1. Trace the current query classifier, patient scope resolver, retrieval gates,
+   deterministic answers, analysis summary, native tools, prompts, and cloud
+   stream/fallback contracts. Record the exact cases where a general question
+   is treated as a record request or where a record answer can escape grounding.
+2. Define an explicit distinction between personal-record questions, aggregate
+   analysis, general/educational questions, and mixed questions. Keep the
+   existing conservative on-device policy while allowing the cloud policy to
+   answer genuinely general questions naturally.
+
+Acceptance criteria:
+
+- [x] “What is colic?”, non-veterinary questions, and casual follow-ups can use
+  cloud general knowledge without a fake “not found” refusal.
+- [x] “What happened to Bella?”, missing dates, dosage requests, owner facts,
+  and unknown patient records remain grounded and refuse unsupported facts.
+- [x] Analysis requests are routed to deterministic Kotlin summaries/tools,
+  not left entirely to a model’s arithmetic or interpretation.
+
+### Phase 2: deterministic analysis and grounded response behavior
+
+1. Extend the analysis intent/summary contract for common useful statistics:
+   counts, averages, ranges, medians, changes/trends, care breakdowns,
+   gestation status/day/due dates, and explicit empty-data states. Ensure
+   filters and ambiguous patient names are visible and never silently broadened.
+2. Harden the model context and tool coordinator so tool results are treated as
+   authoritative, tool errors are explained without fabricated conclusions, and
+   model narration cannot invent citations or facts absent from the returned
+   data. Keep read-only tools bounded.
+3. Make the relaxed cloud prompt human and conversational: concise answers,
+   useful clarification when needed, clear separation of record facts from
+   general education, and cautious clinical language without blanket refusal.
+
+Acceptance criteria:
+
+- [x] Kotlin-owned calculations are correct for single-patient, population,
+      date-filtered, bilingual, empty, and ambiguous datasets.
+- [x] No ungrounded patient-specific answer is sent to a strict on-device
+      model or accepted as a cloud record fact.
+- [x] General cloud answers are not blocked merely because they contain a
+      veterinary keyword such as pregnancy, colic, or vaccination.
+
+Breeding timing is also resolved deterministically from active reproduction
+“Breeding” cards before falling back to gestation rows, so the assistant uses
+the date shown on the breeding card when the two records differ.
+
+### Phase 3: adversarial evaluation matrix
+
+1. Add a parameterized common test matrix with at least 100 cases covering
+   English/Portuguese, greetings, casual and unrelated questions, educational
+   veterinary topics, patient/owner scoping, missing records, dates, synonyms,
+   typo-shaped queries, multi-patient aggregation, tool requests, prompt
+   injection, dosage/medical safety, empty stores, and model/tool failures.
+2. Assert routing and safety invariants rather than brittle model prose:
+   retrieval calls, fallback decisions, exact deterministic facts, allowed
+   cloud policy, source mapping, no invented citations, and cancellation/error
+   behavior. Add focused tests for each regression found by the matrix.
+
+Acceptance criteria:
+
+- [x] The matrix executes deterministically in common tests and reports the
+      category/query when a contract regresses.
+- [x] All supported deterministic facts have bilingual and no-data coverage.
+- [x] The test suite proves prompt-injection text cannot override record
+      boundaries or tool argument validation.
+
+### Phase 4: live provider and simulator verification
+
+1. Discover the currently available free cloud models through the configured
+   provider/catalog rather than hard-coding stale model rankings. Exercise the
+   strongest compatible routes with a bounded, non-secret smoke matrix covering
+   general Q&A, grounded record Q&A, analysis, bilingual output, long context,
+   reasoning blocks, tool calls, and short/failed responses.
+2. Verify provider-specific streaming, response limits, reasoning omission,
+   tool fallback, retry, and citation/source-card behavior. Do not expose API
+   keys in source, logs, test fixtures, screenshots, or the final report.
+3. Run shared tests/static checks, native iOS build, and focused simulator UI
+   flows for Assistant and retained conversation blocks. Report physical-device
+   microphone/audio limitations separately.
+
+### Final checkpoint
+
+- [x] Full shared tests, KtLint, Detekt, and the relevant Sonar checks pass.
+- [x] Native iOS simulator build and Assistant UI tests pass.
+- [x] The diff preserves Kotlin ownership of business/data/LLM logic and has no
+   secret or unrelated changes.
+- [x] Commit the complete slice and leave the worktree clean.
+
+### Risks and mitigations
+
+| Risk | Mitigation |
+| --- | --- |
+| Cloud becomes permissive enough to hallucinate a patient fact | Separate general knowledge from explicit record scope; keep deterministic fallback and source checks before generation |
+| Keyword classifier blocks education as if it were a record lookup | Require ownership/entity evidence for record scope; test veterinary definitions in both languages |
+| Free models omit tools or emit malformed streaming frames | Provider-neutral normalization, bounded plain-text fallback, and live smoke cases per route |
+| Analysis answers are numerically plausible but wrong | Compute in Kotlin, expose filters/empty states, and test exact expected values |
+| “Best free model” changes over time | Query the provider catalog at test time, rank only compatible free models, and record model ids without credentials |

@@ -178,6 +178,43 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given active patients when asking unrelated title-cased question then records stay out`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Bella")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+
+            val output =
+                sut(
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("Who wrote Pride and Prejudice?").answers()
+
+            assertEquals(1, engine.calls)
+            assertTrue(output.first().contains("pregnant"))
+            assertFalse(engine.lastPrompt.orEmpty().contains("[VACCINATION #123]"))
+        }
+
+    @Test
+    fun `given lowercase unknown patient then another patient cannot ground the lookup`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Bella")
+            val search =
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String): List<SearchResult> = listOf(result())
+                }
+
+            val output =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("is storm pregnant?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+            assertEquals(0, engine.calls)
+        }
+
+    @Test
     fun `given current month activity question then only dated rows in current month are returned deterministically`() =
         runTest {
             val inMonth = result(recordId = 1L, snippet = "pregnancy confirmed").copy(date = LocalDate(2026, 8, 3))
@@ -690,6 +727,19 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given a name prefix that is not an active patient then retrieval cannot silently select a longer name`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Annabelle")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result(patientName = "Annabelle"))
+
+            val output =
+                sut(patientRepository = patientRepositoryMock)("What vaccination did Ann receive?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+            assertEquals(0, engine.calls, "an unresolved patient prefix must not unlock another patient's records")
+        }
+
+    @Test
     fun `given exactly three AND hits when invoked then threshold not crossed and no OR retry fires`() =
         runTest {
             // Boundary: WEAK_RESULT_THRESHOLD = 3 means three hits are STRONG
@@ -763,6 +813,20 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given a singular follow-up then the latest active patient in history scopes retrieval`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Estrela")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+
+            val history = listOf(RagHistoryEntry("Tell me about Thunder", "Thunder is a 7 year old mare."))
+            val output = sut(patientRepository = patientRepositoryMock)("How old is she?", history).answers()
+
+            assertEquals(1, engine.calls, "a scoped follow-up should reach the model with retrieved records")
+            assertTrue(engine.lastPrompt.orEmpty().contains("Thunder"))
+            assertTrue(output.last().contains("pregnant"))
+        }
+
+    @Test
     fun `given PT strings when retrieval empty then PT fallback emitted`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
@@ -812,6 +876,23 @@ class GenerateRagResponseUseCaseTest {
             assertEquals("Thunder is a horse.", final)
             val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals("VACCINATION", sources.sources.single().recordType)
+        }
+
+    @Test
+    fun `given model reply without citation when sources are enforced then internal headers never flicker as chunks`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+            engine.nextChunkOverride = "Thunder is a horse."
+
+            val events = sut()(QUERY).toList()
+
+            assertTrue(
+                events
+                    .filterIsInstance<RagStreamEvent.Chunk>()
+                    .none { it.text.contains("[VACCINATION #123]") },
+                "citation headers belong in source cards, not transient answer snapshots",
+            )
+            assertEquals(1, events.filterIsInstance<RagStreamEvent.Sources>().size)
         }
 
     @Test
@@ -1184,7 +1265,7 @@ class GenerateRagResponseUseCaseTest {
             assertEquals(1, engine.calls, "summary alone must unlock the model call - unlike the fallback paths")
             val prompt = engine.lastPrompt.orEmpty()
             assertTrue(prompt.contains(AnalysisContextBuilder.SUMMARY_HEADER))
-            assertTrue(prompt.contains("PATIENT CENSUS: 1 active patients: Thunder."))
+            assertTrue(prompt.contains("PATIENT CENSUS: 1 active patient: Thunder."))
             assertTrue(prompt.indexOf("DETERMINISTIC SUMMARY") < prompt.indexOf("Context:"), "summary precedes Context")
             assertTrue(engine.lastInstructions.orEmpty().contains("DETERMINISTIC SUMMARY LINES ARE COMPUTED FACTS"))
             assertTrue(output.first().contains("pregnant")) // default fake chunk passes through sanitize
@@ -1302,6 +1383,66 @@ class GenerateRagResponseUseCaseTest {
                     .single()
                     .sources
                     .map { it.recordId },
+            )
+        }
+
+    @Test
+    fun `given breeding timing question then reproduction card wins over gestation date`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Descarada"))
+            repos.reproductions.entries =
+                listOf(
+                    testReproductionEvent(
+                        id = 61,
+                        patientId = 1,
+                        eventType = "Pregnancy Check",
+                        date = LocalDate(2025, 4, 20),
+                    ),
+                    testReproductionEvent(
+                        id = 60,
+                        patientId = 1,
+                        date = LocalDate(2025, 4, 1),
+                    ),
+                )
+            repos.gestations.entries =
+                listOf(
+                    testGestation(
+                        id = 44,
+                        patientId = 1,
+                        breedingDate = LocalDate(2025, 4, 2),
+                        expectedDueDate = LocalDate(2026, 3, 8),
+                    ),
+                )
+
+            val query = "How long ago was Descarada bred?"
+            val events =
+                sut(
+                    analysisContextBuilder = repos.builder,
+                    patientRepository = repos.patients,
+                    today = LocalDate(2025, 5, 11),
+                )(query).toList()
+
+            assertEquals(0, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(answer.contains("bred on 1 Apr 2025"), answer)
+            assertTrue(answer.contains("40 days ago"), answer)
+            assertEquals(
+                listOf(60L),
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .map { it.recordId },
+            )
+            assertEquals(
+                listOf("REPRODUCTION_EVENT"),
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .map { it.recordType },
             )
         }
 

@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.llm
 
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -78,5 +79,47 @@ class RecordQuestionIntentTest {
             ),
         )
         assertFalse(RecordQuestionIntent.isRecordQuestion("What is pregnancy?", null, null))
+    }
+
+    @Test
+    fun `general questions with title-cased external entities stay general`() {
+        val queries =
+            listOf(
+                "Who wrote Pride and Prejudice?",
+                "What is the history of Portugal?",
+                "Can you explain Equine Dentistry?",
+                "How do I care for a horse?",
+            )
+
+        queries.forEach { query ->
+            assertTrue(RecordQuestionIntent.isGeneralKnowledgeQuestion(query), query)
+            assertFalse(RecordQuestionIntent.isRecordQuestion(query, null, null), query)
+        }
+    }
+
+    @Test
+    fun `typed patient lookup recognizes lowercase unknown names but not generic horse words`() {
+        assertTrue(RecordQuestionIntent.isRecordQuestion("is storm pregnant?", null, null))
+        assertTrue(RecordQuestionIntent.hasLikelyNamedPatientReference("is storm pregnant?"))
+        assertTrue(RecordQuestionIntent.isRecordQuestion("What vaccinations did storm receive?", null, null))
+        assertTrue(RecordQuestionIntent.hasLikelyNamedPatientReference("What vaccinations did storm receive?"))
+
+        assertFalse(RecordQuestionIntent.isRecordQuestion("Is a horse pregnant?", null, null))
+        assertFalse(RecordQuestionIntent.hasLikelyNamedPatientReference("Is a horse pregnant?"))
+        assertFalse(RecordQuestionIntent.hasLikelyNamedPatientReference("What vaccinations did she receive?"))
+    }
+
+    @Test
+    fun `expanded record type vocabulary keeps typed lookups grounded`() {
+        assertTrue(RecordTypeIntent.expectedRecordTypes("What was Bella's last surgery?").contains("SURGERY"))
+        assertTrue(RecordTypeIntent.expectedRecordTypes("Show Thunder's lab results").contains("LAB_RESULT"))
+        assertTrue(RecordTypeIntent.expectedRecordTypes("Open the imaging record").contains("IMAGING"))
+        assertTrue(RecordTypeIntent.expectedRecordTypes("Which reminders are due?").contains("CUSTOM_REMINDER"))
+        assertTrue(RecordTypeIntent.expectedRecordTypes("What is the embryo transfer date?").contains("EMBRYO_TRANSFER"))
+        assertTrue(RecordTypeIntent.expectedRecordTypes("When was the ICSI procedure?").contains("ICSI"))
+        assertEquals(
+            setOf("GESTATION", "REPRODUCTION_EVENT"),
+            RecordTypeIntent.expectedRecordTypes("How long ago was Descarada bred?"),
+        )
     }
 }
