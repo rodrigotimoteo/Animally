@@ -160,7 +160,15 @@ interface ISearchRepository {
          * retrieval also ignores generic filler such as "date".
          * v19: anamnese fields carry explicit labels so free-form history,
          * chronic-condition, and allergy questions retain field boundaries.
+         * v20: reproduction rows carry explicit breeding/stallion vocabulary
+         * so field questions can reach the reproduction card after a reindex.
+         * v21: keep reproduction vocabulary tied to fields actually present on
+         * the card so pregnancy synonym searches do not retrieve every
+         * reproduction event.
+         * v22: remove the generic "stallion" field token and the ambiguous
+         * "stud" synonym; prefix matching made unrelated "stall rest" and
+         * "diagnostic study" text look like breeding evidence.
          */
-        const val SEARCH_INDEX_VERSION = "19"
+        const val SEARCH_INDEX_VERSION = "22"
     }
 }

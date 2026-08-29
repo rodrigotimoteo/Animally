@@ -226,6 +226,33 @@ class AnalysisContextBuilder(
             }.sortedWith(compareBy<BreedingOutcomeFact> { it.event.date }.thenBy { it.patient.name.lowercase() })
     }
 
+    /** Returns exact reproduction-card fields such as the recorded stallion. */
+    internal fun reproductionAttributeFacts(query: String): List<ReproductionAttributeFact>? {
+        if (ReproductionAttributeIntent.requestedAttribute(query) == null) return null
+        val repository = reproductionRepository ?: return emptyList()
+        val patients = patientRepository.getPatientList()
+        val matchedPatients = patientNameMatches(patients, query)
+        val scoped = matchedPatients.singleOrNull()
+        val careTargets =
+            resolveCareTargets(
+                patients = patients,
+                matchedPatients = matchedPatients,
+                scoped = scoped,
+                hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query),
+                hasLikelyName = RecordQuestionIntent.hasLikelyNamedPatientReference(query),
+            )
+        return careTargets
+            .flatMap { patient ->
+                repository
+                    .getByPatient(patient.id)
+                    .filter { event -> event.isActive && event.isBreedingEvent() }
+                    .map { event -> ReproductionAttributeFact(patient, event) }
+            }.sortedWith(
+                compareByDescending<ReproductionAttributeFact> { it.event.date }
+                    .thenBy { it.patient.name.lowercase() },
+            )
+    }
+
     /**
      * Patients whose names contain an exact query token (case-insensitive,
      * possessives stripped). The caller treats multiple matches as ambiguous

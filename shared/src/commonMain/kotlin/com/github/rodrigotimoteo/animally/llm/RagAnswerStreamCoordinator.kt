@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 import kotlinx.coroutines.CancellationException
@@ -89,7 +90,7 @@ internal class RagAnswerStreamCoordinator(
         }
     }
 
-    /** Enforces source citations and emits source cards for a completed turn. */
+    /** Resolves hidden source markers and emits source cards for a completed turn. */
     private suspend fun emitCitationEvents(
         collector: FlowCollector<RagStreamEvent>,
         request: RagStreamRequest,
@@ -176,7 +177,8 @@ internal class RagAnswerStreamCoordinator(
                         ) +
                             "\nUse the read-only analysis tools when they improve accuracy. " +
                             "Tool results are authoritative for this app's data. Never invent a source header; " +
-                            "when a tool result includes a source field, cite that exact [TYPE #ID] value."
+                            "when a tool result includes a source field, use it internally so the app can open " +
+                            "the matching source card; never print the [TYPE #ID] value."
                     val messages =
                         mutableListOf(
                             RagChatMessage(RagChatRole.SYSTEM, content = systemPrompt),
@@ -217,16 +219,36 @@ internal class RagAnswerStreamCoordinator(
         return citationBlockRegex
             .findAll(answerText)
             .flatMap { block -> citationReferenceRegex.findAll(block.value) }
-            .mapNotNull { match -> byKey["${match.groupValues[1]}#${match.groupValues[2]}"] }
-            .distinct()
+            .mapNotNull { match ->
+                citationRecordType(match.groupValues[1])?.let { type ->
+                    byKey["$type#${match.groupValues[2]}"]
+                }
+            }.distinct()
             .toList()
+    }
+
+    /** Accepts both the wire form and humanized forms a model may produce. */
+    private fun citationRecordType(rawType: String): String? {
+        val displayType = rawType.trim().replace(Regex("\\s+"), " ")
+        val wireType = displayType.uppercase().replace(' ', '_')
+        return RecordType.fromWireName(wireType)?.wireName
+            ?: RecordType.fromDisplayName(displayType)?.wireName
     }
 
     private fun sanitize(text: String): String =
         text
             .replace(scaffoldLineRegex, "")
-            .replace(linkRegex, "$1")
-            .replace("**", "")
+            .replace(linkRegex) { link ->
+                val label = link.groupValues[1]
+                // Preserve citation-shaped Markdown as an internal marker
+                // until source mapping runs. Ordinary links still become
+                // their readable label without exposing the URL.
+                if (citationReferenceRegex.matches(label.trim())) {
+                    "[${label.trim()}]"
+                } else {
+                    label
+                }
+            }.replace("**", "")
             .replace("__", "")
             .replace("`", "")
             .replace(Regex("\\n{3,}"), "\n\n")
@@ -263,11 +285,14 @@ internal class RagAnswerStreamCoordinator(
         val scaffoldLineRegex = Regex("(?m)^\\s*(?:-{3,}|Question:.*|Context:.*|You are .*)\\s*\\n?")
 
         // A model may cite one record or group several record headers in one
-        // bracket: [TYPE #id] or [TYPE #1, TYPE #2]. Parse references only
-        // inside square brackets so ordinary prose containing "TYPE #1" does
-        // not accidentally become a source card.
+        // bracket: [TYPE #id], [TYPE NAME #id], or [TYPE #1, TYPE #2]. Parse
+        // references only inside square brackets so ordinary prose containing
+        // "TYPE #1" does not accidentally become a source card. Case and
+        // spaces are intentionally accepted because models often humanize the
+        // internal wire name ("FARRIER VISIT" instead of "FARRIER_VISIT").
         val citationBlockRegex = Regex("\\[[^]]*]")
-        val citationReferenceRegex = Regex("([A-Z_]+)\\s*#(\\d+)")
+        val citationReferenceRegex =
+            Regex("([A-Z][A-Z_]*(?:\\s+[A-Z_]+)*)\\s*#(\\d+)", RegexOption.IGNORE_CASE)
 
         // Internal tags must never reach the user-facing bubble.
         val literalTagRegex =

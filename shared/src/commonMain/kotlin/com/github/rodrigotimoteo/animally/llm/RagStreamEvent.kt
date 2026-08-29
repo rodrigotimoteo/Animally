@@ -19,9 +19,9 @@ sealed interface RagStreamEvent {
     ) : RagStreamEvent
 
     /**
-     * Retrieved records whose bracketed citations actually appear in the
-     * final answer text, in citation order, deduplicated. Emitted once per
-     * turn after the final chunk; empty citations emit nothing.
+     * Retrieved records that support the final answer, in source order,
+     * deduplicated. The UI renders these as tappable source cards; internal
+     * record headers used during grounding are never part of the display text.
      */
     data class Sources(
         val sources: List<SearchResult>,

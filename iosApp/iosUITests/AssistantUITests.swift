@@ -444,8 +444,8 @@ final class AssistantRealFmUITests: AnimallyTestCase {
         XCTAssertTrue(label.localizedCaseInsensitiveContains(patientName), "Answer lost the subject: \(label)")
         let sourceChip = app.buttons["assistant_source_chip"].firstMatch
         XCTAssertTrue(
-            sourceChip.waitForExistence(timeout: 10) || label.contains("["),
-            "No source card or citation in answer: \(label)"
+            sourceChip.waitForExistence(timeout: 10),
+            "No tappable source card in answer: \(label)"
         )
         XCTAssertFalse(label.contains("---"), "Scaffold separator leaked: \(label)")
         XCTAssertFalse(label.contains("Question:"), "Prompt echo leaked: \(label)")

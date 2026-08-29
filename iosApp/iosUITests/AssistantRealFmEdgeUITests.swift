@@ -136,14 +136,19 @@ final class AssistantRealFmEdgeUITests: AnimallyTestCase {
         let labels = waitForReply(app)
         let reply = labels.last ?? ""
 
-        let cited = reply.contains("[")
+        let sourceChip = app.buttons["assistant_source_chip"].firstMatch
+        let hasSourceCard = sourceChip.waitForExistence(timeout: 10)
         let honestNotFound =
             reply.lowercased().contains("couldn't find")
             || reply.lowercased().contains("don't have")
             || reply.lowercased().contains("do not have")
             || reply.lowercased().contains("no record")
             || reply.lowercased().contains("no farrier")
-        XCTAssertTrue(cited || honestNotFound, "Neither citation nor honest not-found: \(reply)")
+        XCTAssertTrue(
+            hasSourceCard || honestNotFound,
+            "Neither source card nor honest not-found: \(reply)"
+        )
+        XCTAssertFalse(reply.contains("["), "Internal source marker leaked into answer: \(reply)")
         XCTAssertFalse(reply.lowercased().contains("http"), "Fabricated external source: \(reply)")
     }
 

@@ -794,6 +794,12 @@ class GenerateRagResponseUseCase(
             emitPatientDateOfBirthAnswer(query, intent.patientScope.name, patientRepository) -> true
             emitOwnerContactAnswer(query, intent.patientScope.name, ownerRepository) -> true
             intent.recordQuestion &&
+                emitReproductionAttributeAnswer(
+                    query = query,
+                    scopedPatient = intent.patientScope.name,
+                    patientNameMentioned = intent.patientScope.nameMentioned,
+                ) -> true
+            intent.recordQuestion &&
                 emitCurrentGestationAnswer(
                     query = query,
                     scopedPatient = intent.patientScope.name,
@@ -806,6 +812,27 @@ class GenerateRagResponseUseCase(
                 emitRecentActivityAnswer(results, intent.dateRange, turnStrings) -> true
             else -> false
         }
+
+    private suspend fun FlowCollector<RagStreamEvent>.emitReproductionAttributeAnswer(
+        query: String,
+        scopedPatient: String?,
+        patientNameMentioned: Boolean,
+    ): Boolean {
+        val builder = analysisContextBuilder
+        val attribute = ReproductionAttributeIntent.requestedAttribute(query)
+        val canResolvePatient = !patientNameMentioned || scopedPatient != null
+        val facts =
+            if (builder != null && attribute != null && canResolvePatient) {
+                builder.reproductionAttributeFacts(query)
+            } else {
+                null
+            }
+        return if (attribute != null && facts != null) {
+            emitReproductionAttributeAnswer(query, attribute, facts)
+        } else {
+            false
+        }
+    }
 
     /** Emits live pregnancy facts before any model can recalculate or invent them. */
     private suspend fun FlowCollector<RagStreamEvent>.emitCurrentGestationAnswer(

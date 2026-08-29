@@ -435,6 +435,23 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given unknown named patient typed lookup then cloud model is not asked to guess`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Bella")
+            val search = RagRecordSearch { listOf(result(patientName = "Thunder")) }
+
+            val output =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("What is the vaccination date for a horse named Pegasus?").chunks()
+
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
+            assertEquals(0, engine.calls, "an unknown named patient must not reach the cloud model")
+        }
+
+    @Test
     fun `given ambiguous patient prefix then records stay out of the cloud context`() =
         runTest {
             every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Thunderbird")
@@ -573,7 +590,7 @@ class GenerateRagResponseUseCaseTest {
             assertEquals(0, engine.calls, "superlative-date answers are computed, never modeled")
             val answer = chunks.last()
             assertTrue(answer.contains("22 Aug 2026"), "answer must carry the actual latest date: $answer")
-            assertTrue(answer.contains("[FARRIER_VISIT #302]"), "deterministic answer cites its source inline")
+            assertFalse(answer.contains("["), "internal record headers must stay out of the visible answer")
             val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals(302L, sources.sources.single().recordId)
         }
@@ -820,7 +837,7 @@ class GenerateRagResponseUseCaseTest {
             // the first answer chunk (citation enforcement may append a final
             // sources snapshot after it).
             val text = events.map { (it as? RagStreamEvent.Chunk)?.text }.filterNotNull().first { it != PLACEHOLDER }
-            assertTrue(text.contains("She is pregnant with a due date of May 2025. See Vaccination #1."))
+            assertTrue(text.contains("She is pregnant with a due date of May 2025. See."))
             assertTrue("**" !in text && "`" !in text && "__" !in text && "http" !in text)
         }
 
@@ -844,11 +861,39 @@ class GenerateRagResponseUseCaseTest {
     fun `sanitize converts markdown links to their text`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
-            engine.nextChunkOverride = "See [Vaccination #123](https://vet.example.com/x) for details"
+            engine.nextChunkOverride = "See [the source](https://vet.example.com/x) for details"
 
             val output = sut()(QUERY).answers()
 
-            assertEquals("See Vaccination #123 for details", output.first())
+            assertEquals("See the source for details", output.first())
+        }
+
+    @Test
+    fun `humanized multiword record citation becomes a source card and never reaches the bubble`() =
+        runTest {
+            val farrier =
+                result().copy(
+                    recordType = "FARRIER_VISIT",
+                    recordId = 91L,
+                    snippet = "Routine trim",
+                )
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(farrier)
+            engine.nextChunkOverride =
+                "The visit is documented in [FARRIER VISIT #91](https://example.com/internal)."
+
+            val events = sut()("Tell me about Thunder's farrier visit").toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals("The visit is documented in.", final)
+            assertTrue(
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .single()
+                    .recordId == 91L,
+                "humanized citation should still open the matching source card",
+            )
         }
 
     @Test
@@ -870,7 +915,7 @@ class GenerateRagResponseUseCaseTest {
 
             val output = sut()(QUERY).answers()
 
-            assertEquals("Pregnant — see Ultrasound #9 and notes here", output.first())
+            assertEquals("Pregnant — see and notes here", output.first())
         }
 
     @Test
@@ -1028,6 +1073,36 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given a singular follow-up when AND misses then retry keeps the resolved patient scope`() =
+        runTest {
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Estrela")
+            val searchedQueries = mutableListOf<String>()
+            val scopedSearch =
+                RagRecordSearch { ftsQuery ->
+                    searchedQueries += ftsQuery
+                    if (ftsQuery.contains(" OR ") && ftsQuery.contains("thunder*")) {
+                        listOf(result(patientName = "Thunder"))
+                    } else {
+                        emptyList()
+                    }
+                }
+            val history = listOf(RagHistoryEntry("Tell me about Thunder", "Thunder is a 7 year old mare."))
+
+            val output =
+                sut(
+                    patientRepository = patientRepositoryMock,
+                    recordSearch = scopedSearch,
+                )("What breed is she?", history).answers()
+
+            assertEquals(1, engine.calls, "resolved follow-up should reach the model after retry retrieval")
+            assertTrue(output.last().contains("pregnant"))
+            assertTrue(
+                searchedQueries.any { query -> query.contains(" OR ") && query.contains("thunder*") },
+                "OR retry must include the resolved patient token: $searchedQueries",
+            )
+        }
+
+    @Test
     fun `given PT strings when retrieval empty then PT fallback emitted`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
@@ -1052,14 +1127,15 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `given records in context when prompted then citation is mandated`() =
+    fun `given records in context when prompted then source cards are delegated to the app`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
 
             sut()(QUERY).toList()
 
             val instructions = engine.lastInstructions.orEmpty()
-            assertTrue(instructions.contains("MUST INCLUDE AT LEAST ONE BRACKETED HEADER"))
+            assertTrue(instructions.lowercase().contains("tappable source card"))
+            assertTrue(instructions.lowercase().contains("never expose internal record headers"))
         }
 
     @Test
@@ -1242,7 +1318,10 @@ class GenerateRagResponseUseCaseTest {
 
             val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
             assertFalse(final.contains("[RECORD_TYPE #ID]"), "prompt format placeholder must never surface: $final")
-            assertTrue(AssistantPrompts.SYSTEM_PROMPT.contains("[RECORD_TYPE #ID]"), "format-only example expected in prompt")
+            assertFalse(
+                AssistantPrompts.SYSTEM_PROMPT.contains("[RECORD_TYPE #ID]"),
+                "the prompt must not teach models to print internal headers",
+            )
             assertFalse(
                 AssistantPrompts.SYSTEM_PROMPT.contains("[Vaccination #123]"),
                 "real-looking example invites parroting",
@@ -1287,7 +1366,8 @@ class GenerateRagResponseUseCaseTest {
             // leg recovers the farrier visit. Superlative-date questions are
             // answered deterministically from the retrieved record date - the
             // model previously freeballed today-ish dates here - and the
-            // answer cites the real header inline with a Sources event.
+            // answer exposes the real record through a Sources event, not an
+            // internal header in the visible bubble.
             val farrier =
                 result().copy(recordType = "FARRIER_VISIT", recordId = 301L, snippet = "Full set steel shoes")
             every { searchRepositoryMock.search(any(), any(), any(), any()) } sequentiallyReturns
@@ -1298,7 +1378,7 @@ class GenerateRagResponseUseCaseTest {
             assertEquals(0, engine.calls, "superlative-date answers are computed, never modeled")
             val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
             assertTrue(final.contains("1 May 2024"), "answer must carry the retrieved date: $final")
-            assertTrue(final.contains("[FARRIER_VISIT #301]"), "deterministic answer cites its source inline")
+            assertFalse(final.contains("["), "internal record headers must stay out of the visible answer")
             val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals("FARRIER_VISIT", sources.sources.single().recordType)
         }
@@ -1664,6 +1744,44 @@ class GenerateRagResponseUseCaseTest {
                     .single()
                     .sources
                     .map { it.recordType },
+            )
+        }
+
+    @Test
+    fun `given stallion question then answer uses reproduction card field without model`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Lua do Pinhal"))
+            repos.reproductions.entries =
+                listOf(
+                    testReproductionEvent(
+                        id = 62,
+                        patientId = 1,
+                        date = LocalDate(2025, 4, 1),
+                        stallionName = "Eclipse",
+                        breedingType = "Fresh cooled",
+                    ),
+                )
+
+            val events =
+                sut(
+                    analysisContextBuilder = repos.builder,
+                    patientRepository = repos.patients,
+                    today = LocalDate(2025, 5, 11),
+                )("Which stallion was used to breed Lua do Pinhal?").toList()
+
+            assertEquals(0, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(answer.contains("Eclipse"), answer)
+            assertTrue(answer.contains("1 Apr 2025"), answer)
+            assertEquals(
+                listOf(62L),
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .map { it.recordId },
             )
         }
 

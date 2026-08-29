@@ -110,6 +110,15 @@ class RecordQuestionIntentTest {
     }
 
     @Test
+    fun `named horse phrasing stays a record lookup even when it starts with what is`() {
+        val query = "What is the vaccination date for a horse named Pegasus?"
+
+        assertTrue(RecordQuestionIntent.isRecordQuestion(query, null, null))
+        assertFalse(RecordQuestionIntent.isGeneralKnowledgeQuestion(query))
+        assertTrue(RecordQuestionIntent.hasLikelyNamedPatientReference(query))
+    }
+
+    @Test
     fun `expanded record type vocabulary keeps typed lookups grounded`() {
         assertTrue(RecordTypeIntent.expectedRecordTypes("What was Bella's last surgery?").contains("SURGERY"))
         assertTrue(RecordTypeIntent.expectedRecordTypes("Show Thunder's lab results").contains("LAB_RESULT"))
@@ -130,6 +139,10 @@ class RecordQuestionIntentTest {
             RecordTypeIntent.expectedRecordTypes("What is Thunder's Coggins result and expiry?"),
         )
         assertTrue(RecordTypeIntent.expectedRecordTypes("What chronic conditions are recorded for Orion?").contains("ANAMNESE"))
+        assertEquals(
+            setOf("REPRODUCTION_EVENT"),
+            RecordTypeIntent.expectedRecordTypes("Which stallion was used to breed Lua?"),
+        )
     }
 
     @Test

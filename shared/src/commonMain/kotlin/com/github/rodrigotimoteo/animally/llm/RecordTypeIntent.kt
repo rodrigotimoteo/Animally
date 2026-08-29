@@ -54,6 +54,9 @@ object RecordTypeIntent {
                     "coberta|cobertura|cobrição|cobricao)\\b",
             ) to setOf("GESTATION", "REPRODUCTION_EVENT"),
             Regex(
+                "\\b(stallion|sire|stud|garanh[aã]o|reprodutor)\\b",
+            ) to setOf("REPRODUCTION_EVENT"),
+            Regex(
                 "\\b(weight|weights|weigh|weighs|weighed|weighing|kg|peso|pesos|" +
                     "pesada|pesado|pesagem)\\b",
             ) to setOf("WEIGHT"),
@@ -379,7 +382,6 @@ internal suspend fun FlowCollector<RagStreamEvent>.emitLatestRecordAnswer(
 ): Boolean {
     val latest = latestRecordAnswer(query, results, scope) ?: return false
     val date = latest.date ?: return false
-    val header = "[${latest.recordType} #${latest.recordId}]"
     val sentence =
         if (AssistantPrompts.isPortugueseQuery(query)) {
             "O registo mais recente de ${recordTypeNounPortuguese(latest.recordType)} de " +
@@ -388,7 +390,7 @@ internal suspend fun FlowCollector<RagStreamEvent>.emitLatestRecordAnswer(
             "${latest.patientName}'s most recent ${recordTypeNoun(latest.recordType)} on record was on " +
                 formatHumanDateShort(date)
         }
-    emit(RagStreamEvent.Chunk("$sentence. $header"))
+    emit(RagStreamEvent.Chunk("$sentence."))
     emit(RagStreamEvent.Sources(listOf(latest)))
     return true
 }

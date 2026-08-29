@@ -225,6 +225,8 @@ internal fun testReproductionEvent(
     eventType: String = "Breeding",
     date: LocalDate,
     details: String? = null,
+    stallionName: String? = null,
+    breedingType: String? = null,
     isActive: Boolean = true,
 ): ReproductionEvent =
     ReproductionEvent(
@@ -233,6 +235,8 @@ internal fun testReproductionEvent(
         eventType = eventType,
         date = date,
         details = details,
+        stallionName = stallionName,
+        breedingType = breedingType,
         isActive = isActive,
         createdAt = FIXTURE_INSTANT,
         updatedAt = FIXTURE_INSTANT,

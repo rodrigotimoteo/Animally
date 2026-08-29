@@ -13,6 +13,7 @@ internal object RecordQuestionIntent {
         val hasRecordType: Boolean,
         val hasRecordAction: Boolean,
         val hasNamedRecordCue: Boolean,
+        val hasNamedPatientReference: Boolean,
         val hasPatientSubjectCue: Boolean,
         val hasDirectReference: Boolean,
         val hasRecentActivity: Boolean,
@@ -23,6 +24,7 @@ internal object RecordQuestionIntent {
                 scopedPatientName != null ||
                     patientNameMentioned ||
                     hasPatientReference ||
+                    hasNamedPatientReference ||
                     hasDirectReference ||
                     hasRecentActivity
 
@@ -31,6 +33,7 @@ internal object RecordQuestionIntent {
                 hasRecordType &&
                     (
                         hasPatientReference ||
+                            hasNamedPatientReference ||
                             hasRecordAction ||
                             hasNamedRecordCue ||
                             hasPatientSubjectCue ||
@@ -68,6 +71,14 @@ internal object RecordQuestionIntent {
                 "minha\\s+(égua|egua|paciente)|o\\s+meu\\s+(cavalo|paciente)|" +
                 "a\\s+minha\\s+(égua|egua|paciente)|este\\s+(horse|patient|cavalo|paciente)|" +
                 "esta\\s+(mare|égua|egua|paciente)|a\\s+égua|a\\s+egua|o\\s+cavalo)\\b",
+        )
+    private val namedPatientReferenceRegex =
+        Regex(
+            "\\b(?:horse|horses|mare|mares|patient|patients|cavalo|cavalos|" +
+                "égua|éguas|egua|eguas|paciente|pacientes)\\s+" +
+                "(?:named|called|chamado|chamada|de\\s+nome)\\s+" +
+                "[\\p{L}][\\p{L}\\p{N}_-]{1,}",
+            RegexOption.IGNORE_CASE,
         )
 
     /** Singular references used to scope records to one patient. */
@@ -439,6 +450,7 @@ internal object RecordQuestionIntent {
                 hasRecordType = hasRecordType,
                 hasRecordAction = hasRecordAction,
                 hasNamedRecordCue = hasNamedRecordCue,
+                hasNamedPatientReference = namedPatientReferenceRegex.containsMatchIn(lowered),
                 hasPatientSubjectCue = hasPatientSubjectCue,
                 hasDirectReference = directRecordReferenceRegex.containsMatchIn(lowered),
                 hasRecentActivity = dateRange != null && RecentActivityIntent.matches(query, dateRange),
@@ -479,6 +491,7 @@ internal object RecordQuestionIntent {
         if (!isEducationalQuestion(query) && !generalKnowledgeQuestionRegex.containsMatchIn(query.trim())) return false
         val lowered = query.lowercase()
         return !patientPronounRegex.containsMatchIn(lowered) &&
+            !namedPatientReferenceRegex.containsMatchIn(lowered) &&
             !directRecordReferenceRegex.containsMatchIn(lowered) &&
             !recordCorpusReferenceRegex.containsMatchIn(lowered) &&
             !hasNamedPatientRecordCue(query) &&
@@ -489,26 +502,34 @@ internal object RecordQuestionIntent {
     fun hasLikelyNamedPatientReference(query: String): Boolean {
         if (isGeneralKnowledgeQuestion(query)) return false
         val lowered = query.lowercase()
-        val hasRecordCue =
-            RecordTypeIntent.expectedRecordTypes(query).isNotEmpty() ||
-                directRecordReferenceRegex.containsMatchIn(lowered) ||
-                patientPronounRegex.containsMatchIn(lowered) ||
-                recordCorpusReferenceRegex.containsMatchIn(lowered) ||
-                hasNamedPatientRecordCue(query) ||
-                patientSubjectRecordCueRegex.containsMatchIn(lowered)
-        if (!hasRecordCue) return false
-        return query
-            .split(Regex("\\s+"))
-            .mapIndexed { index, token -> index to cleanNameCandidate(token) }
-            .any { (index, token) ->
-                val lowered = token.lowercase()
-                token.length >= 2 &&
-                    token.first().isUpperCase() &&
-                    lowered !in patientNameStopWords &&
-                    (index > 0 || lowered !in questionStartWords)
-            } ||
+        if (!hasPatientRecordCue(query, lowered)) return false
+        val hasTitleCasedCandidate =
+            query
+                .split(Regex("\\s+"))
+                .mapIndexed { index, token -> index to cleanNameCandidate(token) }
+                .any { (index, token) ->
+                    val candidate = token.lowercase()
+                    token.length >= 2 &&
+                        token.first().isUpperCase() &&
+                        candidate !in patientNameStopWords &&
+                        (index > 0 || candidate !in questionStartWords)
+                }
+        return namedPatientReferenceRegex.containsMatchIn(lowered) ||
+            hasTitleCasedCandidate ||
             patientSubjectRecordCueRegex.containsMatchIn(lowered)
     }
+
+    private fun hasPatientRecordCue(
+        query: String,
+        lowered: String,
+    ): Boolean =
+        RecordTypeIntent.expectedRecordTypes(query).isNotEmpty() ||
+            directRecordReferenceRegex.containsMatchIn(lowered) ||
+            patientPronounRegex.containsMatchIn(lowered) ||
+            namedPatientReferenceRegex.containsMatchIn(lowered) ||
+            recordCorpusReferenceRegex.containsMatchIn(lowered) ||
+            hasNamedPatientRecordCue(query) ||
+            patientSubjectRecordCueRegex.containsMatchIn(lowered)
 
     /** Title-cased patient-like text paired with an explicit record signal. */
     private fun hasNamedPatientRecordCue(query: String): Boolean {
