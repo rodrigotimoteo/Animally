@@ -159,6 +159,7 @@ struct AssistantView: View {
                             }
                         )
                         .id(index)
+                        .accessibilityIdentifier("assistant_message_\(index)")
                     }
 
                     if viewModel.state.isGenerating {
@@ -554,9 +555,11 @@ private struct ChatBubble: View {
                 .font(.caption2)
             Text("Answered by cloud model")
                 .font(.caption2.weight(.medium))
+                .accessibilityIdentifier("assistant_cloud_badge")
         }
         .foregroundStyle(Theme.textSecondary)
-        .accessibilityIdentifier("assistant_cloud_badge")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Answered by cloud model")
     }
 
     /// Tappable chips for the records cited in this answer.

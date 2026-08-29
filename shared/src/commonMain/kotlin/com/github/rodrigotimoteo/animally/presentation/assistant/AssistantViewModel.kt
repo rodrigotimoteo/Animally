@@ -285,12 +285,26 @@ class AssistantViewModel(
                     // routing decision to newly created views, and a replay before
                     // the next question would otherwise create a blank bubble.
                     _uiState.update { state ->
-                        if (state.isGenerating &&
-                            state.messages.lastOrNull()?.role == AssistantChatMessageRole.ASSISTANT
-                        ) {
-                            state.copy(messages = state.messages.upsertLast(source) { it.copy(source = source) })
-                        } else {
-                            state
+                        if (!state.isGenerating) return@update state
+                        when (state.messages.lastOrNull()?.role) {
+                            AssistantChatMessageRole.ASSISTANT ->
+                                state.copy(messages = state.messages.upsertLast(source) { it.copy(source = source) })
+                            AssistantChatMessageRole.USER ->
+                                // The source event and the first provider chunk
+                                // are independent flows. If the source wins the
+                                // race, create the same placeholder that the
+                                // first chunk would create so the cloud badge
+                                // cannot be lost before the reply is rendered.
+                                state.copy(
+                                    messages =
+                                        state.messages +
+                                            AssistantChatMessage(
+                                                role = AssistantChatMessageRole.ASSISTANT,
+                                                text = strings.searchingPlaceholder,
+                                                source = source,
+                                            ),
+                                )
+                            null -> state
                         }
                     }
                 }

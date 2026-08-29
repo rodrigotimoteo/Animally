@@ -44,42 +44,32 @@ final class CloudAiUITests: AnimallyTestCase {
         }
     }
 
-    /// Selects the requested live model through the same discovery/picker path
-    /// a user uses. This prevents earlier tests from silently changing the
-    /// persisted model before the live matrix starts.
-    private func selectLiveMimoModel(_ app: XCUIApplication) throws {
+    /// Enters the paid Mimo model id before model discovery turns the manual
+    /// field into a picker. This is useful when a provider's `/models` response
+    /// advertises only its free tier even though the paid id is routable.
+    private func configureLivePaidMimoModelManually(_ app: XCUIApplication) throws {
         openSettings(app)
         ensureCloudEnabled(app)
 
-        let fetch = app.buttons["Fetch models"].firstMatch
-        XCTAssertTrue(fetch.waitForExistence(timeout: 5), "Fetch models action is unavailable")
-        fetch.tap()
+        let provider = app.buttons["settings_cloud_provider"].firstMatch
+        XCTAssertTrue(provider.waitForExistence(timeout: 5), "Cloud provider picker is unavailable")
+        provider.tap()
+        let openCodeGo = app.buttons["OpenCode Go"].firstMatch
+        XCTAssertTrue(openCodeGo.waitForExistence(timeout: 5), "OpenCode Go provider option is unavailable")
+        openCodeGo.tap()
 
-        let picker = app.buttons["settings_cloud_model"].firstMatch
-        XCTAssertTrue(picker.waitForExistence(timeout: 60), "Live model picker never appeared")
-        picker.tap()
+        let modelField = app.textFields["settings_cloud_model"].firstMatch
+        XCTAssertTrue(
+            modelField.waitForExistence(timeout: 5),
+            "The model field was not editable before discovery; cannot test the paid id directly",
+        )
+        TestHelpers.typeTextAndVerify(modelField, text: "mimo-v2.5")
 
-        // The picker is a lazy List, so a model outside the first viewport is
-        // not necessarily in the accessibility tree until it is filtered.
-        let filter = app.searchFields["Filter models"].firstMatch
-        XCTAssertTrue(filter.waitForExistence(timeout: 5), "Model picker search is unavailable")
-        TestHelpers.typeSearchText(app, field: filter, text: "mimo-v2.5")
-
-        let mimo = app.descendants(matching: .any)
-            .matching(identifier: "cloud_model_row")
-            .matching(NSPredicate(format: "label BEGINSWITH[c] %@", "mimo-v2.5"))
-            .firstMatch
-        if !mimo.waitForExistence(timeout: 10) {
-            print("CLOUDAI_DEBUG live model picker:\n\(app.debugDescription)")
-        }
-        XCTAssertTrue(mimo.exists, "mimo-v2.5 was not returned by the configured provider")
-        mimo.tap()
-
-        let selected = app.buttons["settings_cloud_model"].firstMatch
+        let selected = app.textFields["settings_cloud_model"].firstMatch
         XCTAssertTrue(selected.waitForExistence(timeout: 5), "Selected model field is unavailable")
         XCTAssertTrue(
-            selected.label.lowercased().hasPrefix("mimo-v2.5"),
-            "Selected model was not a Mimo 2.5 variant: \(selected.label)",
+            ((selected.value as? String) ?? selected.label).lowercased().hasPrefix("mimo-v2.5"),
+            "Selected model was not a Mimo 2.5 variant: \(selected.value ?? selected.label)",
         )
 
         let done = app.buttons["Done"].firstMatch
@@ -215,7 +205,7 @@ final class CloudAiUITests: AnimallyTestCase {
         )
         let app = TestHelpers.launchApp(arguments: ["-forceFmUnavailable"])
         let patientName = TestHelpers.firstPatientName(app)
-        try selectLiveMimoModel(app)
+        try configureLivePaidMimoModelManually(app)
         openAssistant(app)
 
         XCTAssertFalse(
@@ -242,6 +232,13 @@ final class CloudAiUITests: AnimallyTestCase {
             app.buttons["assistant_source_chip"].firstMatch.waitForExistence(timeout: 10),
             "Grounded patient answer did not expose a source card",
         )
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "assistant_cloud_badge")
+                .firstMatch
+                .waitForExistence(timeout: 10),
+            "The paid Mimo turn was not marked as cloud-served",
+        )
 
         // This is deliberately a direct data projection: it verifies that the
         // breeding-card date is visible to the assistant independently of the
@@ -267,7 +264,7 @@ final class CloudAiUITests: AnimallyTestCase {
         let vaccinationReply = try askAndWait(
             app,
             input: input,
-            question: "What vaccination is recorded for \(patientName)?",
+            question: "What vaccination is recorded for her?",
             replyIndex: 2,
         )
         XCTAssertTrue(
@@ -309,10 +306,29 @@ final class CloudAiUITests: AnimallyTestCase {
         XCTAssertTrue(
             absentFactReply.localizedCaseInsensitiveContains("couldn't find") ||
                 absentFactReply.localizedCaseInsensitiveContains("not found") ||
-                absentFactReply.localizedCaseInsensitiveContains("no record"),
+                absentFactReply.localizedCaseInsensitiveContains("no record") ||
+                absentFactReply.localizedCaseInsensitiveContains("não encontrei") ||
+                absentFactReply.localizedCaseInsensitiveContains("não encontrado") ||
+                absentFactReply.localizedCaseInsensitiveContains("nenhuma informação") ||
+                absentFactReply.localizedCaseInsensitiveContains("sem registo"),
             "Missing patient fact was not answered honestly: \(absentFactReply)",
         )
         XCTAssertFalse(absentFactReply.localizedCaseInsensitiveContains("http"), "Missing-fact answer fabricated a URL: \(absentFactReply)")
+
+        let generalReply = try askAndWait(
+            app,
+            input: input,
+            question: "What is the capital of Portugal?",
+            replyIndex: 6,
+        )
+        XCTAssertTrue(
+            generalReply.localizedCaseInsensitiveContains("lisbon") || generalReply.localizedCaseInsensitiveContains("lisboa"),
+            "General cloud question was not answered directly: \(generalReply)",
+        )
+        XCTAssertFalse(
+            generalReply.localizedCaseInsensitiveContains("not found in records"),
+            "General cloud question was incorrectly rejected as a record lookup: \(generalReply)",
+        )
     }
 
     private func askAndWait(
@@ -326,9 +342,14 @@ final class CloudAiUITests: AnimallyTestCase {
         XCTAssertTrue(send.waitForExistence(timeout: 5), "Send action missing for '\(question)'")
         send.tap()
 
+        // Each turn is rendered as USER + ASSISTANT, so the assistant bubble
+        // for replyIndex has the corresponding odd message index. Using its
+        // stable identifier avoids accidentally reusing the prior bubble while
+        // the new request is still in retrieval.
+        let messageIndex = replyIndex * 2 + 1
         let reply = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Assistant:"))
-            .element(boundBy: replyIndex)
+            .matching(identifier: "assistant_message_\(messageIndex)")
+            .firstMatch
         XCTAssertTrue(reply.waitForExistence(timeout: 180), "No answer appeared for '\(question)'")
         // The assistant exposes a cumulative accessibility label while its
         // retrieval/tool loop is streaming. Do not mistake the interim
@@ -338,16 +359,12 @@ final class CloudAiUITests: AnimallyTestCase {
         var label = reply.label
         var previousLabel = ""
         var stableSince: Date?
-        let thinkingIndicator = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS[c] %@", "thinking")
-        ).firstMatch
 
         while Date() < deadline {
             label = reply.label
             let isRetrieving = label.localizedCaseInsensitiveContains("Searching your records")
-            let isThinking = thinkingIndicator.exists
 
-            if !isRetrieving && !isThinking {
+            if !isRetrieving {
                 if label == previousLabel {
                     if let stableSince,
                        Date().timeIntervalSince(stableSince) >= 1.5 {
@@ -368,10 +385,11 @@ final class CloudAiUITests: AnimallyTestCase {
             label.localizedCaseInsensitiveContains("Searching your records"),
             "Answer did not leave the retrieval state for '\(question)': \(label)",
         )
-        XCTAssertFalse(
-            thinkingIndicator.exists,
-            "Answer was still generating for '\(question)': \(label)",
-        )
+        let inputReadyDeadline = Date().addingTimeInterval(30)
+        while !input.isEnabled && Date() < inputReadyDeadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.25))
+        }
+        XCTAssertTrue(input.isEnabled, "Input remained disabled after '\(question)': \(label)")
         print("CLOUDAI_REPLY_\(replyIndex): \(label)")
         let diagnosticLabels = app.staticTexts.allElementsBoundByIndex
             .map(\.label)
