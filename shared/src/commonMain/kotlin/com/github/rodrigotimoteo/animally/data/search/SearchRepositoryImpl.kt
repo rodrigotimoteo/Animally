@@ -15,6 +15,7 @@ import com.github.rodrigotimoteo.animally.data.patient.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.search.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.substance.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.surgery.mapper.toDomain
+import com.github.rodrigotimoteo.animally.data.ultrasound.mapper.toDomain
 import com.github.rodrigotimoteo.animally.data.vaccination.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
@@ -369,19 +370,7 @@ class SearchRepositoryImpl(
 
     private val reindexUltrasoundRows: () -> Unit = {
         database.ultrasoundQueries.selectAll().executeAsList().forEach {
-            val searchableText =
-                listOfNotNull(
-                    it.ovaryStatus,
-                    it.uterineStatus,
-                    it.leftOvaryStatus,
-                    it.rightOvaryStatus,
-                    it.uterineEdema,
-                    it.uterineLiquidDescription,
-                    it.uterusDescription,
-                    it.findings,
-                    it.vetName,
-                    it.notes,
-                ).joinToString(" ")
+            val searchableText = SearchableText.ultrasound(it.toDomain())
             indexRecord(
                 recordType = RecordType.Ultrasound.wireName,
                 patientId = it.patientId,

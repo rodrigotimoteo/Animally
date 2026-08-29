@@ -3,6 +3,7 @@
 package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.search.usecase.RetrievalPolicy
@@ -184,6 +185,7 @@ class GenerateRagResponseUseCase(
     private val strings: AssistantStrings = EnAssistantStrings,
     private val recordSearch: RagRecordSearch? = null,
     private val patientRepository: IPatientRepository? = null,
+    private val ownerRepository: IOwnerRepository? = null,
     private val analysisContextBuilder: AnalysisContextBuilder? = null,
     private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
     private val queryPolicyProvider: suspend () -> RagQueryPolicy = { RagQueryPolicy.ON_DEVICE },
@@ -657,23 +659,22 @@ class GenerateRagResponseUseCase(
         results: List<SearchResult>,
         intent: AnswerIntent,
         turnStrings: AssistantStrings,
-    ): Boolean {
-        if (
+    ): Boolean =
+        when {
+            emitPatientDateOfBirthAnswer(query, intent.patientScope.name, patientRepository) -> true
             intent.recordQuestion &&
-            emitCurrentGestationAnswer(
-                query = query,
-                scopedPatient = intent.patientScope.name,
-                patientNameMentioned = intent.patientScope.nameMentioned,
-            )
-        ) {
-            return true
+                emitCurrentGestationAnswer(
+                    query = query,
+                    scopedPatient = intent.patientScope.name,
+                    patientNameMentioned = intent.patientScope.nameMentioned,
+                ) -> true
+            // "When was the last <type> visit?" is answered from the retrieved
+            // record dates so a model cannot drift to a plausible but false date.
+            emitLatestRecordAnswer(query, results, intent.patientScope.name) -> true
+            RecentActivityIntent.matches(query, intent.dateRange) &&
+                emitRecentActivityAnswer(results, intent.dateRange, turnStrings) -> true
+            else -> false
         }
-        // "When was the last <type> visit?" is answered from the retrieved
-        // record dates so a model cannot drift to a plausible but false date.
-        if (emitLatestRecordAnswer(query, results, intent.patientScope.name)) return true
-        return RecentActivityIntent.matches(query, intent.dateRange) &&
-            emitRecentActivityAnswer(results, intent.dateRange, turnStrings)
-    }
 
     /** Emits live pregnancy facts before any model can recalculate or invent them. */
     private suspend fun FlowCollector<RagStreamEvent>.emitCurrentGestationAnswer(
@@ -769,18 +770,33 @@ class GenerateRagResponseUseCase(
             }
         }
 
-    /** Resolves a unique patient, or marks the result set unsafe to share. */
+    /** Resolves a unique patient/owner scope, or marks the result set unsafe to share. */
     private fun resolvePatientScope(
         query: String,
         dateRange: RagDateRange?,
         history: List<RagHistoryEntry>,
     ): PatientScope {
-        val activeNames = patientRepository?.patientNames().orEmpty()
-        val matchedNames = matchingPatientNames(activeNames, query)
+        val activePatientNames = patientRepository?.patientNames().orEmpty()
+        val activeOwnerNames =
+            ownerRepository
+                ?.getOwnerList()
+                ?.filter { it.isActive }
+                ?.map { it.name }
+                .orEmpty()
+        val activeNames = activePatientNames + activeOwnerNames
+        val matchedNames = matchingScopeNames(activeNames, query)
+        val matchedPatientNames = matchingScopeNames(activePatientNames, query)
         val hasIndividualReference = RecordQuestionIntent.hasIndividualPatientReference(query)
         val hasLikelyName = hasLikelyPatientName(query, dateRange)
-        val historyPatientName = resolveHistoryPatientName(query, activeNames, matchedNames, hasLikelyName, history)
-        val name = selectPatientName(matchedNames, historyPatientName, hasIndividualReference, activeNames)
+        val historyPatientName =
+            resolveHistoryPatientName(
+                query,
+                activePatientNames,
+                matchedPatientNames,
+                hasLikelyName,
+                history,
+            )
+        val name = selectPatientName(matchedNames, historyPatientName, hasIndividualReference, activePatientNames)
         return PatientScope(
             name = name,
             requiresFilter =
@@ -794,7 +810,7 @@ class GenerateRagResponseUseCase(
         )
     }
 
-    private fun matchingPatientNames(
+    private fun matchingScopeNames(
         activeNames: List<String>,
         query: String,
     ): List<String> {
@@ -809,7 +825,7 @@ class GenerateRagResponseUseCase(
         query: String,
         dateRange: RagDateRange?,
     ): Boolean {
-        if (patientRepository == null) return false
+        if (patientRepository == null && ownerRepository == null) return false
         val isEducational = RecordQuestionIntent.isEducationalQuestion(query)
         val isRecordQuestion = RecordQuestionIntent.isRecordQuestion(query, null, dateRange)
         return (!isEducational || isRecordQuestion) && RecordQuestionIntent.hasLikelyNamedPatientReference(query)

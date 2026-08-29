@@ -478,6 +478,160 @@ final class CloudAiUITests: AnimallyTestCase {
         )
     }
 
+    /// Extended paid-provider coverage over the demo herd. This deliberately
+    /// exercises record types and conversational shapes not covered by the
+    /// compact matrix above: possessive names, owner records, imaging,
+    /// lameness, medication, failed reproduction, Portuguese, a follow-up,
+    /// casual cloud knowledge, and multi-record analysis.
+    func testLiveCloudExtendedRecordAndConversationMatrix() throws {
+        try XCTSkipUnless(
+            isLiveCloudRun,
+            "Opt-in live cloud matrix; set ANIMALLY_LIVE_CLOUD=1 when a valid provider key is configured",
+        )
+        let app = TestHelpers.launchApp(arguments: ["-forceFmUnavailable"])
+        try configureLivePaidMimoModelManually(app)
+        openAssistant(app)
+
+        let input = app.textFields["assistant_input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 10), "Assistant input is unavailable")
+        let newChat = app.buttons["assistant_new_chat"].firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat action is unavailable")
+        newChat.tap()
+        XCTAssertTrue(
+            app.staticTexts["What would you like to know?"].waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
+
+        let birthReply = try askAndWait(
+            app,
+            input: input,
+            question: "What is Lua do Pinhal's date of birth?",
+            replyIndex: 0,
+        )
+        assertUsefulCloudAnswer(birthReply, question: "possessive patient identity")
+        XCTAssertTrue(birthReply.contains("2017"), "Patient date of birth was not grounded: \(birthReply)")
+
+        let ultrasoundReply = try askAndWait(
+            app,
+            input: input,
+            question: "What were Lua do Pinhal's latest ultrasound findings?",
+            replyIndex: 1,
+        )
+        assertUsefulCloudAnswer(ultrasoundReply, question: "ultrasound findings")
+        XCTAssertTrue(
+            ultrasoundReply.localizedCaseInsensitiveContains("heartbeat") ||
+                ultrasoundReply.localizedCaseInsensitiveContains("conceptus") ||
+                ultrasoundReply.localizedCaseInsensitiveContains("ultrasound"),
+            "Ultrasound answer did not reflect the recorded findings: \(ultrasoundReply)",
+        )
+
+        let lamenessReply = try askAndWait(
+            app,
+            input: input,
+            question: "What did Orion do Vale's lameness examination show?",
+            replyIndex: 2,
+        )
+        assertUsefulCloudAnswer(lamenessReply, question: "lameness record")
+        XCTAssertTrue(
+            lamenessReply.localizedCaseInsensitiveContains("lameness") ||
+                lamenessReply.localizedCaseInsensitiveContains("forelimb") ||
+                lamenessReply.localizedCaseInsensitiveContains("grade 1"),
+            "Lameness answer did not reflect the recorded examination: \(lamenessReply)",
+        )
+
+        let medicationReply = try askAndWait(
+            app,
+            input: input,
+            question: "What medication was recorded for Orion do Vale?",
+            replyIndex: 3,
+        )
+        assertUsefulCloudAnswer(medicationReply, question: "medication record")
+        XCTAssertTrue(
+            medicationReply.localizedCaseInsensitiveContains("omeprazole") ||
+                medicationReply.localizedCaseInsensitiveContains("medication"),
+            "Medication answer did not reflect the recorded prescription: \(medicationReply)",
+        )
+
+        let failedBreedingReply = try askAndWait(
+            app,
+            input: input,
+            question: "What is Brisa do Atlântico's breeding outcome?",
+            replyIndex: 4,
+        )
+        assertUsefulCloudAnswer(failedBreedingReply, question: "failed reproduction")
+        XCTAssertTrue(
+            failedBreedingReply.localizedCaseInsensitiveContains("failed") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("not pregnant") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("cycling") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("sem sucesso") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("não resultou") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("cio") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("não se encontra grávida") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("não foi sucesso") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("não estava prenha") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("malsucedida") ||
+                failedBreedingReply.localizedCaseInsensitiveContains("retomado o ciclo"),
+            "Failed breeding answer did not reflect the records: \(failedBreedingReply)",
+        )
+
+        let ownerReply = try askAndWait(
+            app,
+            input: input,
+            question: "What is Inês Martins's address?",
+            replyIndex: 5,
+        )
+        assertUsefulCloudAnswer(ownerReply, question: "owner record")
+        XCTAssertTrue(
+            ownerReply.localizedCaseInsensitiveContains("évora") ||
+                ownerReply.localizedCaseInsensitiveContains("herdade da serra"),
+            "Owner address was not grounded: \(ownerReply)",
+        )
+
+        let portugueseReply = try askAndWait(
+            app,
+            input: input,
+            question: "Qual é a data de nascimento da Lua do Pinhal?",
+            replyIndex: 6,
+        )
+        assertUsefulCloudAnswer(portugueseReply, question: "Portuguese patient identity")
+        XCTAssertTrue(portugueseReply.contains("2017"), "Portuguese patient answer was not grounded: \(portugueseReply)")
+
+        let analysisReply = try askAndWait(
+            app,
+            input: input,
+            question: "Compare the weight trends of Lua do Pinhal and Orion do Vale.",
+            replyIndex: 7,
+        )
+        assertUsefulCloudAnswer(analysisReply, question: "multi-patient analysis")
+        XCTAssertTrue(
+            analysisReply.localizedCaseInsensitiveContains("weight") ||
+                analysisReply.localizedCaseInsensitiveContains("trend") ||
+                analysisReply.localizedCaseInsensitiveContains("kg"),
+            "Multi-patient analysis did not discuss the requested measurements: \(analysisReply)",
+        )
+
+        let casualReply = try askAndWait(
+            app,
+            input: input,
+            question: "Can you tell me a short joke about a horse?",
+            replyIndex: 8,
+        )
+        assertUsefulCloudAnswer(casualReply, question: "casual cloud question")
+
+        let educationalReply = try askAndWait(
+            app,
+            input: input,
+            question: "O que é a laminite?",
+            replyIndex: 9,
+        )
+        assertUsefulCloudAnswer(educationalReply, question: "Portuguese educational question")
+        XCTAssertFalse(
+            educationalReply.localizedCaseInsensitiveContains("não encontrei") ||
+                educationalReply.localizedCaseInsensitiveContains("not found in records"),
+            "Educational cloud question was incorrectly treated as a missing record: \(educationalReply)",
+        )
+    }
+
     private func assertUsefulCloudAnswer(_ answer: String, question: String) {
         let normalized = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         XCTAssertFalse(normalized.isEmpty, "Empty answer for \(question)")

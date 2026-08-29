@@ -1,5 +1,7 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
+import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
@@ -71,6 +73,7 @@ private class DateAwareRagRecordSearch(
 class GenerateRagResponseUseCaseTest {
     private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
     private val patientRepositoryMock: IPatientRepository = mock(MockMode.autoUnit)
+    private val ownerRepositoryMock: IOwnerRepository = mock(MockMode.autoUnit)
     private val engine = FakeRagLlmEngine()
 
     private fun sut(
@@ -81,6 +84,7 @@ class GenerateRagResponseUseCaseTest {
         analysisContextBuilder: AnalysisContextBuilder? = null,
         today: LocalDate = LocalDate(2026, 8, 24),
         patientRepository: IPatientRepository? = null,
+        ownerRepository: IOwnerRepository? = null,
         queryPolicyProvider: suspend () -> RagQueryPolicy = { RagQueryPolicy.ON_DEVICE },
     ) = GenerateRagResponseUseCase(
         SearchUseCase(searchRepositoryMock),
@@ -89,6 +93,7 @@ class GenerateRagResponseUseCaseTest {
         strings,
         recordSearch,
         patientRepository = patientRepository,
+        ownerRepository = ownerRepository,
         analysisContextBuilder = analysisContextBuilder,
         today = today,
         queryPolicyProvider = queryPolicyProvider,
@@ -119,6 +124,29 @@ class GenerateRagResponseUseCaseTest {
             recordId = 555L,
             date = LocalDate(2024, 6, 1),
             snippet = "Metronidazole 500 mg twice daily",
+        )
+
+    private fun owner() =
+        Owner(
+            id = 99L,
+            name = "Inês Martins",
+            email = null,
+            phone = null,
+            address = "Herdade da Serra, Évora",
+            createdAt = kotlin.time.Instant.fromEpochMilliseconds(0L),
+            updatedAt = kotlin.time.Instant.fromEpochMilliseconds(0L),
+        )
+
+    private fun ownerResult() =
+        SearchResult(
+            patientId = 99L,
+            patientName = "Inês Martins",
+            breed = null,
+            microchipId = null,
+            recordType = ISearchRepository.TYPE_OWNER,
+            recordId = 99L,
+            date = null,
+            snippet = "Inês Martins Herdade da Serra, Évora",
         )
 
     @Test
@@ -275,6 +303,32 @@ class GenerateRagResponseUseCaseTest {
             assertFalse(engine.lastPrompt.orEmpty().contains("[VACCINATION #12] Bella"))
             val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals(listOf(11L), sources.sources.map { it.recordId })
+        }
+
+    @Test
+    fun `given named owner question then patient rows are excluded from prompt and sources`() =
+        runTest {
+            val owner = ownerResult()
+            val patient = result(recordId = 12L, patientName = "Thunder", snippet = "Herdade da Serra")
+            val search =
+                object : RagRecordSearch {
+                    override fun search(ftsQuery: String): List<SearchResult> = listOf(owner, patient)
+                }
+            every { patientRepositoryMock.patientNames() } returns listOf("Thunder")
+            every { ownerRepositoryMock.getOwnerList() } returns listOf(owner())
+
+            val events =
+                sut(
+                    recordSearch = search,
+                    patientRepository = patientRepositoryMock,
+                    ownerRepository = ownerRepositoryMock,
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                )("What is Inês Martins's address?").toList()
+
+            assertTrue(engine.lastPrompt.orEmpty().contains("[OWNER #99] Inês Martins"))
+            assertFalse(engine.lastPrompt.orEmpty().contains("[VACCINATION #12] Thunder"))
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(listOf(99L), sources.sources.map { it.recordId })
         }
 
     @Test
@@ -481,6 +535,62 @@ class GenerateRagResponseUseCaseTest {
 
             assertEquals(0, engine.calls)
             assertEquals(FALLBACK_TEXT, output.last())
+        }
+
+    @Test
+    fun `given patient date of birth when asked then exact patient row projection bypasses engine`() =
+        runTest {
+            val patient = testPatient(7L, "Thunder").copy(dateOfBirth = LocalDate(2017, 4, 18))
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val events =
+                sut(
+                    patientRepository = FakePatientRepository(listOf(patient)),
+                )("What is Thunder's date of birth?")
+                    .toList()
+
+            assertEquals(0, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals("Thunder's date of birth is 18 Apr 2017.", answer)
+            val source =
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .single()
+            assertEquals(ISearchRepository.TYPE_PATIENT, source.recordType)
+            assertEquals(7L, source.recordId)
+        }
+
+    @Test
+    fun `given missing patient date of birth when asked then no date is invented`() =
+        runTest {
+            val patient = testPatient(7L, "Thunder")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val output =
+                sut(
+                    patientRepository = FakePatientRepository(listOf(patient)),
+                )("What is Thunder's date of birth?").chunks()
+
+            assertEquals(0, engine.calls)
+            assertEquals("The date of birth for Thunder is not recorded.", output.last())
+        }
+
+    @Test
+    fun `given Portuguese patient date of birth when asked then exact year is preserved`() =
+        runTest {
+            val patient = testPatient(7L, "Thunder").copy(dateOfBirth = LocalDate(2017, 4, 18))
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val output =
+                sut(
+                    patientRepository = FakePatientRepository(listOf(patient)),
+                )("Qual é a data de nascimento do Thunder?").chunks()
+
+            assertEquals(0, engine.calls)
+            assertTrue(output.last().contains("2017"))
+            assertTrue(output.last().contains("data de nascimento"))
         }
 
     @Test

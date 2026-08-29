@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.ultrasound.usecase
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import org.koin.core.annotation.Provided
@@ -34,23 +35,12 @@ class SaveUltrasoundUseCase(
                 ultrasoundRepository.update(ultrasound)
                 ultrasound.id
             }
-        val searchableText =
-            listOfNotNull(
-                ultrasound.ovaryStatus,
-                ultrasound.uterineStatus,
-                ultrasound.uterineEdema,
-                ultrasound.uterineLiquidDescription,
-                ultrasound.uterusDescription,
-                ultrasound.findings,
-                ultrasound.vetName,
-                ultrasound.notes,
-            ).joinToString(" ")
         searchRepository.indexRecord(
             recordType = RecordType.Ultrasound.wireName,
             patientId = ultrasound.patientId,
             recordId = savedId,
             date = ultrasound.date,
-            searchableText = searchableText,
+            searchableText = SearchableText.ultrasound(ultrasound),
         )
         return savedId
     }

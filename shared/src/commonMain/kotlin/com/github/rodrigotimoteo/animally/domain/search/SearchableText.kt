@@ -12,6 +12,7 @@ import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.substance.model.ControlledSubstance
 import com.github.rodrigotimoteo.animally.domain.surgery.model.Surgery
+import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 
 /**
@@ -26,11 +27,16 @@ internal object SearchableText {
             patient.name,
             patient.species,
             patient.breed,
+            patient.dateOfBirth?.let { "date of birth $it" },
+            patient.gender?.let { "gender $it" },
             patient.microchipId,
             patient.ueln,
             patient.registrationNumber,
             patient.stableLocation,
             patient.notes,
+            patient.cogginsTestDate?.let { "coggins test date $it" },
+            patient.cogginsResult?.let { "coggins result $it" },
+            patient.cogginsExpiryDate?.let { "coggins expiry date $it" },
         ).joinToString(" ")
 
     fun consultation(consultation: Consultation): String =
@@ -46,6 +52,13 @@ internal object SearchableText {
         listOfNotNull(
             medication.name,
             medication.dosage,
+            medication.route,
+            medication.frequency,
+            medication.startDate?.let { "start date $it" },
+            medication.endDate?.let { "end date $it" },
+            medication.prescribedBy,
+            medication.notes,
+            "medication medicine drug prescription treatment",
         ).joinToString(" ")
 
     fun vaccination(vaccination: Vaccination): String =
@@ -104,6 +117,25 @@ internal object SearchableText {
             record.reason,
             record.notes,
             "witness",
+        ).joinToString(" ")
+
+    fun ultrasound(ultrasound: Ultrasound): String =
+        listOfNotNull(
+            ultrasound.ovaryStatus,
+            ultrasound.uterineStatus,
+            ultrasound.follicleSizeMm?.toString(),
+            ultrasound.leftOvaryStatus,
+            ultrasound.rightOvaryStatus,
+            ultrasound.leftFollicleSizeMm?.toString(),
+            ultrasound.rightFollicleSizeMm?.toString(),
+            ultrasound.uterineEdema,
+            ultrasound.uterineLiquid?.toString(),
+            ultrasound.uterineLiquidDescription,
+            ultrasound.uterusDescription,
+            ultrasound.findings,
+            ultrasound.vetName,
+            ultrasound.notes,
+            "ultrasound ecography ultrasonography findings examination",
         ).joinToString(" ")
 
     fun gestation(gestation: Gestation): String {

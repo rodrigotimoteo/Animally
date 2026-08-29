@@ -86,7 +86,7 @@ val llmModule =
         // the JSON contract; the Swift edge only starts the request.
         single { GenerateDictationSessionUseCase(get<FmFirstRagLlmEngine>()) }
         // Retrieval goes through the repository's RAG snippet variant: chunks
-        // carry a 24-token FTS5 window instead of full record text so long
+        // carry a 48-token FTS5 window instead of full record text so long
         // consultations cannot eat the context budget. The OR retry bypasses
         // SearchUseCase (its tokenizer stars every token, corrupting boolean
         // operators) and hits the repository directly with the FTS-safe
@@ -149,6 +149,7 @@ val llmModule =
                 strings = get(),
                 recordSearch = recordSearch,
                 patientRepository = get(),
+                ownerRepository = get(),
                 analysisContextBuilder = analysisContextBuilder,
                 queryPolicyProvider = { routedEngine.queryPolicy() },
                 toolCallingEngine = routedEngine,

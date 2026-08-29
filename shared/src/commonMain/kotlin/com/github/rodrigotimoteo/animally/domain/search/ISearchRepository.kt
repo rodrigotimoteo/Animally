@@ -30,7 +30,7 @@ interface ISearchRepository {
     /**
      * RAG-facing variant of [search]: identical matching, filtering and BM25
      * ordering, but each hit's [SearchResult.snippet] carries an FTS5 snippet
-     * window (24 tokens around the first match) instead of the full indexed
+     * window (48 tokens around the first match) instead of the full indexed
      * text so long records cannot exhaust the assistant's context budget.
      * The global Search screen keeps using [search] with full text.
      */
@@ -145,7 +145,17 @@ interface ISearchRepository {
          * v14: remove generic breeding vocabulary from resolved gestations so
          * pregnancy searches cannot retrieve completed or failed rows through
          * synonym expansion.
+         *
+         * v15: patient identity indexing includes date of birth, gender, and
+         * Coggins fields so assistant questions about those stored fields can
+         * retrieve the patient record instead of falling into a cloud guess.
+         * v16: ultrasound indexing uses the canonical field set and explicit
+         * ultrasound vocabulary so natural imaging questions retrieve the
+         * examination and its findings.
+         * v17: medication indexing includes administration details and
+         * medication vocabulary so natural prescription questions retrieve
+         * the medication record even when the drug name is not in the query.
          */
-        const val SEARCH_INDEX_VERSION = "14"
+        const val SEARCH_INDEX_VERSION = "17"
     }
 }

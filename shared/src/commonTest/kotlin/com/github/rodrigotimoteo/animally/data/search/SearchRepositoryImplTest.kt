@@ -2,7 +2,10 @@ package com.github.rodrigotimoteo.animally.data.search
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.SearchableText
 import kotlinx.datetime.LocalDate
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -56,15 +59,61 @@ class SearchRepositoryImplTest {
     }
 
     @Test
+    fun `when patients are re-indexed then identity fields are searchable`() {
+        val patientId = insertPatient("Midnight")
+
+        sut.reindexPatients()
+
+        val birthResults = sut.search("date of birth", null, null, null)
+        assertEquals(1, birthResults.size)
+        assertEquals(patientId, birthResults.single().patientId)
+        assertTrue(birthResults.single().snippet.contains("2020-05-01"))
+
+        val genderResults = sut.search("gender mare", null, null, null)
+        assertEquals(listOf(patientId), genderResults.map { it.patientId })
+    }
+
+    @Test
     fun `when searching by medication name then finds indexed medication`() {
         val patientId = insertPatient("Midnight")
-        sut.indexRecord(ISearchRepository.TYPE_MEDICATION, patientId, 1L, null, "Flunixin 500mg")
+        val medication =
+            Medication(
+                id = 1L,
+                patientId = patientId,
+                name = "Flunixin",
+                dosage = "500mg",
+                createdAt = Instant.fromEpochMilliseconds(0L),
+                updatedAt = Instant.fromEpochMilliseconds(0L),
+            )
+        sut.indexRecord(ISearchRepository.TYPE_MEDICATION, patientId, medication.id, null, SearchableText.medication(medication))
 
         val results = sut.search("fluni*", null, null, null)
 
         assertEquals(1, results.size)
         assertEquals(ISearchRepository.TYPE_MEDICATION, results.single().recordType)
-        assertEquals("Flunixin 500mg", results.single().snippet)
+        assertTrue(results.single().snippet.contains("Flunixin 500mg"))
+
+        val naturalQuestionResults = sut.search("prescription", null, null, null)
+        assertEquals(listOf(medication.id), naturalQuestionResults.map { it.recordId })
+    }
+
+    @Test
+    fun `when searching ultrasound snippets then findings beyond the query token remain visible`() {
+        val patientId = insertPatient("Midnight")
+        sut.indexRecord(
+            recordType = RecordType.Ultrasound.wireName,
+            patientId = patientId,
+            recordId = 1L,
+            date = LocalDate(2026, 8, 20),
+            searchableText =
+                "left ovary active uterine echotexture corpus luteum present no dominant follicle " +
+                    "ultrasound ecography ultrasonography findings examination viable singleton with heartbeat observed",
+        )
+
+        val results = sut.searchSnippets("ultrasound", null, null, null)
+
+        assertEquals(1, results.size)
+        assertTrue(results.single().snippet.contains("heartbeat"), results.single().snippet)
     }
 
     @Test
