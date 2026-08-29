@@ -83,6 +83,12 @@ object AssistantPrompts {
             "suas",
             "tenho",
             "temos",
+            "para",
+            "ela",
+            "ele",
+            "dela",
+            "dele",
+            "é",
             "último",
             "última",
             "últimos",
@@ -96,6 +102,13 @@ object AssistantPrompts {
             "recentes",
             "registo",
             "registos",
+            // Inflected record cues are grammatical glue in questions such
+            // as "vacinação registada para ela". Keep the domain noun, but
+            // do not let these cues make an AND query brittle.
+            "registada",
+            "registado",
+            "registadas",
+            "registados",
             // Relative-period words are handled by RagDateRangeIntent. They
             // must not become broad FTS terms such as “this*” or “month*”.
             "this",
@@ -124,10 +137,6 @@ object AssistantPrompts {
             "aconteceu",
             "ocorreu",
             "atividade",
-            PORTUGUESE_VACCINATION,
-            PORTUGUESE_DEWORMING,
-            "ferrador",
-            "ferragem",
         )
 
     private val GREETINGS =

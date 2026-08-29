@@ -47,6 +47,23 @@ class AssistantPromptsTest {
     }
 
     @Test
+    fun `given portuguese vaccination follow up when enriched then record type survives`() {
+        assertEquals(
+            "vacinação",
+            AssistantPrompts.enrichQuery("Qual é a vacinação registada para ela?"),
+        )
+    }
+
+    @Test
+    fun `given portuguese vaccination follow up when converted to FTS then canonical vocabulary is included`() {
+        val query = AssistantPrompts.toFtsOrQuery("Qual é a vacinação registada para ela? Lua do Pinhal")
+
+        assertTrue(query.contains("vaccination*"), "Portuguese vaccination must reach English-indexed records: $query")
+        assertTrue(query.lowercase().contains("lua*"), "resolved patient scope must remain searchable: $query")
+        assertFalse(query.contains("registada*"), "inflected grammar must not make retrieval brittle: $query")
+    }
+
+    @Test
     fun `given natural question when toFtsOrQuery then starred OR expression`() {
         // Possessive apostrophes are stripped in clean() ("Thunder's" ->
         // "Thunders"): the repository sanitizer would otherwise split the

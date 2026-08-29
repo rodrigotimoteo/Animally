@@ -1268,6 +1268,23 @@ class RagGoldenSetTest {
                     ),
                 exact = true,
             ),
+            // Portuguese inflection regression: "vacinação" used to be
+            // stripped as filler, so a named lookup could not reach the
+            // English vocabulary injected into vaccination rows.
+            Golden(
+                "Qual é a vacinação registada para Trovoada?",
+                expected =
+                    setOf(
+                        VACC_INFLUENZA,
+                        VACC_TETANUS,
+                        VACC_WEST_NILE,
+                        VACC_RABIES,
+                        VACC_EHV,
+                        VACC_EVA,
+                        PATIENT_TROVOADA,
+                    ),
+                exact = true,
+            ),
             // --- Punctuation / hyphen robustness ---
             // Hyphenated input tokenizes exactly like the spaced content in
             // the record ("Steel full set"), so the AND leg matches directly.
