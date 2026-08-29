@@ -592,6 +592,18 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given portuguese question when invoked then user turn carries matching language instruction`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
+
+            sut()("Qual vacinação foi registada para Thunder?").toList()
+
+            val prompt = engine.lastPrompt.orEmpty()
+            assertTrue(prompt.contains("LANGUAGE FOR THIS TURN: Answer only in European Portuguese."))
+            assertTrue(prompt.indexOf("LANGUAGE FOR THIS TURN") < prompt.indexOf("Question:"))
+        }
+
+    @Test
     fun `given retrieval turn when invoked then searching placeholder leads and is replaced`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
@@ -929,6 +941,26 @@ class GenerateRagResponseUseCaseTest {
             val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
             assertEquals("Tetanus booster recorded in Thunder.", final)
             assertEquals(1, events.filterIsInstance<RagStreamEvent.Sources>().size, "cited reply must not gain a duplicate source block")
+        }
+
+    @Test
+    fun `given grouped citations when completed then all real sources map and citation block is hidden`() =
+        runTest {
+            val first = result(recordId = 123L)
+            val second = result(recordId = 124L)
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(first, second)
+            engine.nextChunkOverride =
+                "The recorded trend is stable across both visits [VACCINATION #123, VACCINATION #124]."
+
+            val events = sut()(QUERY).toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertEquals("The recorded trend is stable across both visits.", final)
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(
+                listOf("VACCINATION#123", "VACCINATION#124"),
+                sources.sources.map { "${it.recordType}#${it.recordId}" },
+            )
         }
 
     // --- Sources event: cited records exposed for source-card chips ---

@@ -162,6 +162,23 @@ extension TestHelpers {
         }
     }
 
+    /// Types an assistant question in one accessibility transaction.
+    ///
+    /// Assistant input is a normal SwiftUI TextField, not a searchable field.
+    /// Its state is published while the assistant screen is streaming, so
+    /// reading `value` after every character can block XCTest's accessibility
+    /// snapshot while the app is otherwise responsive. The send action and the
+    /// resulting assistant bubble provide the meaningful end-to-end assertion.
+    static func typeAssistantQuestion(
+        _ field: XCUIElement,
+        text: String,
+    ) {
+        field.tap()
+        usleep(300_000) // let focus settle - first keystroke otherwise drops
+        field.typeText(text)
+        usleep(500_000) // let the draft binding settle before tapping Send
+    }
+
     /// Types one character at a time; after each keystroke, compares the
     /// field value with the expected prefix and repairs any divergence
     /// (swallowed or altered characters) before continuing.

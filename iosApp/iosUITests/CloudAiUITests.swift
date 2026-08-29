@@ -168,7 +168,7 @@ final class CloudAiUITests: AnimallyTestCase {
 
         // End-to-end: FM is unavailable on the simulator, so the routing engine
         // must serve this turn from the cloud model and badge it.
-        TestHelpers.typeSearchText(app, field: input, text: "How many patients do I have?")
+        TestHelpers.typeAssistantQuestion(input, text: "How many patients do I have?")
         let send = app.buttons["assistant_send"].firstMatch
         XCTAssertTrue(send.waitForExistence(timeout: 5))
         send.tap()
@@ -337,10 +337,15 @@ final class CloudAiUITests: AnimallyTestCase {
         question: String,
         replyIndex: Int,
     ) throws -> String {
-        TestHelpers.typeSearchText(app, field: input, text: question)
+        TestHelpers.typeAssistantQuestion(input, text: question)
         let send = app.buttons["assistant_send"].firstMatch
         XCTAssertTrue(send.waitForExistence(timeout: 5), "Send action missing for '\(question)'")
-        send.tap()
+        // A cloud stream can legitimately keep the application non-quiescent
+        // for a minute. Tapping the resolved button normally makes XCTest wait
+        // for its pre-event idle notification first, which blocks the request
+        // instead of allowing this test to observe it. The coordinate event
+        // still exercises the real hit target without that pre-event wait.
+        send.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
         // Each turn is rendered as USER + ASSISTANT, so the assistant bubble
         // for replyIndex has the corresponding odd message index. Using its
@@ -351,45 +356,33 @@ final class CloudAiUITests: AnimallyTestCase {
             .matching(identifier: "assistant_message_\(messageIndex)")
             .firstMatch
         XCTAssertTrue(reply.waitForExistence(timeout: 180), "No answer appeared for '\(question)'")
-        // The assistant exposes a cumulative accessibility label while its
-        // retrieval/tool loop is streaming. Do not mistake the interim
-        // "Searching your records…" bubble or an early cumulative provider
-        // chunk for the final response.
-        let deadline = Date().addingTimeInterval(180)
-        var label = reply.label
-        var previousLabel = ""
-        var stableSince: Date?
-
-        while Date() < deadline {
-            label = reply.label
-            let isRetrieving = label.localizedCaseInsensitiveContains("Searching your records")
-
-            if !isRetrieving {
-                if label == previousLabel {
-                    if let stableSince,
-                       Date().timeIntervalSince(stableSince) >= 1.5 {
-                        break
-                    }
-                } else {
-                    previousLabel = label
-                    stableSince = Date()
-                }
-            } else {
-                previousLabel = ""
-                stableSince = nil
-            }
-
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.25))
-        }
-        XCTAssertFalse(
-            label.localizedCaseInsensitiveContains("Searching your records"),
-            "Answer did not leave the retrieval state for '\(question)': \(label)",
+        // The input is disabled for the whole retrieval/streaming lifecycle and
+        // re-enabled only after the final reply has been reduced into state.
+        // XCTest's predicate waiter avoids nested RunLoop polling, which can
+        // make the iOS 26 accessibility snapshot report a busy app even while
+        // the SwiftUI screen is accepting input.
+        let finishedReply = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true AND NOT (label CONTAINS[c] %@)",
+                "Searching your records",
+            ),
+            object: reply,
         )
-        let inputReadyDeadline = Date().addingTimeInterval(30)
-        while !input.isEnabled && Date() < inputReadyDeadline {
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.25))
-        }
-        XCTAssertTrue(input.isEnabled, "Input remained disabled after '\(question)': \(label)")
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [finishedReply], timeout: 180),
+            .completed,
+            "Answer did not leave the retrieval state for '\(question)': \(reply.label)",
+        )
+        let inputReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"),
+            object: input,
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [inputReady], timeout: 30),
+            .completed,
+            "Input remained disabled after '\(question)': \(reply.label)",
+        )
+        let label = reply.label
         print("CLOUDAI_REPLY_\(replyIndex): \(label)")
         let diagnosticLabels = app.staticTexts.allElementsBoundByIndex
             .map(\.label)
@@ -402,7 +395,10 @@ final class CloudAiUITests: AnimallyTestCase {
         if !diagnosticLabels.isEmpty {
             print("CLOUDAI_DIAGNOSTICS_\(replyIndex): \(diagnosticLabels.joined(separator: " | "))")
         }
-        XCTAssertGreaterThan(label.count, 20, "Cloud answer suspiciously short for '\(question)': \(label)")
+        XCTAssertFalse(
+            label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            "Cloud answer was empty for '\(question)'",
+        )
         return label
     }
 

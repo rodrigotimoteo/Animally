@@ -126,6 +126,18 @@ class AssistantPromptsTest {
     }
 
     @Test
+    fun `given question language then turn instruction is explicit and stable`() {
+        assertEquals(
+            "LANGUAGE FOR THIS TURN: Answer only in European Portuguese. Do not switch languages because the records use another language.",
+            AssistantLanguage.turnInstruction("Qual é a vacinação da Lua?"),
+        )
+        assertEquals(
+            "LANGUAGE FOR THIS TURN: Answer only in English. Do not switch languages because the records use another language.",
+            AssistantLanguage.turnInstruction("What vaccination does Lua have?"),
+        )
+    }
+
+    @Test
     fun `given system prompt when built then citation hardening directives present`() {
         // Defect hardening: the old prompt carried a real-looking example
         // ([Vaccination #123] Thunder) that small models parroted verbatim,

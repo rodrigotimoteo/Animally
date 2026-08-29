@@ -142,7 +142,10 @@ struct AssistantView: View {
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 12) {
+                // The transcript is capped by the shared store, so keeping the
+                // complete, small tree materialized makes accessibility updates
+                // predictable while a cloud response is streaming.
+                VStack(spacing: 12) {
                     ForEach(Array(viewModel.state.messages.enumerated()), id: \.offset) { index, message in
                         ChatBubble(
                             message: message,
@@ -170,15 +173,11 @@ struct AssistantView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 16)
             }
-            .onChange(of: viewModel.state.messages.count) { _ in
-                withAnimation(.easeOut(duration: 0.25)) {
-                    proxy.scrollTo(viewModel.state.isGenerating ? AnyHashable("typing") : AnyHashable(viewModel.state.messages.count - 1), anchor: .bottom)
-                }
+            .onChange(of: viewModel.state.messages.count) { _, _ in
+                scrollToLatest(using: proxy)
             }
-            .onChange(of: viewModel.state.isGenerating) { generating in
-                withAnimation(.easeOut(duration: 0.25)) {
-                    proxy.scrollTo(generating ? AnyHashable("typing") : AnyHashable(viewModel.state.messages.count - 1), anchor: .bottom)
-                }
+            .onChange(of: viewModel.state.isGenerating) { _, generating in
+                scrollToLatest(using: proxy, isGenerating: generating)
             }
         }
         .scrollDismissesKeyboard(.immediately)
@@ -189,6 +188,18 @@ struct AssistantView: View {
         .accessibilityIdentifier("assistant_transcript")
     }
 
+    private func scrollToLatest(using proxy: ScrollViewProxy, isGenerating: Bool? = nil) {
+        let generating = isGenerating ?? viewModel.state.isGenerating
+        let target: AnyHashable = generating
+            ? AnyHashable("typing")
+            : AnyHashable(viewModel.state.messages.count - 1)
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            proxy.scrollTo(target, anchor: .bottom)
+        }
+    }
+
     private var typingIndicator: some View {
         HStack(alignment: .center, spacing: 8) {
             HStack(spacing: 5) {
@@ -197,12 +208,6 @@ struct AssistantView: View {
                         .fill(Theme.textSecondary)
                         .frame(width: 7, height: 7)
                         .opacity(viewModel.state.isGenerating ? 1 : 0.4)
-                        .animation(
-                            .easeInOut(duration: 0.6)
-                                .repeatForever()
-                                .delay(Double(dot) * 0.2),
-                            value: viewModel.state.isGenerating
-                        )
                 }
             }
             .padding(.horizontal, 16)
@@ -305,12 +310,6 @@ struct AssistantView: View {
                     .font(.system(size: 32))
                     .foregroundStyle(canSend ? theme.accentColor : Theme.textTertiary)
                     .scaleEffect(viewModel.state.isGenerating ? 0.92 : 1.0)
-                    .animation(
-                        viewModel.state.isGenerating
-                            ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
-                            : .easeOut(duration: 0.2),
-                        value: viewModel.state.isGenerating
-                    )
             }
             .disabled(!canSend)
             .accessibilityLabel("Send message")

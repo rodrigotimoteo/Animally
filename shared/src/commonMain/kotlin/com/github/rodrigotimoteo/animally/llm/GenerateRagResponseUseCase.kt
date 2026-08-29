@@ -1056,6 +1056,7 @@ class GenerateRagResponseUseCase(
         prompt.appendLine(sb.toString().trimEnd())
         prompt.append("---")
         prompt.appendLine()
+        prompt.appendLine(AssistantLanguage.turnInstruction(query))
         prompt.append("Question: ").append(query)
         return prompt.toString()
     }

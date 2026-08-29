@@ -403,7 +403,16 @@ class AssistantViewModel(
         currentTurnSource = EngineSource.ON_DEVICE
         _uiState.update {
             it.copy(
-                messages = it.messages + AssistantChatMessage(AssistantChatMessageRole.USER, trimmed),
+                // Create the response bubble before retrieval starts. This
+                // keeps the UI responsive during slow cloud/model turns and
+                // gives the stream a stable target for its first event.
+                messages =
+                    it.messages +
+                        AssistantChatMessage(AssistantChatMessageRole.USER, trimmed) +
+                        AssistantChatMessage(
+                            role = AssistantChatMessageRole.ASSISTANT,
+                            text = strings.searchingPlaceholder,
+                        ),
                 isGenerating = true,
                 error = null,
             )

@@ -204,8 +204,9 @@ internal class RagAnswerStreamCoordinator(
     ): List<SearchResult> {
         if (contextResults.isEmpty()) return emptyList()
         val byKey = contextResults.associateBy { "${it.recordType}#${it.recordId}" }
-        return citationRegex
+        return citationBlockRegex
             .findAll(answerText)
+            .flatMap { block -> citationReferenceRegex.findAll(block.value) }
             .mapNotNull { match -> byKey["${match.groupValues[1]}#${match.groupValues[2]}"] }
             .distinct()
             .toList()
@@ -221,9 +222,20 @@ internal class RagAnswerStreamCoordinator(
             .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
 
-    private fun stripCitationTokens(text: String): String =
-        text
-            .replace(citationRegex, "")
+    private fun stripCitationTokens(text: String): String {
+        val withoutCitationBlocks =
+            text.replace(citationBlockRegex) { block ->
+                val references = citationReferenceRegex.findAll(block.value).toList()
+                val remainder =
+                    citationReferenceRegex
+                        .replace(block.value, "")
+                        .replace(Regex("(?i)\\b(?:and|or)\\b"), "")
+                        .replace(Regex("[\\[\\],;|&/]"), "")
+                        .trim()
+                if (references.isNotEmpty() && remainder.isEmpty()) "" else block.value
+            }
+
+        return withoutCitationBlocks
             .replace(literalTagRegex, "")
             .replace(multiSpaceRegex, " ")
             .replace(spacedRepeatedPunctuationRegex, "$1")
@@ -231,6 +243,7 @@ internal class RagAnswerStreamCoordinator(
             .replace(lineLeadingSpaceRegex, "")
             .replace(blankLineRunRegex, "\n\n")
             .trim()
+    }
 
     private companion object {
         // Markdown link: [any text without ]]( any url without ) )
@@ -239,8 +252,12 @@ internal class RagAnswerStreamCoordinator(
         // Model sometimes regurgitates prompt scaffolding.
         val scaffoldLineRegex = Regex("(?m)^\\s*(?:-{3,}|Question:.*|Context:.*|You are .*)\\s*\\n?")
 
-        // Bracketed citation header in the final answer text: [TYPE #id].
-        val citationRegex = Regex("\\[([A-Z_]+) #(\\d+)]")
+        // A model may cite one record or group several record headers in one
+        // bracket: [TYPE #id] or [TYPE #1, TYPE #2]. Parse references only
+        // inside square brackets so ordinary prose containing "TYPE #1" does
+        // not accidentally become a source card.
+        val citationBlockRegex = Regex("\\[[^]]*]")
+        val citationReferenceRegex = Regex("([A-Z_]+)\\s*#(\\d+)")
 
         // Internal tags must never reach the user-facing bubble.
         val literalTagRegex =

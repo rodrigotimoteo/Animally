@@ -41,14 +41,14 @@ final class AssistantUITests: AnimallyTestCase {
         XCTAssertTrue(app.textFields["assistant_input"].exists)
     }
 
-    /// Types a question into the chat input using chunked typing with
-    /// verify-and-retry (XCUITest drops keystrokes on live-binding fields).
+    /// Types a question into the chat input without polling the live
+    /// accessibility value after every character.
     private func ask(
         _ app: XCUIApplication,
         _ question: String,
     ) {
         let input = app.textFields["assistant_input"]
-        TestHelpers.typeSearchText(app, field: input, text: question)
+        TestHelpers.typeAssistantQuestion(input, text: question)
         let send = app.buttons["assistant_send"]
         XCTAssertTrue(send.waitForExistence(timeout: 5))
         send.tap()
@@ -211,7 +211,7 @@ final class AssistantUITests: AnimallyTestCase {
 
         let input = app.textFields["assistant_input"]
         input.tap()
-        TestHelpers.typeSearchText(app, field: input, text: "draft only")
+        TestHelpers.typeAssistantQuestion(input, text: "draft only")
         XCTAssertEqual(app.keyboards.count, 1, "Keyboard should be visible while typing")
 
         // No messages yet -> transcript is absent; the empty-chat area is the
@@ -391,7 +391,7 @@ final class AssistantRealFmUITests: AnimallyTestCase {
         _ question: String,
     ) {
         let input = app.textFields["assistant_input"]
-        TestHelpers.typeSearchText(app, field: input, text: question)
+        TestHelpers.typeAssistantQuestion(input, text: question)
         let send = app.buttons["assistant_send"]
         XCTAssertTrue(send.waitForExistence(timeout: 5))
         send.tap()
