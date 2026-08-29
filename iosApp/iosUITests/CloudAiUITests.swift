@@ -5,9 +5,14 @@ import XCTest
 /// and the assistant availability gate when Foundation Models is
 /// unavailable but cloud is configured.
 ///
-/// Requires network access from the simulator (OpenCode Zen /models is
-/// public and authless, so discovery works with any dummy key).
+/// Requires network access from the simulator. Normal runs use a deterministic
+/// dummy key for the public `/models` smoke path. Set `ANIMALLY_LIVE_CLOUD=1`
+/// to preserve the configured credential and exercise real provider requests.
 final class CloudAiUITests: AnimallyTestCase {
+    private var isLiveCloudRun: Bool {
+        ProcessInfo.processInfo.environment["ANIMALLY_LIVE_CLOUD"] == "1"
+    }
+
     @discardableResult
     private func openSettings(_ app: XCUIApplication) -> XCUIElement {
         let gear = app.buttons["Settings"].firstMatch
@@ -46,6 +51,10 @@ final class CloudAiUITests: AnimallyTestCase {
     /// Forces the on-device engine to report unavailable so the routing engine
     /// must serve the turn from the cloud model - asserted via the cloud badge.
     func testCloudServesAnswerWhenFmUnavailable() throws {
+        try XCTSkipUnless(
+            isLiveCloudRun,
+            "Opt-in live cloud test; set ANIMALLY_LIVE_CLOUD=1 when a valid provider key is configured",
+        )
         try runFetchPickAskFlow(forceFmUnavailable: true)
     }
 
@@ -62,12 +71,17 @@ final class CloudAiUITests: AnimallyTestCase {
         openSettings(app)
         ensureCloudEnabled(app)
 
-        // Dummy key: Zen /models needs no valid auth; proves the key round-trips.
-        let keyField = app.secureTextFields["API Key"].firstMatch
-        if keyField.waitForExistence(timeout: 5) {
-            keyField.tap()
-            keyField.typeText("uitest-dummy-key")
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        // Normal tests use a deterministic dummy key for the public /models
+        // smoke path. Live coverage opts in through the environment and keeps
+        // the key already configured in Settings.
+        if !isLiveCloudRun || app.launchArguments.contains("-animally-ui-test-dummy-cloud-key") {
+            let keyField = app.secureTextFields["API Key"].firstMatch
+            if keyField.waitForExistence(timeout: 5) {
+                keyField.tap()
+                keyField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 128))
+                keyField.typeText("uitest-dummy-key")
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+            }
         }
 
         let fetch = app.buttons["Fetch models"].firstMatch
@@ -97,6 +111,7 @@ final class CloudAiUITests: AnimallyTestCase {
         }
         XCTAssertTrue(modelRow.exists, "No model rows rendered in picker sheet")
         let chosen = modelRow.label
+        print("CLOUDAI_MODEL_SELECTED: \(chosen)")
         modelRow.tap()
 
         // Selection lands back in the (now picker-style) field.
@@ -145,6 +160,149 @@ final class CloudAiUITests: AnimallyTestCase {
         } else {
             print("CLOUDAI_DEBUG: answer served by on-device FM (host proxy active)")
         }
+    }
+
+    /// Bounded live-provider regression matrix. The simulator contains only
+    /// fictional demo records; no user data is required for this coverage.
+    /// Keep these turns sequential so each answer is settled before the next
+    /// request and the provider receives no background/retry traffic.
+    func testLiveCloudGroundingAndAnalysisMatrix() throws {
+        try XCTSkipUnless(
+            isLiveCloudRun,
+            "Opt-in live cloud matrix; set ANIMALLY_LIVE_CLOUD=1 when a valid provider key is configured",
+        )
+        let app = TestHelpers.launchApp(arguments: ["-forceFmUnavailable"])
+        let patientName = TestHelpers.firstPatientName(app)
+        openAssistant(app)
+
+        XCTAssertFalse(
+            app.staticTexts["On-device AI not available here"].waitForExistence(timeout: 5),
+            "Cloud configuration did not make the assistant available",
+        )
+        let input = app.textFields["assistant_input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 10), "Assistant input is unavailable")
+
+        // Do not let a previous persisted conversation change the grounding
+        // subject of this matrix.
+        let newChat = app.buttons["assistant_new_chat"].firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat action is unavailable")
+        newChat.tap()
+        XCTAssertTrue(
+            app.staticTexts["What would you like to know?"].waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
+
+        let patientReply = try askAndWait(app, input: input, question: "Tell me about \(patientName)", replyIndex: 0)
+        XCTAssertTrue(patientReply.localizedCaseInsensitiveContains(patientName), "Patient answer lost its subject: \(patientReply)")
+        XCTAssertFalse(patientReply.localizedCaseInsensitiveContains("http"), "Patient answer fabricated a URL: \(patientReply)")
+        XCTAssertTrue(
+            app.buttons["assistant_source_chip"].firstMatch.waitForExistence(timeout: 10),
+            "Grounded patient answer did not expose a source card",
+        )
+
+        // This is deliberately a direct data projection: it verifies that the
+        // breeding-card date is visible to the assistant independently of the
+        // cloud model's ability to calculate it.
+        let breedingReply = try askAndWait(
+            app,
+            input: input,
+            question: "How long ago was \(patientName) bred?",
+            replyIndex: 1,
+        )
+        XCTAssertTrue(
+            breedingReply.contains("2026") || breedingReply.localizedCaseInsensitiveContains("apr"),
+            "Breeding-card date was not surfaced: \(breedingReply)",
+        )
+        XCTAssertTrue(
+            breedingReply.localizedCaseInsensitiveContains("bred") || breedingReply.localizedCaseInsensitiveContains("reproduction"),
+            "Breeding answer did not identify its source: \(breedingReply)",
+        )
+
+        let vaccinationReply = try askAndWait(
+            app,
+            input: input,
+            question: "What vaccination is recorded for \(patientName)?",
+            replyIndex: 2,
+        )
+        XCTAssertTrue(
+            vaccinationReply.localizedCaseInsensitiveContains("vaccin") || vaccinationReply.localizedCaseInsensitiveContains("tetanus") || vaccinationReply.localizedCaseInsensitiveContains("influenza"),
+            "Vaccination answer did not reflect the record: \(vaccinationReply)",
+        )
+        XCTAssertFalse(vaccinationReply.localizedCaseInsensitiveContains("http"), "Vaccination answer fabricated a URL: \(vaccinationReply)")
+
+        let censusReply = try askAndWait(
+            app,
+            input: input,
+            question: "How many patients do I have?",
+            replyIndex: 3,
+        )
+        XCTAssertTrue(
+            censusReply.localizedCaseInsensitiveContains("patient") || censusReply.localizedCaseInsensitiveContains("horse"),
+            "Census answer did not describe the patient count: \(censusReply)",
+        )
+        XCTAssertFalse(censusReply.localizedCaseInsensitiveContains("http"), "Census answer fabricated a URL: \(censusReply)")
+
+        let analysisReply = try askAndWait(
+            app,
+            input: input,
+            question: "Analyse the recorded weights across my patients and report any clear trend.",
+            replyIndex: 4,
+        )
+        XCTAssertTrue(
+            analysisReply.localizedCaseInsensitiveContains("weight") || analysisReply.localizedCaseInsensitiveContains("trend") || analysisReply.localizedCaseInsensitiveContains("measurement"),
+            "Analysis answer did not discuss the requested data: \(analysisReply)",
+        )
+        XCTAssertFalse(analysisReply.localizedCaseInsensitiveContains("http"), "Analysis answer fabricated a URL: \(analysisReply)")
+
+        let absentFactReply = try askAndWait(
+            app,
+            input: input,
+            question: "What is the vaccination date for a horse named Pegasus?",
+            replyIndex: 5,
+        )
+        XCTAssertTrue(
+            absentFactReply.localizedCaseInsensitiveContains("couldn't find") ||
+                absentFactReply.localizedCaseInsensitiveContains("not found") ||
+                absentFactReply.localizedCaseInsensitiveContains("no record"),
+            "Missing patient fact was not answered honestly: \(absentFactReply)",
+        )
+        XCTAssertFalse(absentFactReply.localizedCaseInsensitiveContains("http"), "Missing-fact answer fabricated a URL: \(absentFactReply)")
+    }
+
+    private func askAndWait(
+        _ app: XCUIApplication,
+        input: XCUIElement,
+        question: String,
+        replyIndex: Int,
+    ) throws -> String {
+        TestHelpers.typeSearchText(app, field: input, text: question)
+        let send = app.buttons["assistant_send"].firstMatch
+        XCTAssertTrue(send.waitForExistence(timeout: 5), "Send action missing for '\(question)'")
+        send.tap()
+
+        let reply = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Assistant:"))
+            .element(boundBy: replyIndex)
+        XCTAssertTrue(reply.waitForExistence(timeout: 180), "No answer appeared for '\(question)'")
+        // Wait for the streaming/tool loop to settle before reading the final
+        // cumulative label. This avoids mistaking an early short chunk for an
+        // incomplete provider response.
+        Thread.sleep(forTimeInterval: 5)
+        let label = reply.label
+        print("CLOUDAI_REPLY_\(replyIndex): \(label)")
+        let diagnosticLabels = app.staticTexts.allElementsBoundByIndex
+            .map(\.label)
+            .filter { label in
+                let lowered = label.lowercased()
+                return lowered.contains("cloud") || lowered.contains("finish") ||
+                    lowered.contains("unable") || lowered.contains("couldn") ||
+                    lowered.contains("error")
+            }
+        if !diagnosticLabels.isEmpty {
+            print("CLOUDAI_DIAGNOSTICS_\(replyIndex): \(diagnosticLabels.joined(separator: " | "))")
+        }
+        XCTAssertGreaterThan(label.count, 20, "Cloud answer suspiciously short for '\(question)': \(label)")
+        return label
     }
 
     func testFetchFailureSurfacesErrorStatus() throws {
