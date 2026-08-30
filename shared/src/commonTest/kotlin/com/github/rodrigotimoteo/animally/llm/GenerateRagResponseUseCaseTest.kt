@@ -1011,7 +1011,7 @@ class GenerateRagResponseUseCaseTest {
             val events = sut()("Tell me about Thunder's farrier visit").toList()
 
             val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
-            assertEquals("The visit is documented in.", final)
+            assertEquals("The visit is documented.", final)
             assertTrue(
                 events
                     .filterIsInstance<RagStreamEvent.Sources>()

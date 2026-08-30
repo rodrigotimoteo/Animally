@@ -233,9 +233,9 @@ internal class RagAnswerStreamCoordinator(
     ): List<SearchResult> {
         if (contextResults.isEmpty()) return emptyList()
         val byKey = contextResults.associateBy { "${it.recordType}#${it.recordId}" }
-        return citationBlockRegex
+        return assistantCitationBlockRegex
             .findAll(answerText)
-            .flatMap { block -> citationReferenceRegex.findAll(block.value) }
+            .flatMap { block -> assistantCitationReferenceRegex.findAll(block.value) }
             .mapNotNull { match ->
                 citationRecordType(match.groupValues[1])?.let { type ->
                     byKey["$type#${match.groupValues[2]}"]
@@ -252,85 +252,11 @@ internal class RagAnswerStreamCoordinator(
             ?: RecordType.fromDisplayName(displayType)?.wireName
     }
 
-    private fun sanitize(text: String): String =
-        text
-            .replace(scaffoldLineRegex, "")
-            .replace(linkRegex) { link ->
-                val label = link.groupValues[1]
-                // Preserve citation-shaped Markdown as an internal marker
-                // until source mapping runs. Ordinary links still become
-                // their readable label without exposing the URL.
-                if (citationReferenceRegex.matches(label.trim())) {
-                    "[${label.trim()}]"
-                } else {
-                    label
-                }
-            }.replace("**", "")
-            .replace("__", "")
-            .replace("`", "")
-            .replace(Regex("\\n{3,}"), "\n\n")
-            .trim()
+    private fun sanitize(text: String): String = sanitizeAssistantTransportText(text)
 
-    private fun stripCitationTokens(text: String): String {
-        val withoutCitationBlocks =
-            text.replace(citationBlockRegex) { block ->
-                val references = citationReferenceRegex.findAll(block.value).toList()
-                // A citation is transport syntax, not user-facing prose. Drop
-                // the complete bracket even when a model decorates it with
-                // text such as `— internal reference`; the real record is
-                // represented by the tappable source card emitted below.
-                if (references.isNotEmpty()) "" else block.value
-            }
-
-        return withoutCitationBlocks
-            // A cumulative stream can briefly end halfway through a citation
-            // before the closing bracket arrives. Hide that transport syntax
-            // from the live bubble as well; the completed source card is still
-            // emitted once the final snapshot can be mapped.
-            .replace(incompleteCitationRegex, "")
-            .replace(literalTagRegex, "")
-            .replace(multiSpaceRegex, " ")
-            .replace(spacedRepeatedPunctuationRegex, "$1")
-            .replace(spaceBeforePunctuationRegex, "$1")
-            .replace(lineLeadingSpaceRegex, "")
-            .replace(blankLineRunRegex, "\n\n")
-            .trim()
-    }
+    private fun stripCitationTokens(text: String): String = sanitizeAssistantDisplayText(text)
 
     private companion object {
-        // Markdown link: [any text without ]]( any url without ) )
-        val linkRegex = Regex("\\[([^\\]]*)]\\(([^)]*)\\)")
-
-        // Model sometimes regurgitates prompt scaffolding.
-        val scaffoldLineRegex = Regex("(?m)^\\s*(?:-{3,}|Question:.*|Context:.*|You are .*)\\s*\\n?")
-
-        // A model may cite one record or group several record headers in one
-        // bracket: [TYPE #id], [TYPE NAME #id], or [TYPE #1, TYPE #2]. Parse
-        // references only inside square brackets so ordinary prose containing
-        // "TYPE #1" does not accidentally become a source card. Case and
-        // spaces are intentionally accepted because models often humanize the
-        // internal wire name ("FARRIER VISIT" instead of "FARRIER_VISIT").
-        val citationBlockRegex = Regex("\\[[^]]*]")
-        val citationReferenceRegex =
-            Regex("([A-Z][A-Z_]*(?:\\s+[A-Z_]+)*)\\s*#(\\d+)", RegexOption.IGNORE_CASE)
-        val incompleteCitationRegex =
-            Regex(
-                "\\[(?:[A-Z][A-Z_]*(?:\\s+[A-Z_]+)*)\\s*#\\d*[^]]*$",
-                RegexOption.IGNORE_CASE,
-            )
-
-        // Internal tags must never reach the user-facing bubble.
-        val literalTagRegex =
-            Regex(
-                """\[(?:Summary|RECORD_TYPE #ID|PATIENT CENSUS|CARE COUNTS|GESTATIONS|OVERDUE CARE[^]]*)]""",
-            )
-
-        val multiSpaceRegex = Regex("[ \\t]{2,}")
-        val spaceBeforePunctuationRegex = Regex("[ \\t]+([.,;:!?])")
-        val spacedRepeatedPunctuationRegex = Regex("([.!?])([ \\t]+\\1)+")
-        val lineLeadingSpaceRegex = Regex("(?m)^[ \\t]+")
-        val blankLineRunRegex = Regex("\\n{3,}")
-
         const val MAX_ENFORCED_SOURCES = 3
     }
 }

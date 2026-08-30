@@ -17,6 +17,7 @@ import com.github.rodrigotimoteo.animally.llm.RagHistoryEntry
 import com.github.rodrigotimoteo.animally.llm.RagStreamEvent
 import com.github.rodrigotimoteo.animally.llm.assistantStrings
 import com.github.rodrigotimoteo.animally.llm.cloud.EngineSource
+import com.github.rodrigotimoteo.animally.llm.sanitizeAssistantDisplayText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -105,7 +106,7 @@ private suspend fun streamAssistantReply(
         // may emit one cumulative snapshot per token; a bounded publish
         // cadence prevents a fast stream from flooding SwiftUI.
         context.generateRagResponse(question, history).collect { event ->
-            accumulator.reply = event.replyText(accumulator.reply)
+            accumulator.reply = sanitizeAssistantDisplayText(event.replyText(accumulator.reply))
             if (event.shouldPublish(accumulator.lastPublishedAt, context.strings)) {
                 context.state.update { current ->
                     applyAssistantEvent(current, event, context.strings, context.currentSource())
@@ -147,7 +148,10 @@ private fun applyAssistantEvent(
 ): AssistantUiState {
     val patched =
         when (event) {
-            is RagStreamEvent.Chunk -> state.messages.upsertLast(source) { it.copy(source = source, text = event.text) }
+            is RagStreamEvent.Chunk ->
+                state.messages.upsertLast(source) {
+                    it.copy(source = source, text = sanitizeAssistantDisplayText(event.text))
+                }
             is RagStreamEvent.Sources -> {
                 val citedTypes = event.sources.map(SearchResult::recordType)
                 state.messages.upsertLast(source) { message ->
@@ -162,7 +166,7 @@ private fun applyAssistantEvent(
                 state.messages.upsertLast(source) { it.copy(source = source, webSources = event.sources) }
             is RagStreamEvent.Interrupted ->
                 state.messages.upsertLast(source) {
-                    it.copy(source = source, text = event.partialText, interrupted = true)
+                    it.copy(source = source, text = sanitizeAssistantDisplayText(event.partialText), interrupted = true)
                 }
         }
     return state.copy(messages = patched, error = (event as? RagStreamEvent.Interrupted)?.error ?: state.error)
@@ -174,13 +178,19 @@ private fun applyCompletedAssistantReply(
     strings: AssistantStrings,
     source: EngineSource,
 ): AssistantUiState {
+    val displayReply = sanitizeAssistantDisplayText(reply)
     val completed =
-        if (reply.isBlank() || reply == strings.searchingPlaceholder) {
+        if (displayReply.isBlank() || displayReply == strings.searchingPlaceholder) {
             applyAssistantBlank(state, strings.blankReplyFallback, source)
         } else {
             // A throttled stream may not have published its last cumulative
             // chunk. Commit the exact final reply before persistence.
-            state.copy(messages = state.messages.upsertLast(source) { it.copy(source = source, text = reply) })
+            state.copy(
+                messages =
+                    state.messages.upsertLast(source) {
+                        it.copy(source = source, text = displayReply)
+                    },
+            )
         }
     return ensureAssistantFollowUps(completed, strings)
 }
@@ -510,7 +520,7 @@ class AssistantViewModel(
                     saveAssistantChatTurn(
                         AssistantChatTurn(
                             question = question,
-                            answer = assistant.text,
+                            answer = sanitizeAssistantDisplayText(assistant.text),
                             source = assistant.source.name,
                             interrupted = assistant.interrupted,
                             createdAt = Clock.System.now(),
@@ -554,7 +564,7 @@ class AssistantViewModel(
             ),
             AssistantChatMessage(
                 role = AssistantChatMessageRole.ASSISTANT,
-                text = answer,
+                text = sanitizeAssistantDisplayText(answer),
                 interrupted = interrupted,
                 source = engineSource,
                 webSources = webSources,

@@ -3,8 +3,10 @@ package com.github.rodrigotimoteo.animally.presentation.assistant
 import com.github.rodrigotimoteo.animally.llm.EnAssistantStrings
 import com.github.rodrigotimoteo.animally.llm.RagHistoryEntry
 import com.github.rodrigotimoteo.animally.llm.cloud.EngineSource
+import com.github.rodrigotimoteo.animally.llm.sanitizeAssistantDisplayText
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AssistantViewModelTest {
@@ -70,6 +72,19 @@ class AssistantViewModelTest {
         assertEquals(EnAssistantStrings.blankReplyFallback, reply.text)
         assertEquals(EngineSource.CLOUD, reply.source)
         assertEquals("provider unavailable", failed.error)
+    }
+
+    @Test
+    fun `restored assistant answers hide internal record ids and keep natural prose`() {
+        val answer =
+            sanitizeAssistantDisplayText(
+                "The visit is documented in [FARRIER VISIT #91](https://example.com/internal).",
+            )
+
+        assertEquals("The visit is documented.", answer)
+        assertFalse(answer.contains("FARRIER"))
+        assertFalse(answer.contains("#91"))
+        assertFalse(answer.contains("http"))
     }
 
     private fun user(text: String): AssistantChatMessage =
