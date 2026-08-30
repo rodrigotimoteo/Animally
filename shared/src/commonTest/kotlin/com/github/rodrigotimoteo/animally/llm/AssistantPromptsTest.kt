@@ -179,6 +179,7 @@ class AssistantPromptsTest {
         val prompt = AssistantPrompts.systemPrompt(allowGeneralQuestions = true)
 
         assertTrue(prompt.contains("general, educational, or casual questions"))
+        assertTrue(prompt.contains("generic husbandry question"))
         assertTrue(prompt.contains("patient-specific"))
         assertTrue(prompt.contains("European Portuguese"))
         assertTrue(prompt.contains("separate observations from interpretation"))

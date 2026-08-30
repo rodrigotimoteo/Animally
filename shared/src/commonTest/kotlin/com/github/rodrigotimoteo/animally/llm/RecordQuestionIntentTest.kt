@@ -98,6 +98,23 @@ class RecordQuestionIntentTest {
     }
 
     @Test
+    fun `generic husbandry questions with possessive horse wording stay general`() {
+        val queries =
+            listOf(
+                "What should I feed my horse?",
+                "How should I care for my horse?",
+                "Can my horse eat carrots?",
+                "What is a good diet for my horse?",
+                "Como devo alimentar o meu cavalo?",
+            )
+
+        queries.forEach { query ->
+            assertTrue(RecordQuestionIntent.isGeneralKnowledgeQuestion(query), query)
+            assertFalse(RecordQuestionIntent.isRecordQuestion(query, null, null), query)
+        }
+    }
+
+    @Test
     fun `typed patient lookup recognizes lowercase unknown names but not generic horse words`() {
         assertTrue(RecordQuestionIntent.isRecordQuestion("is storm pregnant?", null, null))
         assertTrue(RecordQuestionIntent.hasLikelyNamedPatientReference("is storm pregnant?"))

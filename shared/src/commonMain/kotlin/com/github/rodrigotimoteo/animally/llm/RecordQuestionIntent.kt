@@ -45,7 +45,7 @@ internal object RecordQuestionIntent {
 
     private val directRecordReferenceRegex =
         Regex(
-            "\\b(my|our|your|active|current)\\s+(records?|patients?|horses?|history|timeline|data|dataset)\\b|" +
+            "\\b(my|our|your|active|current)\\s+(records?|patients?|horses|history|timeline|data|dataset)\\b|" +
                 "\\b(which|what)\\s+(patients?|records?|treatments?|visits?)\\b|" +
                 "\\bhow\\s+many\\s+(patients?|horses?|records?|treatments?|visits?)\\b|" +
                 "\\b(quantos|quantas)\\s+(pacientes?|cavalos?|registos?|tratamentos?|visitas?)\\b|" +
@@ -124,6 +124,26 @@ internal object RecordQuestionIntent {
                 "egua|égua|éguas|eguas)\\s+" +
                 "(?:eat|drink|have|be|sleep|run)|como\\s+posso\\s+(?:cuidar|alimentar|ajudar)\\s+" +
                 "(?:um|uma|o|a)?\\s*(?:cavalo|cavalos|égua|éguas|potro|potros))(?=$|[^\\p{L}\\p{N}_])",
+            RegexOption.IGNORE_CASE,
+        )
+
+    /** Common husbandry questions should reach a configured cloud model, even when they say "my horse". */
+    private val genericHorseCareQuestionRegex =
+        Regex(
+            "^(?:what\\s+(?:should|can|could)\\s+i\\s+(?:feed|give|do|know)\\s+(?:for\\s+)?" +
+                "(?:my|our|your|a|an|the)?\\s*(?:horse|horses|mare|mares|foal|foals|cavalo|cavalos|" +
+                "égua|éguas|egua|eguas)|" +
+                "what\\s+(?:is|are)\\s+(?:a\\s+)?(?:good|healthy|suitable|best)\\s+" +
+                "(?:diet|food|feed|nutrition)\\s+for\\s+(?:my|our|your|a|an|the)?\\s*" +
+                "(?:horse|horses|mare|mares|foal|foals|cavalo|cavalos|égua|éguas|egua|eguas)|" +
+                "how\\s+(?:should|can|do|could)\\s+(?:i|we)\\s+(?:care\\s+for|look\\s+after|" +
+                "manage|feed|help|train)\\s+(?:my|our|your|a|an|the)?\\s*" +
+                "(?:horse|horses|mare|mares|foal|foals|cavalo|cavalos|égua|éguas|egua|eguas)|" +
+                "can\\s+(?:my|our|your|a|an|the)?\\s*(?:horse|horses|mare|mares|foal|foals|" +
+                "cavalo|cavalos|égua|éguas|egua|eguas)\\s+(?:eat|drink|have|be|sleep|run)|" +
+                "como\\s+(?:devo|posso|podemos|pode)\\s+(?:cuidar|alimentar|ajudar|tratar)\\s+" +
+                "(?:(?:(?:o|a)\\s+)?(?:meu|minha|meus|minhas|um|uma)\\s+)?" +
+                "(?:cavalo|cavalos|égua|éguas|egua|eguas)\\b)(?=$|[^\\p{L}\\p{N}])",
             RegexOption.IGNORE_CASE,
         )
     private val recordCorpusReferenceRegex =
@@ -436,6 +456,7 @@ internal object RecordQuestionIntent {
         dateRange: RagDateRange?,
         patientNameMentioned: Boolean = false,
     ): Boolean {
+        if (isGeneralKnowledgeQuestion(query) && scopedPatientName == null && !patientNameMentioned) return false
         val lowered = query.lowercase()
         val hasRecordType = RecordTypeIntent.expectedRecordTypes(query).isNotEmpty()
         val hasPatientReference = patientPronounRegex.containsMatchIn(lowered)
@@ -488,14 +509,22 @@ internal object RecordQuestionIntent {
      * incidental database hits should be kept out of a cloud answer.
      */
     fun isGeneralKnowledgeQuestion(query: String): Boolean {
-        if (!isEducationalQuestion(query) && !generalKnowledgeQuestionRegex.containsMatchIn(query.trim())) return false
+        val genericHorseCare = genericHorseCareQuestionRegex.containsMatchIn(query.trim())
+        if (!isEducationalQuestion(query) &&
+            !generalKnowledgeQuestionRegex.containsMatchIn(query.trim()) &&
+            !genericHorseCare
+        ) {
+            return false
+        }
         val lowered = query.lowercase()
-        return !patientPronounRegex.containsMatchIn(lowered) &&
-            !namedPatientReferenceRegex.containsMatchIn(lowered) &&
-            !directRecordReferenceRegex.containsMatchIn(lowered) &&
-            !recordCorpusReferenceRegex.containsMatchIn(lowered) &&
-            !hasNamedPatientRecordCue(query) &&
-            !hasGestationPopulationReference(query)
+        val hasRecordSpecificCue =
+            namedPatientReferenceRegex.containsMatchIn(lowered) ||
+                directRecordReferenceRegex.containsMatchIn(lowered) ||
+                recordCorpusReferenceRegex.containsMatchIn(lowered) ||
+                hasNamedPatientRecordCue(query) ||
+                hasGestationPopulationReference(query)
+        return !hasRecordSpecificCue &&
+            (genericHorseCare || !patientPronounRegex.containsMatchIn(lowered))
     }
 
     /** True when title-cased query text likely names a patient not in the active list. */

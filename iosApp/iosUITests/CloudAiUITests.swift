@@ -346,6 +346,23 @@ final class CloudAiUITests: AnimallyTestCase {
             generalReply.localizedCaseInsensitiveContains("not found in records"),
             "General cloud question was incorrectly rejected as a record lookup: \(generalReply)",
         )
+
+        // Possessive wording is common in husbandry questions, but "my horse"
+        // must not turn a general care question into an unsupported record
+        // lookup when there is no patient-specific fact being requested.
+        let husbandryReply = try askAndWait(
+            app,
+            input: input,
+            question: "What should I feed my horse?",
+            replyIndex: 7,
+        )
+        assertUsefulCloudAnswer(husbandryReply, question: "generic husbandry question")
+        XCTAssertTrue(
+            husbandryReply.localizedCaseInsensitiveContains("feed") ||
+                husbandryReply.localizedCaseInsensitiveContains("diet") ||
+                husbandryReply.localizedCaseInsensitiveContains("nutrition"),
+            "Generic husbandry question did not receive a relevant answer: \(husbandryReply)",
+        )
     }
 
     /// Verifies that a general medical question gets public veterinary

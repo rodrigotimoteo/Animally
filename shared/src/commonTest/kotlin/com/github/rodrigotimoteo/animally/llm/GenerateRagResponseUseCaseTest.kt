@@ -203,6 +203,20 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given cloud policy and generic husbandry question with possessive horse wording then model answers`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            engine.nextChunkOverride = "Start with good-quality forage, fresh water, and a diet tailored to the horse's needs."
+
+            val output =
+                sut(queryPolicyProvider = { RagQueryPolicy.CLOUD })("What should I feed my horse?").answers()
+
+            assertEquals(1, engine.cloudFirstCalls)
+            assertEquals(1, engine.calls)
+            assertTrue(output.first().contains("good-quality forage"))
+        }
+
+    @Test
     fun `question-specific cloud policy uses cloud-first route for a general question`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
