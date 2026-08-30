@@ -1,72 +1,89 @@
 package com.github.rodrigotimoteo.animally.data.gestation
 
+import app.cash.sqldelight.Query
+import app.cash.sqldelight.db.QueryResult
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.common.BasePatientRepository
+import com.github.rodrigotimoteo.animally.data.common.DomainMapper
 import com.github.rodrigotimoteo.animally.data.gestation.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Instant
+import com.github.rodrigotimoteo.animally.data.migrations.Gestation as DbGestation
 
 /**
  * Repository implementation for managing [Gestation] records.
+ *
+ * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
+ * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
+ * to satisfy [IGestationRepository] with its domain-named parameters (`gestation` vs base `domain`).
  */
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: Gestation`, interface uses `gestation: Gestation`
 @Single(binds = [IGestationRepository::class])
 class GestationRepositoryImpl(
-    @Provided private val database: AnimallyDatabase,
-) : IGestationRepository {
+    @Provided database: AnimallyDatabase,
+) : BasePatientRepository<DbGestation, Gestation>(
+        database = database,
+        mapper = DomainMapper { toDomain() },
+    ),
+    IGestationRepository {
     private val gestationQueries: GestationQueries = database.gestationQueries
 
-    override fun getByPatient(patientId: Long): List<Gestation> =
-        gestationQueries
-            .selectByPatient(patientId)
-            .executeAsList()
-            .map { it.toDomain() }
-            .sortedByDescending { it.breedingDate }
+    override fun selectByPatient(patientId: Long): Query<DbGestation> = gestationQueries.selectByPatient(patientId)
 
-    override fun getById(id: Long): Gestation? = gestationQueries.selectById(id).executeAsOneOrNull()?.toDomain()
+    override fun selectById(id: Long): Query<DbGestation> = gestationQueries.selectById(id)
 
-    override fun insert(gestation: Gestation): Long =
-        database.transactionWithResult {
-            gestationQueries.insert(
-                patientId = gestation.patientId,
-                breedingDate = gestation.breedingDate,
-                expectedDueDate = gestation.expectedDueDate,
-                gestationDays = gestation.gestationDays.toLong(),
-                status = gestation.status,
-                fetalCount = gestation.fetalCount?.toLong(),
-                lastCheckDate = gestation.lastCheckDate,
-                notes = gestation.notes,
-                isActive = gestation.isActive,
-                createdAt = gestation.createdAt,
-                updatedAt = gestation.updatedAt,
-            )
-            database.commonQueries.selectLastRowId().executeAsOne()
-        }
+    override fun doInsert(domain: Gestation): QueryResult<Long> =
+        gestationQueries.insert(
+            patientId = domain.patientId,
+            breedingDate = domain.breedingDate,
+            expectedDueDate = domain.expectedDueDate,
+            gestationDays = domain.gestationDays.toLong(),
+            status = domain.status,
+            fetalCount = domain.fetalCount?.toLong(),
+            lastCheckDate = domain.lastCheckDate,
+            notes = domain.notes,
+            isActive = domain.isActive,
+            createdAt = domain.createdAt,
+            updatedAt = domain.updatedAt,
+        )
 
-    override fun update(gestation: Gestation): Long =
-        gestationQueries
-            .update(
-                id = gestation.id,
-                patientId = gestation.patientId,
-                breedingDate = gestation.breedingDate,
-                expectedDueDate = gestation.expectedDueDate,
-                gestationDays = gestation.gestationDays.toLong(),
-                status = gestation.status,
-                fetalCount = gestation.fetalCount?.toLong(),
-                lastCheckDate = gestation.lastCheckDate,
-                notes = gestation.notes,
-                isActive = gestation.isActive,
-                updatedAt = gestation.updatedAt,
-            ).value
+    override fun doUpdate(domain: Gestation): QueryResult<Long> =
+        gestationQueries.update(
+            patientId = domain.patientId,
+            breedingDate = domain.breedingDate,
+            expectedDueDate = domain.expectedDueDate,
+            gestationDays = domain.gestationDays.toLong(),
+            status = domain.status,
+            fetalCount = domain.fetalCount?.toLong(),
+            lastCheckDate = domain.lastCheckDate,
+            notes = domain.notes,
+            isActive = domain.isActive,
+            updatedAt = domain.updatedAt,
+            id = domain.id,
+        )
+
+    override fun doSetInactive(
+        id: Long,
+        updatedAt: Instant,
+    ): QueryResult<Long> = gestationQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    // --- Trampolines to BasePatientRepository ---
+    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
+    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
+
+    override fun getByPatient(patientId: Long): List<Gestation> = super.getByPatient(patientId).sortedByDescending { it.breedingDate }
+
+    override fun getById(id: Long): Gestation? = super.getById(id)
+
+    override fun insert(gestation: Gestation): Long = super.insert(gestation)
+
+    override fun update(gestation: Gestation): Long = super.update(gestation)
 
     override fun setInactive(
         id: Long,
         updatedAt: Instant,
-    ): Long =
-        gestationQueries
-            .setInactive(
-                id = id,
-                updatedAt = updatedAt,
-            ).value
+    ): Long = super.setInactive(id, updatedAt)
 }

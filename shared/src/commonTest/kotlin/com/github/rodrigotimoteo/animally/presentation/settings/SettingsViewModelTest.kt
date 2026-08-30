@@ -12,6 +12,7 @@ import com.github.rodrigotimoteo.animally.domain.backup.RestoreBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
+import com.github.rodrigotimoteo.animally.domain.dictation.DictationFilePort
 import com.github.rodrigotimoteo.animally.domain.export.CsvExporter
 import com.github.rodrigotimoteo.animally.domain.export.ExportBasicRecordsUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportClinicalRecordsUseCase
@@ -27,6 +28,7 @@ import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepositor
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
+import com.github.rodrigotimoteo.animally.domain.settings.DatabaseWipePort
 import com.github.rodrigotimoteo.animally.domain.settings.usecase.WipeAllDataUseCase
 import com.github.rodrigotimoteo.animally.domain.substance.IControlledSubstanceRepository
 import com.github.rodrigotimoteo.animally.domain.surgery.ISurgeryRepository
@@ -138,6 +140,8 @@ class SettingsViewModelTest {
     private lateinit var database: AnimallyDatabase
 
     private lateinit var searchRepository: SearchRepositoryImpl
+    private val databaseWipePort: DatabaseWipePort = FakeDatabaseWipePort()
+    private val dictationFilePort: DictationFilePort = FakeDictationFilePort()
 
     @BeforeTest
     fun setup() {
@@ -157,7 +161,7 @@ class SettingsViewModelTest {
                     clinicalRecords,
                     reproductiveRecords,
                 ),
-            wipeAllDataUseCase = WipeAllDataUseCase(database, searchRepository),
+            wipeAllDataUseCase = WipeAllDataUseCase(databaseWipePort, dictationFilePort, searchRepository),
             patientRepository = patientRepositoryMock,
             themePreferenceStore = themePreferenceStore,
             cloudLlmSettings = cloudLlmSettings,
@@ -333,4 +337,12 @@ private class FakeCloudLlmSettingsStore : CloudLlmSettingsStore {
         const val KEY_BASE_URL = "baseUrl"
         const val KEY_PRESET_ID = "presetId"
     }
+}
+
+private class FakeDatabaseWipePort : DatabaseWipePort {
+    override fun clearAll(): Set<String> = emptySet()
+}
+
+private class FakeDictationFilePort : DictationFilePort {
+    override fun delete(path: String): Boolean = true
 }

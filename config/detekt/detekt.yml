@@ -38,6 +38,8 @@ potential-bugs:
     active: true
 
 style:
+  MaxLineLength:
+    maxLineLength: 160
   ForbiddenComment:
     comments:
       - value: 'TODO'

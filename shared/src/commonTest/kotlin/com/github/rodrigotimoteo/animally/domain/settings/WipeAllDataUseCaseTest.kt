@@ -3,8 +3,11 @@ package com.github.rodrigotimoteo.animally.domain.settings
 import app.cash.sqldelight.Query
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.search.SearchRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.settings.DatabaseWipePortImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
+import com.github.rodrigotimoteo.animally.domain.dictation.DictationFilePort
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.settings.DatabaseWipePort
 import com.github.rodrigotimoteo.animally.domain.settings.usecase.WipeAllDataUseCase
 import kotlinx.datetime.LocalDate
 import kotlin.test.BeforeTest
@@ -20,11 +23,15 @@ import kotlin.time.Instant
 class WipeAllDataUseCaseTest {
     private lateinit var database: AnimallyDatabase
     private lateinit var searchRepository: SearchRepositoryImpl
+    private lateinit var databaseWipePort: DatabaseWipePort
+    private lateinit var dictationFilePort: DictationFilePort
 
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
         searchRepository = SearchRepositoryImpl(database, database.ownerQueries)
+        databaseWipePort = DatabaseWipePortImpl(database)
+        dictationFilePort = FakeDictationFilePort()
     }
 
     @Test
@@ -32,7 +39,7 @@ class WipeAllDataUseCaseTest {
         seedRows()
         seedSearchIndex()
 
-        WipeAllDataUseCase(database, searchRepository).invoke()
+        WipeAllDataUseCase(databaseWipePort, dictationFilePort, searchRepository).invoke()
 
         assertEmpty { database.ownerQueries.selectAll() }
         assertEmpty { database.patientQueries.selectAllRows() }
@@ -154,4 +161,8 @@ class WipeAllDataUseCaseTest {
             database.searchFtsQueries.insertFts("Charlie Hanoverian").value
         }
     }
+}
+
+private class FakeDictationFilePort : DictationFilePort {
+    override fun delete(path: String): Boolean = true
 }

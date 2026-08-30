@@ -259,6 +259,9 @@ sqldelight {
 //
 // Threshold: current measured merged line coverage (57.42% on 2026-08-04).
 // production target: 90%
+// Draft bump: 65% (Phase 5e gate) → 75% (Phase 5 final) — not enforced yet.
+// Phase 5a/b/c keep 57 to avoid blocking parallel repo/test lanes; bump to
+// 65/75 only after Delete-UC + repo coverage lands. Preview: ./gradlew :shared:koverVerify
 val koverMinLineCoverage: Int = 57
 
 kover {

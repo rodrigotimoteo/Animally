@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.dictation
 
+import com.github.rodrigotimoteo.animally.domain.dictation.DictationFilePort
 import com.github.rodrigotimoteo.animally.domain.dictation.IDictationCaptureRepository
 import com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState
@@ -33,6 +34,7 @@ import kotlin.test.assertTrue
 class DictationViewModelTest {
     private val patientRepositoryMock: IPatientRepository = mock(MockMode.autoUnit)
     private val dictationCaptureRepositoryMock: IDictationCaptureRepository = mock(MockMode.autoUnit)
+    private val dictationFilePort: DictationFilePort = mock(MockMode.autoUnit)
 
     init {
         every { patientRepositoryMock.getPatientList() } returns emptyList()
@@ -54,7 +56,7 @@ class DictationViewModelTest {
             getDictationCapturesUseCase = GetDictationCapturesUseCase(dictationCaptureRepositoryMock),
             saveDictationCaptureUseCase = SaveDictationCaptureUseCase(dictationCaptureRepositoryMock),
             updateDictationCaptureTranscriptUseCase = UpdateDictationCaptureTranscriptUseCase(dictationCaptureRepositoryMock),
-            deleteDictationCaptureUseCase = DeleteDictationCaptureUseCase(dictationCaptureRepositoryMock),
+            deleteDictationCaptureUseCase = DeleteDictationCaptureUseCase(dictationCaptureRepositoryMock, dictationFilePort),
             ioDispatcher = Dispatchers.Unconfined,
             generateDictationSession = generateDictationSession,
             isCloudReady = isCloudReady,
