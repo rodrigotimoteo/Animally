@@ -283,6 +283,11 @@ internal class RagAnswerStreamCoordinator(
             }
 
         return withoutCitationBlocks
+            // A cumulative stream can briefly end halfway through a citation
+            // before the closing bracket arrives. Hide that transport syntax
+            // from the live bubble as well; the completed source card is still
+            // emitted once the final snapshot can be mapped.
+            .replace(incompleteCitationRegex, "")
             .replace(literalTagRegex, "")
             .replace(multiSpaceRegex, " ")
             .replace(spacedRepeatedPunctuationRegex, "$1")
@@ -308,6 +313,11 @@ internal class RagAnswerStreamCoordinator(
         val citationBlockRegex = Regex("\\[[^]]*]")
         val citationReferenceRegex =
             Regex("([A-Z][A-Z_]*(?:\\s+[A-Z_]+)*)\\s*#(\\d+)", RegexOption.IGNORE_CASE)
+        val incompleteCitationRegex =
+            Regex(
+                "\\[(?:[A-Z][A-Z_]*(?:\\s+[A-Z_]+)*)\\s*#\\d*[^]]*$",
+                RegexOption.IGNORE_CASE,
+            )
 
         // Internal tags must never reach the user-facing bubble.
         val literalTagRegex =

@@ -804,7 +804,13 @@ class GenerateRagResponseUseCase(
         turnStrings: AssistantStrings,
     ): Boolean =
         when {
-            emitPatientDateOfBirthAnswer(query, intent.patientScope.name, patientRepository) -> true
+            emitPatientIdentityAnswer(
+                query = query,
+                scopedPatient = intent.patientScope.name,
+                patientNameMentioned = intent.patientScope.nameMentioned,
+                patientRepository = patientRepository,
+                today = today,
+            ) -> true
             emitOwnerContactAnswer(query, intent.patientScope.name, ownerRepository) -> true
             intent.recordQuestion &&
                 emitReproductionAttributeAnswer(

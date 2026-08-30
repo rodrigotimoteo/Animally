@@ -928,6 +928,14 @@ final class CloudAiUITests: AnimallyTestCase {
             "Input remained disabled after '\(question)': \(reply.label)",
         )
         let label = reply.label
+        XCTAssertFalse(
+            app.buttons["assistant_retry"].firstMatch.exists,
+            "Cloud response was interrupted for '\(question)': \(label)",
+        )
+        XCTAssertNil(
+            label.range(of: #"\[[A-Za-z][A-Za-z_ ]*#\d+"#, options: .regularExpression),
+            "Internal record citation leaked into the cloud bubble for '\(question)': \(label)",
+        )
         print("CLOUDAI_REPLY_\(replyIndex): \(label)")
         let diagnosticLabels = app.staticTexts.allElementsBoundByIndex
             .map(\.label)

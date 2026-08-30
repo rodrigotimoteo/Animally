@@ -37,6 +37,9 @@ private class FakeRagLlmEngine : RagLlmEngine {
     /** When set, emitted instead of the default markdown-laden chunk (used by sanitizer cases). */
     var nextChunkOverride: String? = null
 
+    /** Cumulative snapshots used to exercise stream-only rendering edges. */
+    var nextChunkOverrides: List<String>? = null
+
     /** When set, the streaming flow emits its normal chunk then fails with this error. */
     var streamingError: Throwable? = null
 
@@ -48,10 +51,13 @@ private class FakeRagLlmEngine : RagLlmEngine {
             calls++
             lastPrompt = prompt
             lastInstructions = instructions
-            emit(
-                nextChunkOverride
-                    ?: "She is **pregnant** with a `due date` of __May 2025__. See [Vaccination #1](https://example.com/fake).",
-            )
+            val chunks =
+                nextChunkOverrides
+                    ?: listOf(
+                        nextChunkOverride
+                            ?: "She is **pregnant** with a `due date` of __May 2025__. See [Vaccination #1](https://example.com/fake).",
+                    )
+            chunks.forEach { emit(it) }
             streamingError?.let { throw it }
         }
 
@@ -761,6 +767,56 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given stored patient identity fields when asked then exact fields bypass the engine`() =
+        runTest {
+            val patient =
+                testPatient(7L, "Thunder").copy(
+                    species = "Equine",
+                    breed = "Lusitano",
+                    dateOfBirth = LocalDate(2017, 4, 18),
+                    gender = "Mare",
+                    microchipId = "985141000123456",
+                )
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val events =
+                sut(
+                    patientRepository = FakePatientRepository(listOf(patient)),
+                    today = LocalDate(2026, 8, 24),
+                )("What breed, age, sex, and microchip does Thunder have?").toList()
+
+            assertEquals(0, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(answer.contains("Thunder's breed is Lusitano."), answer)
+            assertTrue(answer.contains("Thunder's age is 9."), answer)
+            assertTrue(answer.contains("Thunder's sex is Mare."), answer)
+            assertTrue(answer.contains("Thunder's microchip is 985141000123456."), answer)
+            val source =
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .single()
+            assertEquals(7L, source.recordId)
+        }
+
+    @Test
+    fun `given missing patient identity fields when asked then no values are invented`() =
+        runTest {
+            val patient = testPatient(7L, "Thunder")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val output =
+                sut(
+                    patientRepository = FakePatientRepository(listOf(patient)),
+                )("What breed and age is Thunder?").chunks()
+
+            assertEquals(0, engine.calls)
+            assertTrue(output.last().contains("Thunder's breed is not recorded."), output.last())
+            assertTrue(output.last().contains("Thunder's age is not recorded."), output.last())
+        }
+
+    @Test
     fun `given empty retrieval but relevant history then strict record question still falls back`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
@@ -991,6 +1047,39 @@ class GenerateRagResponseUseCaseTest {
                 91L,
                 sources.sources.single().recordId,
             )
+        }
+
+    @Test
+    fun `given a partial internal citation snapshot then it never reaches the live bubble`() =
+        runTest {
+            val farrier =
+                result().copy(
+                    recordType = "FARRIER_VISIT",
+                    recordId = 91L,
+                    snippet = "Routine trim",
+                )
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(farrier)
+            engine.nextChunkOverrides =
+                listOf(
+                    "The visit is documented in [FARRIER VISIT #",
+                    "The visit is documented in [FARRIER VISIT #91].",
+                )
+
+            val events = sut()("Tell me about Thunder's farrier visit").toList()
+
+            assertTrue(
+                events
+                    .filterIsInstance<RagStreamEvent.Chunk>()
+                    .none { it.text.contains("[FARRIER VISIT #") || it.text.contains("#91") },
+                "partial citation syntax belongs in the source card, not the live bubble",
+            )
+            val source =
+                events
+                    .filterIsInstance<RagStreamEvent.Sources>()
+                    .single()
+                    .sources
+                    .single()
+            assertEquals(91L, source.recordId)
         }
 
     @Test
