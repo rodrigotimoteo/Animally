@@ -217,6 +217,36 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `cloud policy uses cloud-first route for a grounded record question`() =
+        runTest {
+            val farrier =
+                result(recordId = 91L, snippet = "Trimmed all four feet")
+                    .copy(recordType = "FARRIER_VISIT")
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(farrier)
+
+            sut(queryPolicyProvider = { RagQueryPolicy.CLOUD })("What did Thunder's farrier do?").answers()
+
+            assertEquals(1, engine.cloudFirstCalls)
+            assertEquals(1, engine.calls)
+        }
+
+    @Test
+    fun `cloud policy uses cloud-first route for a grounded analysis question`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Thunder"))
+
+            sut(
+                analysisContextBuilder = repos.builder,
+                queryPolicyProvider = { RagQueryPolicy.CLOUD },
+            )("How many patients do I have?").answers()
+
+            assertEquals(1, engine.cloudFirstCalls)
+            assertEquals(1, engine.calls)
+        }
+
+    @Test
     fun `given active patients when asking title-cased educational question then cloud model answers`() =
         runTest {
             every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Bella")

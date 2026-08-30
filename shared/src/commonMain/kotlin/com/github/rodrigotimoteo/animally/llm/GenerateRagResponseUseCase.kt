@@ -624,7 +624,10 @@ class GenerateRagResponseUseCase(
                     usedDeterministicSummary = context.deterministicSummary != null,
                     allowGeneralQuestions = input.queryPolicy.allowGeneralQuestions || context.useTools,
                     useTools = context.useTools,
-                    forceCloud = input.queryPolicy.allowGeneralQuestions && !requiresGrounding,
+                    // Cloud selection is independent from the evidence policy:
+                    // paid cloud should serve grounded record turns too, while
+                    // the gates above still prevent unsupported facts.
+                    forceCloud = input.queryPolicy.allowGeneralQuestions,
                     requiresGrounding = requiresGrounding,
                     grounded = grounded,
                     webSources = context.webSources,

@@ -21,9 +21,9 @@ data class RagConfig(
 /**
  * Generation policy selected by the engine router before retrieval starts.
  * Foundation Models stay tightly grounded because their small context/model
- * budget benefits from deterministic gates; cloud fallback can answer general
- * questions while still receiving explicit instructions not to invent patient
- * facts.
+ * budget benefits from deterministic gates. A configured cloud route can serve
+ * both general and grounded turns while still receiving explicit instructions
+ * not to invent patient facts.
  */
 data class RagQueryPolicy(
     val allowGeneralQuestions: Boolean,

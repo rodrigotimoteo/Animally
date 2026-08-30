@@ -1,13 +1,11 @@
 package com.github.rodrigotimoteo.animally.llm.cloud
 
-import com.github.rodrigotimoteo.animally.llm.AnalysisIntents
 import com.github.rodrigotimoteo.animally.llm.RagChatMessage
 import com.github.rodrigotimoteo.animally.llm.RagLlmEngine
 import com.github.rodrigotimoteo.animally.llm.RagQueryPolicy
 import com.github.rodrigotimoteo.animally.llm.RagToolCallingEngine
 import com.github.rodrigotimoteo.animally.llm.RagToolDefinition
 import com.github.rodrigotimoteo.animally.llm.RagToolStreamEvent
-import com.github.rodrigotimoteo.animally.llm.RecordQuestionIntent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -38,11 +36,11 @@ private data class PrimaryOutcome(
 )
 
 /**
- * Delegating [RagLlmEngine]: tries [primary] (on-device Foundation Models) first and
- * switches to [fallback] (cloud) when the primary is unavailable, errors, or stalls.
+ * Delegating [RagLlmEngine]: uses the configured cloud [fallback] first and
+ * keeps the on-device [primary] available as a compatibility fallback path.
  * GenerateRagResponseUseCase stays untouched — it only ever sees a RagLlmEngine.
  *
- * Failure detection per request:
+ * Failure detection per request for the local-first compatibility path:
  * - upfront: [isPrimaryAvailable] returns false -> straight to fallback;
  * - stall: no first emission within [firstEmissionTimeout] -> fallback;
  * - error: primary flow throws before completing -> fallback, even mid-stream
@@ -86,29 +84,26 @@ class FmFirstRagLlmEngine(
         }
 
     /**
-     * Reports the policy the next turn should use. The relaxed policy is only
-     * exposed when the same conditions that make [fallback] the selected engine
-     * are already true, so Foundation Models never receive an ungrounded prompt.
+     * Reports the policy the next assistant turn should use. A configured cloud
+     * provider is deliberately selected for every assistant question, including
+     * grounded record lookups; grounding gates still prevent unsupported patient
+     * facts from reaching either model.
      */
     suspend fun queryPolicy(): RagQueryPolicy =
-        if (!isPrimaryAvailable() && isFallbackEligible()) {
+        if (isFallbackEligible()) {
             RagQueryPolicy.CLOUD
         } else {
             RagQueryPolicy.ON_DEVICE
         }
 
     /**
-     * General or educational questions should use an enabled cloud provider
-     * even while Foundation Models is available. Record questions continue to
-     * use the strict local-first policy so cloud flexibility never weakens
-     * patient-data grounding.
+     * The selected cloud provider is used for every assistant question while it
+     * is configured. The query parameter remains part of the public seam for
+     * callers that classify questions before routing, but routing is no longer
+     * dependent on the wording of the question.
      */
-    suspend fun queryPolicy(query: String): RagQueryPolicy =
-        if (isFallbackEligible() && shouldPreferCloud(query)) {
-            RagQueryPolicy.CLOUD
-        } else {
-            queryPolicy()
-        }
+    @Suppress("UNUSED_PARAMETER")
+    suspend fun queryPolicy(query: String): RagQueryPolicy = queryPolicy()
 
     /**
      * Non-streaming variant with the same routing semantics. Delegates to
@@ -237,10 +232,6 @@ class FmFirstRagLlmEngine(
     private fun signal(source: EngineSource) {
         _sourceEvents.tryEmit(source)
     }
-
-    private fun shouldPreferCloud(query: String): Boolean =
-        !RecordQuestionIntent.isRecordQuestion(query, scopedPatientName = null, dateRange = null) &&
-            !AnalysisIntents.isAnalysisQuery(query)
 
     private companion object {
         val DEFAULT_FIRST_EMISSION_TIMEOUT = 30.seconds

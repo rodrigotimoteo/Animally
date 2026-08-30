@@ -83,11 +83,11 @@ val llmModule =
                 },
             )
         }
-        // Routing: on-device Foundation Models first; the cloud engine answers only
-        // when the user enabled it, the selected provider is configured, AND the
-        // primary is unavailable or fails/times out. Local runtimes intentionally do
-        // not require an API key; hosted providers do. The wrapper announces which
-        // engine served each request so the assistant UI can badge cloud answers.
+        // Routing: when the user enabled and configured a provider, assistant turns
+        // use cloud first, including grounded record questions. Local runtimes
+        // intentionally do not require an API key; hosted providers do. The wrapper
+        // announces which engine served each request so the assistant UI can badge
+        // cloud answers. Its local-first method remains available as a fallback seam.
         single<FmFirstRagLlmEngine> {
             val settings = get<CloudLlmSettingsStore>()
             FmFirstRagLlmEngine(

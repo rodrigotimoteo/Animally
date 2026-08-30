@@ -202,7 +202,7 @@ class FmFirstRagLlmEngineTest {
         }
 
     @Test
-    fun `query policy is flexible only when cloud fallback is selected`() =
+    fun `query policy selects cloud whenever it is configured`() =
         runTest {
             val cloudSelected =
                 FmFirstRagLlmEngine(
@@ -217,14 +217,14 @@ class FmFirstRagLlmEngineTest {
                 FmFirstRagLlmEngine(
                     primary = RecordingEngine(emptyList()),
                     fallback = RecordingEngine(emptyList()),
-                    isFallbackEligible = { true },
+                    isFallbackEligible = { false },
                     isPrimaryAvailable = { true },
                 )
             assertEquals(RagQueryPolicy.ON_DEVICE, foundationModelsSelected.queryPolicy())
         }
 
     @Test
-    fun `question policy prefers cloud for general questions but stays strict for record questions`() =
+    fun `question policy selects cloud for record and general questions`() =
         runTest {
             val engine =
                 FmFirstRagLlmEngine(
@@ -239,7 +239,7 @@ class FmFirstRagLlmEngineTest {
                 engine.queryPolicy("What is the capital of Portugal?"),
             )
             assertEquals(
-                RagQueryPolicy.ON_DEVICE,
+                RagQueryPolicy.CLOUD,
                 engine.queryPolicy("When was my horse's last farrier visit?"),
             )
         }
