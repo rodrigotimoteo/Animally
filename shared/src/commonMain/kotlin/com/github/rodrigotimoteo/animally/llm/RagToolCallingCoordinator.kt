@@ -75,8 +75,17 @@ internal class RagToolCallingCoordinator(
         successfulToolCalls: Int,
     ): RagToolAnswer {
         val sanitized = sanitize(text)
-        return if (sanitized.isBlank() && successfulToolCalls > 0) {
-            completedAnswer(collectedSources, successfulToolCalls)
+        return if (sanitized.isBlank()) {
+            // A provider may close a tool turn after emitting only malformed
+            // fragments. Treat that as a failed tool response even when
+            // earlier context is grounded; otherwise the outer coordinator
+            // can complete with a blank answer and leave the user without a
+            // retry or plain-text fallback.
+            RagToolAnswer(
+                sources = collectedSources.distinctBy { it.recordType to it.recordId },
+                fallbackToPlainText = true,
+                usedAuthoritativeTool = successfulToolCalls > 0,
+            )
         } else {
             RagToolAnswer(
                 text = sanitized,

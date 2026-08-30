@@ -244,18 +244,23 @@ class CloudRagLlmEngine(
                 state.cumulative.append(tail)
                 emit(RagToolStreamEvent.Text(state.cumulative.toString()))
             }
-        val failure =
-            validateStreamEnd(
-                sawDone = state.sawDone,
-                finishReason = state.finishReason,
-                contentLength = state.cumulative.length,
-            )
-        if (failure != null) error(failure)
         val calls =
             state.toolCalls
                 .toList()
                 .sortedBy { (index, _) -> index }
                 .mapIndexedNotNull { index, (_, call) -> call.toRagToolCall(index) }
+        val failure =
+            validateStreamEnd(
+                sawDone = state.sawDone,
+                finishReason = state.finishReason,
+                contentLength = state.cumulative.length,
+                // Keep malformed tool-call fragments non-fatal here. The
+                // registry boundary will reject them safely; turning them
+                // into a transport failure would hide the useful analysis
+                // fallback behind a retry banner.
+                hasToolCallActivity = state.toolCalls.isNotEmpty(),
+            )
+        if (failure != null) error(failure)
         if (calls.isNotEmpty()) emit(RagToolStreamEvent.ToolCalls(calls))
     }
 
@@ -547,12 +552,17 @@ internal class ThinkingBlockFilter {
             pending = if (final) "" else pending.takeLast(markerPrefixLength(pending))
             return ""
         }
-        val keep = if (final) 0 else markerPrefixLength(pending)
-        if (keep == 0) {
-            return pending.also { pending = "" }
+        val markerPrefix = markerPrefixLength(pending)
+        if (final && markerPrefix > 0) {
+            // A stream may end between characters of a hidden marker. Do not
+            // leak the dangling prefix (for example `<thi`) into the answer.
+            val visible = pending.dropLast(markerPrefix)
+            pending = ""
+            return visible
         }
-        val visible = pending.dropLast(keep)
-        pending = pending.takeLast(keep)
+        val keep = if (final) 0 else markerPrefix
+        val visible = if (keep == 0) pending else pending.dropLast(keep)
+        pending = if (keep == 0) "" else pending.takeLast(keep)
         return visible
     }
 
@@ -652,13 +662,16 @@ internal class ThinkingBlockFilter {
  * Terminal-state check shared by the stream loop and contract tests. Returns a
  * human-readable failure message when the stream ended abnormally, null when the
  * termination is legitimate ([DONE], or an allow-listed finish_reason such as `stop`).
- * `length` always means the provider stopped before completing the answer. Partial
- * visible text is retained by the caller and paired with its retry affordance.
+ * A clean terminal with neither visible text nor tool-call activity is rejected so
+ * callers cannot persist a blank assistant turn. `length` always means the provider
+ * stopped before completing the answer. Partial visible text is retained by the
+ * caller and paired with its retry affordance.
  */
 internal fun validateStreamEnd(
     sawDone: Boolean,
     finishReason: String?,
     contentLength: Int,
+    hasToolCallActivity: Boolean = false,
 ): String? =
     when (finishReason?.trim()?.lowercase()) {
         FINISH_LENGTH ->
@@ -669,8 +682,18 @@ internal fun validateStreamEnd(
             }
         FINISH_CONTENT_FILTER, FINISH_ERROR, FINISH_FAILED, FINISH_CANCELLED, FINISH_CANCELED ->
             "Cloud model ended the answer with finish reason '${finishReason.trim()}'."
-        in FINISH_SUCCESS_REASONS -> null
-        null -> if (sawDone) null else "Cloud LLM stream ended before completion"
+        in FINISH_SUCCESS_REASONS ->
+            if (contentLength == 0 && !hasToolCallActivity) {
+                "Cloud model returned no visible answer"
+            } else {
+                null
+            }
+        null ->
+            when {
+                !sawDone -> "Cloud LLM stream ended before completion"
+                contentLength == 0 && !hasToolCallActivity -> "Cloud model returned no visible answer"
+                else -> null
+            }
         else -> "Cloud model ended with an unrecognized finish reason '${finishReason.trim()}'."
     }
 

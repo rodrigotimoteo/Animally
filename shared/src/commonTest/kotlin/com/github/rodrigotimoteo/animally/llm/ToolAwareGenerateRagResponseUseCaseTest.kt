@@ -94,6 +94,15 @@ private class PlainFallbackEngine : RagLlmEngine {
         }
 }
 
+private class SilentToolEngine : RagToolCallingEngine {
+    override val supportsToolCalling: Boolean = true
+
+    override fun generateStreamingWithTools(
+        messages: List<RagChatMessage>,
+        tools: List<RagToolDefinition>,
+    ): Flow<RagToolStreamEvent> = flow {}
+}
+
 class ToolAwareGenerateRagResponseUseCaseTest {
     private val searchRepository: ISearchRepository = mock(MockMode.autoUnit)
 
@@ -242,6 +251,29 @@ class ToolAwareGenerateRagResponseUseCaseTest {
 
             assertEquals(2, toolEngine.calls)
             assertEquals(1, registry.calls)
+            assertEquals(1, plain.calls)
+            assertEquals(
+                "I can still answer from the available context.",
+                events.filterIsInstance<RagStreamEvent.Chunk>().last().text,
+            )
+        }
+
+    @Test
+    fun `empty tool turn falls back to plain cloud completion instead of a blank answer`() =
+        runTest {
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Bella"))
+            repos.weights.entries = listOf(testWeight(7, 1, 505.0, LocalDate(2025, 2, 1)))
+            val plain = PlainFallbackEngine()
+
+            val events =
+                sut(
+                    toolEngine = SilentToolEngine(),
+                    registry = FakeToolRegistry(),
+                    plainEngine = plain,
+                    analysisContextBuilder = repos.builder,
+                )("Analyze the weight data").toList()
+
             assertEquals(1, plain.calls)
             assertEquals(
                 "I can still answer from the available context.",

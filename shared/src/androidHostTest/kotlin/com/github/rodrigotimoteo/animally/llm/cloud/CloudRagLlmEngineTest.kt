@@ -351,6 +351,24 @@ class CloudRagLlmEngineTest {
     }
 
     @Test
+    fun `does not leak an unfinished thinking marker at end of stream`() {
+        val engine = engine()
+        val cumulative = StringBuilder()
+        val filter = ThinkingBlockFilter()
+
+        assertEquals(
+            "Visible answer",
+            engine.appendSseDelta(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Visible answer<thi\"}}]}",
+                cumulative,
+                filter,
+            ),
+        )
+        assertEquals("", filter.finish())
+        assertEquals("Visible answer", cumulative.toString())
+    }
+
+    @Test
     fun `snake_case wire fields decode into typed chunk fields`() {
         val chunk =
             Json
@@ -384,6 +402,18 @@ class CloudRagLlmEngineTest {
         assertNull(validateStreamEnd(sawDone = true, finishReason = null, contentLength = 10))
         assertNull(validateStreamEnd(sawDone = false, finishReason = "stop", contentLength = 10))
         assertEquals(
+            "Cloud model returned no visible answer",
+            validateStreamEnd(sawDone = true, finishReason = "stop", contentLength = 0),
+        )
+        assertNull(
+            validateStreamEnd(
+                sawDone = true,
+                finishReason = "tool_calls",
+                contentLength = 0,
+                hasToolCallActivity = true,
+            ),
+        )
+        assertEquals(
             "Cloud model reached its output limit before completing the answer",
             validateStreamEnd(sawDone = true, finishReason = "length", contentLength = 42),
         )
@@ -411,6 +441,30 @@ class CloudRagLlmEngineTest {
             validateStreamEnd(sawDone = true, finishReason = "mystery", contentLength = 10),
         )
     }
+
+    @Test
+    fun `successful empty stream is surfaced instead of becoming a blank answer`() =
+        runTest {
+            val client =
+                mockClient(
+                    """
+                    data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+                    data: [DONE]
+                    """.trimIndent(),
+                )
+            try {
+                val streamingEngine = CloudRagLlmEngine(client) { config }
+
+                val failure =
+                    assertFailsWith<IllegalStateException> {
+                        streamingEngine.generateStreaming("question", "instructions").toList()
+                    }
+
+                assertEquals("Cloud model returned no visible answer", failure.message)
+            } finally {
+                client.close()
+            }
+        }
 
     @Test
     fun `sse deltas accumulate into cumulative snapshots`() {
