@@ -552,6 +552,10 @@ class GenerateRagResponseUseCase(
     private suspend fun FlowCollector<RagStreamEvent>.emitModelAnswer(input: ModelAnswerRequest) {
         val webSources = findWebSources(input.query, input.intent, input.queryPolicy)
         val webReferencesUnavailable = webSources is VeterinaryWebSearchResult.Unavailable
+        if (webReferencesUnavailable) {
+            emit(RagStreamEvent.Chunk(input.turnStrings.webReferenceUnavailable))
+            return
+        }
         val webFallback =
             when (webSources) {
                 VeterinaryWebSearchResult.Unavailable -> null
@@ -708,7 +712,13 @@ class GenerateRagResponseUseCase(
                         VeterinaryWebSearchResult.Success(emptyList())
                     } else {
                         withTimeoutOrNull(WEB_REFERENCE_TIMEOUT_MILLIS) {
-                            provider.search(safeTopic)
+                            when (val result = provider.search(safeTopic)) {
+                                is VeterinaryWebSearchResult.Success ->
+                                    VeterinaryWebSearchResult.Success(
+                                        VeterinaryWebQuery.filterRelevantSources(query, result.sources),
+                                    )
+                                VeterinaryWebSearchResult.Unavailable -> result
+                            }
                         } ?: VeterinaryWebSearchResult.Unavailable
                     }
                 } catch (ce: kotlinx.coroutines.CancellationException) {

@@ -47,6 +47,10 @@ internal class RagAnswerStreamCoordinator(
             collector.emit(RagStreamEvent.WebSources(request.webSources))
         }
         val answer = streamGeneratedAnswer(collector, request) ?: return
+        if (request.webSources.isNotEmpty() && !hasValidWebCitation(answer.text, request.webSources.size)) {
+            collector.emit(RagStreamEvent.Chunk(webReferenceExcerptFallback(request)))
+            return
+        }
         val streamedText = answer.text
         emitCitationEvents(collector, request, answer)
         val displayText = stripCitationTokens(streamedText)
@@ -244,6 +248,27 @@ internal class RagAnswerStreamCoordinator(
             .toList()
     }
 
+    /** Web-backed medical answers must identify one of the supplied excerpts. */
+    private fun hasValidWebCitation(
+        answerText: String,
+        sourceCount: Int,
+    ): Boolean =
+        webCitationRegex
+            .findAll(answerText)
+            .mapNotNull { it.groupValues.getOrNull(1)?.toIntOrNull() }
+            .any { it in 1..sourceCount }
+
+    /** Keeps a janky model from turning verified web context into a rejection. */
+    private fun webReferenceExcerptFallback(request: RagStreamRequest): String =
+        buildString {
+            appendLine(request.turnStrings.webReferenceAnswerUnavailable)
+            request.webSources.take(MAX_FALLBACK_WEB_SOURCES).forEachIndexed { index, source ->
+                if (index > 0) appendLine()
+                append(source.publisher).append(": ").appendLine(source.title)
+                appendLine(source.excerpt.take(MAX_FALLBACK_EXCERPT_CHARS))
+            }
+        }.trim()
+
     /** Accepts both the wire form and humanized forms a model may produce. */
     private fun citationRecordType(rawType: String): String? {
         val displayType = rawType.trim().replace(Regex("\\s+"), " ")
@@ -258,5 +283,8 @@ internal class RagAnswerStreamCoordinator(
 
     private companion object {
         const val MAX_ENFORCED_SOURCES = 3
+        const val MAX_FALLBACK_WEB_SOURCES = 2
+        const val MAX_FALLBACK_EXCERPT_CHARS = 900
+        val webCitationRegex = Regex("\\[WEB\\s*#(\\d+)]", RegexOption.IGNORE_CASE)
     }
 }

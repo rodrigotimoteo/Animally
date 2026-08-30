@@ -80,6 +80,7 @@ final class CloudAiUITests: AnimallyTestCase {
             modelField.waitForExistence(timeout: 5),
             "The model field was not editable before discovery; cannot test the paid id directly",
         )
+        makeHittable(modelField, in: app)
         TestHelpers.typeTextAndVerify(modelField, text: "mimo-v2.5")
 
         let selected = app.textFields["settings_cloud_model"].firstMatch
@@ -91,6 +92,26 @@ final class CloudAiUITests: AnimallyTestCase {
 
         let done = app.buttons["Done"].firstMatch
         if done.exists { done.tap() }
+    }
+
+    /// A previous assistant turn can leave the software keyboard alive while a
+    /// new test process presents Settings. Bring the model field back above
+    /// that overlay before using XCTest's tap/type APIs.
+    private func makeHittable(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+    ) {
+        for _ in 0..<3 {
+            if element.isHittable { return }
+            let keyboard = app.keyboards.firstMatch
+            let dismiss = keyboard.buttons["Done"].firstMatch
+            if dismiss.exists && dismiss.isHittable {
+                dismiss.tap()
+            }
+            app.swipeUp()
+            usleep(300_000)
+        }
+        XCTAssertTrue(element.isHittable, "Settings model field is visible but not hittable")
     }
 
     func testFetchModelsPopulatesPickerAndSelectionWorks() throws {
@@ -541,10 +562,32 @@ final class CloudAiUITests: AnimallyTestCase {
         )
         assertUsefulCloudAnswer(portugueseGeneralReply, question: "Portuguese general question")
         XCTAssertFalse(
-            portugueseGeneralReply.localizedCaseInsensitiveContains("não encontrei") ||
-                portugueseGeneralReply.localizedCaseInsensitiveContains("não encontrado"),
+            portugueseGeneralReply.localizedCaseInsensitiveContains("não encontrei nada sobre isso nos seus registos") ||
+                portugueseGeneralReply.localizedCaseInsensitiveContains("not found in records") ||
+                portugueseGeneralReply.localizedCaseInsensitiveContains("couldn't find anything about that in your records"),
             "Cloud general Portuguese question was incorrectly treated as missing records: \(portugueseGeneralReply)",
         )
+        let portugueseWebSource = app.descendants(matching: .any)
+            .matching(identifier: "assistant_web_source")
+            .firstMatch
+        if portugueseWebSource.waitForExistence(timeout: 15) {
+            let label = portugueseWebSource.label.lowercased()
+            XCTAssertTrue(
+                label.contains("ultrasound") ||
+                    label.contains("ultrasonography") ||
+                    label.contains("transrectal") ||
+                    label.contains("reproductive") ||
+                    label.contains("mare"),
+                "Portuguese web source was not relevant to the requested topic: \(portugueseWebSource.label)",
+            )
+            XCTAssertFalse(label.contains("pneumonia") || label.contains("cancer"))
+        } else {
+            XCTAssertTrue(
+                portugueseGeneralReply.localizedCaseInsensitiveContains("referência") ||
+                    portugueseGeneralReply.localizedCaseInsensitiveContains("referencias"),
+                "No relevant reference was available, but the answer did not say so clearly: \(portugueseGeneralReply)",
+            )
+        }
 
         let generalReply = try askAndWait(
             app,
@@ -848,6 +891,56 @@ final class CloudAiUITests: AnimallyTestCase {
                 "Answer did not expose the requested record surface for '\(testCase.0)': \(reply)",
             )
         }
+    }
+
+    /// The assistant must expose a human-readable source card and route it to
+    /// the actual record detail. The model's prose must never be the only way
+    /// to identify a cited record.
+    func testLiveCloudFarrierSourceCardOpensRecord() throws {
+        try XCTSkipUnless(
+            isLiveCloudRun,
+            "Opt-in live cloud source-link test; set ANIMALLY_LIVE_CLOUD=1 when a valid provider key is configured",
+        )
+        let app = TestHelpers.launchApp(arguments: ["-forceFmUnavailable"])
+        try configureLivePaidMimoModelManually(app)
+        openAssistant(app)
+
+        let input = app.textFields["assistant_input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 10), "Assistant input is unavailable")
+        let newChat = app.buttons["assistant_new_chat"].firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat action is unavailable")
+        newChat.tap()
+        XCTAssertTrue(
+            app.staticTexts["What would you like to know?"].waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
+
+        let reply = try askAndWait(
+            app,
+            input: input,
+            question: "What did Lua do Pinhal's last farrier visit record?",
+            replyIndex: 0,
+        )
+        XCTAssertFalse(reply.localizedCaseInsensitiveContains("farrier visit #"), "Internal citation leaked: \(reply)")
+
+        let farrierChip = app.buttons.matching(identifier: "assistant_source_chip")
+            .allElementsBoundByIndex
+            .first { $0.label.localizedCaseInsensitiveContains("farrier visit") }
+        guard let farrierChip else {
+            XCTFail("No human-readable Farrier visit source card was rendered")
+            return
+        }
+        XCTAssertFalse(farrierChip.label.contains("#"), "Source card exposed an internal id: \(farrierChip.label)")
+        farrierChip.tap()
+
+        XCTAssertTrue(
+            app.navigationBars["Farrier"].waitForExistence(timeout: 15),
+            "Farrier source card did not open the record detail",
+        )
+        XCTAssertTrue(
+            app.staticTexts["Date"].waitForExistence(timeout: 15),
+            "Opened Farrier detail did not render the record fields",
+        )
     }
 
     private func assertUsefulCloudAnswer(_ answer: String, question: String) {

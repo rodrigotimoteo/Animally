@@ -103,7 +103,8 @@ internal object RecordQuestionIntent {
         )
     private val recordActionRegex =
         Regex(
-            "\\b(given|received|recorded|logged|treated|had|needs?|shows?|has|have|" +
+            "\\b(list|lists|listed|lista|liste|listar|listem|" +
+                "given|received|recorded|logged|treated|had|needs?|shows?|has|have|" +
                 "recebeu|receberam|registou|registado|registada|teve|tinham?|precisa|" +
                 "precisam|mostra|mostram|administrad[oa]|realizou|fez|aconteceu|" +
                 "ocorreu|foi)\\b",

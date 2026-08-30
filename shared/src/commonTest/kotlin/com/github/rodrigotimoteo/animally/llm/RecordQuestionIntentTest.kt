@@ -154,6 +154,22 @@ class RecordQuestionIntentTest {
     }
 
     @Test
+    fun `typed list questions stay grounded in the record corpus`() {
+        val queries =
+            listOf(
+                "List vaccinations",
+                "List medications",
+                "Lista as vacinas",
+                "Liste os medicamentos",
+            )
+
+        queries.forEach { query ->
+            assertTrue(RecordQuestionIntent.isRecordQuestion(query, null, null), query)
+            assertFalse(RecordQuestionIntent.isGeneralKnowledgeQuestion(query), query)
+        }
+    }
+
+    @Test
     fun `named patient identity questions stay grounded even without a typed record`() {
         val queries =
             listOf(
@@ -190,6 +206,7 @@ class RecordQuestionIntentTest {
     fun `expanded record type vocabulary keeps typed lookups grounded`() {
         assertTrue(RecordTypeIntent.expectedRecordTypes("What was Bella's last surgery?").contains("SURGERY"))
         assertTrue(RecordTypeIntent.expectedRecordTypes("Show Thunder's lab results").contains("LAB_RESULT"))
+        assertTrue(RecordTypeIntent.expectedRecordTypes("What did Lua's blood work show?").contains("LAB_RESULT"))
         assertTrue(RecordTypeIntent.expectedRecordTypes("Open the imaging record").contains("IMAGING"))
         assertTrue(RecordTypeIntent.expectedRecordTypes("Which reminders are due?").contains("CUSTOM_REMINDER"))
         assertTrue(RecordTypeIntent.expectedRecordTypes("What is the embryo transfer date?").contains("EMBRYO_TRANSFER"))

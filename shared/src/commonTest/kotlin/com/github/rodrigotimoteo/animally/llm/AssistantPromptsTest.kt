@@ -187,4 +187,14 @@ class AssistantPromptsTest {
         assertTrue(prompt.contains("Finish every response with a complete sentence"))
         assertTrue(!prompt.contains("ANSWER ONLY FROM THE CONTEXT BELOW"))
     }
+
+    @Test
+    fun `cloud web prompt requires direct excerpt support`() {
+        val prompt = AssistantPrompts.systemPrompt(allowGeneralQuestions = true, includeWebReferences = true)
+
+        assertTrue(prompt.contains("Use only claims directly supported by the WEB REFERENCES"))
+        assertTrue(prompt.contains("do not answer from memory"))
+        assertTrue(prompt.contains("If a claim is not supported by an excerpt, leave it out"))
+        assertTrue(prompt.contains("If the excerpts do not answer the question, say that the available references are insufficient"))
+    }
 }

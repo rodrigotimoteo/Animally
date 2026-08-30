@@ -97,6 +97,27 @@ class VeterinaryWebReferenceTest {
         }
 
     @Test
+    fun `web answer without a valid citation is replaced with a safe response`() =
+        runTest {
+            val engine = WebReferenceLlmEngine("Laminitis is a painful hoof condition from memory.")
+            val provider = FakeVeterinaryWebSourceProvider(VeterinaryWebSearchResult.Success(listOf(source)))
+            val events =
+                GenerateRagResponseUseCase(
+                    searchUseCase = SearchUseCase(FakeSearchRepository()),
+                    llmEngine = engine,
+                    recordSearch = RagRecordSearch { emptyList() },
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                    webSourceProvider = provider,
+                )("What is laminitis in horses?").toList()
+
+            assertEquals(1, engine.calls)
+            val answer = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertTrue(answer.startsWith(EnAssistantStrings.webReferenceAnswerUnavailable))
+            assertTrue(answer.contains(source.excerpt))
+            assertTrue(events.any { it is RagStreamEvent.WebSources })
+        }
+
+    @Test
     fun `on-device policy never calls the public reference provider`() =
         runTest {
             val engine = WebReferenceLlmEngine()
@@ -114,7 +135,7 @@ class VeterinaryWebReferenceTest {
         }
 
     @Test
-    fun `unavailable public reference service still allows a cautious cloud answer`() =
+    fun `unavailable public reference service fails closed without a model call`() =
         runTest {
             val engine = WebReferenceLlmEngine("Laminitis is a painful hoof condition from general knowledge.")
             val provider = FakeVeterinaryWebSourceProvider(VeterinaryWebSearchResult.Unavailable)
@@ -129,14 +150,13 @@ class VeterinaryWebReferenceTest {
             val chunks =
                 events.filterIsInstance<RagStreamEvent.Chunk>()
 
-            assertEquals(1, engine.calls)
-            assertTrue(engine.lastInstructions.contains("reference lookup was unavailable"))
+            assertEquals(0, engine.calls)
             assertTrue(events.none { it is RagStreamEvent.WebSources })
-            assertEquals("Laminitis is a painful hoof condition from general knowledge.", chunks.last().text)
+            assertEquals(EnAssistantStrings.webReferenceUnavailable, chunks.last().text)
         }
 
     @Test
-    fun `hanging public reference service is bounded and still allows a cloud answer`() =
+    fun `hanging public reference service is bounded and fails closed without a model call`() =
         runTest {
             val engine = WebReferenceLlmEngine("Laminitis is a painful hoof condition from general knowledge.")
             val provider = HangingVeterinaryWebSourceProvider()
@@ -150,7 +170,7 @@ class VeterinaryWebReferenceTest {
                 )("What is laminitis in horses?").toList().filterIsInstance<RagStreamEvent.Chunk>()
 
             assertEquals(1, provider.calls)
-            assertEquals(1, engine.calls)
-            assertEquals("Laminitis is a painful hoof condition from general knowledge.", chunks.last().text)
+            assertEquals(0, engine.calls)
+            assertEquals(EnAssistantStrings.webReferenceUnavailable, chunks.last().text)
         }
 }

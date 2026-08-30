@@ -48,6 +48,9 @@ interface AssistantStrings {
     /** Safe response when no trusted veterinary reference matches the topic. */
     val webReferenceNoResults: String
 
+    /** Safe response when a model does not return a cited web answer. */
+    val webReferenceAnswerUnavailable: String
+
     /** Follow-up chip: cited Vaccination record. */
     val followUpNextBooster: String
 
@@ -106,6 +109,10 @@ object EnAssistantStrings : AssistantStrings {
     override val webReferenceNoResults: String =
         "I couldn't find a relevant trusted veterinary reference for that topic, so I won't make up an answer."
 
+    override val webReferenceAnswerUnavailable: String =
+        "I found trusted veterinary references, but I couldn't produce a safely sourced answer this time. " +
+            "Open the references below or try again."
+
     override val followUpNextBooster: String = "When is the next booster due?"
 
     override val followUpGestationDay: String = "What day of gestation is she?"
@@ -159,6 +166,10 @@ object PtAssistantStrings : AssistantStrings {
     override val webReferenceNoResults: String =
         "Não encontrei uma referência veterinária de confiança relevante para esse tema, por isso não vou " +
             "inventar uma resposta."
+
+    override val webReferenceAnswerUnavailable: String =
+        "Encontrei referências veterinárias de confiança, mas não consegui produzir uma resposta devidamente " +
+            "fundamentada desta vez. Consulte as referências abaixo ou tente novamente."
 
     override val followUpNextBooster: String = "Quando é a próxima vacina?"
 

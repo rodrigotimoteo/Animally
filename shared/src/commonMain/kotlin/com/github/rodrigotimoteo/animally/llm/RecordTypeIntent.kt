@@ -87,7 +87,7 @@ object RecordTypeIntent {
                     "reprodutivo|reprodutiva|evento reprodutivo|cobertura|cobrição|cobricao)\\b",
             ) to setOf("REPRODUCTION_EVENT"),
             Regex(
-                "\\b(lab|laboratory|laboratories|bloodwork|blood test|fecal|faecal|coggins|" +
+                "\\b(lab|laboratory|laboratories|bloodwork|blood\\s+tests?|blood\\s+work|fecal|faecal|coggins|" +
                     "laboratório|laboratorio|análise laboratorial|analise laboratorial|resultado laboratorial)\\b",
             ) to setOf("LAB_RESULT"),
             Regex(
