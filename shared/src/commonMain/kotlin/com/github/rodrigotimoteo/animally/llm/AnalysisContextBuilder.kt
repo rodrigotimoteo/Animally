@@ -805,8 +805,14 @@ object AnalysisIntents {
     private val analysisRegex =
         Regex(
             "\\b(how many|how much has|how much have|average|trend|when was the last|which patients|total)\\b|" +
+                "\\b(?:what|which)\\s+(?:patients?|horses?|mares?)\\s+do\\s+(?:i|we)\\s+have\\b|" +
+                "\\bdo\\s+(?:i|we)\\s+have\\s+(?:any\\s+)?(?:patients?|horses?|mares?)\\b|" +
+                "\\b(?:list|show)\\s+(?:my|our|the)\\s+(?:patients?|horses?|mares?)\\b|" +
                 "\\b(quantos|quantas|quanto|média|media|tendência|tendencia|" +
-                "quando foi a última|quando foi a ultima|quais pacientes)\\b",
+                "quando foi a última|quando foi a ultima|quais pacientes|" +
+                "(?:que|quais)\\s+(?:pacientes?|cavalos?|éguas?|eguas?)\\s+(?:tenho|temos)|" +
+                "(?:mostra|liste|lista)\\s+(?:os|as)?\\s*(?:meus|minhas|nossos|nossas)?\\s*" +
+                "(?:pacientes?|cavalos?|éguas?|eguas?))\\b",
         )
 
     private val censusRegex = Regex("\\b(patients|horses|pacientes|cavalos|égua|éguas)\\b")

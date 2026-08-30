@@ -13,6 +13,7 @@ internal object RecordQuestionIntent {
         val hasRecordType: Boolean,
         val hasRecordAction: Boolean,
         val hasNamedRecordCue: Boolean,
+        val hasPatientIdentityQuestion: Boolean,
         val hasNamedPatientReference: Boolean,
         val hasPatientSubjectCue: Boolean,
         val hasDirectReference: Boolean,
@@ -25,6 +26,8 @@ internal object RecordQuestionIntent {
                     patientNameMentioned ||
                     hasPatientReference ||
                     hasNamedPatientReference ||
+                    hasNamedRecordCue &&
+                    hasPatientIdentityQuestion ||
                     hasDirectReference ||
                     hasRecentActivity
 
@@ -48,8 +51,14 @@ internal object RecordQuestionIntent {
             "\\b(my|our|your|active|current)\\s+(records?|patients?|horses|history|timeline|data|dataset)\\b|" +
                 "\\b(which|what)\\s+(patients?|records?|treatments?|visits?)\\b|" +
                 "\\bhow\\s+many\\s+(patients?|horses?|records?|treatments?|visits?)\\b|" +
+                "\\b(?:what|which)\\s+(?:patients?|horses?|mares?)\\s+do\\s+(?:i|we)\\s+have\\b|" +
+                "\\bdo\\s+(?:i|we)\\s+have\\s+(?:any\\s+)?(?:patients?|horses?|mares?)\\b|" +
+                "\\b(?:list|show)\\s+(?:my|our|the)\\s+(?:patients?|horses?|mares?)\\b|" +
                 "\\b(quantos|quantas)\\s+(pacientes?|cavalos?|registos?|tratamentos?|visitas?)\\b|" +
                 "\\b(quais|que)\\s+(pacientes?|cavalos?|registos?|tratamentos?|visitas?)\\b|" +
+                "\\b(?:que|quais)\\s+(?:pacientes?|cavalos?|éguas?|eguas?)\\s+(?:tenho|temos)\\b|" +
+                "\\b(?:mostra|liste|lista)\\s+(?:os|as)?\\s*(?:meus|minhas|nossos|nossas)?\\s*" +
+                "(?:pacientes?|cavalos?|éguas?|eguas?)\\b|" +
                 "\\b(on|in)\\s+(my|the)\\s+(records?|file|app|history|timeline)\\b|" +
                 "\\bwhat\\s+(did|has|have|happened|occurred)\\b|" +
                 "\\b(recent|latest|last|most\\s+recent)\\s+(record|history|activity|visit|treatment|care)\\b|" +
@@ -98,6 +107,17 @@ internal object RecordQuestionIntent {
                 "recebeu|receberam|registou|registado|registada|teve|tinham?|precisa|" +
                 "precisam|mostra|mostram|administrad[oa]|realizou|fez|aconteceu|" +
                 "ocorreu|foi)\\b",
+        )
+    private val patientIdentityQuestionRegex =
+        Regex(
+            "\\bhow\\s+old\\s+is\\b|" +
+                "\\bwhat\\s+(?:breed|age|sex|colour|color|" +
+                "microchip(?:\\s+number)?|date\\s+of\\s+birth)\\s+(?:is|does)\\b|" +
+                "\\bwhat\\s+(?:is|are)\\s+(?:the\\s+)?(?:breed|age|sex|colour|color|" +
+                "microchip(?:\\s+number)?|date\\s+of\\s+birth)\\s+(?:of\\s+)?\\b|" +
+                "\\b(?:qual|que)\\s+(?:é|e)\\s+(?:a\\s+)?(?:idade|raça|raca|sexo|cor|microchip)\\b|" +
+                "\\b(?:que|qual)\\s+idade\\s+tem\\b",
+            RegexOption.IGNORE_CASE,
         )
     private val educationalQuestionRegex =
         Regex(
@@ -471,6 +491,7 @@ internal object RecordQuestionIntent {
                 hasRecordType = hasRecordType,
                 hasRecordAction = hasRecordAction,
                 hasNamedRecordCue = hasNamedRecordCue,
+                hasPatientIdentityQuestion = patientIdentityQuestionRegex.containsMatchIn(lowered),
                 hasNamedPatientReference = namedPatientReferenceRegex.containsMatchIn(lowered),
                 hasPatientSubjectCue = hasPatientSubjectCue,
                 hasDirectReference = directRecordReferenceRegex.containsMatchIn(lowered),
@@ -558,7 +579,8 @@ internal object RecordQuestionIntent {
             namedPatientReferenceRegex.containsMatchIn(lowered) ||
             recordCorpusReferenceRegex.containsMatchIn(lowered) ||
             hasNamedPatientRecordCue(query) ||
-            patientSubjectRecordCueRegex.containsMatchIn(lowered)
+            patientSubjectRecordCueRegex.containsMatchIn(lowered) ||
+            patientIdentityQuestionRegex.containsMatchIn(lowered)
 
     /** Title-cased patient-like text paired with an explicit record signal. */
     private fun hasNamedPatientRecordCue(query: String): Boolean {
@@ -578,7 +600,8 @@ internal object RecordQuestionIntent {
         if (!hasTitleCasedCandidate) return false
         return namedPatientPossessiveRegex.containsMatchIn(query) ||
             RecordTypeIntent.expectedRecordTypes(query).isNotEmpty() ||
-            recordActionRegex.containsMatchIn(lowered)
+            recordActionRegex.containsMatchIn(lowered) ||
+            patientIdentityQuestionRegex.containsMatchIn(lowered)
     }
 
     private fun hasPatientSubjectRecordCue(query: String): Boolean =

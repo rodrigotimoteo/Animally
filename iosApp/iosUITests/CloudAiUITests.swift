@@ -365,6 +365,66 @@ final class CloudAiUITests: AnimallyTestCase {
         )
     }
 
+    /// Regression coverage for natural patient wording. These questions must
+    /// remain grounded even though they do not use an explicit database term
+    /// such as "records" or "patient history".
+    func testLiveCloudNaturalPatientQuestionMatrix() throws {
+        try XCTSkipUnless(
+            isLiveCloudRun,
+            "Opt-in live cloud matrix; set ANIMALLY_LIVE_CLOUD=1 when a valid provider key is configured",
+        )
+        let app = TestHelpers.launchApp(arguments: ["-forceFmUnavailable"])
+        let patientName = TestHelpers.firstPatientName(app)
+        try configureLivePaidMimoModelManually(app)
+        openAssistant(app)
+
+        let input = app.textFields["assistant_input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 10), "Assistant input is unavailable")
+        let newChat = app.buttons["assistant_new_chat"].firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat action is unavailable")
+        newChat.tap()
+        XCTAssertTrue(
+            app.staticTexts["What would you like to know?"].waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
+
+        let censusReply = try askAndWait(
+            app,
+            input: input,
+            question: "What horses do I have?",
+            replyIndex: 0,
+        )
+        assertUsefulCloudAnswer(censusReply, question: "natural patient inventory")
+        XCTAssertTrue(
+            censusReply.localizedCaseInsensitiveContains(patientName) ||
+                censusReply.localizedCaseInsensitiveContains("patient") ||
+                censusReply.localizedCaseInsensitiveContains("horse"),
+            "Natural inventory question did not expose the patient census: \(censusReply)",
+        )
+
+        let identityReply = try askAndWait(
+            app,
+            input: input,
+            question: "What breed is \(patientName)?",
+            replyIndex: 1,
+        )
+        assertUsefulCloudAnswer(identityReply, question: "natural patient identity")
+        XCTAssertTrue(
+            identityReply.localizedCaseInsensitiveContains("breed") ||
+                identityReply.localizedCaseInsensitiveContains("lusitano") ||
+                identityReply.localizedCaseInsensitiveContains("andalus"),
+            "Natural identity question did not reflect the patient record: \(identityReply)",
+        )
+
+        let absentIdentityReply = try askAndWait(
+            app,
+            input: input,
+            question: "How old is Pegasus?",
+            replyIndex: 2,
+        )
+        assertMissingRecordAnswer(absentIdentityReply, question: "unknown patient identity")
+    }
+
     /// Verifies that a general medical question gets public veterinary
     /// references separate from the patient's record citations. The test is
     /// opt-in because it makes a real provider request.

@@ -17,4 +17,11 @@ class AnalysisIntentsTest {
         assertTrue(AnalysisIntents.requiresTools("Compare vaccinations by month"))
         assertTrue(AnalysisIntents.requiresTools("Faz uma análise dos dados de peso"))
     }
+
+    @Test
+    fun `natural patient inventory questions request a deterministic census`() {
+        assertTrue(AnalysisIntents.isAnalysisQuery("What horses do I have?"))
+        assertTrue(AnalysisIntents.isAnalysisQuery("List my horses"))
+        assertTrue(AnalysisIntents.isAnalysisQuery("Que cavalos tenho?"))
+    }
 }
