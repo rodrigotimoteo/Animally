@@ -15,6 +15,7 @@ import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWe
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -440,6 +441,7 @@ class GenerateRagResponseUseCase(
 
         const val MAX_RECENT_ACTIVITY_ROWS = 12
         const val MAX_ACTIVITY_DETAIL_CHARS = 180
+        const val WEB_REFERENCE_TIMEOUT_MILLIS = 15_000L
 
         /** Human-readable month abbreviations for chunk/TODAY dates (locale-independent). */
         val MONTH_ABBREVIATIONS =
@@ -696,7 +698,9 @@ class GenerateRagResponseUseCase(
                     if (safeTopic == null) {
                         VeterinaryWebSearchResult.Success(emptyList())
                     } else {
-                        provider.search(safeTopic)
+                        withTimeoutOrNull(WEB_REFERENCE_TIMEOUT_MILLIS) {
+                            provider.search(safeTopic)
+                        } ?: VeterinaryWebSearchResult.Unavailable
                     }
                 } catch (ce: kotlinx.coroutines.CancellationException) {
                     throw ce

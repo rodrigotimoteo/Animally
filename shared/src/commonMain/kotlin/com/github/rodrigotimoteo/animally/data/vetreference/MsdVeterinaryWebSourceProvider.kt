@@ -12,7 +12,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.URLBuilder
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -41,14 +41,14 @@ class MsdVeterinaryWebSourceProvider(
         urlBuilder.parameters.append("model", "SearchResult")
         urlBuilder.parameters.append("language", "en")
         return try {
-            val response =
-                withTimeout(REQUEST_TIMEOUT_SECONDS.seconds) {
+            withTimeoutOrNull(REQUEST_TIMEOUT_SECONDS.seconds) {
+                val response =
                     httpClient.get(urlBuilder.build()) {
                         accept(ContentType.Application.Json)
                     }
-                }
-            if (!response.status.isSuccess()) return VeterinaryWebSearchResult.Unavailable
-            VeterinaryWebSearchResult.Success(parseMsdSources(response.bodyAsText(), maxResults))
+                if (!response.status.isSuccess()) return@withTimeoutOrNull VeterinaryWebSearchResult.Unavailable
+                VeterinaryWebSearchResult.Success(parseMsdSources(response.bodyAsText(), maxResults))
+            } ?: VeterinaryWebSearchResult.Unavailable
         } catch (ce: CancellationException) {
             throw ce
         } catch (_: Throwable) {

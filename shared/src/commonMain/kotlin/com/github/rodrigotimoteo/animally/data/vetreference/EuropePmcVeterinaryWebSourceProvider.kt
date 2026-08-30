@@ -12,7 +12,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.URLBuilder
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -42,14 +42,14 @@ class EuropePmcVeterinaryWebSourceProvider(
         urlBuilder.parameters.append("sort", "CITED desc")
         val url = urlBuilder.build()
         return try {
-            val response =
-                withTimeout(REQUEST_TIMEOUT_SECONDS.seconds) {
+            withTimeoutOrNull(REQUEST_TIMEOUT_SECONDS.seconds) {
+                val response =
                     httpClient.get(url) {
                         accept(ContentType.Application.Json)
                     }
-                }
-            if (!response.status.isSuccess()) return VeterinaryWebSearchResult.Unavailable
-            VeterinaryWebSearchResult.Success(parseEuropePmcSources(response.bodyAsText(), maxResults))
+                if (!response.status.isSuccess()) return@withTimeoutOrNull VeterinaryWebSearchResult.Unavailable
+                VeterinaryWebSearchResult.Success(parseEuropePmcSources(response.bodyAsText(), maxResults))
+            } ?: VeterinaryWebSearchResult.Unavailable
         } catch (ce: CancellationException) {
             throw ce
         } catch (_: Throwable) {

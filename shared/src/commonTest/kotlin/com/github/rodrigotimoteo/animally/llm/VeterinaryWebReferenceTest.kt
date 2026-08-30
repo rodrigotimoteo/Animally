@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
 import com.github.rodrigotimoteo.animally.domain.vetreference.VeterinaryWebSearchResult
 import com.github.rodrigotimoteo.animally.domain.vetreference.VeterinaryWebSourceProvider
 import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
@@ -24,6 +25,15 @@ private class FakeVeterinaryWebSourceProvider(
         calls++
         lastQuery = query
         return result
+    }
+}
+
+private class HangingVeterinaryWebSourceProvider : VeterinaryWebSourceProvider {
+    var calls = 0
+
+    override suspend fun search(query: String): VeterinaryWebSearchResult {
+        calls++
+        awaitCancellation()
     }
 }
 
@@ -115,6 +125,25 @@ class VeterinaryWebReferenceTest {
                     webSourceProvider = provider,
                 )("What is laminitis in horses?").toList().filterIsInstance<RagStreamEvent.Chunk>()
 
+            assertEquals(0, engine.calls)
+            assertEquals(EnAssistantStrings.webReferenceUnavailable, chunks.last().text)
+        }
+
+    @Test
+    fun `hanging public reference service is bounded and releases the retrieval state`() =
+        runTest {
+            val engine = WebReferenceLlmEngine()
+            val provider = HangingVeterinaryWebSourceProvider()
+            val chunks =
+                GenerateRagResponseUseCase(
+                    searchUseCase = SearchUseCase(FakeSearchRepository()),
+                    llmEngine = engine,
+                    recordSearch = RagRecordSearch { emptyList() },
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                    webSourceProvider = provider,
+                )("What is laminitis in horses?").toList().filterIsInstance<RagStreamEvent.Chunk>()
+
+            assertEquals(1, provider.calls)
             assertEquals(0, engine.calls)
             assertEquals(EnAssistantStrings.webReferenceUnavailable, chunks.last().text)
         }
