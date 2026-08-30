@@ -1,28 +1,37 @@
-# Improvement Pass Checklist
+# Internship Insights Dashboard Checklist
 
-## Build recovery
+## Foundation
 
-- [x] Restore `CloudLlmConfig` import in the iOS cloud settings store.
-- [x] Restore provider preset persistence on iOS.
-- [x] Add isolated iOS tests for defaults, provider preset, and secure API-key handling.
-- [x] Align Android/Desktop `ObjCHidden` annotation metadata.
-- [x] Replace the order-dependent wipe fake test with explicit port tracking.
-- [x] Add a native iOS PDF smoke test and remove the impossible string cast.
-- [x] Add explicit native interop opt-ins and remove unnecessary sync-test assertions.
-- [x] Rename the common RAG orchestration golden suite to avoid the Android-host class collision.
+- [ ] Canonicalise reproduction event types and legacy values.
+- [ ] Define shared insights filters, snapshots, metrics, comparisons, and drill-down contracts.
+- [ ] Implement SQLDelight overview/activity/record-mix aggregates.
+- [ ] Add deterministic repository integration fixtures.
 
-## Regression guard
+## Overview MVP
 
-- [x] Add iOS simulator Kotlin compilation to the checked-in pre-commit hook.
-- [x] Make the hook installer configuration-cache compatible.
-- [x] Refresh the installed local pre-commit hook.
+- [ ] Build the shared insights use case and ViewModel.
+- [ ] Add date presets, patient scope, and safe previous-period comparison.
+- [ ] Render the iOS overview and case-mix charts.
+- [ ] Add Timeline and Patient Detail entry points without adding a sixth root tab.
+- [ ] Make every metric drill down to source records.
+
+## Reproduction
+
+- [ ] Add event, embryo collection, ICSI, and ultrasound metrics.
+- [ ] Add current active-gestation and due-soon snapshots.
+- [ ] Verify no unsupported success rate is shown.
+
+## Thesis Readiness
+
+- [ ] Export dashboard-aligned CSV datasets and a data dictionary.
+- [ ] Add stable pseudonymous patient IDs and privacy regression tests.
+- [ ] Add explicit research-readiness issue counts and drill-down.
 
 ## Verification
 
-- [x] Focused iOS cloud settings tests pass.
-- [x] Android and iOS simulator compilation passes.
-- [x] Shared Android host and iOS simulator tests pass.
-- [x] Detekt and KtLint pass.
-- [x] Xcode simulator build passes.
-- [x] Review the final diff for architecture boundary violations.
-- [x] Commit the completed batch.
+- [ ] Dashboard and export totals match golden fixtures.
+- [ ] Empty, zero-denominator, inactive-row, and unknown-category cases pass.
+- [ ] Light, dark, system theme, Dynamic Type, and VoiceOver checks pass.
+- [ ] Shared Android-host/iOS tests, Detekt, KtLint, and Xcode build pass.
+- [ ] Install on a physical iPhone for workflow verification.
+- [ ] Commit the completed implementation batch.

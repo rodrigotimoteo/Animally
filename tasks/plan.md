@@ -1,260 +1,338 @@
-# Implementation Plan: iOS Build Recovery and Regression Guard
+# Implementation Plan: Internship Insights Dashboard
 
 ## Overview
 
-The repository audit found that the current commit fails to compile for the iOS simulator: `IosCloudLlmSettingsStore` no longer implements the full `CloudLlmSettingsStore` contract and also lost its `CloudLlmConfig` import. This batch restores the primary-platform build, adds platform-level coverage for cloud settings persistence, removes an expect/actual annotation mismatch warning, and strengthens the local commit guard so this class of regression is caught before a commit is created.
+Build an iOS-first, cross-platform insights feature that turns Animally's existing clinical and reproduction records into an auditable internship overview and research-ready export. Every count and chart is calculated deterministically in shared Kotlin from persisted records; Swift renders the native iOS experience but owns no metric logic. Every dashboard value can be opened to reveal the records behind it.
 
-## Evidence and Priority
+The first release deliberately reports facts such as activity counts, case mix, breeding events, active gestations, embryo collections, and ICSI totals. It must not claim conception, transfer-success, or foaling-success rates until the data model can link attempts to outcomes with an explicit denominator.
 
-1. **P0 — iOS simulator build is broken.** `:shared:compileKotlinIosSimulatorArm64` reports missing `presetId`/`setPresetId` implementations and unresolved `CloudLlmConfig` references.
-2. **P1 — No iOS persistence contract test covers every cloud setting.** Android, desktop, and common fakes implement the provider preset, but the iOS implementation regressed without a focused test.
-3. **P1 — The pre-commit hook runs formatting/static analysis only.** It accepted a platform compile regression in an iOS-first project.
-4. **P2 — Non-native `ObjCHidden` actuals omit the expect declaration's target/retention annotations.** Kotlin reports this as a compatibility warning.
-5. **P1 — A wipe unit test mixes a fake database port with a real FTS repository.** The fake cannot clear the real metadata table, so the test is order/platform dependent and fails on iOS.
-6. **P1 — The iOS PDF renderer casts Kotlin `String` to `NSString`.** Kotlin reports that the cast can never succeed; a native smoke test is needed to prove report generation does not crash.
-7. **P2 — Native file/export calls and two sync assertions emit avoidable warnings.** Explicit interop opt-ins and nullable assertion results keep compiler output actionable.
-8. **P0 — Two different golden suites declare `RagGoldenSetTest`.** `commonTest` is inherited by the Android host test compilation, so the real retrieval suite and orchestration suite collide and prevent tests from compiling.
-9. **P2 — The Git-hook installer discards Gradle's configuration cache.** The task captures the project from `doLast`, adding noisy warnings and repeated configuration work to setup.
+## Product Principles
 
-## Architecture Decisions
+- **Auditable:** tapping a metric reveals its source records and active filters.
+- **Deterministic:** the LLM never calculates dashboard values.
+- **Clinically honest:** counts are not relabelled as outcomes or success rates.
+- **Research friendly:** exports include filters, definitions, generated time, and a data dictionary.
+- **Private by default:** thesis exports can replace names with stable study identifiers and exclude owner contact data.
+- **iOS native, logically shared:** Swift Charts and SwiftUI render shared Kotlin state.
 
-- Keep cloud-setting defaults and provider semantics in shared Kotlin; the iOS store remains a thin `NSUserDefaults`/Keychain adapter.
-- Test the iOS adapter with an isolated `NSUserDefaults` suite and an in-memory `SecureStore`, avoiding the real Keychain and user preferences.
-- Add the iOS simulator Kotlin compilation task to the pre-commit gate. The build is incremental, and the repository is explicitly iOS-first.
-- Keep this batch focused on restoring correctness and preventing recurrence. Product features remain a separate vertical slice after the build is green.
+## Proposed Experience
 
-## Dependency Graph
+Do not add a sixth tab to the existing five-item iOS tab bar. Add an Insights button to Timeline and a patient-scoped Insights action to Patient Detail. A future iteration may rename Timeline to Activity and use a Timeline/Insights segmented control.
+
+The dashboard has four sections:
+
+1. **Internship overview** — patients seen, recorded activities, active clinical days, average activities per active day, and period-over-period change.
+2. **Case mix** — activity trend and record-type distribution, with drill-down to the underlying records.
+3. **Reproduction** — breeding and pregnancy-check events in the selected period, embryo/ICSI totals, plus a separately labelled current gestation and due-soon snapshot.
+4. **Research readiness** — explicit data-quality issue counts, anonymised export, and definitions. Avoid a vague single “quality score.”
+
+### Filters
+
+- Date presets: 7 days, 30 days, 90 days, current semester, custom, all time.
+- Scope: all patients or one patient; owner/cohort filters are follow-ups.
+- Optional record-type filter for drill-down.
+- Comparison: previous period of equal length, disabled for all-time/custom ranges without a valid comparison.
+
+## Metrics That Are Defensible Today
+
+| Metric | Definition | Existing source |
+| --- | --- | --- |
+| Patients seen | Distinct patients with at least one active dated record in range | Existing patient-linked record tables |
+| Recorded activities | Count of active dated records in range; never labelled “procedures” | Existing record tables |
+| Active days | Distinct dates with at least one activity | Existing record dates |
+| Activities per active day | Recorded activities divided by active days | Derived in shared use case |
+| Activity trend | Activity count grouped by day/week | Existing record dates |
+| Record mix | Count and percentage by `RecordType` | Existing record tables |
+| Reproduction event mix | Heat, breeding, pregnancy-check, foaling, and initial-exam counts | `Reproduction.eventType` after canonical parsing |
+| Active gestations | Active, unresolved gestation records as of today | `Gestation` |
+| Due soon | Active gestations due in 30/60/90 days | `Gestation.expectedDueDate` |
+| Embryos collected | Sum and average `embryoCount` per collection in range | `EmbryoTransfer` |
+| ICSI activity | Session count and follicles recovered in range | `Icsi` |
+| Ultrasound activity | Examination count and structured follicle measurements | `Ultrasound` |
+
+## Metrics Requiring Better Linkage
+
+Do not expose these as rates in the MVP:
+
+- Conception/pregnancy rate: a gestation or pregnancy check is not linked to a specific breeding attempt or cycle.
+- Embryo-transfer success: recipient mares are free text and have no linked recipient outcome.
+- Foaling/live-foal rate: foaling events lack structured outcome fields.
+- Clinical treatment effectiveness: diagnoses, treatments, and outcomes are not structured as linked episodes.
+
+Phase 2 can add `reproductionCycleId`, `sourceBreedingEventId`, structured pregnancy-check outcomes, transfer recipients, and foaling outcomes. Existing rows remain valid and appear as “outcome unavailable,” never guessed.
+
+## Architecture
 
 ```text
-CloudLlmSettingsStore contract
-            │
-            ├── IosCloudLlmSettingsStore implementation
-            │             │
-            │             └── iOS persistence regression test
-            │
-            └── iOS simulator compilation gate
-
-ObjCHidden expect declaration
-            │
-            └── Android/Desktop actual annotation parity
+Existing SQLDelight record tables
+              │
+              ▼
+data/insights/Insights.sq + SqlDelightInsightsRepository
+              │ returns aggregate facts, not presentation strings
+              ▼
+domain/insights/GetInsightsDashboardUseCase
+              │ applies taxonomy, rates, comparisons, and caveats
+              ▼
+presentation/insights/InsightsViewModel + InsightsUiState
+              │ StateFlow / Objective-C export
+        ┌─────┴────────┐
+        ▼              ▼
+SwiftUI + Charts    Compose presentation later
+        │
+        └── drill-down routes to existing record editors
 ```
+
+### Shared Models
+
+- `InsightsFilter(from, to, patientId, recordTypes)`
+- `InsightsSnapshot(overview, activitySeries, recordMix, reproduction, currentCare, dataIssues)`
+- `OverviewMetrics(patientCount, activityCount, activeDayCount, averagePerActiveDay, comparison)`
+- `MetricComparison(current, previous, absoluteDelta, percentageDelta?)`
+- `ActivityPoint(periodStart, count)`
+- `RecordTypeCount(type, count, share)`
+- `ReproductionMetrics(eventCounts, embryoCollections, embryosCollected, icsiSessions, folliclesRecovered)`
+- `CurrentGestationItem(patientId, patientName, gestationDay, dueDate, daysUntilDue, status)`
+- `InsightsDrillDown(recordType?, from, to, patientId?)`
+
+Prefer concrete data classes over a generic chart DSL so Objective-C/Swift interop stays predictable.
+
+### Query Strategy
+
+- Add focused aggregate SQLDelight queries rather than loading every record into memory.
+- Use `UNION ALL` over active dated tables for activity and record-mix facts.
+- Apply identical inclusive date and patient filters to every branch.
+- Keep period metrics and the current operational snapshot separate; due-soon is not silently constrained by a historical date filter.
+- Add indexes only after an explain-plan/performance test shows a need.
+- Preserve soft-delete semantics (`isActive = 1`) everywhere.
+
+### Reproduction Taxonomy
+
+The code currently persists both `PregnancyCheck` and `Pregnancy Check` depending on platform. Introduce a shared `ReproductionEventType` with a stable wire value and display label. Its parser accepts legacy spellings, while all new saves use the stable wire value. This is required before charting event categories.
 
 ## Task List
 
-### Phase 1: Restore the Primary Platform
+### Phase 1: Trustworthy Foundation
 
-#### Task 1: Repair iOS cloud settings persistence
+#### Task 1: Canonicalise reproduction event types
 
-**Description:** Restore the missing shared config import and provider-preset accessors in the iOS settings adapter.
+**Description:** Add a shared event taxonomy that recognises current Android/iOS legacy values and supplies one stable persisted wire value and one display label.
 
 **Acceptance criteria:**
 
-- The iOS store implements every `CloudLlmSettingsStore` member.
-- Model/base-URL defaults still come from shared `CloudLlmConfig`.
-- Provider selection survives a new store instance using the same defaults suite.
+- Both `PregnancyCheck` and `Pregnancy Check` map to the same category.
+- New Android and iOS saves use shared wire values.
+- Unknown historical values remain visible as `Other`, not discarded.
 
-**Verification:**
-
-- `./gradlew :shared:compileKotlinIosSimulatorArm64`
-- Focused iOS settings-store test through `:shared:iosSimulatorArm64Test`
+**Verification:** Unit tests for every legacy/canonical value; Android host and iOS simulator compilation.
 
 **Dependencies:** None
 
-**Files likely touched:**
+**Files likely touched:** Shared taxonomy/model, reproduction form state/view model, platform picker adapters, tests.
 
-- `shared/src/iosMain/kotlin/com/github/rodrigotimoteo/animally/presentation/settings/IosCloudLlmSettingsStore.kt`
-- `shared/src/iosTest/kotlin/com/github/rodrigotimoteo/animally/IosCloudLlmSettingsStoreTest.kt`
+**Estimated scope:** Medium, split platform picker wiring from the shared taxonomy if it exceeds five files.
 
-**Estimated scope:** Small
+#### Task 2: Define the insights contract
 
-#### Task 2: Align expect/actual annotation metadata
-
-**Description:** Add the expect declaration's target and retention metadata to Android and desktop no-op actual annotations.
+**Description:** Add the immutable filter, snapshot, metric, comparison, drill-down, and repository contracts in shared Kotlin.
 
 **Acceptance criteria:**
 
-- Android compilation no longer reports missing annotation metadata for `ObjCHidden`.
-- ObjC hiding behaviour on iOS remains unchanged.
+- Models distinguish period metrics from current-state care items.
+- Empty and zero-denominator states are representable without fake percentages.
+- Models export cleanly to Swift.
 
-**Verification:**
+**Verification:** Common model tests plus iOS simulator test compilation.
 
-- `./gradlew :shared:compileAndroidMain :shared:compileKotlinIosSimulatorArm64`
+**Dependencies:** Task 1
 
-**Dependencies:** None
-
-**Files likely touched:**
-
-- `shared/src/androidMain/kotlin/com/github/rodrigotimoteo/animally/bridge/ObjCHidden.android.kt`
-- `shared/src/desktopMain/kotlin/com/github/rodrigotimoteo/animally/bridge/ObjCHidden.desktop.kt`
+**Files likely touched:** `domain/insights/model/*`, `domain/insights/IInsightsRepository.kt`.
 
 **Estimated scope:** Small
 
-### Checkpoint: Platform Compilation
+#### Task 3: Implement overview and activity facts
 
-- [x] iOS simulator Kotlin compilation succeeds.
-- [x] Android shared compilation succeeds without the `ObjCHidden` warning.
-- [x] The focused iOS settings test passes.
-
-#### Task 3: Make wipe delegation coverage deterministic
-
-**Description:** Keep the real-database wipe test as the FTS/data integration gate, and make the fake-port unit test assert delegation through a tracking search port instead of combining fake and real storage.
+**Description:** Add SQLDelight aggregate queries and a repository implementation for patients seen, activity count, active days, activity series, and record mix.
 
 **Acceptance criteria:**
 
-- The unit test verifies database wipe, audio deletion, and one search rebuild call.
-- The test does not depend on SQLDelight state or platform test ordering.
-- The existing full-database wipe test remains unchanged as the persistence gate.
+- Only active rows inside the inclusive range are counted.
+- Patient-scoped and global results use identical definitions.
+- A fixture containing one record of each type produces exact expected totals without duplicate joins.
 
-**Verification:**
+**Verification:** Android-host SQLDelight integration tests and query performance check on a large fixture.
 
-- `./gradlew :shared:testAndroidHostTest :shared:iosSimulatorArm64Test`
+**Dependencies:** Task 2
 
-**Dependencies:** None
+**Files likely touched:** `Insights.sq`, repository implementation, mapper, integration test.
 
-**Files likely touched:**
+**Estimated scope:** Medium
 
-- `shared/src/commonTest/kotlin/com/github/rodrigotimoteo/animally/domain/settings/WipeAllDataUseCaseTest.kt`
+### Checkpoint: Foundation
 
-**Estimated scope:** Small
+- Reproduction taxonomy tests pass.
+- Shared insights facts are deterministic across Android host and iOS simulator.
+- No LLM or Swift code participates in calculations.
 
-#### Task 4: Verify the iOS PDF renderer bridge
+### Phase 2: First Useful Dashboard
 
-**Description:** Add a native smoke test that renders a minimal report and repair the Kotlin-to-Foundation string bridge if the generated PDF path crashes or returns invalid bytes.
+#### Task 4: Build the overview use case and shared state
 
-**Acceptance criteria:**
-
-- A minimal iOS report renders without a class-cast failure.
-- The result is non-empty and begins with the PDF file signature.
-- The impossible-cast compiler warning is removed.
-
-**Verification:**
-
-- Focused iOS PDF generator test through `:shared:iosSimulatorArm64Test`
-- `./gradlew :shared:compileKotlinIosSimulatorArm64`
-
-**Dependencies:** None
-
-**Files likely touched:**
-
-- `shared/src/iosMain/kotlin/com/github/rodrigotimoteo/animally/domain/export/pdf/PdfGenerator.ios.kt`
-- `shared/src/iosTest/kotlin/com/github/rodrigotimoteo/animally/domain/export/pdf/IosPdfGeneratorTest.kt`
-
-**Estimated scope:** Small
-
-#### Task 5: Remove avoidable native/test warning noise
-
-**Description:** Apply the required `BetaInteropApi` opt-in at the narrow file/class boundaries that use Foundation factories and retain non-null assertion results in sync tests.
+**Description:** Calculate comparison periods, safe percentages, chart granularity, empty states, and drill-down filters in a shared use case and ViewModel.
 
 **Acceptance criteria:**
 
-- Native storage/export sources no longer emit missing `BetaInteropApi` opt-in warnings.
-- Sync tests no longer use unnecessary non-null assertions.
-- No warning is hidden with a broad compiler suppression.
+- Date and patient filter changes reload atomically without stale results.
+- Zero previous values produce an unavailable percentage rather than infinity.
+- Loading, empty, content, and error states are explicit.
 
-**Verification:**
+**Verification:** ViewModel coroutine tests with fake repositories and fixed clock/date provider.
 
-- `./gradlew :shared:compileKotlinIosSimulatorArm64 :shared:compileTestKotlinIosSimulatorArm64`
+**Dependencies:** Task 3
+
+**Files likely touched:** Use case, ViewModel, UI state, DI registration, tests.
+
+**Estimated scope:** Medium
+
+#### Task 5: Render the iOS overview and case mix
+
+**Description:** Add a SwiftUI dashboard using native Swift Charts and the existing theme/accent environment, with Timeline and Patient Detail entry points.
+
+**Acceptance criteria:**
+
+- Summary cards, activity chart, record mix, filters, loading, and empty states work in light/dark/system themes.
+- Charts are accessible without relying on colour alone.
+- Tapping a card or chart category opens a filtered source-record list.
+
+**Verification:** Xcode build, simulator screenshots at small/large Dynamic Type, VoiceOver labels, and mock-fixture UI walkthrough.
 
 **Dependencies:** Task 4
 
-**Files likely touched:** Native storage/export files and `SyncViewModelTest.kt`
+**Files likely touched:** Insights SwiftUI view/wrapper, navigation destination, Timeline/Patient Detail entry points.
 
-**Estimated scope:** Small, mechanical
+**Estimated scope:** Medium; split navigation from rendering if needed.
 
-#### Task 6: Give RAG golden suites distinct identities
+### Checkpoint: MVP Overview
 
-**Description:** Rename the common orchestration golden suite so it can coexist with the Android-host real-database retrieval golden suite.
+- A user can choose a range, understand workload/case mix, and inspect every source record.
+- Counts match fixture calculations exactly.
+- Existing five-tab navigation remains uncluttered.
 
-**Acceptance criteria:**
+### Phase 3: Reproduction and Operational Value
 
-- Both golden suites compile into the Android host test binary.
-- The common suite remains available to iOS tests.
-- No tests or coverage are removed.
+#### Task 6: Add reproduction-period metrics
 
-**Verification:**
-
-- `./gradlew :shared:compileAndroidHostTest :shared:compileTestKotlinIosSimulatorArm64`
-- Full shared test gate
-
-**Dependencies:** None
-
-**Files likely touched:**
-
-- Common orchestration golden-set test filename/class only
-
-**Estimated scope:** Extra small
-
-### Phase 2: Prevent Recurrence
-
-#### Task 7: Add iOS compilation to the local commit gate
-
-**Description:** Extend the checked-in pre-commit hook to run the primary iOS simulator Kotlin compilation alongside Detekt and KtLint.
+**Description:** Aggregate canonical reproduction events, embryo collections/counts, ICSI sessions/follicles, and ultrasound activity.
 
 **Acceptance criteria:**
 
-- A shared/iOS compile error rejects the commit.
-- The hook keeps its existing lint/format failure guidance.
-- The installed local hook is refreshed from the checked-in script.
+- Metrics use structured fields and show explicit denominators.
+- Unknown event types appear in an `Other` bucket.
+- No conception or transfer-success rate is presented.
 
-**Verification:**
+**Verification:** Golden fixture tests covering legacy event labels, zero counts, multiple patients, and soft-deleted rows.
 
-- `sh gradle/pre-commit.sh`
-- `./gradlew installGitHooks`
+**Dependencies:** Tasks 1 and 3
 
-**Dependencies:** Tasks 1, 4, 5, and 6
+**Files likely touched:** Insights SQL/repository, reproduction metrics use case, tests, shared state.
 
-**Files likely touched:**
+**Estimated scope:** Medium
 
-- `gradle/pre-commit.sh`
+#### Task 7: Add current gestation and due-soon cards
 
-**Estimated scope:** Small
-
-#### Task 8: Make hook installation cache-safe
-
-**Description:** Model hook installation as a Gradle `Copy` task with declared inputs, output, and executable permissions.
+**Description:** Present active gestations as a current snapshot with gestation day, expected due date, and due-soon grouping independent of the historical range.
 
 **Acceptance criteria:**
 
-- Hook installation succeeds without configuration-cache problems.
-- A second invocation reuses the stored configuration cache and is up to date.
+- Gestation day is calculated from breeding date and the injected current date.
+- Resolved/inactive gestations are excluded.
+- Each mare links directly to her gestation record.
 
-**Verification:**
+**Verification:** Boundary tests for today, overdue, leap dates, resolved statuses, and 30/60/90-day groups.
 
-- Run `./gradlew installGitHooks` twice and confirm cache storage followed by reuse.
+**Dependencies:** Task 4
 
-**Dependencies:** Task 7
+**Files likely touched:** Shared use case/state, ViewModel tests, iOS section view.
 
-**Files likely touched:**
+**Estimated scope:** Medium
 
-- `build.gradle.kts`
+### Phase 4: Thesis-Ready Output
 
-**Estimated scope:** Small
+#### Task 8: Export an auditable analysis bundle
 
-### Checkpoint: Complete
+**Description:** Export summary, activity-series, record-mix, reproduction, data-issues, and data-dictionary CSV files using the active filter. Add optional stable pseudonymous patient identifiers.
 
-- [x] `./gradlew :shared:testAndroidHostTest :shared:iosSimulatorArm64Test :shared:ktlintCheck :shared:detekt`
-- [x] iOS Xcode simulator build succeeds after the shared gate is green.
-- [x] Diff review confirms no business logic moved into Swift.
-- [x] All changes are committed together with the completed plan state.
+**Acceptance criteria:**
 
-## Ranked Product Backlog
+- Export contains metric definitions, range, scope, generation time, and app/schema version.
+- Pseudonymised mode excludes patient names and all owner contact/location data.
+- Exported totals exactly match dashboard totals.
 
-These are promising follow-up slices, not part of this build-recovery batch:
+**Verification:** Golden CSV tests, privacy-field assertion, and round-trip parsing with quoted/newline-containing values.
 
-1. **Internship Insights dashboard:** date-range caseload, procedure counts, reproduction outcomes, and thesis-ready CSV/PDF export.
-2. **Needs-review inbox:** failed dictation extractions, incomplete records, overdue care, and unsourced assistant claims in one actionable queue.
-3. **Record templates:** reusable consultation/treatment templates and quick-add favourites for repetitive field work.
-4. **Backup health:** last successful backup, media coverage, CloudKit status, and a clear warning when the device is carrying unprotected records.
-5. **Data-quality audit:** missing microchips, owner locations, breeding dates, due dates, and inconsistent patient links.
+**Dependencies:** Tasks 4, 6, and 7
+
+**Files likely touched:** Export use case, CSV formatter reuse/extension, pseudonym service, tests, iOS share action.
+
+**Estimated scope:** Medium; PDF summary can be a separate follow-up.
+
+#### Task 9: Add research-readiness checks
+
+**Description:** Show explicit counts for records that weaken analysis: unknown event categories, missing vet names, unlinked owners, free-text recipients, and incomplete structured ultrasound fields.
+
+**Acceptance criteria:**
+
+- Every issue count opens the affected records.
+- The UI explains why the field matters without claiming records are clinically wrong.
+- No opaque aggregate quality score is displayed.
+
+**Verification:** Rule unit tests and drill-down fixture tests.
+
+**Dependencies:** Tasks 4 and 6
+
+**Files likely touched:** Data-quality rules/use case, shared state, iOS section, tests.
+
+**Estimated scope:** Medium
+
+### Checkpoint: Complete MVP+
+
+- Full shared tests, Detekt, KtLint, and Xcode simulator build pass.
+- Dashboard and export agree on every fixture total.
+- Source drill-down works for every metric.
+- Privacy review confirms no owner-identifying data in pseudonymised exports.
+- Implementation is committed with a clean worktree.
+
+## High-Value Follow-Ups
+
+1. **Saved thesis cohorts:** reusable inclusion/exclusion filters with a frozen cohort snapshot and change log.
+2. **Reproduction cycle linkage:** explicit breeding attempts, pregnancy-check outcomes, recipient links, and foaling outcomes to unlock honest success rates.
+3. **Internship sessions:** date, hours, location, supervisor, role, procedures observed/performed, competencies, and reflection; dashboard can then track official placement hours rather than infer them from records.
+4. **Competency portfolio:** progress by procedure/category with evidence links and supervisor sign-off.
+5. **Reproduction pipeline:** mares grouped as monitoring, ready to breed, bred/awaiting check, pregnant, due soon, or follow-up needed.
+6. **Study workspace:** variable selector, cohort comparison, long/wide export, missingness table, and reproducible analysis snapshot.
+7. **Geographic caseload:** owner/stable map with privacy-preserving aggregation and travel-day summaries.
+8. **Assistant explanation mode:** the LLM may explain a frozen `InsightsSnapshot`, but every statement must cite a dashboard metric or underlying record and it cannot recompute values.
+9. **Supervisor report:** monthly PDF containing hours, case mix, procedures, reflections, and linked evidence for review/sign-off.
+10. **Follow-up inbox:** due gestation checks, incomplete records, failed dictation extraction, expiring preventive care, and dashboard data-quality issues in one queue.
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| iOS defaults tests mutate real app preferences | Medium | Use a dedicated suite and erase its persistent domain before/after each test. |
-| Pre-commit becomes slower | Low | Use the incremental simulator compilation task and retain an explicit `--no-verify` escape hatch for emergencies. |
-| Platform annotation fix changes ObjC export | Low | Change Android/desktop no-op actuals only; keep the iOS typealias untouched. |
+| Different platforms persist different category strings | High | Shared canonical taxonomy with legacy parser before aggregation. |
+| Counts accidentally include soft-deleted rows | High | Shared SQL fixture with active/inactive pairs for every table. |
+| Dashboard implies causality or clinical outcomes | High | Deterministic definitions, explicit denominators, no unsupported rates. |
+| Large databases make aggregation slow | Medium | Aggregate in SQL, benchmark fixtures, add indexes only with evidence. |
+| Date filters disagree across sections | Medium | One `InsightsFilter`, inclusive range semantics, contract tests. |
+| Thesis export leaks personal data | High | Pseudonymised mode, allowlist exported fields, privacy regression tests. |
+| Six-tab iOS navigation becomes crowded | Medium | Enter Insights from Timeline and Patient Detail; keep five root tabs. |
 
-## Open Questions
+## Recommended Starting Slice
 
-None for this batch. The user authorised a broad improvement pass; product-backlog items can be selected after the build-recovery checkpoint.
+Implement Tasks 1–5 first. That produces a genuinely useful, auditable workload and case-mix dashboard without schema migration or questionable outcome calculations. Then add Tasks 6–9 once the metric contract and interaction pattern are proven on Daniela's real workflow.
+
+## Open Questions Before Implementation
+
+- What date defines Daniela's semester/internship reporting periods?
+- Does her degree require documented placement hours, competency categories, or supervisor signatures?
+- Should patient-scoped Insights be available for every horse or only reproduction cases?
+- For thesis exports, should pseudonymous IDs remain stable across exports or be unique per study?
