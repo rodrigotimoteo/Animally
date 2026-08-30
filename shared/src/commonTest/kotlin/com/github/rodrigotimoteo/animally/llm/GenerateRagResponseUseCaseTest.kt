@@ -924,6 +924,32 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `record citation with model prose never leaks the internal marker`() =
+        runTest {
+            val farrier =
+                result().copy(
+                    recordType = "FARRIER_VISIT",
+                    recordId = 91L,
+                    snippet = "Routine trim",
+                )
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(farrier)
+            engine.nextChunkOverride =
+                "The visit [FARRIER VISIT #91 — internal reference] is documented."
+
+            val events = sut()("Tell me about Thunder's farrier visit").toList()
+
+            val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
+            assertFalse(final.contains("[FARRIER VISIT #91"))
+            assertFalse(final.contains("#91"))
+            assertTrue(final.contains("internal reference"))
+            val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
+            assertEquals(
+                91L,
+                sources.sources.single().recordId,
+            )
+        }
+
+    @Test
     fun `sanitize leaves plain text untouched`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())

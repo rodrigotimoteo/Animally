@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 
 class AssistantSourceGroupTest {
     @Test
-    fun `cited records are grouped once per patient and patient source is preferred`() {
+    fun `cited records are grouped once per patient and actual record source is preferred`() {
         val sources =
             listOf(
                 source(patientId = 7, name = "Lua do Pinhal", type = "WEIGHT", id = 11),
@@ -18,9 +18,20 @@ class AssistantSourceGroupTest {
 
         assertEquals(2, groups.size)
         assertEquals(listOf(7L, 9L), groups.map(AssistantSourceGroup::patientId))
-        assertEquals("PATIENT", groups.first().primarySource.recordType)
+        assertEquals("WEIGHT", groups.first().primarySource.recordType)
+        assertEquals("Weight", groups.first().primaryRecordLabel)
         assertEquals(2, groups.first().recordCount)
         assertEquals("Orion do Vale", groups.last().patientName)
+    }
+
+    @Test
+    fun `farrier source gets a human label instead of the wire type`() {
+        val group =
+            sourceGroupsForDisplay(
+                listOf(source(patientId = 7, name = "Lua do Pinhal", type = "FARRIER_VISIT", id = 91)),
+            ).single()
+
+        assertEquals("Farrier visit", group.primaryRecordLabel)
     }
 
     @Test

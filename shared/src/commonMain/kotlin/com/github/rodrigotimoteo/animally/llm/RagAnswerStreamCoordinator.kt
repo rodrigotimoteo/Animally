@@ -277,7 +277,10 @@ internal class RagAnswerStreamCoordinator(
                         .replace(Regex("(?i)\\b(?:and|or)\\b"), "")
                         .replace(Regex("[\\[\\],;|&/]"), "")
                         .trim()
-                if (references.isNotEmpty() && remainder.isEmpty()) "" else block.value
+                // A model may add prose around an internal citation, e.g.
+                // `[FARRIER VISIT #91 — internal]`. Keep the useful prose,
+                // but never leak the record marker or its brackets.
+                if (references.isNotEmpty()) remainder else block.value
             }
 
         return withoutCitationBlocks

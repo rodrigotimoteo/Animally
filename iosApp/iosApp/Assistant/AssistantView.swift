@@ -568,7 +568,9 @@ private struct ChatBubble: View {
         .accessibilityLabel("Answered by cloud model")
     }
 
-    /// Tappable chips consolidated to one item per horse cited in this answer.
+    /// Tappable source cards consolidated to one item per horse cited in this answer.
+    /// The shared projection chooses the actual record opened by the card, so
+    /// internal citation identifiers never need to be shown in the answer.
     private var sourceChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
@@ -577,31 +579,41 @@ private struct ChatBubble: View {
                     Button {
                         onOpenSource(source)
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 8) {
                             Image(systemName: source.recordType == "PATIENT" ? "horse" : "doc.text")
                                 .font(.caption2)
-                            Text(group.patientName.isEmpty ? source.recordType : group.patientName)
-                                .font(.caption.weight(.medium))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(group.patientName.isEmpty ? group.primaryRecordLabel : group.patientName)
+                                    .font(.caption.weight(.medium))
+                                    .lineLimit(1)
+                                Text(group.primaryRecordLabel)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                                    .opacity(0.85)
+                            }
                             if group.recordCount > 1 {
-                                Text("\(group.recordCount)")
+                                Text("+\(group.recordCount - 1)")
                                     .font(.caption2.weight(.bold))
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 2)
                                     .background(Theme.surfaceElevated.opacity(0.7))
                                     .clipShape(Capsule())
                             }
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .opacity(0.7)
                         }
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, 7)
                         .background(accentColor.opacity(0.12))
                         .foregroundStyle(accentColor)
-                        .clipShape(Capsule())
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .accessibilityIdentifier("assistant_source_chip")
                     .accessibilityLabel(
                         group.recordCount > 1
-                            ? "Open \(group.recordCount) records for \(group.patientName)"
-                            : "Open record for \(group.patientName)"
+                            ? "Open \(group.primaryRecordLabel) for \(group.patientName), plus \(group.recordCount - 1) more cited records"
+                            : "Open \(group.primaryRecordLabel) for \(group.patientName)"
                     )
                 }
             }

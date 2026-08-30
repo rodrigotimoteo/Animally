@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.assistant
 
+import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 
 /**
@@ -14,6 +15,8 @@ data class AssistantSourceGroup(
     val patientId: Long,
     val patientName: String,
     val primarySource: SearchResult,
+    /** Human-readable label for the record opened by the source card. */
+    val primaryRecordLabel: String,
     val recordCount: Int,
 )
 
@@ -29,15 +32,29 @@ internal fun sourceGroupsForDisplay(sources: List<SearchResult>): List<Assistant
         }.values
         .map { patientSources ->
             val primary =
-                patientSources.firstOrNull { it.recordType == PATIENT_RECORD_TYPE }
+                patientSources.firstOrNull { it.recordType != PATIENT_RECORD_TYPE }
                     ?: patientSources.first()
             AssistantSourceGroup(
                 patientId = primary.patientId,
                 patientName = patientSources.firstNotNullOfOrNull { it.patientName.takeIf(String::isNotBlank) } ?: "",
                 primarySource = primary,
+                primaryRecordLabel = recordLabel(primary.recordType),
                 recordCount = patientSources.size,
             )
         }
+
+private fun recordLabel(recordType: String): String {
+    val knownType = RecordType.fromWireName(recordType)
+    return when (knownType) {
+        RecordType.FarrierVisit -> "Farrier visit"
+        null ->
+            recordType
+                .replace('_', ' ')
+                .lowercase()
+                .replaceFirstChar { it.titlecase() }
+        else -> knownType.displayName
+    }
+}
 
 private const val PATIENT_RECORD_TYPE = "PATIENT"
 private const val OWNER_RECORD_TYPE = "OWNER"
