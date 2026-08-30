@@ -9,6 +9,62 @@ import kotlin.test.assertTrue
 
 class VeterinaryWebQueryTest {
     @Test
+    fun coreDiseaseRemainsRelevantWhenQuestionAddsSearchQualifiers() {
+        val generalLaminitis =
+            VeterinaryWebSource(
+                sourceId = "msd:laminitis",
+                title = "Laminitis in Horses",
+                publisher = "MSD Veterinary Manual",
+                url = "https://www.msdvetmanual.com/laminitis-in-horses",
+                excerpt = "Laminitis is a painful condition affecting the hoof.",
+            )
+        val unrelated =
+            VeterinaryWebSource(
+                sourceId = "msd:equine-colic",
+                title = "Colic in Horses",
+                publisher = "MSD Veterinary Manual",
+                url = "https://www.msdvetmanual.com/colic-in-horses",
+                excerpt = "Colic can have many causes.",
+            )
+
+        assertEquals(
+            listOf(generalLaminitis),
+            VeterinaryWebQuery.filterRelevantSources(
+                "What are the signs and causes of laminitis in horses?",
+                listOf(unrelated, generalLaminitis),
+            ),
+        )
+    }
+
+    @Test
+    fun multipleCoreSubjectsRemainStrict() {
+        val ultrasound =
+            VeterinaryWebSource(
+                sourceId = "msd:ultrasound",
+                title = "Ultrasound in mares",
+                publisher = "MSD Veterinary Manual",
+                url = "https://www.msdvetmanual.com/ultrasound",
+                excerpt = "Ultrasound helps examine reproductive structures.",
+            )
+        val transrectal =
+            VeterinaryWebSource(
+                sourceId = "msd:transrectal",
+                title = "Transrectal examination in mares",
+                publisher = "MSD Veterinary Manual",
+                url = "https://www.msdvetmanual.com/transrectal",
+                excerpt = "Transrectal examination is used in reproductive work.",
+            )
+
+        assertEquals(
+            emptyList<VeterinaryWebSource>(),
+            VeterinaryWebQuery.filterRelevantSources(
+                "What is transrectal ultrasound in mares?",
+                listOf(ultrasound, transrectal),
+            ),
+        )
+    }
+
+    @Test
     fun `general laminitis question becomes a safe medical topic`() {
         assertEquals("laminitis horses", VeterinaryWebQuery.extractTopic("What is laminitis in horses?"))
         assertTrue(VeterinaryWebQuery.isMedicalQuestion("What is laminitis in horses?"))

@@ -226,6 +226,12 @@ class CloudRagLlmEngineTest {
             ),
         )
         assertTrue(!engine.isTerminalSseFrame("data: {\"choices\":[],\"usage\":{\"total_tokens\":42}}"))
+        assertTrue(
+            engine.isTerminalSseFrame(
+                "data: {\"choices\":[],\"usage\":{\"total_tokens\":42}}",
+                hasActivity = true,
+            ),
+        )
         assertTrue(!engine.isTerminalSseFrame(": keep-alive"))
     }
 
@@ -461,6 +467,28 @@ class CloudRagLlmEngineTest {
                     }
 
                 assertEquals("Cloud model returned no visible answer", failure.message)
+            } finally {
+                client.close()
+            }
+        }
+
+    @Test
+    fun `usage-only trailer closes a completed streaming response`() =
+        runTest {
+            val client =
+                mockClient(
+                    """
+                    data: {"choices":[{"delta":{"content":"Answer"}}]}
+                    data: {"choices":[],"usage":{"total_tokens":42}}
+                    """.trimIndent(),
+                )
+            try {
+                val streamingEngine = CloudRagLlmEngine(client) { config }
+
+                assertEquals(
+                    listOf("Answer"),
+                    streamingEngine.generateStreaming("question", "instructions").toList(),
+                )
             } finally {
                 client.close()
             }

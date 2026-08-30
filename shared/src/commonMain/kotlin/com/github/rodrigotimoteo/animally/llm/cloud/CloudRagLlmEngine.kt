@@ -219,7 +219,7 @@ class CloudRagLlmEngine(
         if (toolDeltas.isNotEmpty()) {
             appendToolCallDeltas(state.toolCalls, toolDeltas)
         }
-        if (isTerminalSseFrame(line)) state.sawDone = true
+        if (isTerminalSseFrame(line, hasActivity = state.hasActivity())) state.sawDone = true
         parseFinishReason(line)?.let { state.finishReason = it }
     }
 
@@ -271,6 +271,8 @@ class CloudRagLlmEngine(
         var sawDone = false
         var finishReason: String? = null
         var malformedDataFrames = 0
+
+        fun hasActivity(): Boolean = cumulative.isNotEmpty() || toolCalls.isNotEmpty()
     }
 
     private fun appendToolCallDeltas(
@@ -323,14 +325,21 @@ class CloudRagLlmEngine(
      * sending a finish reason or `[DONE]`; that frame is terminal, not a usage
      * chunk that should trigger the generic interruption footer.
      */
-    internal fun isTerminalSseFrame(line: String): Boolean {
+    internal fun isTerminalSseFrame(
+        line: String,
+        hasActivity: Boolean = false,
+    ): Boolean {
         val normalized = line.trim()
         val payload = dataPayload(normalized)
         return when {
             eventName(normalized) in TERMINAL_EVENT_NAMES -> true
             payload?.equals(SSE_DONE_SENTINEL, ignoreCase = true) == true -> true
             payload == null || !payload.startsWith("{") -> false
-            else -> decodeChunk(payload)?.isTerminal(isBareJsonBody = normalized.startsWith("{")) == true
+            else ->
+                decodeChunk(payload)?.isTerminal(
+                    isBareJsonBody = normalized.startsWith("{"),
+                    hasActivity = hasActivity,
+                ) == true
         }
     }
 
@@ -480,9 +489,13 @@ private val TERMINAL_EVENT_NAMES =
 
 private val TERMINAL_STATUS_NAMES = setOf("complete", "completed", "done", "finished")
 
-private fun ChatCompletionChunk.isTerminal(isBareJsonBody: Boolean): Boolean {
+private fun ChatCompletionChunk.isTerminal(
+    isBareJsonBody: Boolean,
+    hasActivity: Boolean,
+): Boolean {
     val choice = choices.firstOrNull()
     return cost != null ||
+        (usage != null && hasActivity) ||
         choice?.message != null ||
         (isBareJsonBody && choice?.text != null) ||
         done?.isTrueFlag() == true ||
@@ -852,6 +865,8 @@ internal data class ChatCompletionChunk(
     val error: JsonElement? = null,
     /** OpenCode Go's non-standard terminal usage/cost trailer. */
     val cost: JsonElement? = null,
+    /** OpenAI-compatible usage-only trailer sent by some streaming gateways. */
+    val usage: JsonElement? = null,
 )
 
 @Serializable

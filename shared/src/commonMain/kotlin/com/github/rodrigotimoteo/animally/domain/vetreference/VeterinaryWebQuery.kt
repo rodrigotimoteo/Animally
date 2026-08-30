@@ -191,12 +191,46 @@ object VeterinaryWebQuery {
     private val genericReferenceTerms =
         setOf("horse", "horses", "equine", "mare", "mares", "foal", "foals", "veterinary")
 
+    /**
+     * Search modifiers describe the requested angle, but they are not
+     * independent subjects. Requiring every modifier in a short title or
+     * abstract caused relevant disease articles to disappear for questions
+     * such as "signs and causes of laminitis".
+     */
+    private val referenceQualifierTerms =
+        setOf(
+            "diagnosis",
+            "treatment",
+            "management",
+            "prevention",
+            "symptoms",
+            "signs",
+            "causes",
+            "cause",
+            "acute",
+            "chronic",
+            "emergency",
+            "first",
+            "aid",
+            "toxic",
+            "toxicity",
+        )
+
     private val referenceSearchSynonyms =
         mapOf(
             "ultrasound" to setOf("ultrasound", "ultrasonography", "sonography"),
             "transrectal" to setOf("transrectal"),
             "vaccination" to setOf("vaccination", "vaccinated", "vaccine", "vaccines"),
             "deworming" to setOf("deworming", "dewormed", "parasite", "parasites"),
+            "laminitis" to setOf("laminitis", "founder"),
+            "lameness" to setOf("lameness", "claudication"),
+            "symptoms" to setOf("symptoms", "symptom", "signs"),
+            "signs" to setOf("signs", "symptoms", "symptom"),
+            "causes" to setOf("causes", "cause", "etiology"),
+            "cause" to setOf("causes", "cause", "etiology"),
+            "treatment" to setOf("treatment", "treatments", "therapy", "management"),
+            "management" to setOf("management", "treatment", "therapy"),
+            "prevention" to setOf("prevention", "preventive", "prophylaxis"),
         )
 
     /** Returns true only for general medical/veterinary questions. */
@@ -214,12 +248,18 @@ object VeterinaryWebQuery {
         query: String,
         sources: List<VeterinaryWebSource>,
     ): List<VeterinaryWebSource> {
-        val requiredTerms =
+        val topicTerms =
             extractTopic(query)
                 ?.split(' ')
                 ?.filter { it !in genericReferenceTerms }
                 .orEmpty()
-        if (requiredTerms.isEmpty()) return emptyList()
+        if (topicTerms.isEmpty()) return emptyList()
+        // Keep every core subject strict. If a query only contains modifiers,
+        // require those modifiers instead of allowing any medical article.
+        val requiredTerms =
+            topicTerms
+                .filterNot { it in referenceQualifierTerms }
+                .ifEmpty { topicTerms }
         return sources.filter { source ->
             val sourceTerms = tokenizeReferenceText("${source.title} ${source.excerpt}")
             requiredTerms.all { term ->

@@ -88,6 +88,22 @@ private class DateAwareRagRecordSearch(
 }
 
 class GenerateRagResponseUseCaseTest {
+    @Test
+    fun genericQuantityHusbandryQuestionReachesCloudWithoutDosageRefusal() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+            engine.nextChunkOverride = "Fresh water should be available throughout the day."
+
+            val output =
+                sut(queryPolicyProvider = { RagQueryPolicy.CLOUD })(
+                    "How much water should I give my horse?",
+                ).answers()
+
+            assertEquals(1, engine.cloudFirstCalls)
+            assertEquals(1, engine.calls)
+            assertTrue(output.first().contains("Fresh water"))
+        }
+
     private val searchRepositoryMock: ISearchRepository = mock(MockMode.autoUnit)
     private val patientRepositoryMock: IPatientRepository = mock(MockMode.autoUnit)
     private val ownerRepositoryMock: IOwnerRepository = mock(MockMode.autoUnit)

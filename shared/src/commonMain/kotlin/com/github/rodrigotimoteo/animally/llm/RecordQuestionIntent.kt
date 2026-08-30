@@ -156,6 +156,14 @@ internal object RecordQuestionIntent {
                 "(?:cavalo|cavalos|égua|éguas|egua|eguas)\\b)(?=$|[^\\p{L}\\p{N}])",
             RegexOption.IGNORE_CASE,
         )
+    private val genericHorseQuantityQuestionRegex =
+        Regex(
+            "^(?=.*\\b(how much|how many|quanto|quanta|quantos|quantas)\\b)" +
+                "(?=.*\\b(should|can|could|need|needs|devo|deve|posso|pode|preciso|precisa)\\b)" +
+                "(?=.*\\b(horse|horses|mare|mares|foal|foals|cavalo|cavalos|" +
+                "égua|éguas|egua|eguas)\\b).*$",
+            RegexOption.IGNORE_CASE,
+        )
     private val recordCorpusReferenceRegex =
         Regex(
             "\\b(records?|notes?|entries?|cards?|files?|timeline|dataset|" +
@@ -389,6 +397,8 @@ internal object RecordQuestionIntent {
             "quais",
             "quantos",
             "quantas",
+            "quanto",
+            "quanta",
             "último",
             "última",
             "ultimo",
@@ -438,6 +448,8 @@ internal object RecordQuestionIntent {
             "quais",
             "quantos",
             "quantas",
+            "quanto",
+            "quanta",
             "explain",
             "analyse",
             "analyze",
@@ -521,12 +533,13 @@ internal object RecordQuestionIntent {
      */
     fun isGeneralKnowledgeQuestion(query: String): Boolean {
         val genericHorseCare = genericHorseCareQuestionRegex.containsMatchIn(query.trim())
-        if (!isEducationalQuestion(query) &&
-            !generalKnowledgeQuestionRegex.containsMatchIn(query.trim()) &&
-            !genericHorseCare
-        ) {
-            return false
-        }
+        val genericHorseQuantity = genericHorseQuantityQuestionRegex.containsMatchIn(query.trim())
+        val hasKnowledgeCue =
+            isEducationalQuestion(query) ||
+                generalKnowledgeQuestionRegex.containsMatchIn(query.trim()) ||
+                genericHorseCare ||
+                genericHorseQuantity
+        if (!hasKnowledgeCue) return false
         val lowered = query.lowercase()
         val hasRecordSpecificCue =
             namedPatientReferenceRegex.containsMatchIn(lowered) ||
@@ -535,7 +548,7 @@ internal object RecordQuestionIntent {
                 hasNamedPatientRecordCue(query) ||
                 hasGestationPopulationReference(query)
         return !hasRecordSpecificCue &&
-            (genericHorseCare || !patientPronounRegex.containsMatchIn(lowered))
+            (genericHorseCare || genericHorseQuantity || !patientPronounRegex.containsMatchIn(lowered))
     }
 
     /** True when title-cased query text likely names a patient not in the active list. */

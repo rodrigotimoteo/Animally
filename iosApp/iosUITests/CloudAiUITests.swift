@@ -384,6 +384,19 @@ final class CloudAiUITests: AnimallyTestCase {
                 husbandryReply.localizedCaseInsensitiveContains("nutrition"),
             "Generic husbandry question did not receive a relevant answer: \(husbandryReply)",
         )
+
+        let quantityReply = try askAndWait(
+            app,
+            input: input,
+            question: "How much water should I give my horse?",
+            replyIndex: 8,
+        )
+        assertUsefulCloudAnswer(quantityReply, question: "generic husbandry quantity")
+        XCTAssertTrue(
+            quantityReply.localizedCaseInsensitiveContains("water") ||
+                quantityReply.localizedCaseInsensitiveContains("hydration"),
+            "Generic quantity question did not receive a relevant answer: \(quantityReply)",
+        )
     }
 
     /// Regression coverage for natural patient wording. These questions must
@@ -471,7 +484,7 @@ final class CloudAiUITests: AnimallyTestCase {
         let reply = try askAndWait(
             app,
             input: input,
-            question: "What is laminitis in horses?",
+            question: "What are the signs and causes of laminitis in horses?",
             replyIndex: 0,
         )
         assertUsefulCloudAnswer(reply, question: "medical web reference")

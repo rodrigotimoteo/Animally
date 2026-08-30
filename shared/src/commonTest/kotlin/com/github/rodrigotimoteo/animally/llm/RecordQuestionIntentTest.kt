@@ -105,13 +105,24 @@ class RecordQuestionIntentTest {
                 "How should I care for my horse?",
                 "Can my horse eat carrots?",
                 "What is a good diet for my horse?",
+                "How much water should I give my horse?",
+                "How many hours of turnout does my horse need?",
                 "Como devo alimentar o meu cavalo?",
+                "Quanto de água devo dar ao meu cavalo?",
             )
 
         queries.forEach { query ->
             assertTrue(RecordQuestionIntent.isGeneralKnowledgeQuestion(query), query)
             assertFalse(RecordQuestionIntent.isRecordQuestion(query, null, null), query)
         }
+    }
+
+    @Test
+    fun `past quantity wording remains a record lookup`() {
+        val query = "How much water did my horse receive?"
+
+        assertFalse(RecordQuestionIntent.isGeneralKnowledgeQuestion(query))
+        assertTrue(RecordQuestionIntent.isRecordQuestion(query, null, null))
     }
 
     @Test
