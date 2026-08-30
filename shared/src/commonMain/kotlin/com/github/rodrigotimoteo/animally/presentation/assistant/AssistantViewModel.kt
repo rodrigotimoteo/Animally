@@ -145,20 +145,23 @@ private fun applyAssistantEvent(
 ): AssistantUiState {
     val patched =
         when (event) {
-            is RagStreamEvent.Chunk -> state.messages.upsertLast(source) { it.copy(text = event.text) }
+            is RagStreamEvent.Chunk -> state.messages.upsertLast(source) { it.copy(source = source, text = event.text) }
             is RagStreamEvent.Sources -> {
                 val citedTypes = event.sources.map(SearchResult::recordType)
                 state.messages.upsertLast(source) { message ->
                     message.copy(
+                        source = source,
                         sources = event.sources,
                         followUps = FollowUpSuggestions.forCitations(citedTypes, i18n),
                     )
                 }
             }
             is RagStreamEvent.WebSources ->
-                state.messages.upsertLast(source) { it.copy(webSources = event.sources) }
+                state.messages.upsertLast(source) { it.copy(source = source, webSources = event.sources) }
             is RagStreamEvent.Interrupted ->
-                state.messages.upsertLast(source) { it.copy(text = event.partialText, interrupted = true) }
+                state.messages.upsertLast(source) {
+                    it.copy(source = source, text = event.partialText, interrupted = true)
+                }
         }
     return state.copy(messages = patched, error = (event as? RagStreamEvent.Interrupted)?.error ?: state.error)
 }
@@ -175,12 +178,12 @@ private fun applyCompletedAssistantReply(
         } else {
             // A throttled stream may not have published its last cumulative
             // chunk. Commit the exact final reply before persistence.
-            state.copy(messages = state.messages.upsertLast(source) { it.copy(text = reply) })
+            state.copy(messages = state.messages.upsertLast(source) { it.copy(source = source, text = reply) })
         }
     return ensureAssistantFollowUps(completed, strings)
 }
 
-private fun applyAssistantFailure(
+internal fun applyAssistantFailure(
     state: AssistantUiState,
     reply: String,
     error: Exception,
@@ -189,8 +192,37 @@ private fun applyAssistantFailure(
 ): AssistantUiState {
     val text = reply.ifBlank { strings.blankReplyFallback }
     val message = error.message ?: strings.blankReplyFallback
-    val patched = state.messages.upsertLast(source) { it.copy(text = text) }
+    // Keep failures thrown outside the typed stream on the same recovery path
+    // as RagStreamEvent.Interrupted. This makes provider/network failures
+    // retryable in the iOS bubble instead of leaving a dead, dismiss-only turn.
+    val patched = state.messages.upsertLast(source) { it.copy(source = source, text = text, interrupted = true) }
     return state.copy(messages = patched, error = message)
+}
+
+/**
+ * Converts the visible transcript into prompt history without trusting
+ * incomplete provider output. Interrupted turns remain persisted for audit and
+ * replay in the history screen, but a partial answer must never become context
+ * that can make a later model response sound factual.
+ */
+internal fun assistantRagHistory(messages: List<AssistantChatMessage>): List<RagHistoryEntry> {
+    val entries = mutableListOf<RagHistoryEntry>()
+    var index = 0
+    while (index < messages.lastIndex) {
+        val current = messages[index]
+        val next = messages[index + 1]
+        val isUserAssistantPair =
+            current.role == AssistantChatMessageRole.USER &&
+                next.role == AssistantChatMessageRole.ASSISTANT
+        val isCompleteReply = !next.interrupted && next.text.isNotBlank()
+        if (isUserAssistantPair && isCompleteReply) {
+            entries.add(RagHistoryEntry(current.text, next.text))
+            index += 2
+        } else {
+            index += 1
+        }
+    }
+    return entries
 }
 
 private fun applyAssistantBlank(
@@ -198,7 +230,7 @@ private fun applyAssistantBlank(
     text: String,
     source: EngineSource,
 ): AssistantUiState {
-    val patched = state.messages.upsertLast(source) { it.copy(text = text) }
+    val patched = state.messages.upsertLast(source) { it.copy(source = source, text = text) }
     return state.copy(messages = patched)
 }
 
@@ -406,7 +438,7 @@ class AssistantViewModel(
         val trimmed = question.trim()
         if (trimmed.isEmpty() || _uiState.value.isGenerating || _uiState.value.isHistoryLoading) return
 
-        val history = _uiState.value.messages.toRagHistory()
+        val history = assistantRagHistory(_uiState.value.messages)
         val conversationId = currentConversationId
         currentTurnSource = EngineSource.ON_DEVICE
         _uiState.update {
@@ -454,31 +486,6 @@ class AssistantViewModel(
     /** Clears the current error message. */
     fun dismissError() {
         _uiState.update { it.copy(error = null, historyError = null) }
-    }
-
-    /**
-     * Collapses the transcript into prior Q/A pairs for the RAG history:
-     * each USER message pairs with the ASSISTANT reply that follows it. Pairs
-     * whose reply never materialized (blank) are skipped - they carry no
-     * context and would only dilute the prompt.
-     */
-    private fun List<AssistantChatMessage>.toRagHistory(): List<RagHistoryEntry> {
-        val entries = mutableListOf<RagHistoryEntry>()
-        var index = 0
-        while (index < lastIndex) {
-            val current = this[index]
-            val next = this[index + 1]
-            if (current.role == AssistantChatMessageRole.USER &&
-                next.role == AssistantChatMessageRole.ASSISTANT &&
-                next.text.isNotBlank()
-            ) {
-                entries.add(RagHistoryEntry(current.text, next.text))
-                index += 2
-            } else {
-                index += 1
-            }
-        }
-        return entries
     }
 
     private suspend fun persistLatestTurn(

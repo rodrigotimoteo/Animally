@@ -5,8 +5,11 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Outcome of a models-list fetch against an OpenAI-compatible endpoint.
@@ -78,18 +81,22 @@ class CloudModelCatalog(
     ): CloudModelsResult {
         val url = cloudModelsUrl(baseUrl)
         return try {
-            val response =
-                httpClient.get(url) {
-                    apiKey?.takeIf(String::isNotBlank)?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+            withTimeoutOrNull(MODEL_FETCH_TIMEOUT_SECONDS.seconds) {
+                val response =
+                    httpClient.get(url) {
+                        apiKey?.takeIf(String::isNotBlank)?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+                    }
+                val code = response.status.value
+                when {
+                    code == HTTP_UNAUTHORIZED || code == HTTP_FORBIDDEN -> CloudModelsResult.Unauthorized
+                    !isSuccessStatus(code) -> CloudModelsResult.Failure("HTTP $code")
+                    else -> CloudModelsResult.Success(parseCloudModelsList(response.bodyAsText()))
                 }
-            val code = response.status.value
-            when {
-                code == HTTP_UNAUTHORIZED || code == HTTP_FORBIDDEN -> CloudModelsResult.Unauthorized
-                !isSuccessStatus(code) -> CloudModelsResult.Failure("HTTP $code")
-                else -> CloudModelsResult.Success(parseCloudModelsList(response.bodyAsText()))
-            }
+            } ?: CloudModelsResult.Failure("Request timed out")
         } catch (_: kotlinx.serialization.SerializationException) {
             CloudModelsResult.Failure("Unexpected response format")
+        } catch (ce: CancellationException) {
+            throw ce
         } catch (e: Exception) {
             CloudModelsResult.Failure(e.message ?: "Network error")
         }
@@ -98,6 +105,7 @@ class CloudModelCatalog(
     private companion object {
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
+        const val MODEL_FETCH_TIMEOUT_SECONDS = 15L
 
         private fun isSuccessStatus(code: Int): Boolean = code in 200..299
     }
