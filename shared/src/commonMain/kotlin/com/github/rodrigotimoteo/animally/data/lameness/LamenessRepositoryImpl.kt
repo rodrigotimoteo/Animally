@@ -76,7 +76,10 @@ class LamenessRepositoryImpl(
     // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
     // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
 
-    override fun getByPatient(patientId: Long): List<Lameness> = super.getByPatient(patientId).sortedByDescending { it.date }
+    override fun getByPatient(patientId: Long): List<Lameness> =
+        super
+            .getByPatient(patientId)
+            .sortedByDescending { it.date }
 
     override fun getById(id: Long): Lameness? = super.getById(id)
 

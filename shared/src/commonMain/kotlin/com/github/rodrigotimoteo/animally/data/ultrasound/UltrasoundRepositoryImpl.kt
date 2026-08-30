@@ -92,7 +92,10 @@ class UltrasoundRepositoryImpl(
     // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
     // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
 
-    override fun getByPatient(patientId: Long): List<Ultrasound> = super.getByPatient(patientId).sortedByDescending { it.date }
+    override fun getByPatient(patientId: Long): List<Ultrasound> =
+        super
+            .getByPatient(patientId)
+            .sortedByDescending { it.date }
 
     override fun getById(id: Long): Ultrasound? = super.getById(id)
 

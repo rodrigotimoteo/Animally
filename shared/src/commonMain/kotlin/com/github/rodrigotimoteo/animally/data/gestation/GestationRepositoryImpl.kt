@@ -74,7 +74,10 @@ class GestationRepositoryImpl(
     // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
     // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
 
-    override fun getByPatient(patientId: Long): List<Gestation> = super.getByPatient(patientId).sortedByDescending { it.breedingDate }
+    override fun getByPatient(patientId: Long): List<Gestation> =
+        super
+            .getByPatient(patientId)
+            .sortedByDescending { it.breedingDate }
 
     override fun getById(id: Long): Gestation? = super.getById(id)
 
