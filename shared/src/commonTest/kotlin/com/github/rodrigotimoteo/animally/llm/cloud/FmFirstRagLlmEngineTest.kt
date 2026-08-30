@@ -179,6 +179,29 @@ class FmFirstRagLlmEngineTest {
         }
 
     @Test
+    fun `cloud first skips available foundation models for a general question`() =
+        runTest {
+            turbineScope {
+                val primary = RecordingEngine(emissions = listOf("LOCAL"))
+                val fallback = RecordingEngine(emissions = listOf("CLOUD"))
+                val engine =
+                    FmFirstRagLlmEngine(
+                        primary = primary,
+                        fallback = fallback,
+                        isFallbackEligible = { true },
+                        isPrimaryAvailable = { true },
+                    )
+                val sources = engine.sourceEvents.testIn(this)
+
+                assertEquals(listOf("CLOUD"), engine.generateCloudFirst("prompt", "instructions").toList())
+                assertEquals(0, primary.calls)
+                assertEquals(1, fallback.calls)
+                assertEquals(EngineSource.CLOUD, sources.awaitItem())
+                sources.cancel()
+            }
+        }
+
+    @Test
     fun `query policy is flexible only when cloud fallback is selected`() =
         runTest {
             val cloudSelected =
@@ -198,5 +221,26 @@ class FmFirstRagLlmEngineTest {
                     isPrimaryAvailable = { true },
                 )
             assertEquals(RagQueryPolicy.ON_DEVICE, foundationModelsSelected.queryPolicy())
+        }
+
+    @Test
+    fun `question policy prefers cloud for general questions but stays strict for record questions`() =
+        runTest {
+            val engine =
+                FmFirstRagLlmEngine(
+                    primary = RecordingEngine(emptyList()),
+                    fallback = RecordingEngine(emptyList()),
+                    isFallbackEligible = { true },
+                    isPrimaryAvailable = { true },
+                )
+
+            assertEquals(
+                RagQueryPolicy.CLOUD,
+                engine.queryPolicy("What is the capital of Portugal?"),
+            )
+            assertEquals(
+                RagQueryPolicy.ON_DEVICE,
+                engine.queryPolicy("When was my horse's last farrier visit?"),
+            )
         }
 }

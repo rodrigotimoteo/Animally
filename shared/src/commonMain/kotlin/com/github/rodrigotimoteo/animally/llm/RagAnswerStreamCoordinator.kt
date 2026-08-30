@@ -16,6 +16,7 @@ internal data class RagStreamRequest(
     val usedDeterministicSummary: Boolean,
     val allowGeneralQuestions: Boolean,
     val useTools: Boolean,
+    val forceCloud: Boolean,
     val requiresGrounding: Boolean,
     val grounded: Boolean,
     val webSources: List<VeterinaryWebSource>,
@@ -140,19 +141,31 @@ internal class RagAnswerStreamCoordinator(
         onText: (String) -> Unit = {},
     ): String {
         var lastEmitted = ""
-        llmEngine
-            .generateStreaming(
-                request.context,
-                AssistantPrompts.systemPrompt(
-                    request.turnStrings,
-                    allowGeneralQuestions = request.allowGeneralQuestions,
-                    includeWebReferences = request.webSources.isNotEmpty(),
-                ),
-            ).collect { text ->
-                lastEmitted = sanitize(text)
-                onText(lastEmitted)
-                collector.emit(RagStreamEvent.Chunk(stripCitationTokens(lastEmitted)))
+        val stream =
+            if (request.forceCloud || request.useTools) {
+                llmEngine.generateCloudFirst(
+                    request.context,
+                    AssistantPrompts.systemPrompt(
+                        request.turnStrings,
+                        allowGeneralQuestions = request.allowGeneralQuestions,
+                        includeWebReferences = request.webSources.isNotEmpty(),
+                    ),
+                )
+            } else {
+                llmEngine.generateStreaming(
+                    request.context,
+                    AssistantPrompts.systemPrompt(
+                        request.turnStrings,
+                        allowGeneralQuestions = request.allowGeneralQuestions,
+                        includeWebReferences = request.webSources.isNotEmpty(),
+                    ),
+                )
             }
+        stream.collect { text ->
+            lastEmitted = sanitize(text)
+            onText(lastEmitted)
+            collector.emit(RagStreamEvent.Chunk(stripCitationTokens(lastEmitted)))
+        }
         return lastEmitted
     }
 

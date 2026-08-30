@@ -43,6 +43,16 @@ fun interface RagLlmEngine {
         prompt: String,
         instructions: String,
     ): Flow<String> = generate(prompt, instructions)
+
+    /**
+     * Generates through a configured cloud-capable route when one is
+     * available. Engines without a separate cloud route retain the normal
+     * behavior, so existing fakes and local-only builds remain compatible.
+     */
+    fun generateCloudFirst(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> = generateStreaming(prompt, instructions)
 }
 
 /** Whether the strict on-device policy should stop before an ungrounded model call. */
@@ -106,25 +116,15 @@ private fun hasRelevantHistory(
 ): Boolean = recentConversation.isNotEmpty() && RecordTypeIntent.sharesContentToken(query, recentConversation)
 
 private fun canUseHistoryAsGrounding(
-    query: String,
     recordQuestion: Boolean,
     analysisQuery: Boolean,
-    dateRange: RagDateRange?,
     historyRelevant: Boolean,
-): Boolean {
-    if (!historyRelevant || (!recordQuestion && !analysisQuery)) return historyRelevant
-    if (analysisQuery && !recordQuestion) return false
-    val asksForTypedRecord = RecordTypeIntent.expectedRecordTypes(query).isNotEmpty()
-    val asksForDatedActivity = dateRange != null && RecentActivityIntent.matches(query, dateRange)
-    return !asksForTypedRecord && !asksForDatedActivity
-}
+): Boolean = historyRelevant && !recordQuestion && !analysisQuery
 
 @Suppress("LongParameterList")
 private fun shouldUseHonestFallback(
-    query: String,
     recordQuestion: Boolean,
     analysisQuery: Boolean,
-    dateRange: RagDateRange?,
     historyRelevant: Boolean,
     policy: RagQueryPolicy,
     grounded: Boolean,
@@ -133,7 +133,7 @@ private fun shouldUseHonestFallback(
     shouldUseNoResultsFallback(
         policy,
         grounded || canAttemptToolGrounding,
-        canUseHistoryAsGrounding(query, recordQuestion, analysisQuery, dateRange, historyRelevant),
+        canUseHistoryAsGrounding(recordQuestion, analysisQuery, historyRelevant),
     )
 
 private fun shouldUseAnalysisTools(
@@ -219,6 +219,7 @@ class GenerateRagResponseUseCase(
     private val analysisContextBuilder: AnalysisContextBuilder? = null,
     private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
     private val queryPolicyProvider: suspend () -> RagQueryPolicy = { RagQueryPolicy.ON_DEVICE },
+    private val queryPolicyForQuestion: (suspend (String) -> RagQueryPolicy)? = null,
     private val toolCallingEngine: RagToolCallingEngine? = null,
     private val toolRegistry: RagToolRegistry? = null,
     private val webSourceProvider: VeterinaryWebSourceProvider? = null,
@@ -456,7 +457,9 @@ class GenerateRagResponseUseCase(
 
     /**
      * Asks [query] against the record corpus, optionally grounded in
-     * [history] (prior Q/A pairs, most recent last). Emits [RagStreamEvent]s:
+     * [history] (prior Q/A pairs, most recent last). History provides
+     * conversational continuity and follow-up scope, but never authorizes a
+     * new patient fact by itself. Emits [RagStreamEvent]s:
      * cumulative sanitized [chunks][RagStreamEvent.Chunk], one
      * [sources][RagStreamEvent.Sources] event after the final chunk (records
      * actually cited), and an [interruption][RagStreamEvent.Interrupted]
@@ -481,7 +484,7 @@ class GenerateRagResponseUseCase(
                 emit(RagStreamEvent.Chunk(it))
                 return@flow
             }
-            val queryPolicy = queryPolicyProvider()
+            val queryPolicy = queryPolicyForQuestion?.invoke(query) ?: queryPolicyProvider()
             val enriched = AssistantPrompts.enrichQuery(query)
             if (enriched.length < MIN_QUERY_CHARS) {
                 // One-letter queries fuzzy-match nonsense ("A" hits any name
@@ -595,10 +598,8 @@ class GenerateRagResponseUseCase(
             )
         val useFallback =
             shouldUseHonestFallback(
-                query = input.query,
                 recordQuestion = intent.recordQuestion,
                 analysisQuery = intent.analysisQuery,
-                dateRange = intent.dateRange,
                 historyRelevant = hasRelevantHistory(input.query, context.recentConversation),
                 policy = fallbackPolicy,
                 grounded = grounded,
@@ -623,6 +624,7 @@ class GenerateRagResponseUseCase(
                     usedDeterministicSummary = context.deterministicSummary != null,
                     allowGeneralQuestions = input.queryPolicy.allowGeneralQuestions || context.useTools,
                     useTools = context.useTools,
+                    forceCloud = input.queryPolicy.allowGeneralQuestions && !requiresGrounding,
                     requiresGrounding = requiresGrounding,
                     grounded = grounded,
                     webSources = context.webSources,
@@ -636,10 +638,8 @@ class GenerateRagResponseUseCase(
         val recentConversation = formatHistory(input.history)
         val historyGrounding =
             canUseHistoryAsGrounding(
-                query = input.query,
                 recordQuestion = input.intent.recordQuestion,
                 analysisQuery = input.intent.analysisQuery,
-                dateRange = input.intent.dateRange,
                 historyRelevant = hasRelevantHistory(input.query, recentConversation),
             )
         val chunks = input.results.map(::formatChunk)
@@ -1192,13 +1192,14 @@ class GenerateRagResponseUseCase(
     /**
      * Renders prior Q/A pairs as a compact transcript block: at most
      * [MAX_HISTORY_ENTRIES] most-recent pairs, each side truncated to
-     * [MAX_HISTORY_SIDE_CHARS]. Empty when there is no history.
+     * [MAX_HISTORY_SIDE_CHARS]. The block is context only, never authoritative
+     * evidence for a new patient fact. Empty when there is no history.
      */
     private fun formatHistory(history: List<RagHistoryEntry>): String {
         val recent = history.takeLast(MAX_HISTORY_ENTRIES)
         if (recent.isEmpty()) return ""
         return buildString {
-            appendLine("Recent conversation:")
+            appendLine("Recent conversation (context only; not evidence):")
             for (entry in recent) {
                 append("User: ").appendLine(entry.question.take(MAX_HISTORY_SIDE_CHARS))
                 append("Assistant: ").appendLine(entry.answer.take(MAX_HISTORY_SIDE_CHARS))

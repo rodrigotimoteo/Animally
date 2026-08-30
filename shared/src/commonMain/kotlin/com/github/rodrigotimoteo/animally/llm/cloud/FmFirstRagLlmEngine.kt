@@ -1,11 +1,13 @@
 package com.github.rodrigotimoteo.animally.llm.cloud
 
+import com.github.rodrigotimoteo.animally.llm.AnalysisIntents
 import com.github.rodrigotimoteo.animally.llm.RagChatMessage
 import com.github.rodrigotimoteo.animally.llm.RagLlmEngine
 import com.github.rodrigotimoteo.animally.llm.RagQueryPolicy
 import com.github.rodrigotimoteo.animally.llm.RagToolCallingEngine
 import com.github.rodrigotimoteo.animally.llm.RagToolDefinition
 import com.github.rodrigotimoteo.animally.llm.RagToolStreamEvent
+import com.github.rodrigotimoteo.animally.llm.RecordQuestionIntent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -96,6 +98,19 @@ class FmFirstRagLlmEngine(
         }
 
     /**
+     * General or educational questions should use an enabled cloud provider
+     * even while Foundation Models is available. Record questions continue to
+     * use the strict local-first policy so cloud flexibility never weakens
+     * patient-data grounding.
+     */
+    suspend fun queryPolicy(query: String): RagQueryPolicy =
+        if (isFallbackEligible() && shouldPreferCloud(query)) {
+            RagQueryPolicy.CLOUD
+        } else {
+            queryPolicy()
+        }
+
+    /**
      * Non-streaming variant with the same routing semantics. Delegates to
      * [generateStreaming] because both engines' streaming flows emit cumulative
      * text whose final value IS the full response.
@@ -124,6 +139,24 @@ class FmFirstRagLlmEngine(
                 }
                 signal(EngineSource.CLOUD)
                 fallback.generateStreaming(prompt, instructions).collect { emit(it) }
+            }
+        }
+
+    /**
+     * Bypasses Foundation Models for a general cloud turn. This matters when
+     * the local model is technically available but the user selected a paid
+     * cloud provider for questions outside the record corpus.
+     */
+    override fun generateCloudFirst(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> =
+        flow {
+            if (isFallbackEligible()) {
+                signal(EngineSource.CLOUD)
+                fallback.generateStreaming(prompt, instructions).collect { emit(it) }
+            } else {
+                generateStreaming(prompt, instructions).collect { emit(it) }
             }
         }
 
@@ -204,6 +237,10 @@ class FmFirstRagLlmEngine(
     private fun signal(source: EngineSource) {
         _sourceEvents.tryEmit(source)
     }
+
+    private fun shouldPreferCloud(query: String): Boolean =
+        !RecordQuestionIntent.isRecordQuestion(query, scopedPatientName = null, dateRange = null) &&
+            !AnalysisIntents.isAnalysisQuery(query)
 
     private companion object {
         val DEFAULT_FIRST_EMISSION_TIMEOUT = 30.seconds

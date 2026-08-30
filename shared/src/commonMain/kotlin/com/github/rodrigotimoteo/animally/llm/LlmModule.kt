@@ -168,6 +168,7 @@ val llmModule =
                 ownerRepository = get(),
                 analysisContextBuilder = analysisContextBuilder,
                 queryPolicyProvider = { routedEngine.queryPolicy() },
+                queryPolicyForQuestion = { question -> routedEngine.queryPolicy(question) },
                 toolCallingEngine = routedEngine,
                 toolRegistry = analysisToolRegistry,
                 webSourceProvider = get(),

@@ -15,6 +15,7 @@ import dev.mokkery.mock
 import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -29,6 +30,7 @@ import kotlin.test.assertTrue
 /** Hand-rolled fake: LlmEngine is an expect class and cannot be faked from common code. */
 private class FakeRagLlmEngine : RagLlmEngine {
     var calls: Int = 0
+    var cloudFirstCalls: Int = 0
     var lastPrompt: String? = null
     var lastInstructions: String? = null
 
@@ -51,6 +53,15 @@ private class FakeRagLlmEngine : RagLlmEngine {
                     ?: "She is **pregnant** with a `due date` of __May 2025__. See [Vaccination #1](https://example.com/fake).",
             )
             streamingError?.let { throw it }
+        }
+
+    override fun generateCloudFirst(
+        prompt: String,
+        instructions: String,
+    ): Flow<String> =
+        flow {
+            cloudFirstCalls++
+            generateStreaming(prompt, instructions).collect { emit(it) }
         }
 }
 
@@ -86,6 +97,7 @@ class GenerateRagResponseUseCaseTest {
         patientRepository: IPatientRepository? = null,
         ownerRepository: IOwnerRepository? = null,
         queryPolicyProvider: suspend () -> RagQueryPolicy = { RagQueryPolicy.ON_DEVICE },
+        queryPolicyForQuestion: (suspend (String) -> RagQueryPolicy)? = null,
     ) = GenerateRagResponseUseCase(
         SearchUseCase(searchRepositoryMock),
         engine,
@@ -97,6 +109,7 @@ class GenerateRagResponseUseCaseTest {
         analysisContextBuilder = analysisContextBuilder,
         today = today,
         queryPolicyProvider = queryPolicyProvider,
+        queryPolicyForQuestion = queryPolicyForQuestion,
     )
 
     private fun result(
@@ -187,6 +200,20 @@ class GenerateRagResponseUseCaseTest {
             assertTrue(output.first().contains("pregnant"))
             assertTrue(engine.lastInstructions.orEmpty().contains("general, educational, or casual questions"))
             assertTrue(!engine.lastInstructions.orEmpty().contains("ANSWER ONLY FROM THE CONTEXT BELOW"))
+        }
+
+    @Test
+    fun `question-specific cloud policy uses cloud-first route for a general question`() =
+        runTest {
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            sut(
+                queryPolicyProvider = { RagQueryPolicy.ON_DEVICE },
+                queryPolicyForQuestion = { RagQueryPolicy.CLOUD },
+            )("What is the capital of Portugal?").answers()
+
+            assertEquals(1, engine.cloudFirstCalls)
+            assertEquals(1, engine.calls)
         }
 
     @Test
@@ -1023,10 +1050,10 @@ class GenerateRagResponseUseCaseTest {
             sut()(QUERY, history).toList()
 
             val prompt = engine.lastPrompt.orEmpty()
-            assertTrue(prompt.contains("Recent conversation:"), "history block missing")
+            assertTrue(prompt.contains("Recent conversation (context only; not evidence):"), "history block missing")
             assertTrue(prompt.contains("User: Tell me about Thunder"))
             assertTrue(prompt.contains("Assistant: Thunder is a 7 year old Thoroughbred."))
-            assertTrue(prompt.indexOf("Recent conversation:") < prompt.indexOf("Context:"))
+            assertTrue(prompt.indexOf("Recent conversation (context only; not evidence):") < prompt.indexOf("Context:"))
         }
 
     @Test
@@ -1046,16 +1073,15 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `given empty retrieval but non-empty history when invoked then model still called with conversation context`() =
+    fun `given empty retrieval but relevant assistant history then patient fact still falls back`() =
         runTest {
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
 
             val history = listOf(RagHistoryEntry("Tell me about Thunder", "Thunder is a 7 year old mare."))
-            val output = sut()("How old is she?", history).answers()
+            val output = sut()("What is her condition?", history).chunks()
 
-            assertEquals(1, engine.calls, "follow-up must reach the model with conversation context")
-            assertTrue(engine.lastPrompt.orEmpty().contains("Recent conversation:"))
-            assertTrue(output.last().contains("pregnant")) // default fake chunk passes through sanitize
+            assertEquals(0, engine.calls, "assistant prose must not unlock an unsupported patient fact")
+            assertEquals(listOf(PLACEHOLDER, FALLBACK_TEXT), output)
         }
 
     @Test
