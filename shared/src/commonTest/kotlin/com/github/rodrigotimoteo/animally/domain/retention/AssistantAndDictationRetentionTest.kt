@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.data.assistant.AssistantChatHistoryRep
 import com.github.rodrigotimoteo.animally.data.dictation.DictationCaptureRepositoryImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantChatTurn
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantRecordSource
 import com.github.rodrigotimoteo.animally.domain.assistant.usecase.GetRecentAssistantChatHistoryUseCase
 import com.github.rodrigotimoteo.animally.domain.assistant.usecase.SaveAssistantChatTurnUseCase
 import com.github.rodrigotimoteo.animally.domain.dictation.model.DictationCapture
@@ -32,6 +33,20 @@ class AssistantAndDictationRetentionTest {
                     interrupted = index == 15,
                     createdAt = Instant.fromEpochMilliseconds(index.toLong()),
                     conversationId = "retention-chat",
+                    recordSources =
+                        if (index == 1) {
+                            listOf(
+                                AssistantRecordSource(
+                                    patientId = 7L,
+                                    patientName = "Lua Nova",
+                                    recordType = "FARRIER_VISIT",
+                                    recordId = 91L,
+                                    date = "2026-08-20",
+                                ),
+                            )
+                        } else {
+                            emptyList()
+                        },
                 ),
             )
         }
@@ -40,6 +55,16 @@ class AssistantAndDictationRetentionTest {
         assertEquals("retention-chat", getRecent().first().conversationId)
         assertEquals("Answer 15", getRecent().last().answer)
         assertTrue(getRecent().last().interrupted)
+        assertEquals(
+            AssistantRecordSource(
+                patientId = 7L,
+                patientName = "Lua Nova",
+                recordType = "FARRIER_VISIT",
+                recordId = 91L,
+                date = "2026-08-20",
+            ),
+            getRecent().first().recordSources.single(),
+        )
     }
 
     @Test

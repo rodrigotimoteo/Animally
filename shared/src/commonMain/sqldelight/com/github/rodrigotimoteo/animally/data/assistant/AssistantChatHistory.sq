@@ -1,8 +1,10 @@
 -- Persisted assistant conversation history. Retention is enforced by the
 -- SaveAssistantChatTurnUseCase after each completed turn.
 insert:
-INSERT INTO AssistantChatHistory (id, question, answer, source, interrupted, createdAt, conversationId, webSourcesJson)
-VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO AssistantChatHistory (
+    id, question, answer, source, interrupted, createdAt, conversationId, webSourcesJson, recordSourcesJson
+)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectRecent:
 SELECT *
@@ -27,5 +29,7 @@ selectAllRows:
 SELECT * FROM AssistantChatHistory ORDER BY createdAt, id;
 
 insertWithId:
-INSERT INTO AssistantChatHistory (id, question, answer, source, interrupted, createdAt, conversationId, webSourcesJson)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO AssistantChatHistory (
+    id, question, answer, source, interrupted, createdAt, conversationId, webSourcesJson, recordSourcesJson
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);

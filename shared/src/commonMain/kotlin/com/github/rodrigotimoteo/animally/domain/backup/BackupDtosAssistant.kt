@@ -2,6 +2,8 @@ package com.github.rodrigotimoteo.animally.domain.backup
 
 import com.github.rodrigotimoteo.animally.data.migrations.AssistantChatHistory
 import com.github.rodrigotimoteo.animally.data.migrations.DictationCapture
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantRecordSource
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantRecordSourcesCodec
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantWebSourcesCodec
 import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 import kotlinx.serialization.Serializable
@@ -20,6 +22,8 @@ data class AssistantChatHistoryDto(
     val conversationId: String = "",
     // Optional keeps backups created before web-reference cards backward-compatible.
     val webSources: List<VeterinaryWebSource> = emptyList(),
+    // Optional keeps backups created before internal source cards backward-compatible.
+    val recordSources: List<AssistantRecordSource> = emptyList(),
 )
 
 /** Serializable mirror of the dictation metadata table. */
@@ -42,6 +46,7 @@ internal fun AssistantChatHistory.toDto(): AssistantChatHistoryDto =
         createdAt = createdAt,
         conversationId = conversationId.ifBlank { "legacy-$id" },
         webSources = AssistantWebSourcesCodec.decode(webSourcesJson),
+        recordSources = AssistantRecordSourcesCodec.decode(recordSourcesJson),
     )
 
 internal fun DictationCapture.toDto(): DictationCaptureDto =

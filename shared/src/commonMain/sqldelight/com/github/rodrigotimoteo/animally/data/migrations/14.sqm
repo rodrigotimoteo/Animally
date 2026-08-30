@@ -1,0 +1,3 @@
+-- Keep internal source-card identities with persisted assistant turns so
+-- history remains navigable after the in-memory transcript is reloaded.
+ALTER TABLE AssistantChatHistory ADD COLUMN recordSourcesJson TEXT NOT NULL DEFAULT '[]';

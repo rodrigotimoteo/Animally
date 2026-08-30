@@ -201,6 +201,17 @@ class CloudRagLlmEngine(
         emit: suspend (RagToolStreamEvent) -> Unit,
     ) {
         parseSseError(line)?.let { message -> error(message) }
+        val payload = dataPayload(line)
+        if (payload?.startsWith("{") == true) {
+            if (decodeChunk(payload) == null) {
+                state.malformedDataFrames++
+                if (state.malformedDataFrames >= MAX_CONSECUTIVE_MALFORMED_DATA_FRAMES) {
+                    error("Cloud LLM stream returned malformed data")
+                }
+                return
+            }
+            state.malformedDataFrames = 0
+        }
         if (appendSseDelta(line, state.cumulative, state.thinkingFilter)?.isNotEmpty() == true) {
             emit(RagToolStreamEvent.Text(state.cumulative.toString()))
         }
@@ -254,6 +265,7 @@ class CloudRagLlmEngine(
         val toolCalls = linkedMapOf<Int, MutableCloudToolCall>()
         var sawDone = false
         var finishReason: String? = null
+        var malformedDataFrames = 0
     }
 
     private fun appendToolCallDeltas(
@@ -272,9 +284,11 @@ class CloudRagLlmEngine(
     /**
      * Parses one SSE line; returns the content delta it carries, or null for
      * non-data lines / keep-alive comments / terminal markers /
-     * anything with no visible content (reasoning-only deltas, usage tails,
-     * malformed payloads — all inert, never fatal). Internal so contract tests
-     * drive the exact production decode path.
+     * anything with no visible content (reasoning-only deltas, usage tails, or
+     * malformed payloads). The low-level helper remains tolerant; the full
+     * stream fails after repeated malformed data frames so a broken provider
+     * cannot be mistaken for a valid truncated answer. Internal so contract
+     * tests drive the exact production decode path.
      */
     internal fun appendSseDelta(
         line: String,
@@ -420,6 +434,7 @@ class CloudRagLlmEngine(
         const val SSE_ERROR_EVENT = "error"
         const val SSE_DONE_SENTINEL = "[DONE]"
         const val STREAM_ERROR_MESSAGE = "Cloud LLM stream reported an error"
+        const val MAX_CONSECUTIVE_MALFORMED_DATA_FRAMES = 2
         const val MAX_ERROR_DETAIL_CHARS = 240
         val THINKING_CONTENT_TYPES =
             setOf(

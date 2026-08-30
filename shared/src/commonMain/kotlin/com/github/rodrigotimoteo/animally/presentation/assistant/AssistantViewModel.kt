@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.assistant
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantChatTurn
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantRecordSource
 import com.github.rodrigotimoteo.animally.domain.assistant.model.conversationKey
 import com.github.rodrigotimoteo.animally.domain.assistant.usecase.GetRecentAssistantChatHistoryUseCase
 import com.github.rodrigotimoteo.animally.domain.assistant.usecase.SaveAssistantChatTurnUseCase
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.LocalDate
 import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -514,6 +516,7 @@ class AssistantViewModel(
                             createdAt = Clock.System.now(),
                             conversationId = conversationId,
                             webSources = assistant.webSources,
+                            recordSources = assistant.sources.map { source -> source.toAssistantRecordSource() },
                         ),
                     )
                     getRecentAssistantChatHistory()
@@ -555,7 +558,29 @@ class AssistantViewModel(
                 interrupted = interrupted,
                 source = engineSource,
                 webSources = webSources,
+                sources = recordSources.map { source -> source.toSearchResult() },
             ),
         )
     }
+
+    private fun SearchResult.toAssistantRecordSource(): AssistantRecordSource =
+        AssistantRecordSource(
+            patientId = patientId,
+            patientName = patientName,
+            recordType = recordType,
+            recordId = recordId,
+            date = date?.toString(),
+        )
+
+    private fun AssistantRecordSource.toSearchResult(): SearchResult =
+        SearchResult(
+            patientId = patientId,
+            patientName = patientName,
+            breed = null,
+            microchipId = null,
+            recordType = recordType,
+            recordId = recordId,
+            date = date?.let { value -> runCatching { LocalDate.parse(value) }.getOrNull() },
+            snippet = "",
+        )
 }

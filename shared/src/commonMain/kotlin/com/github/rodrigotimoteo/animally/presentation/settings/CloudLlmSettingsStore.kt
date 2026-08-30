@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.presentation.settings
 
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmProviderPreset
+import io.ktor.http.URLBuilder
 
 /**
  * User-facing cloud LLM settings. Non-secret fields (enabled flag, model, base URL)
@@ -40,12 +41,31 @@ interface CloudLlmSettingsStore {
  * from silently drifting away from the routing rules.
  */
 fun CloudLlmSettingsStore.isReadyForCloudRouting(): Boolean {
-    val provider = CloudLlmProviderPreset.fromId(presetId())
-    return isEnabled() &&
-        (!provider.requiresApiKey || !apiKey().isNullOrBlank()) &&
-        model().isNotBlank() &&
-        baseUrl().isNotBlank()
+    val settings = snapshot()
+    val provider = CloudLlmProviderPreset.fromId(settings.presetId)
+    return settings.enabled &&
+        (!provider.requiresApiKey || !settings.apiKey.isNullOrBlank()) &&
+        settings.model.isNotBlank() &&
+        isValidCloudBaseUrl(settings.baseUrl)
 }
+
+/**
+ * Checks the endpoint before routing a request. The field accepts either a
+ * provider API root or a full chat-completions URL, so validation deliberately
+ * checks only the scheme and host and leaves path normalization to the cloud
+ * transport.
+ */
+internal fun isValidCloudBaseUrl(value: String): Boolean {
+    val normalized = value.trim()
+    if (!ABSOLUTE_HTTP_URL_REGEX.matches(normalized)) return false
+    return runCatching { URLBuilder(normalized).build() }
+        .getOrNull()
+        ?.let { url -> url.host.isNotBlank() && url.protocol.name.lowercase() in HTTP_PROTOCOLS }
+        ?: false
+}
+
+private val ABSOLUTE_HTTP_URL_REGEX = Regex("^https?://[^\\s/?#]+(?:[/?#][^\\s]*)?$", RegexOption.IGNORE_CASE)
+private val HTTP_PROTOCOLS = setOf("http", "https")
 
 /** Preference key for the cloud toggle. */
 const val PREF_CLOUD_LLM_ENABLED = "llm_cloud_enabled"

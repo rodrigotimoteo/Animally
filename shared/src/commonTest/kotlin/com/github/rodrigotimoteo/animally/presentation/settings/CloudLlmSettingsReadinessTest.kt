@@ -47,6 +47,24 @@ class CloudLlmSettingsReadinessTest {
         store.storedBaseUrl = CloudLlmProviderPreset.ZEN.baseUrl
         assertTrue(store.isReadyForCloudRouting())
     }
+
+    @Test
+    fun `invalid endpoint does not make cloud routing look ready`() {
+        val store = FakeCloudSettings()
+        store.storedEnabled = true
+        store.storedPresetId = CloudLlmProviderPreset.ZEN.id
+        store.storedApiKey = "key"
+        store.storedModel = "mimo-v2.5"
+
+        store.storedBaseUrl = "not a url"
+        assertFalse(store.isReadyForCloudRouting())
+
+        store.storedBaseUrl = "ftp://example.com/v1"
+        assertFalse(store.isReadyForCloudRouting())
+
+        store.storedBaseUrl = "https://example.com/v1/chat/completions"
+        assertTrue(store.isReadyForCloudRouting())
+    }
 }
 
 private class FakeCloudSettings : CloudLlmSettingsStore {

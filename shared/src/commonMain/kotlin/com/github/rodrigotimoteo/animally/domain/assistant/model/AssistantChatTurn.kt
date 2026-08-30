@@ -15,4 +15,6 @@ data class AssistantChatTurn(
     val conversationId: String = "",
     /** Public references shown with a general medical answer. */
     val webSources: List<VeterinaryWebSource> = emptyList(),
+    /** Minimal local identities used to reopen cited patient records. */
+    val recordSources: List<AssistantRecordSource> = emptyList(),
 )

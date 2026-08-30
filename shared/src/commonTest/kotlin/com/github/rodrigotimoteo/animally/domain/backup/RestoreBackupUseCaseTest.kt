@@ -85,6 +85,7 @@ class RestoreBackupUseCaseTest {
             createdAt = Instant.fromEpochMilliseconds(4_100L),
             conversationId = "restore-test",
             webSourcesJson = "[]",
+            recordSourcesJson = "[]",
         )
         database.dictationCaptureQueries.insertWithId(
             id = 42L,

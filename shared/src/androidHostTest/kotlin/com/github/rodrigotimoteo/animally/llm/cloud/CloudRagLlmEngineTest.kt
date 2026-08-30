@@ -161,6 +161,30 @@ class CloudRagLlmEngineTest {
     }
 
     @Test
+    fun `repeated malformed data frames fail instead of returning a truncated answer`() =
+        runTest {
+            val client =
+                mockClient(
+                    """
+                    data: {not-json}
+                    data: {still-not-json}
+                    """.trimIndent(),
+                )
+            try {
+                val streamingEngine = CloudRagLlmEngine(client) { config }
+
+                val failure =
+                    assertFailsWith<IllegalStateException> {
+                        streamingEngine.generateStreaming("question", "instructions").toList()
+                    }
+
+                assertTrue(failure.message.orEmpty().contains("malformed data"))
+            } finally {
+                client.close()
+            }
+        }
+
+    @Test
     fun `visible content combines compatible fields without duplicating cumulative text`() {
         val engine = engine()
         val cumulative = StringBuilder()

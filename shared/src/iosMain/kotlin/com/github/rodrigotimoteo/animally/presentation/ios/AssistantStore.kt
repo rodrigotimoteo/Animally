@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantChatTurn
 import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantConversationGrouper
+import com.github.rodrigotimoteo.animally.domain.assistant.model.AssistantRecordSource
 import com.github.rodrigotimoteo.animally.domain.assistant.model.conversationKey
 import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 import com.github.rodrigotimoteo.animally.llm.EngineType
@@ -30,6 +31,17 @@ data class AssistantHistoryItem(
     val interrupted: Boolean,
     val createdAtMillis: Long,
     val webSources: List<VeterinaryWebSource> = emptyList(),
+    val recordSources: List<AssistantHistorySource> = emptyList(),
+)
+
+/** Objective-C-friendly identity for a local record cited by a saved answer. */
+@ObjCName("AssistantHistorySource")
+data class AssistantHistorySource(
+    val patientId: Long,
+    val patientName: String,
+    val recordType: String,
+    val recordId: Long,
+    val date: String? = null,
 )
 
 /** Swift-facing assistant state with a primitive history projection. */
@@ -114,6 +126,16 @@ class AssistantStore(
             interrupted = turn.interrupted,
             createdAtMillis = turn.createdAt.toEpochMilliseconds(),
             webSources = turn.webSources,
+            recordSources = turn.recordSources.map(::toHistorySource),
+        )
+
+    private fun toHistorySource(source: AssistantRecordSource): AssistantHistorySource =
+        AssistantHistorySource(
+            patientId = source.patientId,
+            patientName = source.patientName,
+            recordType = source.recordType,
+            recordId = source.recordId,
+            date = source.date,
         )
 
     /** Asks the assistant a free-text question about the records. */

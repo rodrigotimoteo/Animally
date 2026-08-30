@@ -101,6 +101,9 @@ struct AssistantView: View {
                         draft = question
                         showChatHistory = false
                         inputFocused = true
+                    },
+                    onOpenSource: { source in
+                        openSource(source)
                     }
                 )
                 .tint(theme.accentColor)
@@ -340,16 +343,32 @@ struct AssistantView: View {
     /// page, every other record type pushes the patient page underneath and
     /// the read-only record detail on top (same pattern as Search).
     private func openSource(_ source: SearchResult) {
-        if source.recordType == "OWNER" {
-            path.append(Route.ownerDetail(source.patientId))
+        openRecord(
+            patientId: source.patientId,
+            recordType: source.recordType,
+            recordId: source.recordId
+        )
+    }
+
+    private func openSource(_ source: AssistantHistorySource) {
+        openRecord(
+            patientId: source.patientId,
+            recordType: source.recordType,
+            recordId: source.recordId
+        )
+    }
+
+    private func openRecord(patientId: Int64, recordType: String, recordId: Int64) {
+        if recordType.uppercased() == "OWNER" {
+            path.append(Route.ownerDetail(patientId))
             return
         }
-        path.append(Route.patientDetail(source.patientId))
-        guard source.recordType != "PATIENT" else { return }
+        path.append(Route.patientDetail(patientId))
+        guard recordType.uppercased() != "PATIENT" else { return }
         path.append(RecordDetailKey(
-            displayType: source.recordType,
-            patientId: source.patientId,
-            recordId: source.recordId
+            displayType: recordType,
+            patientId: patientId,
+            recordId: recordId
         ))
     }
 

@@ -20,6 +20,7 @@ internal data class RagStreamRequest(
     val requiresGrounding: Boolean,
     val grounded: Boolean,
     val webSources: List<VeterinaryWebSource>,
+    val webReferencesUnavailable: Boolean = false,
 )
 
 /**
@@ -149,6 +150,7 @@ internal class RagAnswerStreamCoordinator(
                         request.turnStrings,
                         allowGeneralQuestions = request.allowGeneralQuestions,
                         includeWebReferences = request.webSources.isNotEmpty(),
+                        webReferencesUnavailable = request.webReferencesUnavailable,
                     ),
                 )
             } else {
@@ -158,6 +160,7 @@ internal class RagAnswerStreamCoordinator(
                         request.turnStrings,
                         allowGeneralQuestions = request.allowGeneralQuestions,
                         includeWebReferences = request.webSources.isNotEmpty(),
+                        webReferencesUnavailable = request.webReferencesUnavailable,
                     ),
                 )
             }
@@ -187,6 +190,7 @@ internal class RagAnswerStreamCoordinator(
                             request.turnStrings,
                             allowGeneralQuestions = request.allowGeneralQuestions,
                             includeWebReferences = request.webSources.isNotEmpty(),
+                            webReferencesUnavailable = request.webReferencesUnavailable,
                         ) +
                             "\nUse the read-only analysis tools when they improve accuracy. " +
                             "Tool results are authoritative for this app's data. Never invent a source header; " +

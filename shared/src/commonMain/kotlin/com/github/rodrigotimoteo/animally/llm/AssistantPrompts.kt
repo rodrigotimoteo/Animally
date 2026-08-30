@@ -346,11 +346,13 @@ object AssistantPrompts {
         strings: AssistantStrings = EnAssistantStrings,
         allowGeneralQuestions: Boolean = false,
         includeWebReferences: Boolean = false,
+        webReferencesUnavailable: Boolean = false,
     ): String =
         buildList {
             add(if (allowGeneralQuestions) cloudRoleAndGrounding(strings) else deviceRoleAndGrounding(strings))
             add(if (allowGeneralQuestions) cloudCommonGuidance() else deviceCommonGuidance())
             if (includeWebReferences) add(webReferenceGuidance())
+            if (webReferencesUnavailable) add(webReferenceUnavailableGuidance())
         }.joinToString("\n")
 
     /** Back-compat alias over [systemPrompt] with English strings. */
@@ -559,6 +561,11 @@ private fun webReferenceGuidance(): String =
     Use only claims directly supported by the WEB REFERENCES. Cite the exact matching [WEB #N] header at the end of the relevant sentence; never invent a web citation or URL.
     Keep this educational and general. Do not diagnose, prescribe, recommend a dosage, or apply a web claim to a named patient. If the excerpts do not answer the question, say that the available references are insufficient.
     If the question may describe an emergency, say that prompt assessment by a veterinarian is important without pretending to assess the patient remotely.
+    """.trimIndent()
+
+private fun webReferenceUnavailableGuidance(): String =
+    """
+    The trusted public reference lookup was unavailable for this turn. Do not claim that you checked online sources or attach a citation. You may still answer from general knowledge, but label it as general information, keep it cautious, and say that the reference check could not be completed when that limitation matters.
     """.trimIndent()
 
 /**

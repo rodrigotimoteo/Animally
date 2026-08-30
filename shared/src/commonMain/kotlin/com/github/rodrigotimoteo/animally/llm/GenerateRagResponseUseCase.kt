@@ -261,6 +261,7 @@ class GenerateRagResponseUseCase(
         val turnStrings: AssistantStrings,
         val queryPolicy: RagQueryPolicy,
         val webSources: List<VeterinaryWebSource>,
+        val webReferencesUnavailable: Boolean,
     )
 
     private data class ModelAnswerRequest(
@@ -270,6 +271,7 @@ class GenerateRagResponseUseCase(
         val history: List<RagHistoryEntry>,
         val turnStrings: AssistantStrings,
         val queryPolicy: RagQueryPolicy,
+        val webReferencesUnavailable: Boolean,
     )
 
     private val answerStreamCoordinator =
@@ -542,15 +544,17 @@ class GenerateRagResponseUseCase(
                 history = history,
                 turnStrings = turnStrings,
                 queryPolicy = queryPolicy,
+                webReferencesUnavailable = false,
             ),
         )
     }
 
     private suspend fun FlowCollector<RagStreamEvent>.emitModelAnswer(input: ModelAnswerRequest) {
         val webSources = findWebSources(input.query, input.intent, input.queryPolicy)
+        val webReferencesUnavailable = webSources is VeterinaryWebSearchResult.Unavailable
         val webFallback =
             when (webSources) {
-                VeterinaryWebSearchResult.Unavailable -> input.turnStrings.webReferenceUnavailable
+                VeterinaryWebSearchResult.Unavailable -> null
                 is VeterinaryWebSearchResult.Success ->
                     input.turnStrings.webReferenceNoResults.takeIf { webSources.sources.isEmpty() }
                 null -> null
@@ -574,6 +578,7 @@ class GenerateRagResponseUseCase(
                     turnStrings = input.turnStrings,
                     queryPolicy = input.queryPolicy,
                     webSources = trustedWebSources,
+                    webReferencesUnavailable = webReferencesUnavailable,
                 ),
             )
         if (plan.useFallback) {
@@ -631,6 +636,7 @@ class GenerateRagResponseUseCase(
                     requiresGrounding = requiresGrounding,
                     grounded = grounded,
                     webSources = context.webSources,
+                    webReferencesUnavailable = input.webReferencesUnavailable,
                 ),
             useFallback = false,
         )

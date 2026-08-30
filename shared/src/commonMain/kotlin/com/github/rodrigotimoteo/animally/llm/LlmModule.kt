@@ -12,6 +12,7 @@ import com.github.rodrigotimoteo.animally.llm.cloud.CloudRagLlmEngine
 import com.github.rodrigotimoteo.animally.llm.cloud.FmFirstRagLlmEngine
 import com.github.rodrigotimoteo.animally.presentation.settings.CloudLlmSettingsStore
 import com.github.rodrigotimoteo.animally.presentation.settings.isReadyForCloudRouting
+import com.github.rodrigotimoteo.animally.presentation.settings.snapshot
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -73,11 +74,12 @@ val llmModule =
             CloudRagLlmEngine(
                 httpClient = get(),
                 configProvider = {
-                    val provider = CloudLlmProviderPreset.fromId(settings.presetId())
+                    val settingsSnapshot = settings.snapshot()
+                    val provider = CloudLlmProviderPreset.fromId(settingsSnapshot.presetId)
                     CloudLlmConfig(
-                        baseUrl = settings.baseUrl(),
-                        model = settings.model(),
-                        apiKey = settings.apiKey().orEmpty(),
+                        baseUrl = settingsSnapshot.baseUrl,
+                        model = settingsSnapshot.model,
+                        apiKey = settingsSnapshot.apiKey.orEmpty(),
                         maxTokens = provider.takeIf { it.isLocalRuntime }?.let { CloudLlmConfig.DEFAULT_MAX_TOKENS },
                     )
                 },

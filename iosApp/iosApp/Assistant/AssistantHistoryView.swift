@@ -11,6 +11,7 @@ struct AssistantHistoryView: View {
     let isLoading: Bool
     let accentColor: Color
     let onUseQuestion: (String) -> Void
+    let onOpenSource: (AssistantHistorySource) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
@@ -71,7 +72,8 @@ struct AssistantHistoryView: View {
                         AssistantConversationDetailView(
                             conversation: conversation,
                             accentColor: accentColor,
-                            onUseQuestion: onUseQuestion
+                            onUseQuestion: onUseQuestion,
+                            onOpenSource: onOpenSource
                         )
                     } label: {
                         conversationRow(conversation)
@@ -129,6 +131,7 @@ private struct AssistantConversationDetailView: View {
     let conversation: AssistantConversationItem
     let accentColor: Color
     let onUseQuestion: (String) -> Void
+    let onOpenSource: (AssistantHistorySource) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
@@ -152,6 +155,8 @@ private struct AssistantConversationDetailView: View {
                         )
 
                         sourceBadge(for: turn)
+
+                        recordSourceLinks(for: turn)
 
                         webReferenceLinks(for: turn)
 
@@ -261,6 +266,59 @@ private struct AssistantConversationDetailView: View {
                 .background(Theme.surfaceElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
+        }
+    }
+
+    private func recordSourceLinks(for turn: AssistantHistoryItem) -> some View {
+        let sources = (turn.recordSources as? [AssistantHistorySource]) ?? []
+        return Group {
+            if !sources.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Patient records", systemImage: "doc.text.magnifyingglass")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Theme.textSecondary)
+                    ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
+                        Button {
+                            onOpenSource(source)
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.caption)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(source.patientName)
+                                        .font(.footnote.weight(.medium))
+                                        .multilineTextAlignment(.leading)
+                                    Text(recordTypeLabel(source.recordType) + (source.date.map { " · \($0)" } ?? ""))
+                                        .font(.caption2)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .foregroundStyle(accentColor)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("assistant_history_record_source")
+                        .accessibilityLabel("Open \(source.patientName), \(recordTypeLabel(source.recordType))")
+                    }
+                }
+                .padding(12)
+                .background(Theme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+
+    private func recordTypeLabel(_ rawType: String) -> String {
+        switch rawType.uppercased() {
+        case "FARRIER_VISIT": return "Farrier visit"
+        case "PATIENT": return "Patient"
+        case "OWNER": return "Owner"
+        case "REPRODUCTION": return "Breeding record"
+        default:
+            return rawType
+                .replacingOccurrences(of: "_", with: " ")
+                .lowercased()
+                .capitalized
         }
     }
 
