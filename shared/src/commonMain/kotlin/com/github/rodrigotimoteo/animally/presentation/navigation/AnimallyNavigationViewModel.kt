@@ -26,4 +26,25 @@ abstract class AnimallyNavigationViewModel(
     fun popBackStack() {
         animallyNavigator.popBackStack()
     }
+
+    /**
+     * Replace the current destination with [route].
+     */
+    fun navigateReplace(route: Route) {
+        animallyNavigator.navigateReplace(route)
+    }
+
+    /**
+     * Navigate to [route] only if it is not already on top.
+     */
+    fun navigateSingleTop(route: Route) {
+        animallyNavigator.navigateSingleTop(route)
+    }
+
+    /**
+     * Clear the stack and navigate to [route].
+     */
+    fun clearAndNavigate(route: Route) {
+        animallyNavigator.clearAndNavigate(route)
+    }
 }

@@ -77,42 +77,42 @@ class VaccinationEditViewModel(
      * Updates the [VaccinationFormState.vaccineName].
      */
     fun onVaccineNameChange(value: String) {
-        formState.value?.let { updateForm(it.copy(vaccineName = value, vaccineNameError = null)) }
+        updateForm { it.copy(vaccineName = value, vaccineNameError = null) }
     }
 
     /**
      * Updates the [VaccinationFormState.dateAdministered].
      */
     fun onDateAdministeredChange(value: String) {
-        formState.value?.let { updateForm(it.copy(dateAdministered = value, dateError = null)) }
+        updateForm { it.copy(dateAdministered = value, dateError = null) }
     }
 
     /**
      * Updates the [VaccinationFormState.vetName].
      */
     fun onVetNameChange(value: String) {
-        formState.value?.let { updateForm(it.copy(vetName = value.ifBlank { null })) }
+        updateForm { it.copy(vetName = value.ifBlank { null }) }
     }
 
     /**
      * Updates the [VaccinationFormState.batchNumber].
      */
     fun onBatchNumberChange(value: String) {
-        formState.value?.let { updateForm(it.copy(batchNumber = value.ifBlank { null })) }
+        updateForm { it.copy(batchNumber = value.ifBlank { null }) }
     }
 
     /**
      * Updates the [VaccinationFormState.site].
      */
     fun onSiteChange(value: String) {
-        formState.value?.let { updateForm(it.copy(site = value.ifBlank { null })) }
+        updateForm { it.copy(site = value.ifBlank { null }) }
     }
 
     /**
      * Updates the [VaccinationFormState.notes].
      */
     fun onNotesChange(value: String) {
-        formState.value?.let { updateForm(it.copy(notes = value.ifBlank { null })) }
+        updateForm { it.copy(notes = value.ifBlank { null }) }
     }
 
     /**

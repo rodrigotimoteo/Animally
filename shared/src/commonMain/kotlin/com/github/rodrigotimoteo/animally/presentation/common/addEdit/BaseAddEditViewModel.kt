@@ -54,6 +54,17 @@ abstract class BaseAddEditViewModel<F>(
     }
 
     /**
+     * Atomically transforms the current form state when present.
+     * No-op if the form has not been loaded yet (`null`).
+     *
+     * Reduces per-field boilerplate: subclasses can call `updateForm { it.copy(...) }`
+     * instead of `formState.value?.let { updateForm(it.copy(...)) }`.
+     */
+    protected fun updateForm(transform: (F) -> F) {
+        formState.value?.let { _formState.value = transform(it) }
+    }
+
+    /**
      * Validates and persists the current form state.
      */
     abstract fun save()

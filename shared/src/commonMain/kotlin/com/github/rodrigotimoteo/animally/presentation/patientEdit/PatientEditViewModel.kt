@@ -92,92 +92,90 @@ class PatientEditViewModel(
      * Updates the [PatientFormState.name].
      */
     fun onNameChange(name: String) {
-        formState.value?.let { updateForm(it.copy(name = name, nameError = null)) }
+        updateForm { it.copy(name = name, nameError = null) }
     }
 
     /**
      * Updates the [PatientFormState.species].
      */
     fun onSpeciesChange(species: String) {
-        formState.value?.let { updateForm(it.copy(species = species)) }
+        updateForm { it.copy(species = species) }
     }
 
     /**
      * Updates the [PatientFormState.breed].
      */
     fun onBreedChange(breed: String) {
-        formState.value?.let { updateForm(it.copy(breed = breed.ifBlank { null })) }
+        updateForm { it.copy(breed = breed.ifBlank { null }) }
     }
 
     /**
      * Updates the [PatientFormState.dateOfBirth].
      */
     fun onDateOfBirthChange(dateOfBirth: String) {
-        formState.value?.let { updateForm(it.copy(dateOfBirth = dateOfBirth.ifBlank { null })) }
+        updateForm { it.copy(dateOfBirth = dateOfBirth.ifBlank { null }) }
     }
 
     /**
      * Updates the [PatientFormState.gender].
      */
     fun onGenderChange(gender: String) {
-        formState.value?.let { updateForm(it.copy(gender = gender.ifBlank { null })) }
+        updateForm { it.copy(gender = gender.ifBlank { null }) }
     }
 
     /**
      * Updates the [PatientFormState.microchipId].
      */
     fun onMicrochipIdChange(microchipId: String) {
-        formState.value?.let { updateForm(it.copy(microchipId = microchipId.ifBlank { null })) }
+        updateForm { it.copy(microchipId = microchipId.ifBlank { null }) }
     }
 
     /**
      * Updates the [PatientFormState.ueln].
      */
     fun onUelnChange(ueln: String) {
-        formState.value?.let { updateForm(it.copy(ueln = ueln.ifBlank { null }, uelnError = null)) }
+        updateForm { it.copy(ueln = ueln.ifBlank { null }, uelnError = null) }
     }
 
     /**
      * Updates the [PatientFormState.registrationNumber].
      */
     fun onRegistrationNumberChange(registrationNumber: String) {
-        formState.value?.let { updateForm(it.copy(registrationNumber = registrationNumber.ifBlank { null })) }
+        updateForm { it.copy(registrationNumber = registrationNumber.ifBlank { null }) }
     }
 
     /**
      * Updates the [PatientFormState.stableLocation].
      */
     fun onStableLocationChange(stableLocation: String) {
-        formState.value?.let { updateForm(it.copy(stableLocation = stableLocation.ifBlank { null })) }
+        updateForm { it.copy(stableLocation = stableLocation.ifBlank { null }) }
     }
 
     /**
      * Updates the [PatientFormState.photoUri].
      */
     fun onPhotoUriChange(photoUri: String) {
-        formState.value?.let { updateForm(it.copy(photoUri = photoUri.ifBlank { null })) }
+        updateForm { it.copy(photoUri = photoUri.ifBlank { null }) }
     }
 
     /**
      * Updates the [PatientFormState.notes].
      */
     fun onNotesChange(notes: String) {
-        formState.value?.let { updateForm(it.copy(notes = notes.ifBlank { null })) }
+        updateForm { it.copy(notes = notes.ifBlank { null }) }
     }
 
     /**
      * Updates the [PatientFormState] coggins field identified by [field].
      */
     val onCogginsChange: (CogginsField, String) -> Unit = { field, value ->
-        formState.value?.let { form ->
+        updateForm { form ->
             val cleaned = value.ifBlank { null }
-            val updated =
-                when (field) {
-                    CogginsField.TEST_DATE -> form.copy(cogginsTestDate = cleaned)
-                    CogginsField.RESULT -> form.copy(cogginsResult = cleaned)
-                    CogginsField.EXPIRY_DATE -> form.copy(cogginsExpiryDate = cleaned)
-                }
-            updateForm(updated)
+            when (field) {
+                CogginsField.TEST_DATE -> form.copy(cogginsTestDate = cleaned)
+                CogginsField.RESULT -> form.copy(cogginsResult = cleaned)
+                CogginsField.EXPIRY_DATE -> form.copy(cogginsExpiryDate = cleaned)
+            }
         }
     }
 
@@ -185,7 +183,7 @@ class PatientEditViewModel(
      * Updates the [PatientFormState.ownerId].
      */
     fun onOwnerChange(ownerId: Long?) {
-        formState.value?.let { updateForm(it.copy(ownerId = ownerId)) }
+        updateForm { it.copy(ownerId = ownerId) }
     }
 
     /**

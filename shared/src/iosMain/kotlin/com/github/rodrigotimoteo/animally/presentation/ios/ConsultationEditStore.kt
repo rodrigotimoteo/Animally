@@ -2,13 +2,10 @@
 
 package com.github.rodrigotimoteo.animally.presentation.ios
 
-import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.consultation.ConsultationFormState
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import com.github.rodrigotimoteo.animally.presentation.ios.base.GenericEditStore
 import kotlin.experimental.ExperimentalObjCName
 import kotlin.native.ObjCName
 
@@ -29,23 +26,15 @@ data class ConsultationEditStoreState(
  * Swift-facing store wrapping [ConsultationEditViewModel].
  *
  * Exposes only data actions; navigation is owned by SwiftUI.
+ * Delegates NativeFlow binding and save/dismiss to [GenericEditStore].
  */
 @ObjCName("ConsultationEditStore")
 class ConsultationEditStore(
-    private val viewModel: ConsultationEditViewModel,
-) {
+    viewModel: ConsultationEditViewModel,
+) : GenericEditStore<ConsultationEditViewModel, ConsultationFormState, ConsultationEditStoreState>(viewModel) {
     /** Observable form state of the consultation add/edit screen. */
-    val state: NativeFlow<ConsultationEditStoreState> =
-        NativeFlow(
-            viewModel.formState
-                .map { ConsultationEditStoreState(form = it) }
-                .stateIn(
-                    scope = viewModel.viewModelScope,
-                    started = SharingStarted.Eagerly,
-                    initialValue = ConsultationEditStoreState(form = null),
-                ),
-            viewModel.viewModelScope,
-        )
+    override val state: NativeFlow<ConsultationEditStoreState> =
+        viewModel.formState.toStoreStateFlow(ConsultationEditStoreState()) { ConsultationEditStoreState(form = it) }
 
     /** Updates the consultation date. */
     fun onDateChange(date: String) {
@@ -80,15 +69,5 @@ class ConsultationEditStore(
     /** Updates the date of the next scheduled visit. */
     fun onNextVisitDateChange(nextVisitDate: String) {
         viewModel.onNextVisitDateChange(nextVisitDate)
-    }
-
-    /** Validates and persists the current form. */
-    fun save() {
-        viewModel.save()
-    }
-
-    /** Dismisses the error surfaced by the form, if any. */
-    fun dismissError() {
-        viewModel.onDismissError()
     }
 }

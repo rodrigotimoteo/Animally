@@ -2,13 +2,10 @@
 
 package com.github.rodrigotimoteo.animally.presentation.ios
 
-import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
+import com.github.rodrigotimoteo.animally.presentation.ios.base.GenericEditStore
 import com.github.rodrigotimoteo.animally.presentation.ownerEdit.OwnerEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.ownerEdit.OwnerFormState
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlin.experimental.ExperimentalObjCName
 import kotlin.native.ObjCName
 
@@ -29,23 +26,15 @@ data class OwnerEditStoreState(
  * Swift-facing store wrapping [OwnerEditViewModel].
  *
  * Exposes only data actions; navigation is owned by SwiftUI.
+ * Delegates NativeFlow binding and save/dismiss to [GenericEditStore].
  */
 @ObjCName("OwnerEditStore")
 class OwnerEditStore(
-    private val viewModel: OwnerEditViewModel,
-) {
+    viewModel: OwnerEditViewModel,
+) : GenericEditStore<OwnerEditViewModel, OwnerFormState, OwnerEditStoreState>(viewModel) {
     /** Observable form state of the owner add/edit screen. */
-    val state: NativeFlow<OwnerEditStoreState> =
-        NativeFlow(
-            viewModel.formState
-                .map { OwnerEditStoreState(form = it) }
-                .stateIn(
-                    scope = viewModel.viewModelScope,
-                    started = SharingStarted.Eagerly,
-                    initialValue = OwnerEditStoreState(form = null),
-                ),
-            viewModel.viewModelScope,
-        )
+    override val state: NativeFlow<OwnerEditStoreState> =
+        viewModel.formState.toStoreStateFlow(OwnerEditStoreState()) { OwnerEditStoreState(form = it) }
 
     /** Updates the owner's name. */
     fun onNameChange(name: String) {
@@ -78,15 +67,5 @@ class OwnerEditStore(
     /** Removes the owner's optional map location. */
     fun clearLocation() {
         viewModel.clearLocation()
-    }
-
-    /** Validates and persists the current form. */
-    fun save() {
-        viewModel.save()
-    }
-
-    /** Dismisses the error surfaced by the form, if any. */
-    fun dismissError() {
-        viewModel.onDismissError()
     }
 }

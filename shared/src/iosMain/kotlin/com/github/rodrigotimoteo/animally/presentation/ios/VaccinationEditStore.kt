@@ -2,13 +2,10 @@
 
 package com.github.rodrigotimoteo.animally.presentation.ios
 
-import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
+import com.github.rodrigotimoteo.animally.presentation.ios.base.GenericEditStore
 import com.github.rodrigotimoteo.animally.presentation.vaccination.VaccinationEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.vaccination.VaccinationFormState
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlin.experimental.ExperimentalObjCName
 import kotlin.native.ObjCName
 
@@ -29,23 +26,15 @@ data class VaccinationEditStoreState(
  * Swift-facing store wrapping [VaccinationEditViewModel].
  *
  * Exposes only data actions; navigation is owned by SwiftUI.
+ * Delegates NativeFlow binding and save/dismiss to [GenericEditStore].
  */
 @ObjCName("VaccinationEditStore")
 class VaccinationEditStore(
-    private val viewModel: VaccinationEditViewModel,
-) {
+    viewModel: VaccinationEditViewModel,
+) : GenericEditStore<VaccinationEditViewModel, VaccinationFormState, VaccinationEditStoreState>(viewModel) {
     /** Observable form state of the vaccination add/edit screen. */
-    val state: NativeFlow<VaccinationEditStoreState> =
-        NativeFlow(
-            viewModel.formState
-                .map { VaccinationEditStoreState(form = it) }
-                .stateIn(
-                    scope = viewModel.viewModelScope,
-                    started = SharingStarted.Eagerly,
-                    initialValue = VaccinationEditStoreState(form = null),
-                ),
-            viewModel.viewModelScope,
-        )
+    override val state: NativeFlow<VaccinationEditStoreState> =
+        viewModel.formState.toStoreStateFlow(VaccinationEditStoreState()) { VaccinationEditStoreState(form = it) }
 
     /** Updates the name of the administered vaccine. */
     fun onVaccineNameChange(vaccineName: String) {
@@ -75,15 +64,5 @@ class VaccinationEditStore(
     /** Updates the free-form notes. */
     fun onNotesChange(notes: String) {
         viewModel.onNotesChange(notes)
-    }
-
-    /** Validates and persists the current form. */
-    fun save() {
-        viewModel.save()
-    }
-
-    /** Dismisses the error surfaced by the form, if any. */
-    fun dismissError() {
-        viewModel.onDismissError()
     }
 }

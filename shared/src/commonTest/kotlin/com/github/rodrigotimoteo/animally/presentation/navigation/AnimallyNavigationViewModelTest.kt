@@ -2,8 +2,6 @@ package com.github.rodrigotimoteo.animally.presentation.navigation
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class AnimallyNavigationViewModelTest {
     private val navigator = AnimallyNavigator()
@@ -51,13 +49,61 @@ class AnimallyNavigationViewModelTest {
     }
 
     @Test
-    fun `popBackStack on the initial route empties the stack`() {
+    fun `popBackStack on the initial route keeps PatientList`() {
         val vm = createViewModel()
 
         vm.popBackStack()
 
-        assertTrue(navigator.backStack.isEmpty())
-        assertNull(navigator.currentRoute)
+        assertEquals(1, navigator.backStack.size)
+        assertEquals(Route.PatientList, navigator.backStack.last())
+        assertEquals(Route.PatientList, navigator.currentRoute)
+    }
+
+    @Test
+    fun `navigateReplace swaps top without growing stack`() {
+        val vm = createViewModel()
+        vm.navigateTo(Route.Search)
+
+        vm.navigateReplace(Route.Settings)
+
+        assertEquals(2, navigator.backStack.size)
+        assertEquals(Route.Settings, navigator.backStack.last())
+        assertEquals(Route.PatientList, navigator.backStack.first())
+    }
+
+    @Test
+    fun `navigateSingleTop avoids duplicate top`() {
+        val vm = createViewModel()
+        vm.navigateTo(Route.Search)
+
+        vm.navigateSingleTop(Route.Search)
+
+        assertEquals(2, navigator.backStack.size)
+        assertEquals(Route.Search, navigator.backStack.last())
+    }
+
+    @Test
+    fun `navigateSingleTop adds when not duplicate`() {
+        val vm = createViewModel()
+        vm.navigateTo(Route.Search)
+
+        vm.navigateSingleTop(Route.Settings)
+
+        assertEquals(3, navigator.backStack.size)
+        assertEquals(Route.Settings, navigator.backStack.last())
+    }
+
+    @Test
+    fun `clearAndNavigate leaves single entry`() {
+        val vm = createViewModel()
+        vm.navigateTo(Route.Search)
+        vm.navigateTo(Route.Settings)
+
+        vm.clearAndNavigate(Route.OwnerList)
+
+        assertEquals(1, navigator.backStack.size)
+        assertEquals(Route.OwnerList, navigator.backStack.last())
+        assertEquals(Route.OwnerList, navigator.currentRoute)
     }
 
     @Test

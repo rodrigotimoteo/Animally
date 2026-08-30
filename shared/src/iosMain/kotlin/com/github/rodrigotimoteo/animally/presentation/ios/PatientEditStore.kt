@@ -5,6 +5,7 @@ package com.github.rodrigotimoteo.animally.presentation.ios
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.bridge.NativeFlow
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
+import com.github.rodrigotimoteo.animally.presentation.ios.base.GenericEditStore
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.CogginsField
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.PatientEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.patientEdit.PatientFormState
@@ -33,18 +34,17 @@ data class PatientEditStoreState(
 /**
  * Swift-facing store wrapping [PatientEditViewModel].
  *
- * Exposes only data actions; navigation is owned by SwiftUI. The function
- * count is inherently high — one onChange delegate per [PatientFormState]
- * field keeps the Swift surface flat and self-documenting; splitting it
- * would fragment that API.
+ * Exposes only data actions; navigation is owned by SwiftUI.
+ * Delegates NativeFlow binding and save/dismiss to [GenericEditStore].
+ * The combined `formState + owners` flow is built here because it differs
+ * from the single-form archetype.
  */
-@Suppress("TooManyFunctions")
 @ObjCName("PatientEditStore")
 class PatientEditStore(
-    private val viewModel: PatientEditViewModel,
-) {
+    viewModel: PatientEditViewModel,
+) : GenericEditStore<PatientEditViewModel, PatientFormState, PatientEditStoreState>(viewModel) {
     /** Observable form state of the patient add/edit screen. */
-    val state: NativeFlow<PatientEditStoreState> =
+    override val state: NativeFlow<PatientEditStoreState> =
         NativeFlow(
             combine(viewModel.formState, viewModel.owners) { form, owners ->
                 PatientEditStoreState(form = form, owners = owners)
@@ -124,15 +124,5 @@ class PatientEditStore(
     /** Updates the id of the linked owner. */
     fun onOwnerChange(ownerId: Long?) {
         viewModel.onOwnerChange(ownerId)
-    }
-
-    /** Validates and persists the current form. */
-    fun save() {
-        viewModel.save()
-    }
-
-    /** Dismisses the error surfaced by the form, if any. */
-    fun dismissError() {
-        viewModel.onDismissError()
     }
 }
