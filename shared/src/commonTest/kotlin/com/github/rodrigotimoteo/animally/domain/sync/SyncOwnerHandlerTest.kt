@@ -2,11 +2,11 @@ package com.github.rodrigotimoteo.animally.domain.sync
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.owner.OwnerRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.sync.handlers.OwnerPayload
+import com.github.rodrigotimoteo.animally.data.sync.handlers.OwnerSyncHandler
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.owner.model.OwnerLocation
-import com.github.rodrigotimoteo.animally.domain.sync.handlers.OwnerPayload
-import com.github.rodrigotimoteo.animally.domain.sync.handlers.OwnerSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.SyncJson
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonObject

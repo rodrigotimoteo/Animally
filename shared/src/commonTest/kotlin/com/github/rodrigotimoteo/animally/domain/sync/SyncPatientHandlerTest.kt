@@ -3,11 +3,11 @@ package com.github.rodrigotimoteo.animally.domain.sync
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.owner.OwnerRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.patient.PatientRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.sync.handlers.PatientPayload
+import com.github.rodrigotimoteo.animally.data.sync.handlers.PatientSyncHandler
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
-import com.github.rodrigotimoteo.animally.domain.sync.handlers.PatientPayload
-import com.github.rodrigotimoteo.animally.domain.sync.handlers.PatientSyncHandler
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.SyncJson
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonObject

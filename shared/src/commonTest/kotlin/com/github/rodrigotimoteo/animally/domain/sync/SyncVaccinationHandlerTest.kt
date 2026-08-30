@@ -2,12 +2,12 @@ package com.github.rodrigotimoteo.animally.domain.sync
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
 import com.github.rodrigotimoteo.animally.data.patient.PatientRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.sync.handlers.VaccinationPayload
+import com.github.rodrigotimoteo.animally.data.sync.handlers.VaccinationSyncHandler
 import com.github.rodrigotimoteo.animally.data.vaccination.VaccinationRepositoryImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.SyncJson
-import com.github.rodrigotimoteo.animally.domain.sync.handlers.VaccinationPayload
-import com.github.rodrigotimoteo.animally.domain.sync.handlers.VaccinationSyncHandler
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate

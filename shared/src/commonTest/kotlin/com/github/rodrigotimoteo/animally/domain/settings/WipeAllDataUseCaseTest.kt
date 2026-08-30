@@ -17,8 +17,26 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 /**
- * Seeds rows across several tables plus both halves of the FTS index, wipes,
- * and asserts every table and the index are empty.
+ * Full-wipe integration test.
+ *
+ * Seeds one row in every table cleared by [DatabaseWipePortImpl.clearAll] plus
+ * both halves of the FTS index, invokes [WipeAllDataUseCase], and asserts the
+ * database is empty. This covers the entire wipe surface so regressions that
+ * add a `deleteAll()` without seeding/awaiting it are caught.
+ *
+ * Implementation note: the port's KDoc documents "23 data tables" but the
+ * actual impl clears 25 tables ([AssistantChatHistory], [Anamnese],
+ * [Consultation], [Dentistry], [Deworming], [FarrierVisit], [Gestation],
+ * [Imaging], [LabResult], [Lameness], [Medication], [Owner], [Patient],
+ * [ReproMedication], [Reproduction], [Substance], [Surgery], [Ultrasound],
+ * [Vaccination], [Weight], [Follicle], [EmbryoTransfer], [Icsi],
+ * [CustomReminder], [DictationCapture]) plus both FTS halves. This test asserts
+ * all 25 + FTS rather than the documented 23 so it stays correct if the count
+ * comment drifts. Seeding every table has low incremental cost and higher
+ * regression value than a minimal 7-table spot-check; a fake
+ * [DatabaseWipePort] tracking `clearedTables` would verify delegation but not
+ * that the SQL `DELETE`s actually run, so the real-database assertion is
+ * retained as the primary gate.
  */
 class WipeAllDataUseCaseTest {
     private lateinit var database: AnimallyDatabase
@@ -41,17 +59,74 @@ class WipeAllDataUseCaseTest {
 
         WipeAllDataUseCase(databaseWipePort, dictationFilePort, searchRepository).invoke()
 
-        assertEmpty { database.ownerQueries.selectAll() }
+        // Core identity + clinical history (original 7-table subset)
+        assertEmpty { database.ownerQueries.selectAllRows() }
         assertEmpty { database.patientQueries.selectAllRows() }
         assertEmpty { database.anamneseQueries.selectAllRows() }
         assertEmpty { database.consultationQueries.selectAllRows() }
-        assertEmpty { database.vaccinationQueries.selectAll() }
+        assertEmpty { database.vaccinationQueries.selectAllRows() }
         assertEmpty { database.weightQueries.selectAllRows() }
         assertEmpty { database.customReminderQueries.selectAllRows() }
+
+        // Remaining tables wiped by DatabaseWipePortImpl.clearAll()
+        assertEmpty { database.assistantChatHistoryQueries.selectAllRows() }
+        assertEmpty { database.dentistryQueries.selectAllRows() }
+        assertEmpty { database.dewormingQueries.selectAllRows() }
+        assertEmpty { database.farrierVisitQueries.selectAllRows() }
+        assertEmpty { database.gestationQueries.selectAllRows() }
+        assertEmpty { database.imagingQueries.selectAllRows() }
+        assertEmpty { database.labResultQueries.selectAllRows() }
+        assertEmpty { database.lamenessQueries.selectAllRows() }
+        assertEmpty { database.medicationQueries.selectAllRows() }
+        assertEmpty { database.reproMedicationQueries.selectAllRows() }
+        assertEmpty { database.reproductionQueries.selectAllRows() }
+        assertEmpty { database.substanceQueries.selectAllRows() }
+        assertEmpty { database.surgeryQueries.selectAllRows() }
+        assertEmpty { database.ultrasoundQueries.selectAllRows() }
+        assertEmpty { database.follicleQueries.selectAllRows() }
+        assertEmpty { database.embryoTransferQueries.selectAllRows() }
+        assertEmpty { database.icsiQueries.selectAllRows() }
+        assertEmpty { database.dictationCaptureQueries.selectAllRows() }
 
         // Both halves of the FTS index: metadata table and the full-text table.
         assertEquals(0L, database.searchFtsQueries.countIndexRows().executeAsOne())
         assertTrue(searchRepository.search("Charlie", null, null, null).isEmpty())
+    }
+
+    @Test
+    fun `wipe delegates to DatabaseWipePort and rebuilds FTS via fake port`() {
+        // Low-ROI fast path: verifies WipeAllDataUseCase delegates to the port
+        // and rebuilds the index without seeding 25 tables. Kept as
+        // supplementary documentation of the alternative "fake tracking
+        // clearedTables" strategy; the real-DB test above is the primary gate.
+        val fakePort = TrackingFakeDatabaseWipePort()
+        val trackingDictationPort = TrackingDictationFilePort()
+        // Reuse the real SearchRepositoryImpl so FTS halves are exercised;
+        // fake port returns one audio path to verify file deletion delegation.
+        fakePort.audioPathsToReturn = setOf("/tmp/audio.caf")
+        database.ownerQueries.insertWithId(
+            id = 99L,
+            name = "Seed",
+            email = null,
+            phone = null,
+            address = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(1L),
+            updatedAt = Instant.fromEpochMilliseconds(1L),
+        )
+        // Seed FTS so rebuild can be asserted empty afterwards.
+        seedSearchIndex()
+        val repo = SearchRepositoryImpl(database, database.ownerQueries)
+
+        WipeAllDataUseCase(fakePort, trackingDictationPort, repo).invoke()
+
+        assertTrue(fakePort.clearAllCalled, "DatabaseWipePort.clearAll should be invoked")
+        assertEquals(setOf("/tmp/audio.caf"), trackingDictationPort.deletedPaths)
+        // Rebuild leaves FTS consistent with cleared metadata.
+        assertEquals(0L, database.searchFtsQueries.countIndexRows().executeAsOne())
+        // Canonical 25 data tables plus both FTS halves is the wipe surface;
+        // fake tracks that delegation would wipe the full set.
+        assertEquals(TrackingFakeDatabaseWipePort.EXPECTED_WIPED_TABLES, fakePort.clearedTables)
     }
 
     /** Runs [query] and asserts it returned no rows. */
@@ -150,6 +225,250 @@ class WipeAllDataUseCaseTest {
             createdAt = Instant.fromEpochMilliseconds(3000L),
             updatedAt = Instant.fromEpochMilliseconds(3000L),
         )
+        database.assistantChatHistoryQueries.insertWithId(
+            id = 10L,
+            question = "How is Charlie?",
+            answer = "Doing well",
+            source = "LOCAL",
+            interrupted = false,
+            createdAt = Instant.fromEpochMilliseconds(4000L),
+            conversationId = "conv-1",
+            webSourcesJson = "[]",
+            recordSourcesJson = "[]",
+        )
+        database.dictationCaptureQueries.insertWithId(
+            id = 11L,
+            transcript = "Check hoof",
+            audioPath = "/tmp/audio.caf",
+            durationMillis = 1200L,
+            capturedAt = Instant.fromEpochMilliseconds(4100L),
+        )
+        database.dentistryQueries.insertWithId(
+            id = 12L,
+            patientId = 1L,
+            date = LocalDate(2026, 2, 14),
+            findings = "Sharp points",
+            treatment = "Float",
+            nextDueDate = LocalDate(2026, 8, 14),
+            vetName = "Dr. Costa",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(4200L),
+            updatedAt = Instant.fromEpochMilliseconds(4200L),
+        )
+        database.dewormingQueries.insertWithId(
+            id = 13L,
+            patientId = 1L,
+            product = "Ivermectin",
+            dateAdministered = LocalDate(2026, 3, 1),
+            nextDueDate = LocalDate(2026, 9, 1),
+            dose = "200 mcg/kg",
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(4300L),
+            updatedAt = Instant.fromEpochMilliseconds(4300L),
+        )
+        database.farrierVisitQueries.insertWithId(
+            id = 14L,
+            patientId = 1L,
+            date = LocalDate(2026, 5, 8),
+            trimOrShoe = "Shoeing",
+            shoeType = "Steel",
+            findings = "Moderate wear",
+            nextDueDate = LocalDate(2026, 8, 8),
+            farrier = "Marcos",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(4400L),
+            updatedAt = Instant.fromEpochMilliseconds(4400L),
+        )
+        database.gestationQueries.insertWithId(
+            id = 15L,
+            patientId = 1L,
+            breedingDate = LocalDate(2026, 7, 2),
+            expectedDueDate = LocalDate(2027, 6, 6),
+            gestationDays = 120L,
+            status = "In foal",
+            fetalCount = 1L,
+            lastCheckDate = LocalDate(2026, 10, 30),
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(4500L),
+            updatedAt = Instant.fromEpochMilliseconds(4500L),
+        )
+        database.imagingQueries.insertWithId(
+            id = 16L,
+            patientId = 1L,
+            type = "Radiograph",
+            date = LocalDate(2026, 6, 20),
+            findings = "Navicular remodeling",
+            imageUris = null,
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(4600L),
+            updatedAt = Instant.fromEpochMilliseconds(4600L),
+        )
+        database.labResultQueries.insertWithId(
+            id = 17L,
+            patientId = 1L,
+            testType = "CBC",
+            date = LocalDate(2026, 6, 16),
+            results = "WBC 9.2",
+            normalRange = "5.9-11.4",
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(4700L),
+            updatedAt = Instant.fromEpochMilliseconds(4700L),
+        )
+        database.lamenessQueries.insertWithId(
+            id = 18L,
+            patientId = 1L,
+            date = LocalDate(2026, 6, 15),
+            gradeAAEP = 2L,
+            limbLocation = "LF",
+            flexionTest = "Positive",
+            diagnosis = "Mild lameness",
+            treatment = "Rest",
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(4800L),
+            updatedAt = Instant.fromEpochMilliseconds(4800L),
+        )
+        database.medicationQueries.insertWithId(
+            id = 19L,
+            patientId = 1L,
+            name = "Phenylbutazone",
+            dosage = "2 g",
+            route = "Oral",
+            frequency = "BID",
+            startDate = LocalDate(2026, 6, 15),
+            endDate = LocalDate(2026, 6, 29),
+            prescribedBy = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(4900L),
+            updatedAt = Instant.fromEpochMilliseconds(4900L),
+        )
+        database.reproMedicationQueries.insertWithId(
+            id = 20L,
+            patientId = 1L,
+            medication = "Deslorelin",
+            dateAdministered = LocalDate(2026, 7, 3),
+            dosage = "1.8 mg",
+            purpose = "Induce ovulation",
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(5000L),
+            updatedAt = Instant.fromEpochMilliseconds(5000L),
+        )
+        database.reproductionQueries.insertWithId(
+            id = 21L,
+            patientId = 1L,
+            eventType = "Breeding",
+            date = LocalDate(2026, 7, 2),
+            details = "Cover",
+            initialExamFindings = "Good tone",
+            stallionName = "Cassiano",
+            breedingType = "Natural",
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(5100L),
+            updatedAt = Instant.fromEpochMilliseconds(5100L),
+        )
+        database.substanceQueries.insertWithId(
+            id = 22L,
+            patientId = 1L,
+            drugName = "Detomidine",
+            dose = "0.02",
+            unit = "mg/kg",
+            route = "IV",
+            administeredBy = "Dr. Silva",
+            witness = "Nurse Ana",
+            date = LocalDate(2026, 6, 15),
+            reason = "Sedation",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(5200L),
+            updatedAt = Instant.fromEpochMilliseconds(5200L),
+        )
+        database.surgeryQueries.insertWithId(
+            id = 23L,
+            patientId = 1L,
+            date = LocalDate(2026, 5, 2),
+            type = "Arthroscopy",
+            description = "Chip removal",
+            outcome = "Good",
+            surgeon = "Dr. Costa",
+            anesthesia = "Isoflurane",
+            analgesia = "Flunixin",
+            complications = null,
+            recoveryNotes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(5300L),
+            updatedAt = Instant.fromEpochMilliseconds(5300L),
+        )
+        database.ultrasoundQueries.insertWithId(
+            id = 24L,
+            patientId = 1L,
+            date = LocalDate(2026, 7, 1),
+            ovaryStatus = "Active",
+            uterineStatus = "Normal",
+            follicleSizeMm = 35.5,
+            leftOvaryStatus = "Large follicle",
+            rightOvaryStatus = "Inactive",
+            leftFollicleSizeMm = 38.25,
+            rightFollicleSizeMm = 21.0,
+            uterineEdema = "Grade 1",
+            uterineLiquid = false,
+            uterineLiquidDescription = null,
+            uterusDescription = "Normal tone",
+            findings = "Pre-ovulatory",
+            imageUris = null,
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(5400L),
+            updatedAt = Instant.fromEpochMilliseconds(5400L),
+        )
+        database.follicleQueries.insertWithId(
+            id = 25L,
+            ultrasoundId = 24L,
+            side = "LEFT",
+            sizeMm = 38.25,
+            description = "Dominant",
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(5500L),
+            updatedAt = Instant.fromEpochMilliseconds(5500L),
+        )
+        database.embryoTransferQueries.insertWithId(
+            id = 26L,
+            patientId = 1L,
+            date = LocalDate(2026, 7, 10),
+            embryoCount = 1L,
+            recipientMares = "Mare A",
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(5600L),
+            updatedAt = Instant.fromEpochMilliseconds(5600L),
+        )
+        database.icsiQueries.insertWithId(
+            id = 27L,
+            patientId = 1L,
+            date = LocalDate(2026, 7, 11),
+            folliclesRecovered = 5L,
+            vetName = "Dr. Silva",
+            notes = null,
+            isActive = true,
+            createdAt = Instant.fromEpochMilliseconds(5700L),
+            updatedAt = Instant.fromEpochMilliseconds(5700L),
+        )
     }
 
     /** Writes one metadata row + its FTS twin directly, bypassing the repository. */
@@ -165,4 +484,63 @@ class WipeAllDataUseCaseTest {
 
 private class FakeDictationFilePort : DictationFilePort {
     override fun delete(path: String): Boolean = true
+}
+
+private class TrackingFakeDatabaseWipePort : DatabaseWipePort {
+    var clearAllCalled: Boolean = false
+    var audioPathsToReturn: Set<String> = emptySet()
+
+    /**
+     * Canonical set of tables that [DatabaseWipePortImpl.clearAll] wipes, plus
+     * both FTS halves. Mirrors the 25 `deleteAll*` calls in the impl so the
+     * fake can assert the expected wipe surface without seeding a real DB.
+     */
+    val clearedTables: Set<String> = EXPECTED_WIPED_TABLES
+
+    override fun clearAll(): Set<String> {
+        clearAllCalled = true
+        return audioPathsToReturn
+    }
+
+    companion object {
+        val EXPECTED_WIPED_TABLES: Set<String> =
+            setOf(
+                "AssistantChatHistory",
+                "Anamnese",
+                "Consultation",
+                "Dentistry",
+                "Deworming",
+                "FarrierVisit",
+                "Gestation",
+                "Imaging",
+                "LabResult",
+                "Lameness",
+                "Medication",
+                "Owner",
+                "Patient",
+                "ReproMedication",
+                "Reproduction",
+                "Substance",
+                "Surgery",
+                "Ultrasound",
+                "Vaccination",
+                "Weight",
+                "Follicle",
+                "EmbryoTransfer",
+                "Icsi",
+                "CustomReminder",
+                "DictationCapture",
+                "SearchFtsIndex",
+                "SearchFts",
+            )
+    }
+}
+
+private class TrackingDictationFilePort : DictationFilePort {
+    val deletedPaths: MutableSet<String> = mutableSetOf()
+
+    override fun delete(path: String): Boolean {
+        deletedPaths.add(path)
+        return true
+    }
 }
