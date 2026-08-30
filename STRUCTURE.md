@@ -26,7 +26,7 @@ Animally/
 └── settings.gradle.kts      # Module includes
 ```
 
-Root-level markdown also maintained: `CONTEXT.md` (domain glossary), `data.md`, `navigation.md`, `idea.md`, `plan.md`.
+Root-level markdown: `AGENTS.md`, `ARCHITECTURE.md`, `STRUCTURE.md`, `README.md` + `docs/adr/` (source of truth). Legacy grill docs (`CONTEXT.md`, `data.md`, `navigation.md`, `idea.md`, `plan.md`) removed — see git history if needed.
 
 ## Module Purposes
 

@@ -19,21 +19,21 @@
 **Domain Layer:**
 - Purpose: Business logic, domain models, and use case contracts
 - Location: `shared/src/commonMain/kotlin/.../domain/`
-- Contains: Model data classes, `Identifiable` interface, per-entity repository interfaces and use case classes (one `domain/<entity>/` module per entity: `owner/`, `patient/`, `anamnese/`, `consultation/`, ...), plus cross-cutting modules: `search/` (FTS5 search), `sync/` (sync contracts + per-entity sync handlers), `export/` (CSV/PDF), `backup/`, `notification/`, `reminder/`, `timeline/`
+- Contains: Model data classes, `Identifiable` interface, per-entity repository interfaces and use case classes (one `domain/<entity>/` module per entity: `owner/`, `patient/`, `anamnese/`, `consultation/`, ...), plus cross-cutting modules: `search/` (FTS5 search), `sync/` (sync contracts + per-entity sync handlers), `export/` (CSV/PDF), `backup/`, `notification/`, `reminder/`, `timeline/`, `assistant/` (chat history models + save/retrieve use cases), `dictation/` (audio capture models, suggestion validation, transcript update), `vetreference/` (veterinary web source provider contracts), `care/` (upcoming care aggregation use case), `assistant/` (chat history + conversation model), `dictation/` (audio capture + suggestion validation), `vetreference/` (veterinary web source providers), `care/` (upcoming care reminders)
 - Depends on: Kotlin stdlib, `kotlinx.serialization`, `kotlinx.datetime`
 - Used by: Presentation layer (ViewModels call use cases)
 
 **Data Layer:**
 - Purpose: Persistence, DB queries, repository implementations, column adapters, sync engine, file storage
 - Location: `shared/src/commonMain/kotlin/.../data/`
-- Contains: SQLDelight `.sq` query definitions (20 entities + `SearchFts` + `SyncMetadata`), generated `Queries` classes, per-entity `*RepositoryImpl` with `mapper/` DTO→model mappers, `InstantAdapter`/`LocalDateAdapter` for column type mapping, `AnimallyDatabaseFactory`, `search/SearchRepository`, `storage/FileStorage` + `BackupStorage`, `backup/` restore impls, `sync/` (`KtorSyncApi`, `SyncEngineImpl`, `SyncChangeTrackerImpl`)
+- Contains: SQLDelight `.sq` query definitions (24 entity/support tables + `SearchFts` + `SyncMetadata` + `SearchIndexState` + `SyncState` + `Common`), generated `Queries` classes, per-entity `*RepositoryImpl` with `mapper/` DTO→model mappers, `InstantAdapter`/`LocalDateAdapter` for column type mapping, `AnimallyDatabaseFactory`, `search/SearchRepository`, `storage/FileStorage` + `BackupStorage`, `backup/` restore impls, `sync/` (`KtorSyncApi`, `SyncEngineImpl`, `SyncChangeTrackerImpl`), `assistant/AssistantChatHistoryRepositoryImpl`, `dictation/DictationCaptureRepositoryImpl`, `vetreference/` (composite + per-provider veterinary web source providers)
 - Depends on: SQLDelight generated code (`AnimallyDatabase`), domain layer interfaces, Ktor HTTP client (sync only)
 - Used by: DI (`QueriesModule` provides individual `*Queries` singletons), domain layer
 
 **Presentation Layer:**
 - Purpose: Compose UI screens, ViewModels, navigation
 - Location: `shared/src/commonMain/kotlin/.../presentation/`
-- Contains: `AnimallyApp` (root `@Composable`), screen composables and ViewModels per feature (`patientList/`, `patientDetail/`, `ownerList/`, `settings/`, `search/`, `timeline/`, plus per-entity `patientEdit/`, `consultation/`, `vaccination/`, ...), `common/` shared UI (`glass/`, `state/`, `addEdit/`, `attachment/`, `layout/`), theme (`theme/` with `ThemeMode`), navigation (`Route` sealed interface, `AnimallyNavigator`, `AnimallyNavHost`, `AnimallyNavigationViewModel`)
+- Contains: `AnimallyApp` (root `@Composable`), screen composables and ViewModels per feature (`patientList/`, `patientDetail/`, `ownerList/`, `settings/`, `search/`, `timeline/`, plus per-entity `patientEdit/`, `consultation/`, `vaccination/`, ...), `common/` shared UI (`glass/`, `state/`, `addEdit/`, `attachment/`, `layout/`), theme (`theme/` with `ThemeMode`), navigation (`Route` sealed interface, `AnimallyNavigator`, `AnimallyNavHost`, `AnimallyNavigationViewModel`), `assistant/` (AssistantViewModel, FollowUpSuggestions, AssistantSourceGroup), `dictation/` (DictationViewModel), `care/` (UpcomingCareViewModel)
 - Depends on: Domain layer (use cases + models)
 - Used by: Platform entry points (Android `MainActivity`, iOS `MainViewController`)
 
