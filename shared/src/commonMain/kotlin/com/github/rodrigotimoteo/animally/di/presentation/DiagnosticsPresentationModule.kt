@@ -22,7 +22,7 @@ internal class DiagnosticsPresentationModule {
     fun provide() =
         module {
             labImagingViewModels()
-            lamenessVaccinationViewModels()
+            imagingLamenessVaccinationViewModels()
             preventiveViewModels()
         }
 
@@ -58,7 +58,7 @@ internal class DiagnosticsPresentationModule {
         }
     }
 
-    private fun org.koin.core.module.Module.lamenessVaccinationViewModels() {
+    private fun org.koin.core.module.Module.imagingLamenessVaccinationViewModels() {
         viewModel { (patientId: Long) ->
             ImagingListViewModel(
                 patientId = patientId,

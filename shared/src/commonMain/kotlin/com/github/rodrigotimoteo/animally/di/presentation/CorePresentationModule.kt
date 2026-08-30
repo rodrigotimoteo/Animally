@@ -23,7 +23,7 @@ internal class CorePresentationModule {
         module {
             gestationReproMedViewModels()
             customReminderDentistryViewModels()
-            farrierViewModels()
+            dentistryFarrierViewModels()
         }
 
     private fun org.koin.core.module.Module.gestationReproMedViewModels() {
@@ -90,7 +90,7 @@ internal class CorePresentationModule {
         }
     }
 
-    private fun org.koin.core.module.Module.farrierViewModels() {
+    private fun org.koin.core.module.Module.dentistryFarrierViewModels() {
         viewModel { (patientId: Long) ->
             DentistryListViewModel(
                 patientId = patientId,

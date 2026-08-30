@@ -75,7 +75,7 @@ class UltrasoundSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): UltrasoundPayload = r.decode(UltrasoundPayload.serializer())
+    override fun decodePayload(record: SyncRecord): UltrasoundPayload = record.decode(UltrasoundPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.ultrasoundQueries

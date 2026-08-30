@@ -69,7 +69,7 @@ class ImagingSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): ImagingPayload = r.decode(ImagingPayload.serializer())
+    override fun decodePayload(record: SyncRecord): ImagingPayload = record.decode(ImagingPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.imagingQueries

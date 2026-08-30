@@ -73,7 +73,7 @@ class LamenessSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): LamenessPayload = r.decode(LamenessPayload.serializer())
+    override fun decodePayload(record: SyncRecord): LamenessPayload = record.decode(LamenessPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.lamenessQueries

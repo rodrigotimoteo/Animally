@@ -75,7 +75,7 @@ class SurgerySyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): SurgeryPayload = r.decode(SurgeryPayload.serializer())
+    override fun decodePayload(record: SyncRecord): SurgeryPayload = record.decode(SurgeryPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.surgeryQueries

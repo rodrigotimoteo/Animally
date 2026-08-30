@@ -22,7 +22,7 @@ internal class ReproductionPresentationModule {
     fun provide() =
         module {
             embryoIcsiViewModels()
-            reproductionEventViewModels()
+            icsiReproEventViewModels()
             ultrasoundGestationViewModels()
         }
 
@@ -58,7 +58,7 @@ internal class ReproductionPresentationModule {
         }
     }
 
-    private fun org.koin.core.module.Module.reproductionEventViewModels() {
+    private fun org.koin.core.module.Module.icsiReproEventViewModels() {
         viewModel { (patientId: Long) ->
             IcsiListViewModel(
                 patientId = patientId,

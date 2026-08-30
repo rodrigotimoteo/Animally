@@ -100,9 +100,9 @@ private fun isDarkTheme(): Boolean {
 }
 
 private fun Color.luminance(): Float {
-    val r = red.toFloat()
-    val g = green.toFloat()
-    val b = blue.toFloat()
+    val r = red
+    val g = green
+    val b = blue
     return LUMINANCE_RED_COEFFICIENT * r + LUMINANCE_GREEN_COEFFICIENT * g + LUMINANCE_BLUE_COEFFICIENT * b
 }
 

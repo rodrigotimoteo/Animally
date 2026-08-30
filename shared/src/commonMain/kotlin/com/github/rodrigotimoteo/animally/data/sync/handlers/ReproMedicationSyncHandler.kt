@@ -71,7 +71,7 @@ class ReproMedicationSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): ReproMedicationPayload = r.decode(ReproMedicationPayload.serializer())
+    override fun decodePayload(record: SyncRecord): ReproMedicationPayload = record.decode(ReproMedicationPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.reproMedicationQueries

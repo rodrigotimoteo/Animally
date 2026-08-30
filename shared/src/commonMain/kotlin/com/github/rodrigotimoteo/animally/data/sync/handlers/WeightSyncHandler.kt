@@ -63,7 +63,7 @@ class WeightSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): WeightPayload = r.decode(WeightPayload.serializer())
+    override fun decodePayload(record: SyncRecord): WeightPayload = record.decode(WeightPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.weightQueries

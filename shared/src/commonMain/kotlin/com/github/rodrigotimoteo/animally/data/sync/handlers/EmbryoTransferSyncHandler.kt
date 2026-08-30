@@ -68,7 +68,7 @@ class EmbryoTransferSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): EmbryoTransferPayload = r.decode(EmbryoTransferPayload.serializer())
+    override fun decodePayload(record: SyncRecord): EmbryoTransferPayload = record.decode(EmbryoTransferPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.embryoTransferQueries

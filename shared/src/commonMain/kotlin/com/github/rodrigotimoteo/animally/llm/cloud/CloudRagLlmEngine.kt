@@ -8,7 +8,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.preparePost
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
-import io.ktor.utils.io.readUTF8Line
+import io.ktor.utils.io.readLine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collect
@@ -94,7 +94,7 @@ class CloudRagLlmEngine(
         val channel = response.bodyAsChannel()
         var shouldRead = true
         while (shouldRead && !channel.isClosedForRead) {
-            val line = channel.readUTF8Line()
+            val line = channel.readLine()
             if (line == null) {
                 shouldRead = false
             } else {

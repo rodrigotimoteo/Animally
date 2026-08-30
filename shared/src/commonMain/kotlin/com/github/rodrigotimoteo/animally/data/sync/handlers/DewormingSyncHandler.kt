@@ -69,7 +69,7 @@ class DewormingSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): DewormingPayload = r.decode(DewormingPayload.serializer())
+    override fun decodePayload(record: SyncRecord): DewormingPayload = record.decode(DewormingPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.dewormingQueries

@@ -65,7 +65,7 @@ class IcsiSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): IcsiPayload = r.decode(IcsiPayload.serializer())
+    override fun decodePayload(record: SyncRecord): IcsiPayload = record.decode(IcsiPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.icsiQueries

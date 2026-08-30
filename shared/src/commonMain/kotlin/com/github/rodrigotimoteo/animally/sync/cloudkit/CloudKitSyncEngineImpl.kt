@@ -56,6 +56,7 @@ private class EventPump {
     suspend fun receive(): SyncBridgeEvent = channel.receive()
 
     /** Discards buffered events (used after an account reset). */
+    @Suppress("UNUSED_EXPRESSION")
     fun drain() {
         while (channel.tryReceive().isSuccess) Unit
     }

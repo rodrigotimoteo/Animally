@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.export.pdf
 
 import com.github.rodrigotimoteo.animally.domain.export.CsvFormatter
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 
@@ -207,5 +208,5 @@ internal fun generationStamp(): String {
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
     fun pad(value: Int) = value.toString().padStart(2, '0')
-    return "${now.year}-${pad(now.monthNumber)}-${pad(now.dayOfMonth)} ${pad(now.hour)}:${pad(now.minute)}"
+    return "${now.year}-${pad(now.month.number)}-${pad(now.day)} ${pad(now.hour)}:${pad(now.minute)}"
 }

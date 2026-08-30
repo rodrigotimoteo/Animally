@@ -76,7 +76,7 @@ class CustomReminderSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): CustomReminderPayload = r.decode(CustomReminderPayload.serializer())
+    override fun decodePayload(record: SyncRecord): CustomReminderPayload = record.decode(CustomReminderPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.customReminderQueries

@@ -77,7 +77,7 @@ class SubstanceSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): SubstancePayload = r.decode(SubstancePayload.serializer())
+    override fun decodePayload(record: SyncRecord): SubstancePayload = record.decode(SubstancePayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.substanceQueries

@@ -73,7 +73,7 @@ class FarrierVisitSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): FarrierVisitPayload = r.decode(FarrierVisitPayload.serializer())
+    override fun decodePayload(record: SyncRecord): FarrierVisitPayload = record.decode(FarrierVisitPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.farrierVisitQueries

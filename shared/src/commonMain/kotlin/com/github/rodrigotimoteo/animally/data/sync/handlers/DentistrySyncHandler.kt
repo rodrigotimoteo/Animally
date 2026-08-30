@@ -69,7 +69,7 @@ class DentistrySyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): DentistryPayload = r.decode(DentistryPayload.serializer())
+    override fun decodePayload(record: SyncRecord): DentistryPayload = record.decode(DentistryPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.dentistryQueries

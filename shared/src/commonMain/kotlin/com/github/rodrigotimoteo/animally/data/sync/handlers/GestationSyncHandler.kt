@@ -71,7 +71,7 @@ class GestationSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): GestationPayload = r.decode(GestationPayload.serializer())
+    override fun decodePayload(record: SyncRecord): GestationPayload = record.decode(GestationPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.gestationQueries

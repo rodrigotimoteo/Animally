@@ -22,7 +22,7 @@ internal class MedicalPresentationModule {
     fun provide() =
         module {
             consultationSurgeryViewModels()
-            medicationViewModels()
+            surgeryMedicationViewModels()
             substanceLamenessViewModels()
         }
 
@@ -58,7 +58,7 @@ internal class MedicalPresentationModule {
         }
     }
 
-    private fun org.koin.core.module.Module.medicationViewModels() {
+    private fun org.koin.core.module.Module.surgeryMedicationViewModels() {
         viewModel { (patientId: Long) ->
             SurgeryListViewModel(
                 patientId = patientId,

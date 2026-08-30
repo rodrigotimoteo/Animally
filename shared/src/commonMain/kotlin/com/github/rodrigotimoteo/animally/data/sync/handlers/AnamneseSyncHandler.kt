@@ -73,7 +73,7 @@ class AnamneseSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): AnamnesePayload = r.decode(AnamnesePayload.serializer())
+    override fun decodePayload(record: SyncRecord): AnamnesePayload = record.decode(AnamnesePayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         // Read the raw row: domain mappers intentionally do not carry serverId.

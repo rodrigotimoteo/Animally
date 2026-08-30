@@ -73,7 +73,7 @@ class ConsultationSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): ConsultationPayload = r.decode(ConsultationPayload.serializer())
+    override fun decodePayload(record: SyncRecord): ConsultationPayload = record.decode(ConsultationPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.consultationQueries

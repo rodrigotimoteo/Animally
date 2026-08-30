@@ -69,7 +69,7 @@ class ReproductionSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): ReproductionPayload = r.decode(ReproductionPayload.serializer())
+    override fun decodePayload(record: SyncRecord): ReproductionPayload = record.decode(ReproductionPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.reproductionQueries

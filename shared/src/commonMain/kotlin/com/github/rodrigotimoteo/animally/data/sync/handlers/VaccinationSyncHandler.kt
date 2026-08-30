@@ -73,7 +73,7 @@ class VaccinationSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): VaccinationPayload = r.decode(VaccinationPayload.serializer())
+    override fun decodePayload(record: SyncRecord): VaccinationPayload = record.decode(VaccinationPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.vaccinationQueries

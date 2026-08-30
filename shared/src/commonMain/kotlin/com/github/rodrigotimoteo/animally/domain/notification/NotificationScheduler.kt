@@ -1,3 +1,5 @@
+@file:Suppress("EXPECT_ACTUAL_CLASS_IN_BETA_WARNING")
+
 package com.github.rodrigotimoteo.animally.domain.notification
 
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.CogginsAlert

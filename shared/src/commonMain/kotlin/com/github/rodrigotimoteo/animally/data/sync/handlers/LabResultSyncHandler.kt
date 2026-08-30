@@ -69,7 +69,7 @@ class LabResultSyncHandler(
         )
     }
 
-    override fun decodePayload(r: SyncRecord): LabResultPayload = r.decode(LabResultPayload.serializer())
+    override fun decodePayload(record: SyncRecord): LabResultPayload = record.decode(LabResultPayload.serializer())
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.labResultQueries
