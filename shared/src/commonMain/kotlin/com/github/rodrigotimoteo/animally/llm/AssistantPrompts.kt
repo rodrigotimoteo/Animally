@@ -1,18 +1,16 @@
 package com.github.rodrigotimoteo.animally.llm
 
-import com.github.rodrigotimoteo.animally.llm.support.SharedStopWords
+import com.github.rodrigotimoteo.animally.llm.prompts.FtsQueryBuilder
+import com.github.rodrigotimoteo.animally.llm.prompts.LanguageDetector
 
 /**
  * Prompt text and query shaping for the on-device assistant.
  *
- * The system prompt establishes the assistant's role, scope, and citation
- * rules; [enrichQuery] strips conversational filler so the FTS query matches
- * record content instead of question words.
+ * Facade over [FtsQueryBuilder] and [LanguageDetector] so the public API
+ * used by GenerateRagResponseUseCase and tests stays stable while the
+ * implementation lives in `llm.prompts`.
  */
 object AssistantPrompts {
-    private const val PORTUGUESE_VACCINATION = "vacinação"
-    private const val PORTUGUESE_DEWORMING = "desparasitação"
-
     private val GREETINGS =
         setOf(
             "hi",
@@ -26,194 +24,11 @@ object AssistantPrompts {
             "boa noite",
         )
 
-    // Portuguese markers used to mirror the user's language per question
-    // (device locale stays the default; a PT question gets a PT turn even on
-    // an EN device). Conservative: question words + common veterinary nouns;
-    // single ambiguous tokens are excluded except "é".
-    private val PORTUGUESE_MARKERS =
-        setOf(
-            "quantos",
-            "quanto",
-            "quando",
-            "quem",
-            "onde",
-            "qual",
-            "quais",
-            "como",
-            "porque",
-            "porquê",
-            "tenho",
-            "tem",
-            "cavalo",
-            "cavalos",
-            "égua",
-            "paciente",
-            "pacientes",
-            "vacina",
-            "vacinas",
-            PORTUGUESE_VACCINATION,
-            "tratamento",
-            "tratamentos",
-            "gestação",
-            "peso",
-            "registo",
-            "registos",
-            "este",
-            "esta",
-            "neste",
-            "nesta",
-            "mês",
-            "mes",
-            "semana",
-            "ano",
-            "hoje",
-            "ontem",
-            "aconteceu",
-            "ocorreu",
-            "atividade",
-            "último",
-            "última",
-            "ultimo",
-            "ultima",
-            "ferrador",
-            "ferragem",
-            PORTUGUESE_VACCINATION,
-            PORTUGUESE_DEWORMING,
-            "é",
-        )
-
-    // Any PT diacritic strongly signals Portuguese in a Latin-script query.
-    private val portugueseDiacriticRegex = Regex("[áâãàçéêíóôõú]")
-
-    /**
-     * English question cues take precedence over accents in proper names.
-     * "What is Inês's address?" and "What did Brisa do Atlântico receive?"
-     * are English turns even though the stored names contain Portuguese
-     * diacritics. Portuguese grammar markers are checked separately first so
-     * a genuine question such as "Está prenhe?" still wins.
-     */
-    private val englishQuestionCueRegex =
-        Regex(
-            "\\b(?:what|when|which|who|where|how|why|is|are|was|were|did|do|does|can|could|would|should|" +
-                "tell|explain|please|give|show|list|compare|describe|summari[sz]e|analyse|analyze)\\b",
-            RegexOption.IGNORE_CASE,
-        )
-
-    private val portugueseQuestionMarkers =
-        setOf(
-            "que",
-            "qual",
-            "quais",
-            "quanto",
-            "quantos",
-            "quantas",
-            "quando",
-            "quem",
-            "onde",
-            "como",
-            "porque",
-            "porquê",
-            "tenho",
-            "tem",
-            "teve",
-            "está",
-            "esta",
-            "estão",
-            "estao",
-            "há",
-            "ha",
-            "foi",
-            "pode",
-            "podes",
-            "poderia",
-            "é",
-            "são",
-            "sao",
-            "recebeu",
-            "registado",
-            "registada",
-            "aconteceu",
-            "ocorreu",
-        )
-
-    /**
-     * Domain synonym groups for retrieval recall: when a query token matches
-     * a member, the group's remaining members are appended as OR-terms so a
-     * natural phrasing ("in foal", "shod") can still reach records indexed
-     * under different vocabulary. Multi-word members are allowed; they are
-     * emitted as quoted FTS phrases. At most [MAX_SYNONYM_GROUPS] groups are
-     * expanded per query (first matches in declared order) to bound query
-     * growth. Note: expansion lives in the FTS-shaped builders
-     * ([toFtsOrQuery]/[toFtsAndQuery]) — NOT in [enrichQuery], whose output
-     * is AND-joined token-by-token by SearchUseCase and would turn embedded
-     * OR syntax into an invalid MATCH expression.
-     */
-    private val SYNONYM_GROUPS: List<List<String>> =
-        listOf(
-            listOf(
-                "pregnant",
-                "in foal",
-                "gestation",
-                "foaling",
-                "bred",
-                "prenha",
-                "prenhez",
-                "gravidez",
-                "gestação",
-                "gestacao",
-            ),
-            listOf(
-                "stallion",
-                "sire",
-                "garanhão",
-                "garanhao",
-                "reprodutor",
-                "breeding",
-                "insemination",
-                "mating",
-            ),
-            listOf("shod", "shoeing", "shoes", "trim", "farrier", "ferrador", "ferragem", "casco", "cascos"),
-            listOf(
-                "vaccination",
-                "vaccine",
-                "booster",
-                "shot",
-                PORTUGUESE_VACCINATION,
-                "vacina",
-                "reforço",
-                "reforco",
-            ),
-            listOf(
-                "deworming",
-                "dewormer",
-                "wormer",
-                PORTUGUESE_DEWORMING,
-                "desparasitacao",
-                "vermifugação",
-                "vermifugacao",
-            ),
-            listOf("ultrasound", "ecografia", "ultrassom"),
-            listOf("embryo transfer", "flush", "donor", "recipient"),
-            listOf("colic", "abdominal pain"),
-            // Morphology bridge, NOT stemming: "tendon*" cannot prefix-match
-            // "tendinitis" (diverges at the 6th character), so the pair is
-            // bridged lexically. FTS5 porter stemmer is unavailable here.
-            listOf("tendon", "tendinitis"),
-        )
-
-    /** Maximum synonym groups expanded into a single query. */
-    private const val MAX_SYNONYM_GROUPS = 2
-
     /**
      * System prompt for the veterinary records assistant. The default is kept
      * compact and deliberately strict for the roughly 4096-token on-device
      * Foundation Models path. Cloud fallback turns use a warmer policy that
      * permits general questions while keeping patient facts record-grounded.
-     *
-     * @param allowGeneralQuestions true when the router selected a cloud or
-     *   tool-backed path for this turn.
-     * @param includeWebReferences true when this cloud turn includes public
-     *   veterinary-literature excerpts in its context.
      */
     fun systemPrompt(
         strings: AssistantStrings = EnAssistantStrings,
@@ -232,37 +47,14 @@ object AssistantPrompts {
     val SYSTEM_PROMPT: String = systemPrompt()
 
     /**
-     * Normalizes one whitespace-delimited token for FTS matching: trailing
-     * punctuation trimmed, INTERNAL apostrophes stripped ("Thunder's" ->
-     * "Thunders"). The repository sanitizer splits tokens on non-alphanumeric
-     * characters, so an apostrophe would emit a junk empty prefix plus a
-     * stray "s*" term that pollutes the OR query and matches unrelated
-     * records. Contraction words ("can't" -> "cant") degrade to harmless
-     * misses.
-     */
-    private fun clean(token: String): String =
-        token
-            .trim('?', ',', '.', '!', ':', ';')
-            .replace("'", "")
-            .replace("’", "")
-
-    /**
      * Strips filler words from a user question for the FTS query only (the raw
-     * question still goes to the LLM). Deterministic: tokenizes on whitespace,
-     * lowercases each token for comparison after trimming trailing punctuation.
-     *
-     * @param query The raw user question.
-     * @return The enriched query, or the original query when every token is filler.
+     * question still goes to the LLM). Delegates to [FtsQueryBuilder].
      */
-    fun enrichQuery(query: String): String {
-        val kept = contentTokens(query)
-        return if (kept.isEmpty()) query else kept.joinToString(" ")
-    }
+    fun enrichQuery(query: String): String = FtsQueryBuilder.enrichQuery(query)
 
     /**
      * Friendly reply for greetings and small talk, or null when [query] is a
-     * real question that should go through retrieval. Answering "hi" with the
-     * no-results fallback reads as broken. The reply is localized via [strings].
+     * real question that should go through retrieval.
      */
     fun greetingReply(
         query: String,
@@ -273,93 +65,27 @@ object AssistantPrompts {
     }
 
     /**
-     * True when [query] reads as Portuguese. Question grammar wins over
-     * accents in proper names, so a name such as "Inês" or "Atlântico" does
-     * not switch an otherwise English turn. Used to mirror the user's
-     * language per question so a PT question gets a PT reply even on an
-     * EN-locale device.
+     * True when [query] reads as Portuguese. Delegates to [LanguageDetector].
      */
-    fun isPortugueseQuery(query: String): Boolean {
-        val tokens =
-            query
-                .split(Regex("\\s+"))
-                .map(::clean)
-                .map(String::lowercase)
-        val hasPortugueseQuestionFrame = tokens.any { it in portugueseQuestionMarkers }
-        if (hasPortugueseQuestionFrame) return true
-        if (englishQuestionCueRegex.containsMatchIn(query)) return false
-        return portugueseDiacriticRegex.containsMatchIn(query) ||
-            tokens.any { it in PORTUGUESE_MARKERS }
-    }
+    fun isPortugueseQuery(query: String): Boolean = LanguageDetector.isPortugueseQuery(query)
 
     /**
-     * FTS5-safe OR expression over the content (non-filler) tokens of [query]:
-     * each token starred and joined with bare uppercase OR, e.g.
-     * "thunder* OR farrier*". Synonym groups matched by the query's tokens
-     * contribute their remaining members as extra OR-terms (at most
-     * [MAX_SYNONYM_GROUPS] groups). Unlike [toOrQuery], the output is already
-     * a MATCH expression - it must NOT be routed through SearchUseCase, whose
-     * tokenizer stars every whitespace token and would corrupt the operators
-     * ("OR" becomes "OR*", a syntax error). Callers pass it straight to the
-     * repository. Returns the empty string when no content token survives.
+     * FTS5-safe OR expression over the content tokens of [query].
+     * Delegates to [FtsQueryBuilder].
      */
-    fun toFtsOrQuery(query: String): String {
-        val tokens = contentTokens(query)
-        if (tokens.isEmpty()) return ""
-        val terms = tokens.map { "$it*" } + synonymExpansionTerms(tokens)
-        return terms.joinToString(" OR ")
-    }
+    fun toFtsOrQuery(query: String): String = FtsQueryBuilder.toFtsOrQuery(query)
 
     /**
-     * FTS5-safe AND expression over the content (non-filler) tokens of
-     * [query]: each token starred and joined with bare uppercase AND, e.g.
-     * "colic* AND surgery*". Mirrors SearchUseCase's tokenizer for callers
-     * that bypass the use case and hand queries straight to the repository
-     * (the RAG pipeline does this so both retrieval legs share one seam).
-     * Returns the empty string when no content token survives.
+     * FTS5-safe AND expression over the content tokens of [query].
+     * Delegates to [FtsQueryBuilder].
      */
-    fun toFtsAndQuery(query: String): String = contentTokens(query).joinToString(" AND ") { "$it*" }
+    fun toFtsAndQuery(query: String): String = FtsQueryBuilder.toFtsAndQuery(query)
 
     /**
-     * OR-terms contributed by synonym expansion: for the first
-     * [MAX_SYNONYM_GROUPS] groups containing at least one match against
-     * [tokens] (single-word members match by token equality OR by
-     * plural-folded equality — "vaccinations" reaches the singular-indexed
-     * "vaccination" vocabulary; multi-word members match by phrase
-     * containment in the lowercased raw query), every other member not
-     * already present as a token is rendered as a starred term ("shoeing*")
-     * or a starred quoted phrase ("in foal"*). The repository's sanitizer
-     * passes these through unchanged.
+     * OR-joined variant of [query] over its content tokens.
+     * Delegates to [FtsQueryBuilder].
      */
-    private fun synonymExpansionTerms(tokens: List<String>): List<String> {
-        val lowered = tokens.map(String::lowercase).toSet()
-        val phrase = tokens.joinToString(" ").lowercase()
-        val expansions = mutableListOf<String>()
-        SYNONYM_GROUPS
-            .filter { group -> group.matchesAny(lowered, phrase) }
-            .take(MAX_SYNONYM_GROUPS)
-            .forEach { group -> expansions += group.expansionTerms(lowered) }
-        return expansions
-    }
-
-    /** Content tokens of [query]: cleaned, non-blank, non-filler. */
-    private fun contentTokens(query: String): List<String> =
-        query
-            .split(Regex("\\s+"))
-            .map(::clean)
-            .filter { it.isNotBlank() && it.lowercase() !in SharedStopWords.FILLER_WORDS }
-
-    /**
-     * OR-joined variant of [query] over its content (non-filler) tokens.
-     * FTS AND semantics zero out natural questions when any content word
-     * misses ("which patients belong to Daniela"); one broad OR retry
-     * recovers the matches. Returns the original query when nothing
-     * survives cleaning so callers can fall through unchanged.
-     */
-    fun toOrQuery(query: String): String {
-        val kept = contentTokens(query)
-        return if (kept.isEmpty()) query else kept.joinToString(" OR ")
-    }
+    fun toOrQuery(query: String): String = FtsQueryBuilder.toOrQuery(query)
 }
 
 private fun cloudRoleAndGrounding(strings: AssistantStrings): String =
@@ -441,52 +167,3 @@ private fun webReferenceUnavailableGuidance(): String =
     """
     The trusted public reference lookup was unavailable for this turn. Do not claim that you checked online sources or attach a citation. You may still answer from general knowledge, but label it as general information, keep it cautious, and say that the reference check could not be completed when that limitation matters.
     """.trimIndent()
-
-/**
- * True when [this] synonym group is triggered by [loweredTokens] or [phrase].
- * Single-word members also match PLURAL query tokens via [singularize]
- * ("vaccinations" triggers the vaccination group) so plural questions reach
- * singular-indexed vocabulary through the emitted expansions.
- */
-private fun List<String>.matchesAny(
-    loweredTokens: Set<String>,
-    phrase: String,
-): Boolean =
-    any { term ->
-        if (' ' in term) {
-            phrase.contains(term)
-        } else {
-            loweredTokens.any { token -> token == term || singularize(token) == term }
-        }
-    }
-
-/** Starred terms for every member of [this] not already in [loweredTokens]. */
-private fun List<String>.expansionTerms(loweredTokens: Set<String>): List<String> =
-    mapNotNull { term ->
-        when {
-            ' ' in term -> "\"$term\"*" // starred quoted phrase keeps word order
-            term in loweredTokens -> null
-            else -> "$term*"
-        }
-    }
-
-/** Minimum token length before plural suffixes are considered ("is" stays). */
-private const val PLURAL_MIN_TOKEN_LENGTH = 4
-
-/** Length of the stripped "ies" suffix ("vaccinations" keeps its own rule). */
-private const val PLURAL_IES_SUFFIX_LENGTH = 3
-
-/**
- * Naive English plural folder for synonym-group matching ONLY (never applied
- * to the FTS terms themselves): "vaccinations" -> "vaccination",
- * "vaccines" -> "vaccine". Conservative length guards keep short tokens
- * ("is", "gas") untouched.
- */
-private fun singularize(token: String): String =
-    when {
-        token.length > PLURAL_MIN_TOKEN_LENGTH && token.endsWith("ies") ->
-            token.dropLast(PLURAL_IES_SUFFIX_LENGTH) + "y"
-        token.length > PLURAL_MIN_TOKEN_LENGTH && token.endsWith("s") ->
-            token.dropLast(1)
-        else -> token
-    }

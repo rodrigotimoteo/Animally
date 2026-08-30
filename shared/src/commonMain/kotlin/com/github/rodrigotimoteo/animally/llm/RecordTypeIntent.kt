@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.llm.prompts.FtsQueryBuilder
 import com.github.rodrigotimoteo.animally.llm.support.SharedStopWords
 import kotlinx.coroutines.flow.FlowCollector
 
@@ -198,12 +199,8 @@ object RecordTypeIntent {
             .map(::clean)
             .filter { it.isNotBlank() && it.lowercase() !in SharedStopWords.FILLER_WORDS }
 
-    /** Mirrors AssistantPrompts.clean exactly so both tokenizers agree. */
-    private fun clean(token: String): String =
-        token
-            .trim('?', ',', '.', '!', ':', ';')
-            .replace("'", "")
-            .replace("’", "")
+    /** Delegates to [FtsQueryBuilder.clean] so all tokenizers agree. */
+    private fun clean(token: String): String = FtsQueryBuilder.clean(token)
 }
 
 /**
