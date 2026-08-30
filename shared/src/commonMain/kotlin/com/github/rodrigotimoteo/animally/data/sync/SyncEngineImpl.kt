@@ -40,13 +40,16 @@ class SyncEngineImpl(
     @Provided private val handlerRegistry: SyncEntityHandlerRegistry,
     @Provided private val database: AnimallyDatabase,
 ) : SyncEngine {
-    /** Push wave order: every parent precedes its children. */
+    /**
+     * Push wave order: every parent precedes its children.
+     * Matches [SyncEntityType] enum and [SyncEntityHandlerRegistry] /
+     * CloudKit [RecordNameAssigner] order.
+     */
     private val pushOrder: List<SyncEntityType> =
         listOf(
             SyncEntityType.OWNER,
             SyncEntityType.PATIENT,
             SyncEntityType.ANAMNESE,
-            SyncEntityType.CUSTOM_REMINDER,
             SyncEntityType.CONSULTATION,
             SyncEntityType.DENTISTRY,
             SyncEntityType.DEWORMING,
@@ -63,6 +66,9 @@ class SyncEngineImpl(
             SyncEntityType.ULTRASOUND,
             SyncEntityType.VACCINATION,
             SyncEntityType.WEIGHT,
+            SyncEntityType.CUSTOM_REMINDER,
+            SyncEntityType.EMBRYO_TRANSFER,
+            SyncEntityType.ICSI,
         )
 
     private val typeOrder: Map<SyncEntityType, Int> =
@@ -240,6 +246,9 @@ class SyncEngineImpl(
             SyncEntityType.WEIGHT -> database.weightQueries.setServerId(serverId, updatedAt, clientId)
             SyncEntityType.CUSTOM_REMINDER ->
                 database.customReminderQueries.setServerId(serverId, updatedAt, clientId)
+            SyncEntityType.EMBRYO_TRANSFER ->
+                database.embryoTransferQueries.setServerId(serverId, updatedAt, clientId)
+            SyncEntityType.ICSI -> database.icsiQueries.setServerId(serverId, updatedAt, clientId)
             else -> Unit
         }
     }

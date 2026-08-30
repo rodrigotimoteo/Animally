@@ -1,5 +1,7 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.llm.support.SharedStopWords
+
 /**
  * Prompt text and query shaping for the on-device assistant.
  *
@@ -10,135 +12,6 @@ package com.github.rodrigotimoteo.animally.llm
 object AssistantPrompts {
     private const val PORTUGUESE_VACCINATION = "vacinação"
     private const val PORTUGUESE_DEWORMING = "desparasitação"
-
-    private val FILLER_WORDS =
-        setOf(
-            "what",
-            "when",
-            "which",
-            "who",
-            "did",
-            "do",
-            "does",
-            "how",
-            "is",
-            "are",
-            "was",
-            "were",
-            "the",
-            "a",
-            "an",
-            "of",
-            "for",
-            "to",
-            "in",
-            "on",
-            "any",
-            "have",
-            "has",
-            "had",
-            "she",
-            "he",
-            "her",
-            "his",
-            "it",
-            "there",
-            "me",
-            "my",
-            "i",
-            "tell",
-            "about",
-            // Portuguese question words and grammatical glue. These are
-            // retrieval filler, not evidence that should constrain FTS.
-            "o",
-            "os",
-            "as",
-            "um",
-            "uma",
-            "uns",
-            "umas",
-            "que",
-            "qual",
-            "quais",
-            "foi",
-            "são",
-            "sao",
-            "não",
-            "nao",
-            "há",
-            "ha",
-            "do",
-            "da",
-            "dos",
-            "das",
-            "em",
-            "com",
-            "meu",
-            "minha",
-            "meus",
-            "minhas",
-            "seu",
-            "sua",
-            "seus",
-            "suas",
-            "tenho",
-            "temos",
-            "para",
-            "ela",
-            "ele",
-            "dela",
-            "dele",
-            "é",
-            "último",
-            "última",
-            "últimos",
-            "últimas",
-            "ultimo",
-            "ultima",
-            "ultimos",
-            "ultimas",
-            "mais",
-            "recente",
-            "recentes",
-            "registo",
-            "registos",
-            // Inflected record cues are grammatical glue in questions such
-            // as "vacinação registada para ela". Keep the domain noun, but
-            // do not let these cues make an AND query brittle.
-            "registada",
-            "registado",
-            "registadas",
-            "registados",
-            // Relative-period words are handled by RagDateRangeIntent. They
-            // must not become broad FTS terms such as “this*” or “month*”.
-            "this",
-            "current",
-            "last",
-            "previous",
-            "month",
-            "week",
-            "year",
-            "today",
-            "yesterday",
-            "date",
-            "happened",
-            "occurred",
-            "recent",
-            "activity",
-            "este",
-            "esta",
-            "neste",
-            "nesta",
-            "mês",
-            "mes",
-            "semana",
-            "ano",
-            "hoje",
-            "ontem",
-            "aconteceu",
-            "ocorreu",
-            "atividade",
-        )
 
     private val GREETINGS =
         setOf(
@@ -474,7 +347,7 @@ object AssistantPrompts {
         query
             .split(Regex("\\s+"))
             .map(::clean)
-            .filter { it.isNotBlank() && it.lowercase() !in FILLER_WORDS }
+            .filter { it.isNotBlank() && it.lowercase() !in SharedStopWords.FILLER_WORDS }
 
     /**
      * OR-joined variant of [query] over its content (non-filler) tokens.

@@ -12,6 +12,9 @@ import com.github.rodrigotimoteo.animally.domain.vetreference.VeterinaryWebQuery
 import com.github.rodrigotimoteo.animally.domain.vetreference.VeterinaryWebSearchResult
 import com.github.rodrigotimoteo.animally.domain.vetreference.VeterinaryWebSourceProvider
 import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
+import com.github.rodrigotimoteo.animally.llm.support.DateFormatting
+import com.github.rodrigotimoteo.animally.llm.support.SharedStopWords
+import com.github.rodrigotimoteo.animally.llm.support.TokenEstimator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
@@ -19,7 +22,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
-import kotlin.math.ceil
 import kotlin.time.Clock
 
 /**
@@ -283,8 +285,6 @@ class GenerateRagResponseUseCase(
 
     /** Rough token estimate: ~4 characters per token (see RAG budget in CONTEXT docs). */
     private companion object {
-        const val CHARS_PER_TOKEN = 4.0
-
         const val MIN_QUERY_CHARS = 2
 
         // Multi-turn context: keep at most this many prior Q/A pairs and
@@ -296,165 +296,9 @@ class GenerateRagResponseUseCase(
         // prefixes (a single letter would prefix-match unrelated names).
         const val MIN_NAME_PREFIX_CHARS = 2
 
-        private val PATIENT_SCOPE_STOP_WORDS =
-            setOf(
-                "what",
-                "when",
-                "which",
-                "who",
-                "how",
-                "why",
-                "where",
-                "did",
-                "do",
-                "does",
-                "is",
-                "are",
-                "was",
-                "were",
-                "can",
-                "could",
-                "would",
-                "should",
-                "the",
-                "a",
-                "an",
-                "of",
-                "for",
-                "to",
-                "in",
-                "on",
-                "at",
-                "and",
-                "or",
-                "any",
-                "have",
-                "has",
-                "had",
-                "my",
-                "our",
-                "your",
-                "this",
-                "that",
-                "these",
-                "those",
-                "tell",
-                "me",
-                "about",
-                "please",
-                "patient",
-                "patients",
-                "horse",
-                "horses",
-                "mare",
-                "mares",
-                "cavalo",
-                "cavalos",
-                "égua",
-                "éguas",
-                "paciente",
-                "pacientes",
-                "o",
-                "os",
-                "as",
-                "um",
-                "uma",
-                "uns",
-                "umas",
-                "que",
-                "foi",
-                "são",
-                "sao",
-                "não",
-                "nao",
-                "há",
-                "ha",
-                "do",
-                "da",
-                "dos",
-                "das",
-                "em",
-                "com",
-                "para",
-                "por",
-                "como",
-                "porque",
-                "porquê",
-                "tenho",
-                "temos",
-                "está",
-                "esta",
-                "é",
-                "e",
-                "aconteceu",
-                "ocorreu",
-                "pregnant",
-                "pregnancy",
-                "gestation",
-                "vaccination",
-                "vaccinations",
-                "vaccine",
-                "booster",
-                "farrier",
-                "visit",
-                "visits",
-                "deworming",
-                "weight",
-                "ultrasound",
-                "latest",
-                "last",
-                "previous",
-                "recent",
-                "record",
-                "records",
-                "treatment",
-                "treatments",
-                "received",
-                "given",
-                "happened",
-                "occurred",
-                "activity",
-                "month",
-                "week",
-                "year",
-                "este",
-                "esta",
-                "neste",
-                "nesta",
-                "mês",
-                "mes",
-                "semana",
-                "ano",
-                "hoje",
-                "ontem",
-                "quando",
-                "qual",
-                "quais",
-                "quantos",
-                "quantas",
-                "último",
-                "última",
-                "ultimo",
-                "ultima",
-                "recente",
-                "recentes",
-                "registo",
-                "registos",
-            )
-
         const val MAX_RECENT_ACTIVITY_ROWS = 12
         const val MAX_ACTIVITY_DETAIL_CHARS = 180
         const val WEB_REFERENCE_TIMEOUT_MILLIS = 15_000L
-
-        /** Human-readable month abbreviations for chunk/TODAY dates (locale-independent). */
-        val MONTH_ABBREVIATIONS =
-            listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-
-        /** Renders a date as "14 Mar 2026" (locale-independent, model-friendly). */
-        fun formatHumanDate(date: LocalDate): String {
-            val month = MONTH_ABBREVIATIONS[date.month.ordinal]
-            return "${date.day} $month ${date.year}"
-        }
     }
 
     /**
@@ -661,9 +505,9 @@ class GenerateRagResponseUseCase(
                 chunks,
                 maxContextTokens = input.queryPolicy.maxContextTokens ?: config.maxContextTokens,
                 reservedTokens =
-                    estimateTokens(recentConversation) +
-                        estimateTokens(deterministicSummary.orEmpty()) +
-                        estimateTokens(
+                    TokenEstimator.estimateTokens(recentConversation) +
+                        TokenEstimator.estimateTokens(deterministicSummary.orEmpty()) +
+                        TokenEstimator.estimateTokens(
                             input.webSources
                                 .mapIndexed { index, source -> formatWebSource(source, index + 1) }
                                 .joinToString("\n"),
@@ -1100,7 +944,7 @@ class GenerateRagResponseUseCase(
         query
             .split(Regex("\\s+"))
             .map(::cleanPatientToken)
-            .filter { it.length >= MIN_NAME_PREFIX_CHARS && it !in PATIENT_SCOPE_STOP_WORDS }
+            .filter { it.length >= MIN_NAME_PREFIX_CHARS && it !in SharedStopWords.PATIENT_SCOPE_STOP_WORDS }
             .toSet()
 
     private fun cleanPatientToken(token: String): String =
@@ -1126,7 +970,7 @@ class GenerateRagResponseUseCase(
         val visible = results.take(MAX_RECENT_ACTIVITY_ROWS)
         val omitted = results.size - visible.size
         val portuguese = turnStrings === PtAssistantStrings
-        val period = "${formatHumanDate(dateRange.from)}–${formatHumanDate(dateRange.to)}"
+        val period = "${DateFormatting.formatHumanDate(dateRange.from)}–${DateFormatting.formatHumanDate(dateRange.to)}"
         val heading =
             if (portuguese) {
                 "Encontrei ${results.size} ${if (results.size == 1) "registo" else "registos"} " +
@@ -1137,7 +981,7 @@ class GenerateRagResponseUseCase(
             }
         val lines =
             visible.joinToString("\n") { result ->
-                val date = result.date?.let(::formatHumanDate) ?: "unknown date"
+                val date = result.date?.let(DateFormatting::formatHumanDate) ?: "unknown date"
                 val type = recordTypeNoun(result.recordType, portuguese)
                 val detail =
                     result.snippet
@@ -1171,7 +1015,7 @@ class GenerateRagResponseUseCase(
      * [RagConfig.chunkCharCap] so one long record cannot dominate the budget.
      */
     private fun formatChunk(result: SearchResult): String {
-        val date = result.date?.let(::formatHumanDate) ?: "unknown date"
+        val date = result.date?.let(DateFormatting::formatHumanDate) ?: "unknown date"
         val breed = result.breed ?: "unknown breed"
         return buildString {
             val header = "[${result.recordType} #${result.recordId}] ${result.patientName} ($breed, $date)"
@@ -1206,7 +1050,7 @@ class GenerateRagResponseUseCase(
         val selected = mutableListOf<Int>()
         var used = 0
         for ((index, chunk) in chunks.withIndex()) {
-            val est = ceil(chunk.length / CHARS_PER_TOKEN).toInt()
+            val est = TokenEstimator.estimateTokens(chunk)
             if (used + est > budget) continue
             selected.add(index)
             used += est
@@ -1232,8 +1076,6 @@ class GenerateRagResponseUseCase(
         }.trimEnd()
     }
 
-    private fun estimateTokens(text: String): Int = ceil(text.length / CHARS_PER_TOKEN).toInt()
-
     /**
      * Assembles the user-turn prompt: today's date first (so relative
      * questions like "is the Coggins still valid?" are answerable - kept in
@@ -1252,7 +1094,7 @@ class GenerateRagResponseUseCase(
         webSources: List<VeterinaryWebSource> = emptyList(),
     ): String {
         val prompt = StringBuilder()
-        prompt.appendLine("TODAY IS ${formatHumanDate(today)}.")
+        prompt.appendLine("TODAY IS ${DateFormatting.formatHumanDate(today)}.")
         if (deterministicSummary != null) {
             prompt.appendLine(deterministicSummary)
             prompt.appendLine("---")

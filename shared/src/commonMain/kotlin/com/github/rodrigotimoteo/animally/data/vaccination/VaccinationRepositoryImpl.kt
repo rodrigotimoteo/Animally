@@ -1,71 +1,93 @@
 package com.github.rodrigotimoteo.animally.data.vaccination
 
+import app.cash.sqldelight.Query
+import app.cash.sqldelight.db.QueryResult
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.data.common.BasePatientRepository
+import com.github.rodrigotimoteo.animally.data.common.DomainMapper
 import com.github.rodrigotimoteo.animally.data.vaccination.mapper.toDomain
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Instant
+import com.github.rodrigotimoteo.animally.data.migrations.Vaccination as DbVaccination
 
 /**
  * Repository implementation for managing [Vaccination] records.
+ *
+ * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
+ * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
+ * to satisfy [IVaccinationRepository] with its domain-named parameters (`vaccination` vs base `domain`).
  */
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
+// base uses `domain: Vaccination`, interface uses `vaccination: Vaccination` —
+// names must align per interface
 @Single(binds = [IVaccinationRepository::class])
 class VaccinationRepositoryImpl(
-    @Provided private val database: AnimallyDatabase,
-) : IVaccinationRepository {
+    @Provided database: AnimallyDatabase,
+) : BasePatientRepository<DbVaccination, Vaccination>(
+        database = database,
+        mapper = DomainMapper { toDomain() },
+    ),
+    IVaccinationRepository {
     private val vaccinationQueries: VaccinationQueries = database.vaccinationQueries
 
-    override fun getByPatient(patientId: Long): List<Vaccination> =
-        vaccinationQueries
-            .selectByPatient(patientId)
-            .executeAsList()
-            .map { it.toDomain() }
+    override fun selectByPatient(patientId: Long): Query<DbVaccination> = vaccinationQueries.selectByPatient(patientId)
 
-    override fun getById(id: Long): Vaccination? = vaccinationQueries.selectById(id).executeAsOneOrNull()?.toDomain()
+    override fun selectById(id: Long): Query<DbVaccination> = vaccinationQueries.selectById(id)
 
-    override fun insert(vaccination: Vaccination): Long =
-        database.transactionWithResult {
-            vaccinationQueries.insert(
-                patientId = vaccination.patientId,
-                vaccineName = vaccination.vaccineName,
-                dateAdministered = vaccination.dateAdministered,
-                nextDueDate = vaccination.nextDueDate,
-                vetName = vaccination.vetName,
-                batchNumber = vaccination.batchNumber,
-                site = vaccination.site,
-                notes = vaccination.notes,
-                isActive = vaccination.isActive,
-                createdAt = vaccination.createdAt,
-                updatedAt = vaccination.updatedAt,
-            )
-            database.commonQueries.selectLastRowId().executeAsOne()
-        }
+    override fun doInsert(domain: Vaccination): QueryResult<Long> =
+        vaccinationQueries.insert(
+            patientId = domain.patientId,
+            vaccineName = domain.vaccineName,
+            dateAdministered = domain.dateAdministered,
+            nextDueDate = domain.nextDueDate,
+            vetName = domain.vetName,
+            batchNumber = domain.batchNumber,
+            site = domain.site,
+            notes = domain.notes,
+            isActive = domain.isActive,
+            createdAt = domain.createdAt,
+            updatedAt = domain.updatedAt,
+        )
 
-    override fun update(vaccination: Vaccination): Long =
-        vaccinationQueries
-            .update(
-                id = vaccination.id,
-                patientId = vaccination.patientId,
-                vaccineName = vaccination.vaccineName,
-                dateAdministered = vaccination.dateAdministered,
-                nextDueDate = vaccination.nextDueDate,
-                vetName = vaccination.vetName,
-                batchNumber = vaccination.batchNumber,
-                site = vaccination.site,
-                notes = vaccination.notes,
-                isActive = vaccination.isActive,
-                updatedAt = vaccination.updatedAt,
-            ).value
+    override fun doUpdate(domain: Vaccination): QueryResult<Long> =
+        vaccinationQueries.update(
+            patientId = domain.patientId,
+            vaccineName = domain.vaccineName,
+            dateAdministered = domain.dateAdministered,
+            nextDueDate = domain.nextDueDate,
+            vetName = domain.vetName,
+            batchNumber = domain.batchNumber,
+            site = domain.site,
+            notes = domain.notes,
+            isActive = domain.isActive,
+            updatedAt = domain.updatedAt,
+            id = domain.id,
+        )
+
+    override fun doSetInactive(
+        id: Long,
+        updatedAt: Instant,
+    ): QueryResult<Long> = vaccinationQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    // --- Trampolines to BasePatientRepository ---
+    // Direct inheritance would inherit the implementation, but Kotlin still requires explicit overrides
+    // because the interface parameter names (vaccination) differ from the base generic name (domain).
+    // Without these, @Suppress would be insufficient and callers would see mismatched parameter names in
+    // IDE/metadata. No behavior change — each just delegates to super.
+
+    override fun getByPatient(patientId: Long): List<Vaccination> = super.getByPatient(patientId)
+
+    override fun getById(id: Long): Vaccination? = super.getById(id)
+
+    override fun insert(vaccination: Vaccination): Long = super.insert(vaccination)
+
+    override fun update(vaccination: Vaccination): Long = super.update(vaccination)
 
     override fun setInactive(
         id: Long,
         updatedAt: Instant,
-    ): Long =
-        vaccinationQueries
-            .setInactive(
-                id = id,
-                updatedAt = updatedAt,
-            ).value
+    ): Long = super.setInactive(id, updatedAt)
 }

@@ -7,7 +7,7 @@ Animally/
 ├── androidApp/              # Android application module
 │   └── src/main/kotlin/...  # MainActivity, AnimallyApplication
 ├── iosApp/                  # iOS application module
-│   └── iosApp/              # iOSApp.swift, ContentView.swift, native SwiftUI screens
+│   └── iosApp/              # iOSApp.swift, ContentView.swift, native SwiftUI screens (Patients/, Assistant/, Owners/, Search/, Settings/, Theme/, Timeline/)
 ├── shared/                  # KMP shared module (all business logic + UI)
 │   └── src/
 │       ├── commonMain/      # Cross-platform code
@@ -49,7 +49,7 @@ Root-level markdown: `AGENTS.md`, `ARCHITECTURE.md`, `STRUCTURE.md`, `README.md`
 - Source sets:
   - `commonMain`: Pure Kotlin code — domain models, SQLDelight queries, Compose UI screens, ViewModels, DI modules, navigation
   - `androidMain`: `actual` implementations (Android `SqlDriver`, coroutine dispatchers, notifications, file/backup storage, PDF, theme prefs)
-  - `iosMain`: `actual` implementations (iOS `NativeSqliteDriver`, coroutine dispatchers, notifications, file/backup storage, PDF, Swift store bridges)
+  - `iosMain`: `actual` implementations (iOS `NativeSqliteDriver`, coroutine dispatchers, notifications, file/backup storage, PDF, Swift store bridges, `LlmEngine` actual for Foundation Models, `CloudKitSyncEngineImpl`, `SyncCloudBridge`)
   - `nativeMain`: Shared Apple-target `actual` implementations (empty currently)
   - `commonTest`: Multiplatform unit tests
   - `androidHostTest`: Android host JVM tests
@@ -62,13 +62,32 @@ Root-level markdown: `AGENTS.md`, `ARCHITECTURE.md`, `STRUCTURE.md`, `README.md`
 shared/src/commonMain/kotlin/.../
 ├── Platform.kt                    # expect fun getPlatform()
 ├── bridge/                        # Kotlin↔Swift bridge (NativeFlow, NativeCancellable, ObjCHidden)
+├── llm/                           # LLM engine abstraction, RAG, tool calling, analysis
+│   ├── LlmEngine.kt              # expect class: platform LLM engine
+│   ├── LlmConfig.kt              # LLM configuration
+│   ├── LlmModule.kt              # Koin wiring for LLM, cloud routing, RAG, web sources
+│   ├── GenerateRagResponseUseCase.kt  # RAG orchestration with search grounding
+│   ├── GenerateDictationSessionUseCase.kt  # Dictation extraction via routed engine
+│   ├── AssistantPrompts.kt       # Locale-aware prompt templates
+│   ├── AssistantStrings.kt       # expect/actual assistant display strings
+│   ├── AnalysisToolRegistry.kt   # Tool-calling for patient census, weight, gestation
+│   ├── AnalysisContextBuilder.kt  # Pre-computed count/trend/overdue summaries
+│   └── cloud/
+│       ├── CloudRagLlmEngine.kt  # OpenAI-compatible chat completions over Ktor
+│       ├── FmFirstRagLlmEngine.kt # Local-first routing wrapper
+│       ├── CloudLlmProviderPreset.kt  # Provider presets (API key, base URL)
+│       └── CloudModelCatalog.kt   # Model discovery (GET {baseUrl}/models)
 ├── data/
 │   ├── adapters/                  # ColumnAdapter for Instant, LocalDate
 │   │   ├── InstantAdapter.kt
 │   │   └── LocalDateAdapter.kt
-│   ├── <entity>/                  # one per entity (owner, patient, anamnese, ...)
+│   ├── <entity>/                  # one per entity (owner, patient, anamnese, assistant, dictation, ...)
 │   │   ├── <Entity>RepositoryImpl.kt  # @Single impl
 │   │   └── mapper/                # DTO → domain model mappers
+│   ├── vetreference/              # veterinary web source providers
+│   │   ├── CompositeVeterinaryWebSourceProvider.kt
+│   │   ├── EuropePmcVeterinaryWebSourceProvider.kt
+│   │   └── MsdVeterinaryWebSourceProvider.kt
 │   ├── search/                    # FTS5 SearchRepository
 │   ├── sync/                      # KtorSyncApi, SyncEngineImpl, SyncChangeTrackerImpl, SyncMetadataRepositoryImpl
 │   ├── storage/                   # FileStorage, BackupStorage, PickedFile
@@ -94,6 +113,10 @@ shared/src/commonMain/kotlin/.../
 │   ├── common/
 │   │   └── Identifiable.kt        # interface { val id: Long }
 │   ├── <entity>/                  # one per entity: model/, usecase/, repository interface
+│   ├── assistant/                 # AssistantChatTurn, AssistantConversation, chat history use cases
+│   ├── dictation/                 # DictationCapture, SuggestedRecord, validation + insert use cases
+│   ├── vetreference/              # VeterinaryWebQuery, VeterinaryWebSourceProvider interface
+│   ├── care/                      # CareDueItem, GetUpcomingRemindersUseCase
 │   ├── search/                    # ISearchRepository, SearchUseCase, SearchResult
 │   ├── sync/                      # SyncEngine, SyncApi, SyncChangeTracker, SyncEntityHandler + per-entity *SyncHandler
 │   ├── export/                    # CsvExporter, ExportCsvUseCase, PdfGenerator (expect), ExportPatientReportUseCase
@@ -109,20 +132,35 @@ shared/src/commonMain/kotlin/.../
 │   │   ├── AnimallyNavigationViewModel.kt  # Base ViewModel with nav methods
 │   │   └── AnimallyNavHost.kt     # @Composable: NavDisplay with koin entries
 │   ├── theme/                     # AnimallyTheme, ThemeMode, Color, Type, DynamicColor
-│   ├── common/                    # shared UI: glass/, state/, addEdit/, attachment/, layout/
+│   ├── common/                    # shared UI: glass/, state/, addEdit/, attachment/, layout/, list/
+│   ├── assistant/                 # AssistantViewModel, AssistantSourceGroup, FollowUpSuggestions
+│   ├── dictation/                 # DictationViewModel
+│   ├── care/                      # UpcomingCareViewModel
+│   ├── settings/                  # SettingsViewModel, CloudLlmSettingsStore, SecureStore
 │   ├── <feature>/                 # per-feature: <Feature>ViewModel.kt + view/<Feature>Screen.kt
 │   │   (patientList, patientDetail, patientEdit, ownerList, ownerEdit, ownerDetail,
 │   │    settings, search, timeline, coggins, reminder, customreminder, anamnese,
 │   │    consultation, vaccination, weight, deworming, dentistry, lameness, surgery,
 │   │    medication, labresult, imaging, farrier, reproduction, ultrasound, gestation,
-│   │    repromedication, substance)
+│   │    repromedication, substance, embryotransfer, follicle, icsi)
+├── sync/
+│   └── cloudkit/                  # CloudKit sync engine (iOS)
+│       ├── CloudKitSyncEngineImpl.kt
+│       ├── CloudKitSyncSettings.kt
+│       ├── SyncBridgeEvent.kt
+│       └── SyncCloudBridge.kt
 
 shared/src/commonMain/sqldelight/.../
 └── data/
     ├── <entity>/<Entity>.sq       # one per entity (CRUD + FTS upsert)
+    ├── assistant/AssistantChatHistory.sq  # persisted chat turns
+    ├── dictation/DictationCapture.sq     # audio transcript + metadata
+    ├── common/Common.sq           # cross-cutting helpers (last_insert_rowid)
     ├── search/SearchFts.sq        # FTS5 virtual table for global search
     ├── sync/SyncMetadata.sq       # sync change-tracking table
-    └── migrations/                # 1.sqm initial schema through 5.sqm
+    ├── sync/SearchIndexState.sq   # search-index healing gate state
+    ├── sync/SyncState.sq           # CloudKit sync engine key/value state
+    └── migrations/                # 1.sqm initial schema through 14.sqm
 ```
 
 ## Key File Locations
@@ -141,11 +179,14 @@ shared/src/commonMain/sqldelight/.../
 **Core Logic:**
 - `shared/src/commonMain/kotlin/.../di/infra/AppModule.kt`: Koin component scan root
 - `shared/src/commonMain/kotlin/.../di/database/AnimallyDatabaseFactory.kt`: Database creation with all adapters
-- `shared/src/commonMain/kotlin/.../di/database/QueriesModule.kt`: All 20 entity query class bindings
+- `shared/src/commonMain/kotlin/.../di/database/QueriesModule.kt`: All 23 entity query class bindings
 - `shared/src/commonMain/kotlin/.../di/http/HttpClientModule.kt`: Ktor HTTP client for cloud sync
+- `shared/src/commonMain/kotlin/.../llm/LlmModule.kt`: LLM engine wiring, cloud routing, RAG, veterinary web sources
+- `shared/src/commonMain/kotlin/.../llm/GenerateRagResponseUseCase.kt`: RAG orchestration with search grounding
 - `shared/src/commonMain/kotlin/.../data/sync/SyncEngineImpl.kt`: Sync engine implementation
 - `shared/src/commonMain/kotlin/.../domain/sync/SyncEntityHandlerRegistry.kt`: Per-entity sync handler routing
 - `shared/src/commonMain/kotlin/.../presentation/navigation/AnimallyNavigator.kt`: Back-stack navigation singleton
+- `shared/src/commonMain/kotlin/.../presentation/assistant/AssistantViewModel.kt`: Assistant conversation state + RAG dispatch
 
 **Domain Models:**
 - `shared/src/commonMain/kotlin/.../domain/owner/model/Owner.kt`: Owner model
@@ -154,10 +195,15 @@ shared/src/commonMain/sqldelight/.../
 
 **Database Schema:**
 - `shared/src/commonMain/sqldelight/.../data/migrations/1.sqm`: Initial migration (all tables)
-- `shared/src/commonMain/sqldelight/.../data/migrations/5.sqm`: Latest incremental migration
-- `shared/src/commonMain/sqldelight/.../data/<entity>/<Entity>.sq`: Per-entity CRUD queries
+- `shared/src/commonMain/sqldelight/.../data/migrations/14.sqm`: Latest incremental migration
+- `shared/src/commonMain/sqldelight/.../data/<entity>/<Entity>.sq`: Per-entity CRUD queries (23 entities)
+- `shared/src/commonMain/sqldelight/.../data/assistant/AssistantChatHistory.sq`: Persisted chat turns
+- `shared/src/commonMain/sqldelight/.../data/dictation/DictationCapture.sq`: Audio transcript + metadata
 - `shared/src/commonMain/sqldelight/.../data/search/SearchFts.sq`: FTS5 global-search table
 - `shared/src/commonMain/sqldelight/.../data/sync/SyncMetadata.sq`: Sync change-tracking table
+- `shared/src/commonMain/sqldelight/.../data/sync/SearchIndexState.sq`: Search-index healing gate state
+- `shared/src/commonMain/sqldelight/.../data/sync/SyncState.sq`: CloudKit sync engine state
+- `shared/src/commonMain/sqldelight/.../data/common/Common.sq`: Cross-cutting helpers
 
 **Adapters:**
 - `shared/src/commonMain/kotlin/.../data/adapters/InstantAdapter.kt`: Instant ↔ Long column adapter
@@ -170,6 +216,12 @@ shared/src/commonMain/sqldelight/.../
 - `shared/src/iosMain/kotlin/.../di/IosDatabaseModule.kt`: iOS `NativeSqliteDriver`
 - `shared/src/androidMain/kotlin/.../di/dispatchers/Dispatchers.android.kt`: Android coroutine dispatchers
 - `shared/src/iosMain/kotlin/.../di/dispatchers/Dispatchers.ios.kt`: iOS coroutine dispatchers (`Dispatchers.Default` for IO)
+- `shared/src/iosMain/kotlin/.../llm/LlmEngine.kt`: iOS `LlmEngine` actual (Foundation Models via Swift shim)
+- `shared/src/iosMain/kotlin/.../sync/cloudkit/SyncCloudBridge.ios.kt`: CloudKit sync bridge actual
+- `shared/src/iosMain/kotlin/.../di/infra/IosAppBridge.kt`: iOS app bridge (Kotlin↔Swift store wiring)
+- `shared/src/iosMain/kotlin/.../presentation/ios/AssistantStore.kt`: iOS assistant store
+- `shared/src/iosMain/kotlin/.../presentation/ios/DictationStore.kt`: iOS dictation store
+- `shared/src/iosMain/kotlin/.../presentation/ios/UpcomingCareStore.kt`: iOS upcoming care store
 
 ## Naming Conventions
 
@@ -227,3 +279,18 @@ shared/src/commonMain/sqldelight/.../
 **Code quality configuration:**
 - `config/detekt/detekt.yml` — Centralized detekt rules
 - `config/detekt/baseline/<module>.xml` — Per-module detekt baseline (suppress existing violations)
+
+**New LLM analysis tool:**
+1. Create tool definition in `shared/src/commonMain/kotlin/.../llm/AnalysisToolSchemas.kt`
+2. Add tool implementation in `shared/src/commonMain/kotlin/.../llm/AnalysisToolRegistry.kt`
+3. Wire context data in `shared/src/commonMain/kotlin/.../llm/AnalysisContextBuilder.kt`
+4. Register in `LlmModule.kt` tool registry binding
+
+**New veterinary web source provider:**
+1. Implement `VeterinaryWebSourceProvider` interface in `shared/src/commonMain/kotlin/.../data/vetreference/`
+2. Add to `CompositeVeterinaryWebSourceProvider` provider list in `LlmModule.kt`
+
+**New iOS native screen:**
+1. Create SwiftUI view in `iosApp/iosApp/<Feature>/`
+2. Create Kotlin store in `shared/src/iosMain/kotlin/.../presentation/ios/<Feature>Store.kt`
+3. Wire in `IosAppBridge.kt` or category-specific bridge file

@@ -32,6 +32,18 @@ import com.github.rodrigotimoteo.animally.data.weight.WeightQueries
 import org.koin.core.annotation.Module
 import org.koin.dsl.module
 
+/**
+ * Provides `*Queries` singletons for SQLDelight repositories.
+ *
+ * 30 `.sq` files exist but only 27 bindings are exposed here. The 3 intentionally
+ * unbound files are support/infra tables accessed directly via [AnimallyDatabase]:
+ * - `SearchFts.sq` → `SearchFtsQueries` via `database.searchFtsQueries` in `SearchRepositoryImpl`
+ * - `SearchIndexState.sq` → `SearchIndexStateQueries` via `database.searchIndexStateQueries` (FTS healing gate)
+ * - `SyncMetadata.sq` → `SyncMetadataQueries` via `database.syncMetadataQueries` in `SyncMetadataRepositoryImpl`
+ * These are not separate injectable dependencies; their repositories own the direct database access.
+ * `SyncState.sq` *is* bound as `SyncStateQueries` (CloudKit engine state via `CloudKitSyncSettings`).
+ * `Common.sq` *is* bound as `CommonQueries` (shared helpers like `selectLastRowId`).
+ */
 @Module
 @ObjCHidden
 internal class QueriesModule {

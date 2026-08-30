@@ -44,20 +44,41 @@ actual object FileStorage {
             bytes.usePinned { pinned ->
                 NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
             }
-        data.writeToURL(fileUrl, atomically = true)
+        val wrote = data.writeToURL(fileUrl, atomically = true)
+        check(wrote) { "Failed to write attachment to $fileUrl" }
         return requireNotNull(fileUrl.path) { "Failed to resolve attachment path" }
     }
 
     actual fun delete(path: String): Boolean {
         val fileManager = NSFileManager.defaultManager
         val documentsPath = documentsDirectoryPath() ?: return false
+        // Standardize to resolve ".." / "." before allow-list check; hardens prefix guard.
+        val standardized = standardizePath(path)
         val allowedRoots =
             listOf(
-                "$documentsPath/$ATTACHMENTS_DIR/",
-                "$documentsPath/$DICTATIONS_DIR/",
+                standardizePath("$documentsPath/$ATTACHMENTS_DIR"),
+                standardizePath("$documentsPath/$DICTATIONS_DIR"),
             )
-        if (path.contains("/../") || path.endsWith("/..") || allowedRoots.none(path::startsWith)) return false
-        return fileManager.removeItemAtPath(path, error = null)
+        val insideAllowed =
+            allowedRoots.any { root ->
+                standardized == root || standardized.startsWith("$root/")
+            }
+        if (standardized.contains("..") || !insideAllowed) return false
+        return fileManager.removeItemAtPath(standardized, error = null)
+    }
+
+    private fun standardizePath(path: String): String {
+        val isAbsolute = path.startsWith("/")
+        val stack = mutableListOf<String>()
+        for (segment in path.split('/')) {
+            when {
+                segment.isEmpty() || segment == "." -> Unit
+                segment == ".." -> if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) else stack.add(segment)
+                else -> stack.add(segment)
+            }
+        }
+        val joined = stack.joinToString("/")
+        return if (isAbsolute) "/$joined" else joined
     }
 
     private fun documentsDirectoryPath(): String? =

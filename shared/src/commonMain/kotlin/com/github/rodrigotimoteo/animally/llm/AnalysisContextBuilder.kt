@@ -16,6 +16,9 @@ import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationReposit
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
+import com.github.rodrigotimoteo.animally.llm.support.DateFormatting
+import com.github.rodrigotimoteo.animally.llm.support.SharedStopWords
+import com.github.rodrigotimoteo.animally.llm.support.TokenEstimator
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -272,8 +275,10 @@ class AnalysisContextBuilder(
                         .trim('?', ',', '.', '!', ':', ';', '\'')
                         .removeSuffix("'s")
                         .removeSuffix("’s")
-                }.filter { it.length >= MIN_NAME_PREFIX_CHARS && it.lowercase() !in PATIENT_SCOPE_STOP_WORDS }
-                .map(String::lowercase)
+                }.filter {
+                    it.length >= MIN_NAME_PREFIX_CHARS &&
+                        it.lowercase() !in SharedStopWords.PATIENT_SCOPE_STOP_WORDS
+                }.map(String::lowercase)
                 .toSet()
         if (tokens.isEmpty()) return emptyList()
         return patients
@@ -359,8 +364,8 @@ class AnalysisContextBuilder(
                 "WEIGHT SUMMARY: ${rows.size} measurements across ${rowsByPatient.size} patients; " +
                     "average ${values.average()} kg, median ${median(values)} kg, " +
                     "minimum ${minimum.weight.weightKg} kg (${minimum.patient.name}, " +
-                    "${formatHumanDate(minimum.weight.date)}), maximum ${maximum.weight.weightKg} kg " +
-                    "(${maximum.patient.name}, ${formatHumanDate(maximum.weight.date)}).",
+                    "${DateFormatting.formatHumanDate(minimum.weight.date)}), maximum ${maximum.weight.weightKg} kg " +
+                    "(${maximum.patient.name}, ${DateFormatting.formatHumanDate(maximum.weight.date)}).",
             )
             appendLine("WEIGHT DETAILS:")
             details.forEach(::appendLine)
@@ -378,7 +383,7 @@ class AnalysisContextBuilder(
         val latest = ordered.last()
         if (ordered.size == 1) {
             return "- Weight ${patient.name}: single measurement ${latest.weightKg} kg " +
-                "on ${formatHumanDate(latest.date)}."
+                "on ${DateFormatting.formatHumanDate(latest.date)}."
         }
         val previous = ordered[ordered.lastIndex - 1]
         val min = ordered.minBy(Weight::weightKg)
@@ -479,7 +484,7 @@ class AnalysisContextBuilder(
         count: Int,
         label: String,
         lastDate: LocalDate?,
-    ): String = "$count $label" + (lastDate?.let { " (last ${formatHumanDate(it)})" } ?: "")
+    ): String = "$count $label" + (lastDate?.let { " (last ${DateFormatting.formatHumanDate(it)})" } ?: "")
 
     /** Active gestations with freshly computed day counts and foaling dates. */
     private fun gestationBlock(
@@ -524,7 +529,7 @@ class AnalysisContextBuilder(
         today: LocalDate,
     ): String {
         val progress = calculateGestationUseCase(gestation.breedingDate, today)
-        return "- Gestation ${patient.name}: bred ${formatHumanDate(gestation.breedingDate)}, " +
+        return "- Gestation ${patient.name}: bred ${DateFormatting.formatHumanDate(gestation.breedingDate)}, " +
             "day ${progress.gestationDays}, " +
             "status ${gestation.status}, expected foaling ${progress.expectedDueDate}."
     }
@@ -586,11 +591,11 @@ class AnalysisContextBuilder(
      */
     private fun assemble(blocks: List<String>): String? {
         if (blocks.isEmpty()) return null
-        var used = estimateTokens(SUMMARY_HEADER)
+        var used = TokenEstimator.estimateTokensWithOverhead(SUMMARY_HEADER)
         return buildString {
             appendLine(SUMMARY_HEADER)
             for ((index, block) in blocks.withIndex()) {
-                val cost = estimateTokens(block)
+                val cost = TokenEstimator.estimateTokensWithOverhead(block)
                 if (index > 0 && used + cost > MAX_SUMMARY_TOKENS) break
                 appendLine(block)
                 used += cost
@@ -598,13 +603,9 @@ class AnalysisContextBuilder(
         }.trimEnd()
     }
 
-    private fun estimateTokens(text: String): Int = (text.length / CHARS_PER_TOKEN).toInt() + 1
-
     internal companion object {
         /** Header prepended to every summary so the model recognizes the block. */
         const val SUMMARY_HEADER = "DETERMINISTIC SUMMARY (computed from database - authoritative):"
-
-        private const val CHARS_PER_TOKEN = 4.0
 
         /** Whole-summary cap (~400 tokens) inside the shared prompt budget. */
         private const val MAX_SUMMARY_TOKENS = 400
@@ -617,149 +618,7 @@ class AnalysisContextBuilder(
         private const val MAX_OVERDUE_ITEMS = 12
 
         private const val STABLE_WEIGHT_DELTA_KG = 0.5
-
-        private val PATIENT_SCOPE_STOP_WORDS =
-            setOf(
-                "what",
-                "when",
-                "which",
-                "who",
-                "how",
-                "why",
-                "where",
-                "did",
-                "do",
-                "does",
-                "is",
-                "are",
-                "was",
-                "were",
-                "the",
-                "a",
-                "an",
-                "of",
-                "for",
-                "to",
-                "in",
-                "on",
-                "any",
-                "have",
-                "has",
-                "had",
-                "my",
-                "our",
-                "your",
-                "this",
-                "that",
-                "patient",
-                "patients",
-                "horse",
-                "horses",
-                "mare",
-                "mares",
-                "cavalo",
-                "cavalos",
-                "égua",
-                "éguas",
-                "paciente",
-                "pacientes",
-                "o",
-                "os",
-                "as",
-                "um",
-                "uma",
-                "uns",
-                "umas",
-                "que",
-                "foi",
-                "são",
-                "sao",
-                "não",
-                "nao",
-                "há",
-                "ha",
-                "do",
-                "da",
-                "dos",
-                "das",
-                "em",
-                "com",
-                "para",
-                "por",
-                "como",
-                "porque",
-                "porquê",
-                "tenho",
-                "temos",
-                "está",
-                "esta",
-                "é",
-                "e",
-                "aconteceu",
-                "ocorreu",
-                "pregnant",
-                "pregnancy",
-                "gestation",
-                "vaccination",
-                "vaccinations",
-                "vaccine",
-                "farrier",
-                "visit",
-                "visits",
-                "deworming",
-                "weight",
-                "ultrasound",
-                "latest",
-                "last",
-                "previous",
-                "recent",
-                "record",
-                "records",
-                "treatment",
-                "treatments",
-                "month",
-                "week",
-                "year",
-                "este",
-                "esta",
-                "neste",
-                "nesta",
-                "mês",
-                "mes",
-                "semana",
-                "ano",
-                "hoje",
-                "ontem",
-                "quando",
-                "qual",
-                "quais",
-                "quantos",
-                "quantas",
-                "último",
-                "última",
-                "ultimo",
-                "ultima",
-                "recente",
-                "recentes",
-                "registo",
-                "registos",
-            )
     }
-}
-
-/** Human-readable month abbreviations for summary dates (locale-independent). */
-private val MONTH_ABBREVIATIONS =
-    listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-
-/**
- * Renders a date as "24 Aug 2026" (locale-independent, model-friendly).
- * Raw ISO strings in the summary leak into spoken answers verbatim - the
- * model parrots exactly what the authoritative block shows. File-level so
- * the class stays under its detekt function-count threshold.
- */
-private fun formatHumanDate(date: LocalDate): String {
-    val month = MONTH_ABBREVIATIONS[date.month.ordinal]
-    return "${date.day} $month ${date.year}"
 }
 
 private fun pluralize(

@@ -2,7 +2,11 @@ package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.llm.support.SharedStopWords
 import kotlinx.coroutines.flow.FlowCollector
+
+// SharedStopWords union FILLER_WORDS: AssistantPrompts + former local set
+// (registada* and period words) — intentional broader filtering, see SharedStopWords KDoc
 
 /**
  * Detects the record TYPE a question is about, so the RAG pipeline can refuse
@@ -180,12 +184,19 @@ object RecordTypeIntent {
     /** Tokens below this length never count for the shared-subject check. */
     private const val MIN_PREFIX_CHARS = 3
 
-    /** Content tokens of [text]: cleaned, non-blank, non-filler (mirrors AssistantPrompts). */
+    /**
+     * Content tokens of [text]: cleaned, non-blank, non-filler (mirrors AssistantPrompts).
+     *
+     * Uses SharedStopWords.FILLER_WORDS union (AssistantPrompts + former
+     * RecordTypeIntent set) — broader than the local set it replaced
+     * (now includes registada* and period words) — intentional so RAG gate
+     * matches AssistantPrompts tokenization.
+     */
     private fun contentTokens(text: String): List<String> =
         text
             .split(Regex("\\s+"))
             .map(::clean)
-            .filter { it.isNotBlank() && it.lowercase() !in FILLER_WORDS }
+            .filter { it.isNotBlank() && it.lowercase() !in SharedStopWords.FILLER_WORDS }
 
     /** Mirrors AssistantPrompts.clean exactly so both tokenizers agree. */
     private fun clean(token: String): String =
@@ -193,105 +204,6 @@ object RecordTypeIntent {
             .trim('?', ',', '.', '!', ':', ';')
             .replace("'", "")
             .replace("’", "")
-
-    // Mirrors AssistantPrompts' filler list (kept private there) so the
-    // shared-subject check tokenizes identically to query shaping.
-    private val FILLER_WORDS =
-        setOf(
-            "what",
-            "when",
-            "which",
-            "who",
-            "did",
-            "do",
-            "does",
-            "how",
-            "is",
-            "are",
-            "was",
-            "were",
-            "the",
-            "a",
-            "an",
-            "of",
-            "for",
-            "to",
-            "in",
-            "on",
-            "any",
-            "have",
-            "has",
-            "had",
-            "she",
-            "he",
-            "her",
-            "his",
-            "it",
-            "there",
-            "me",
-            "my",
-            "i",
-            "tell",
-            "about",
-            "o",
-            "os",
-            "as",
-            "um",
-            "uma",
-            "uns",
-            "umas",
-            "que",
-            "qual",
-            "quais",
-            "foi",
-            "são",
-            "sao",
-            "não",
-            "nao",
-            "há",
-            "ha",
-            "do",
-            "da",
-            "dos",
-            "das",
-            "em",
-            "com",
-            "meu",
-            "minha",
-            "meus",
-            "minhas",
-            "seu",
-            "sua",
-            "seus",
-            "suas",
-            "tenho",
-            "temos",
-            "este",
-            "esta",
-            "neste",
-            "nesta",
-            "mês",
-            "mes",
-            "semana",
-            "ano",
-            "hoje",
-            "ontem",
-            "aconteceu",
-            "ocorreu",
-            "último",
-            "última",
-            "últimos",
-            "últimas",
-            "ultimo",
-            "ultima",
-            "ultimos",
-            "ultimas",
-            "mais",
-            "recente",
-            "recentes",
-            "registo",
-            "registos",
-        )
 }
 
 /**
