@@ -968,7 +968,7 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
-    fun `record citation with model prose never leaks the internal marker`() =
+    fun `record citation with model prose never leaks internal citation prose`() =
         runTest {
             val farrier =
                 result().copy(
@@ -985,7 +985,7 @@ class GenerateRagResponseUseCaseTest {
             val final = events.filterIsInstance<RagStreamEvent.Chunk>().last().text
             assertFalse(final.contains("[FARRIER VISIT #91"))
             assertFalse(final.contains("#91"))
-            assertTrue(final.contains("internal reference"))
+            assertFalse(final.contains("internal reference"))
             val sources = events.filterIsInstance<RagStreamEvent.Sources>().single()
             assertEquals(
                 91L,

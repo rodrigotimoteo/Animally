@@ -271,16 +271,11 @@ internal class RagAnswerStreamCoordinator(
         val withoutCitationBlocks =
             text.replace(citationBlockRegex) { block ->
                 val references = citationReferenceRegex.findAll(block.value).toList()
-                val remainder =
-                    citationReferenceRegex
-                        .replace(block.value, "")
-                        .replace(Regex("(?i)\\b(?:and|or)\\b"), "")
-                        .replace(Regex("[\\[\\],;|&/]"), "")
-                        .trim()
-                // A model may add prose around an internal citation, e.g.
-                // `[FARRIER VISIT #91 — internal]`. Keep the useful prose,
-                // but never leak the record marker or its brackets.
-                if (references.isNotEmpty()) remainder else block.value
+                // A citation is transport syntax, not user-facing prose. Drop
+                // the complete bracket even when a model decorates it with
+                // text such as `— internal reference`; the real record is
+                // represented by the tappable source card emitted below.
+                if (references.isNotEmpty()) "" else block.value
             }
 
         return withoutCitationBlocks

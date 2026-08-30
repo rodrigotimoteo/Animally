@@ -178,9 +178,19 @@ class CloudRagLlmEngine(
     ) {
         val state = StreamState()
         val channel = response.bodyAsChannel()
-        while (!channel.isClosedForRead) {
-            val line = channel.readUTF8Line() ?: break
-            processSseLine(line, state, emit)
+        var shouldRead = true
+        while (shouldRead && !channel.isClosedForRead) {
+            val line = channel.readUTF8Line()
+            if (line == null) {
+                shouldRead = false
+            } else {
+                processSseLine(line, state, emit)
+                // Providers may send a valid terminal frame and keep the HTTP
+                // connection alive for a usage trailer or heartbeat. Nothing
+                // after completion can improve the answer, so stop consuming
+                // immediately.
+                shouldRead = !state.sawDone
+            }
         }
         finishStream(state, emit)
     }

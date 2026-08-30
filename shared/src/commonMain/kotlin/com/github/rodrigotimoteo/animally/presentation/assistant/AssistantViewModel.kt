@@ -463,22 +463,28 @@ class AssistantViewModel(
         // observe from SwiftUI, while the iOS main actor only receives the
         // throttled state snapshots below.
         viewModelScope.launch(ioDispatcher) {
-            streamAssistantReply(
-                AssistantReplyContext(
-                    generateRagResponse = generateRagResponse,
-                    state = _uiState,
-                    strings = strings,
-                    currentSource = { currentTurnSource },
-                ),
-                question = trimmed,
-                history = history,
-            )
-            persistLatestTurn(trimmed, conversationId)
-            _uiState.update { state ->
-                state.copy(
-                    messages = state.messages.trimToHistoryLimit(),
-                    isGenerating = false,
+            try {
+                streamAssistantReply(
+                    AssistantReplyContext(
+                        generateRagResponse = generateRagResponse,
+                        state = _uiState,
+                        strings = strings,
+                        currentSource = { currentTurnSource },
+                    ),
+                    question = trimmed,
+                    history = history,
                 )
+                persistLatestTurn(trimmed, conversationId)
+            } finally {
+                // The provider and persistence layers are both external to the
+                // SwiftUI view. If either is cancelled or throws unexpectedly,
+                // never leave the input permanently disabled for this VM.
+                _uiState.update { state ->
+                    state.copy(
+                        messages = state.messages.trimToHistoryLimit(),
+                        isGenerating = false,
+                    )
+                }
             }
         }
     }
