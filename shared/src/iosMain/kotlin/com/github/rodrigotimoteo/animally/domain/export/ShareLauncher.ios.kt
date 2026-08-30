@@ -1,8 +1,9 @@
-@file:OptIn(ExperimentalObjCName::class, ExperimentalForeignApi::class)
+@file:OptIn(ExperimentalObjCName::class, ExperimentalForeignApi::class, BetaInteropApi::class)
 @file:Suppress("MatchingDeclarationName", "UNUSED_PARAMETER")
 
 package com.github.rodrigotimoteo.animally.domain.export
 
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned

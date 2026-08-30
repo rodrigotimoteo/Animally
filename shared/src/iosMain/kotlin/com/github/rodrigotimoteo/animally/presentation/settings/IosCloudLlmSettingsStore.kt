@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.settings
 
+import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmConfig
 import platform.Foundation.NSUserDefaults
 
 /**
@@ -36,6 +37,12 @@ class IosCloudLlmSettingsStore(
 
     override fun setBaseUrl(url: String) {
         defaults.setObject(url, forKey = PREF_CLOUD_LLM_BASE_URL)
+    }
+
+    override fun presetId(): String = defaults.stringForKey(PREF_CLOUD_LLM_PRESET_ID) ?: ""
+
+    override fun setPresetId(id: String) {
+        defaults.setObject(id, forKey = PREF_CLOUD_LLM_PRESET_ID)
     }
 }
 

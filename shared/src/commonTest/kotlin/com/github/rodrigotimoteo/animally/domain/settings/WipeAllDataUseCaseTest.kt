@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.data.settings.DatabaseWipePortImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.dictation.DictationFilePort
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.settings.DatabaseWipePort
 import com.github.rodrigotimoteo.animally.domain.settings.usecase.WipeAllDataUseCase
 import kotlinx.datetime.LocalDate
@@ -101,29 +102,15 @@ class WipeAllDataUseCaseTest {
         // clearedTables" strategy; the real-DB test above is the primary gate.
         val fakePort = TrackingFakeDatabaseWipePort()
         val trackingDictationPort = TrackingDictationFilePort()
-        // Reuse the real SearchRepositoryImpl so FTS halves are exercised;
-        // fake port returns one audio path to verify file deletion delegation.
+        val trackingSearchPort = TrackingSearchRepository()
+        // Fake port returns one audio path to verify file deletion delegation.
         fakePort.audioPathsToReturn = setOf("/tmp/audio.caf")
-        database.ownerQueries.insertWithId(
-            id = 99L,
-            name = "Seed",
-            email = null,
-            phone = null,
-            address = null,
-            isActive = true,
-            createdAt = Instant.fromEpochMilliseconds(1L),
-            updatedAt = Instant.fromEpochMilliseconds(1L),
-        )
-        // Seed FTS so rebuild can be asserted empty afterwards.
-        seedSearchIndex()
-        val repo = SearchRepositoryImpl(database, database.ownerQueries)
 
-        WipeAllDataUseCase(fakePort, trackingDictationPort, repo).invoke()
+        WipeAllDataUseCase(fakePort, trackingDictationPort, trackingSearchPort).invoke()
 
         assertTrue(fakePort.clearAllCalled, "DatabaseWipePort.clearAll should be invoked")
         assertEquals(setOf("/tmp/audio.caf"), trackingDictationPort.deletedPaths)
-        // Rebuild leaves FTS consistent with cleared metadata.
-        assertEquals(0L, database.searchFtsQueries.countIndexRows().executeAsOne())
+        assertEquals(1, trackingSearchPort.rebuildCalls)
         // Canonical 25 data tables plus both FTS halves is the wipe surface;
         // fake tracks that delegation would wipe the full set.
         assertEquals(TrackingFakeDatabaseWipePort.EXPECTED_WIPED_TABLES, fakePort.clearedTables)
@@ -543,4 +530,47 @@ private class TrackingDictationFilePort : DictationFilePort {
         deletedPaths.add(path)
         return true
     }
+}
+
+private class TrackingSearchRepository : ISearchRepository {
+    var rebuildCalls: Int = 0
+
+    override fun search(
+        query: String,
+        from: LocalDate?,
+        to: LocalDate?,
+        recordTypes: List<String>?,
+    ): List<SearchResult> = emptyList()
+
+    override fun searchSnippets(
+        query: String,
+        from: LocalDate?,
+        to: LocalDate?,
+        recordTypes: List<String>?,
+    ): List<SearchResult> = emptyList()
+
+    override fun indexRecord(
+        recordType: String,
+        patientId: Long,
+        recordId: Long,
+        date: LocalDate?,
+        searchableText: String,
+    ) = Unit
+
+    override fun deleteRecord(
+        recordType: String,
+        recordId: Long,
+    ) = Unit
+
+    override fun rebuild() {
+        rebuildCalls += 1
+    }
+
+    override fun reindexOwners() = Unit
+
+    override fun reindexPatients() = Unit
+
+    override fun reindexRecords() = Unit
+
+    override fun reindexIfNeeded(indexVersion: String) = Unit
 }

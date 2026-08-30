@@ -105,18 +105,16 @@ subprojects {
     }
 }
 
-tasks.register("installGitHooks") {
-    doLast {
-        val hookDir = layout.projectDirectory.dir(".git/hooks")
-        hookDir.asFile.mkdirs()
-        layout.projectDirectory.file("gradle/pre-commit.sh").asFile.copyTo(
-            hookDir.file("pre-commit").asFile,
-            overwrite = true
-        )
-        hookDir.file("pre-commit").asFile.setExecutable(true)
-        logger.lifecycle("✓ Pre-commit hook installed at .git/hooks/pre-commit")
+tasks.register<Copy>("installGitHooks") {
+    description = "Install the repository's pre-commit hook."
+    group = "build setup"
+
+    from(layout.projectDirectory.file("gradle/pre-commit.sh"))
+    into(layout.projectDirectory.dir(".git/hooks"))
+    rename { "pre-commit" }
+    filePermissions {
+        unix("755")
     }
-    notCompatibleWithConfigurationCache("InstallGitHooks uses file ops inside doLast")
 }
 
 tasks.register("detektBaselineAll") {

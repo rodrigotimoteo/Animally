@@ -33,6 +33,7 @@ import kotlin.test.assertTrue
  * easy to diagnose.
  */
 class CloudRagLlmEngineTest {
+    private val wireJson = Json { explicitNulls = false }
     private val config =
         CloudLlmConfig(
             baseUrl = "https://example.test/v1/chat/completions",
@@ -61,10 +62,7 @@ class CloudRagLlmEngineTest {
     @Test
     fun `cloud request omits local-only max_tokens`() {
         val request = buildChatCompletionRequest(config, "q", "i")
-        val wire =
-            Json {
-                explicitNulls = false
-            }.encodeToString(ChatCompletionRequest.serializer(), request)
+        val wire = wireJson.encodeToString(ChatCompletionRequest.serializer(), request)
         assertTrue(!wire.contains("max_tokens"))
         assertNull(request.maxTokens)
     }
@@ -97,10 +95,7 @@ class CloudRagLlmEngineTest {
                     ),
                 tools = listOf(tool),
             )
-        val wire =
-            Json {
-                explicitNulls = false
-            }.encodeToString(ChatCompletionRequest.serializer(), request)
+        val wire = wireJson.encodeToString(ChatCompletionRequest.serializer(), request)
 
         assertEquals("auto", request.toolChoice)
         assertEquals(1, request.tools?.size)

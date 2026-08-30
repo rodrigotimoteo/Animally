@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.data
 
 import com.github.rodrigotimoteo.animally.data.backup.BackupStorage
 import com.github.rodrigotimoteo.animally.data.storage.FileStorage
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -24,7 +25,7 @@ import kotlin.test.assertTrue
  * On-device (simulator) tests for the iOS file-backed storage actuals:
  * backup JSON writing, raw database copying, and attachment byte round-trips.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 class StorageIosTest {
     @Test
     fun writeTextFileWritesReadableContent() {

@@ -8,15 +8,18 @@ import kotlinx.cinterop.convert
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.refTo
+import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDataCreate
 import platform.CoreFoundation.CFDataGetBytePtr
 import platform.CoreFoundation.CFDataGetLength
+import platform.CoreFoundation.CFDataGetTypeID
 import platform.CoreFoundation.CFDataRef
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFDictionarySetValue
+import platform.CoreFoundation.CFGetTypeID
 import platform.CoreFoundation.CFMutableDictionaryRef
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFStringCreateWithCString
@@ -66,14 +69,20 @@ class IosKeychainSecureStore : SecureStore {
             if (SecItemCopyMatching(query, result.ptr) != errSecSuccess) {
                 return@memScoped sessionFallbackValue(key)
             }
-            val data = result.value as? CFDataRef ?: return@memScoped null
-            val length = CFDataGetLength(data).toInt()
-            if (length <= 0) {
-                sessionFallbackValue(key)
-            } else {
-                val out = ByteArray(length)
-                memcpy(out.refTo(0), CFDataGetBytePtr(data), length.convert())
-                out.decodeToString()
+            val value = result.value ?: return@memScoped null
+            try {
+                if (CFGetTypeID(value) != CFDataGetTypeID()) return@memScoped null
+                val data: CFDataRef = value.reinterpret()
+                val length = CFDataGetLength(data).toInt()
+                if (length <= 0) {
+                    sessionFallbackValue(key)
+                } else {
+                    val out = ByteArray(length)
+                    memcpy(out.refTo(0), CFDataGetBytePtr(data), length.convert())
+                    out.decodeToString()
+                }
+            } finally {
+                CFRelease(value)
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.data.backup
 
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSDocumentDirectory
@@ -17,7 +18,7 @@ import platform.Foundation.writeToFile
  * they are user-visible in the Files app) and copies the live SQLDelight
  * database out of `Application Support/databases`.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 actual object BackupStorage {
     actual fun writeTextFile(
         fileName: String,

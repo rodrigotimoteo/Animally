@@ -50,7 +50,7 @@ import kotlin.time.Instant
  *   (real record headers) to source cards, stripping fabricated brackets.
  */
 @Suppress("TooManyFunctions", "LargeClass")
-class RagGoldenSetTest {
+class RagOrchestrationGoldenSetTest {
     // ------------------------------------------------------------------
     // Fakes
     // ------------------------------------------------------------------

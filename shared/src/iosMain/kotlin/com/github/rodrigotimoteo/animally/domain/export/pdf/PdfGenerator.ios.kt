@@ -1,7 +1,8 @@
-@file:OptIn(ExperimentalForeignApi::class)
+@file:OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 
 package com.github.rodrigotimoteo.animally.domain.export.pdf
 
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.useContents
@@ -13,6 +14,7 @@ import platform.CoreGraphics.CGPointMake
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSData
 import platform.Foundation.NSString
+import platform.Foundation.create
 import platform.UIKit.NSFontAttributeName
 import platform.UIKit.NSForegroundColorAttributeName
 import platform.UIKit.UIColor
@@ -80,7 +82,7 @@ private fun drawText(op: PdfOp.Text) {
             NSFontAttributeName to font,
             NSForegroundColorAttributeName to uiColor(op.color),
         )
-    val text = op.text as NSString
+    val text = NSString.create(string = op.text)
     val textWidth = text.sizeWithAttributes(attributes).useContents { width }
     val x =
         when {

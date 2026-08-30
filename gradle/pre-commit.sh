@@ -1,18 +1,19 @@
 #!/bin/sh
 #
-# Pre-commit hook — runs Detekt + ktlintCheck on staged Kotlin files.
+# Pre-commit hook — runs static analysis and the primary iOS Kotlin compilation.
 # Installed via: ./gradlew installGitHooks
 #
 
-echo "🔍 Running static analysis (detekt + ktlintCheck)..."
+echo "🔍 Running static analysis and iOS compilation..."
 
-# Run detekt and ktlintCheck
-./gradlew detekt ktlintCheck --daemon --quiet
+# Keep the iOS-first target compiling as well as formatted. This task is
+# incremental, so unchanged platform code remains cheap on repeat commits.
+./gradlew detekt ktlintCheck :shared:compileKotlinIosSimulatorArm64 --daemon --quiet
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
     echo ""
-    echo "❌ Lint/format violations found. Commit rejected."
+    echo "❌ Static analysis or iOS compilation failed. Commit rejected."
     echo "   Fix reported issues and stage the changes, or use --no-verify to bypass."
     echo ""
     echo "   Quick fix (auto-format):"

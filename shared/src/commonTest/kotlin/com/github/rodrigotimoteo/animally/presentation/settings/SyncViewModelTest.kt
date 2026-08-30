@@ -101,8 +101,8 @@ class SyncViewModelTest {
             val state = vm.uiState.value
             assertFalse(state.isSyncing)
             assertEquals(serverTimestamp, state.lastSyncAt)
-            assertNotNull(state.lastResult)
-            assertTrue(state.lastResult!!.success)
+            val result = assertNotNull(state.lastResult)
+            assertTrue(result.success)
             assertNull(state.errorMessage)
         }
 
@@ -122,8 +122,8 @@ class SyncViewModelTest {
             val state = vm.uiState.value
             assertFalse(state.isSyncing)
             assertEquals("Network timeout", state.errorMessage)
-            assertNotNull(state.lastResult)
-            assertFalse(state.lastResult!!.success)
+            val result = assertNotNull(state.lastResult)
+            assertFalse(result.success)
         }
 
     @Test
