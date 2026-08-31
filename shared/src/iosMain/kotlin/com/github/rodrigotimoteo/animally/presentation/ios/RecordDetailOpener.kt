@@ -10,6 +10,8 @@ import com.github.rodrigotimoteo.animally.di.infra.IosEditStoresFiles
 import com.github.rodrigotimoteo.animally.di.infra.IosEditStoresMedical
 import com.github.rodrigotimoteo.animally.di.infra.IosEditStoresRepro
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.gestation.model.isActiveGestation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -174,6 +176,13 @@ private class DetailBinding(
  */
 @ObjCName("RecordDetailOpener")
 object RecordDetailOpener {
+    /**
+     * Single-source check for an ongoing pregnancy: active flag plus not in
+     * resolved statuses (Completed/Failed/Foaled). Delegates to
+     * [isActiveGestation] so Kotlin callers share one definition.
+     */
+    fun isGestationActive(gestation: Gestation): Boolean = gestation.isActiveGestation()
+
     /**
      * Opens the detail handle for the record identified by
      * [recordTypeWireName], [recordId], and [patientId]. Never returns null:

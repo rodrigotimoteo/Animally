@@ -18,7 +18,7 @@
 ## Reproduction
 
 - [ ] Add event, embryo collection, ICSI, and ultrasound metrics.
-- [ ] Add current active-gestation and due-soon snapshots.
+- [x] Add current active-gestation and due-soon snapshots.
 - [ ] Verify no unsupported success rate is shown.
 
 ## Thesis Readiness

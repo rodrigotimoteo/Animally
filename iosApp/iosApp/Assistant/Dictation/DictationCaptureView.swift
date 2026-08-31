@@ -493,7 +493,8 @@ private struct WaveformIndicator: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            ForEach(Array(barHeights.enumerated()), id: \.offset) { index, height in
+            ForEach(barHeights.indices, id: \.self) { index in
+                let height = barHeights[index]
                 Capsule()
                     .fill(accentColor)
                     .frame(width: 6, height: 40 * height)

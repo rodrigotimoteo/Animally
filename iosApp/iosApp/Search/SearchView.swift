@@ -95,7 +95,7 @@ struct SearchView: View {
 
     private var resultsList: some View {
         List {
-            ForEach(Array(viewModel.state.results.enumerated()), id: \.offset) { _, result in
+            ForEach(viewModel.state.results, id: \.self) { result in
                 Group {
                     if result.recordType == "OWNER" {
                         // Owner hits navigate to the owner; patientId mirrors
@@ -251,6 +251,6 @@ struct SearchResultRow: View {
     }
 
     private func formatDate(_ date: Kotlinx_datetimeLocalDate) -> String {
-        return "\(date.year)-\(String(format: "%02d", date.monthNumber))-\(String(format: "%02d", date.dayOfMonth))"
+        return date.displayString
     }
 }

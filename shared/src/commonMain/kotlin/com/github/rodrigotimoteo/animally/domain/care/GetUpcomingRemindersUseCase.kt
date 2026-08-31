@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.gestation.model.isResolvedGestationStatus
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
@@ -69,10 +70,9 @@ class GetUpcomingRemindersUseCase(
                         add(CareDueItem(TYPE_FARRIER, title, due, due < today))
                     }
                 }
-                // Foaled ("Completed") or failed pregnancies have no upcoming
-                // foaling date; everything else (Active, legacy strings) stays.
+                // Foaled/Completed/Failed pregnancies have no upcoming foaling date.
                 gestationRepository.getByPatient(patientId).forEach { gestation ->
-                    if (gestation.isResolved()) return@forEach
+                    if (gestation.status.isResolvedGestationStatus()) return@forEach
                     val due = gestation.expectedDueDate
                     if (due <= horizon) {
                         add(CareDueItem(TYPE_GESTATION, TITLE_GESTATION, due, due < today))
@@ -87,12 +87,6 @@ class GetUpcomingRemindersUseCase(
         return items.sortedBy { it.dueDate }
     }
 
-    /** True when the pregnancy has ended (foaled or failed) and therefore has
-     * no upcoming foaling date to remind about. */
-    private fun Gestation.isResolved(): Boolean =
-        status.equals(STATUS_COMPLETED_GESTATION, ignoreCase = true) ||
-            status.equals(STATUS_FAILED_GESTATION, ignoreCase = true)
-
     private companion object {
         const val DEFAULT_WINDOW_DAYS = 30
 
@@ -103,9 +97,6 @@ class GetUpcomingRemindersUseCase(
         val TYPE_FARRIER = RecordType.FarrierVisit.displayName
         val TYPE_GESTATION = RecordType.Gestation.displayName
         const val TYPE_REMINDER = "Reminder"
-
-        const val STATUS_COMPLETED_GESTATION = "Completed"
-        const val STATUS_FAILED_GESTATION = "Failed"
 
         const val TITLE_DENTISTRY = "Dental check"
         const val TITLE_FARRIER = "Farrier visit"

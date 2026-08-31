@@ -6,7 +6,7 @@
 
 Built for day-to-day internship documentation, patient follow-up, and a more useful view of the information that accumulates around a horse's care.
 
-[Architecture](./ARCHITECTURE.md) · [Codebase structure](./STRUCTURE.md) · [Demo data](./fixtures/README.md) · [Quality & SonarQube](./config/sonar/README.md)
+[Architecture](./ARCHITECTURE.md) · [Codebase structure](./STRUCTURE.md) · [Feature ideas](./docs/FEATURE_IDEAS.md) · [Demo data](./fixtures/README.md) · [Quality & SonarQube](./config/sonar/README.md)
 
 </div>
 

@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.reproduction
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEventType
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.GetReproductionEventDetailUseCase
 import com.github.rodrigotimoteo.animally.domain.reproduction.usecase.SaveReproductionEventUseCase
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.BaseAddEditViewModel
@@ -76,9 +77,15 @@ class ReproductionEventEditViewModel(
 
     /**
      * Updates the [ReproductionEventFormState.eventType].
+     * Normalises known values to the canonical [ReproductionEventType.storageLabel] so
+     * picker selections and free-text variants persist as `Heat`/`Breeding`/`Pregnancy Check` etc.
+     * Unknown values are preserved trimmed to avoid data loss.
      */
     fun onEventTypeChange(value: String) {
-        formState.value?.let { updateForm(it.copy(eventType = value, eventTypeError = null)) }
+        val trimmed = value.trim()
+        val canonical = ReproductionEventType.from(trimmed)
+        val normalised = if (canonical == ReproductionEventType.Other) trimmed else canonical.storageLabel
+        formState.value?.let { updateForm(it.copy(eventType = normalised, eventTypeError = null)) }
     }
 
     /**
@@ -149,11 +156,17 @@ class ReproductionEventEditViewModel(
         viewModelScope.launch {
             updateForm(form.copy(isSaving = true))
             val now = Clock.System.now()
+            val trimmedType = form.eventType.trim()
+            val canonicalType = ReproductionEventType.from(trimmedType)
+            // Keep Task2 scope: no migration of historical rows when not edited.
+            // New saves canonicalise known types to storageLabel; unknown raw preserved for Other
+            // to avoid data loss while ensuring Heat/Breeding/Pregnancy Check/Foaling/Initial Exam unify.
+            val eventType = if (canonicalType == ReproductionEventType.Other) trimmedType else canonicalType.storageLabel
             val event =
                 ReproductionEvent(
                     id = form.id ?: 0L,
                     patientId = patientId,
-                    eventType = form.eventType.trim(),
+                    eventType = eventType,
                     date = date,
                     details = form.details,
                     initialExamFindings = form.initialExamFindings,

@@ -5,14 +5,13 @@ struct ReproductionTabView: View {
     let patientId: Int64
     let refreshToken: Int
     @StateObject private var viewModel: ReproductionTabViewModel
-    /// Fires when a record row is tapped; carries the display type, record id,
-    /// and the field rows shown on the read-only detail screen.
-    var onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil
+    /// Fires when a record row is tapped; carries displayType+recordId for lazy open via RecordDetailOpener.
+    var onOpenRecord: ((String, Int64) -> Void)? = nil
 
     init(
         patientId: Int64,
         refreshToken: Int = 0,
-        onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil,
+        onOpenRecord: ((String, Int64) -> Void)? = nil,
     ) {
         self.patientId = patientId
         _viewModel = StateObject(wrappedValue: ReproductionTabViewModel(patientId: patientId))
@@ -55,14 +54,20 @@ struct ReproductionTabView: View {
 
     private var recordList: some View {
         List {
-            // Active pregnancy pinned to the very top — the most important
-            // information on this tab.
+            // Active pregnancy pinned to the very top — most important info.
+            // Active check delegated to Kotlin single source (Gestation.isActivePregnancy).
             if let active = viewModel.gestations.allItems
                 .filter({ Self.isActive($0) })
-                .max(by: { $0.breedingDate.displayString < $1.breedingDate.displayString }) {
+                .max(by: { $0.breedingDate.epochDaysCompat() < $1.breedingDate.epochDaysCompat() }) {
+                let gestationDay = viewModel.gestationDay(for: active)
+                let daysUntilDue = viewModel.daysUntilDue(for: active)
                 Section {
-                    ActiveGestationCard(gestation: active) {
-                        onOpenRecord?("Gestation", active.id, Self.gestationFields(active))
+                    ActiveGestationCard(
+                        gestation: active,
+                        gestationDay: gestationDay,
+                        daysUntilDue: daysUntilDue
+                    ) {
+                        onOpenRecord?("Gestation", active.id)
                     }
                 }
                 .listRowBackground(Color.clear)
@@ -76,20 +81,10 @@ struct ReproductionTabView: View {
                     icon: "heart.fill",
                     items: viewModel.reproductionEvents.visibleItems,
                     recordId: { $0.id },
-                    rowTitle: { $0.eventType },
+                    rowTitle: { Self.reproductionDisplay($0.eventType) },
                     rowSubtitle: { $0.details },
                     rowDate: { $0.date.displayString },
                     displayType: "Reproduction",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Event Type", value: record.eventType),
-                        .init(label: "Details", value: record.details ?? ""),
-                        .init(label: "Initial Exam Findings", value: record.initialExamFindings ?? ""),
-                        .init(label: "Stallion", value: record.stallionName ?? ""),
-                        .init(label: "Breeding Type", value: record.breedingType ?? ""),
-                        .init(label: "Veterinarian", value: record.vetName ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteReproductionEvent($0.id) },
                     deleteTitle: "Reproduction Event",
                     display: viewModel.display(for: .reproductionEvents)
@@ -104,11 +99,10 @@ struct ReproductionTabView: View {
                     icon: "baby.fill",
                     items: viewModel.gestations.visibleItems,
                     recordId: { $0.id },
-                    rowTitle: { "Day \($0.gestationDays)" },
+                    rowTitle: { "Day \(viewModel.gestationDay(for: $0))" },
                     rowSubtitle: { $0.status },
                     rowDate: { $0.breedingDate.displayString },
                     displayType: "Gestation",
-                    fields: { Self.gestationFields($0) },
                     onDelete: { viewModel.deleteGestation($0.id) },
                     extraLine: { record in
                         var details = ["Due: \(record.expectedDueDate.displayString)"]
@@ -134,9 +128,6 @@ struct ReproductionTabView: View {
                     rowSubtitle: { $0.ovaryStatus },
                     rowDate: { $0.date.displayString },
                     displayType: "Ultrasound",
-                    fields: { record in
-                        Self.ultrasoundFields(record)
-                    },
                     onDelete: { viewModel.deleteUltrasound($0.id) },
                     extraLine: { Self.ultrasoundExtraLine($0) },
                     extraLineLabel: nil,
@@ -156,14 +147,6 @@ struct ReproductionTabView: View {
                     rowSubtitle: { $0.purpose ?? $0.dosage },
                     rowDate: { $0.dateAdministered.displayString },
                     displayType: "Repro Medication",
-                    fields: { record in [
-                        .init(label: "Medication", value: record.medication),
-                        .init(label: "Date Administered", value: record.dateAdministered.displayString),
-                        .init(label: "Dosage", value: record.dosage ?? ""),
-                        .init(label: "Purpose", value: record.purpose ?? ""),
-                        .init(label: "Veterinarian", value: record.vetName ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteReproMedication($0.id) },
                     display: viewModel.display(for: .reproMedications)
                 ),
@@ -181,13 +164,6 @@ struct ReproductionTabView: View {
                     rowSubtitle: { $0.recipientMares },
                     rowDate: { $0.date.displayString },
                     displayType: "Embryo Transfer",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Embryo Count", value: "\(record.embryoCount)"),
-                        .init(label: "Recipient Mares", value: record.recipientMares ?? ""),
-                        .init(label: "Veterinarian", value: record.vetName ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteEmbryoTransfer($0.id) },
                     display: viewModel.display(for: .embryoTransfers)
                 ),
@@ -205,12 +181,6 @@ struct ReproductionTabView: View {
                     rowSubtitle: { $0.vetName },
                     rowDate: { $0.date.displayString },
                     displayType: "ICSI",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Follicles Recovered", value: "\(record.folliclesRecovered)"),
-                        .init(label: "Veterinarian", value: record.vetName ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteIcsi($0.id) },
                     display: viewModel.display(for: .icsi)
                 ),
@@ -220,12 +190,16 @@ struct ReproductionTabView: View {
         .listStyle(.insetGrouped)
     }
 
-    /// A gestation counts as an ongoing pregnancy unless it has explicitly
-    /// ended (foaled/completed or failed). Blocklist semantics mirror the
-    /// Kotlin reminder filter so legacy status strings still surface.
+    /// Canonical display for reproduction event types: ensures legacy
+    /// `PregnancyCheck` / `pregnancy_check` variants render as `Pregnancy Check`
+    /// without persisting a migration. Unknown values surface trimmed raw.
+    private static func reproductionDisplay(_ raw: String) -> String {
+        ReproductionEventTypes.shared.displayLabel(raw: raw)
+    }
+
+    /// Single source: delegates to Kotlin RecordDetailOpener.isGestationActive.
     private static func isActive(_ gestation: Gestation_) -> Bool {
-        let resolved = ["Completed", "Failed", "Foaled"]
-        return !resolved.contains { gestation.status.caseInsensitiveCompare($0) == .orderedSame }
+        RecordDetailOpener.shared.isGestationActive(gestation: gestation)
     }
 
     /// One-line identifying summary for an ultrasound card: findings text,
@@ -233,7 +207,7 @@ struct ReproductionTabView: View {
     private static func ultrasoundExtraLine(_ record: Ultrasound_) -> String? {
         var details: [String] = []
         if let follicleSize = record.follicleSizeMm {
-            details.append(String(format: "Follicle: %.1f mm", follicleSize.doubleValue))
+            details.append(String(format: "Follicle: %.1f mm", locale: Locale(identifier: "en_US_POSIX"), follicleSize.doubleValue))
         }
         let findings = record.findings?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !findings.isEmpty {
@@ -244,75 +218,22 @@ struct ReproductionTabView: View {
         if !uterine.isEmpty { details.append(uterine) }
         return details.isEmpty ? nil : details.joined(separator: " · ")
     }
-
-    /// Shared field rows for the read-only ultrasound detail screen.
-    private static func ultrasoundFields(_ record: Ultrasound_) -> [RecordDetailNav.FieldRow] {
-        let follicleSize = record.follicleSizeMm?.doubleValue
-        let leftFollicleSize = record.leftFollicleSizeMm?.doubleValue
-        let rightFollicleSize = record.rightFollicleSizeMm?.doubleValue
-        var fields: [RecordDetailNav.FieldRow] = [
-            .init(label: "Date", value: record.date.displayString),
-            .init(label: "Ovary Status", value: record.ovaryStatus ?? ""),
-            .init(label: "Uterine Status", value: record.uterineStatus ?? ""),
-        ]
-        if let follicleSize {
-            fields.append(.init(label: "Follicle Size (mm)", value: String(format: "%.1f", follicleSize)))
-        }
-        fields.append(.init(label: "Left Ovary Status", value: record.leftOvaryStatus ?? ""))
-        fields.append(.init(label: "Right Ovary Status", value: record.rightOvaryStatus ?? ""))
-        if let leftFollicleSize {
-            fields.append(.init(label: "Left Follicle Size (mm)", value: String(format: "%.1f", leftFollicleSize)))
-        }
-        if let rightFollicleSize {
-            fields.append(.init(label: "Right Follicle Size (mm)", value: String(format: "%.1f", rightFollicleSize)))
-        }
-        fields.append(.init(label: "Uterine Edema", value: record.uterineEdema ?? ""))
-        fields.append(.init(label: "Fluid Description", value: record.uterineLiquidDescription ?? ""))
-        fields.append(.init(label: "Uterus Description", value: record.uterusDescription ?? ""))
-        fields.append(.init(label: "Findings", value: record.findings ?? ""))
-        fields.append(.init(label: "Veterinarian", value: record.vetName ?? ""))
-        fields.append(.init(label: "Notes", value: record.notes ?? ""))
-        return fields.filter { !$0.value.isEmpty }
-    }
-
-    /// Shared field rows for the read-only gestation detail screen.
-    private static func gestationFields(_ record: Gestation_) -> [RecordDetailNav.FieldRow] {
-        var fields: [RecordDetailNav.FieldRow] = [
-            .init(label: "Breeding Date", value: record.breedingDate.displayString),
-            .init(label: "Expected Due Date", value: record.expectedDueDate.displayString),
-            .init(label: "Gestation Day", value: "\(record.gestationDays)"),
-            .init(label: "Status", value: record.status),
-        ]
-        if let fetalCount = record.fetalCount {
-            fields.append(.init(label: "Fetal Count", value: "\(fetalCount.intValue)"))
-        }
-        fields.append(.init(label: "Last Check Date", value: record.lastCheckDate?.displayString ?? ""))
-        fields.append(.init(label: "Notes", value: record.notes ?? ""))
-        return fields.filter { !$0.value.isEmpty }
-    }
 }
 
 /// Prominent pinned card for an active pregnancy: breeding date, computed
 /// gestation day count, and the expected foaling date front and center.
 /// Amber accents once foaling is within 30 days or overdue.
+/// DaysUntilDue/gestationDay injected from viewModel shared today to avoid drift vs GetInsightsDashboardUseCase todayProvider.
 private struct ActiveGestationCard: View {
     let gestation: Gestation_
+    let gestationDay: Int
+    let daysUntilDue: Int
     let onTap: () -> Void
 
     private static let dueSoonDays = 30
 
-    private var dueDate: Date? {
-        RecordFormStyle.isoDateFormatter.date(from: gestation.expectedDueDate.displayString)
-    }
-
-    /// Days until foaling; negative when overdue.
-    private var daysUntilDue: Int? {
-        guard let dueDate else { return nil }
-        return Calendar.current.dateComponents([.day], from: Date(), to: dueDate).day
-    }
-
     private var isDueSoon: Bool {
-        (daysUntilDue ?? Int.max) <= Self.dueSoonDays
+        daysUntilDue <= Self.dueSoonDays
     }
 
     var body: some View {
@@ -332,7 +253,7 @@ private struct ActiveGestationCard: View {
                             .foregroundStyle(.white)
                             .clipShape(Capsule())
 
-                        Text("Day \(gestation.gestationDays)")
+                        Text("Day \(gestationDay)")
                             .font(.title.weight(.bold))
                             .foregroundStyle(Theme.textPrimary)
                     }
@@ -384,11 +305,11 @@ private struct ActiveGestationCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("In foal, day \(gestation.gestationDays), due \(gestation.expectedDueDate.friendlyString)")
+        .accessibilityLabel("In foal, day \(gestationDay), due \(gestation.expectedDueDate.friendlyString)")
     }
 
     private var dueLabel: String {
-        guard let days = daysUntilDue else { return "" }
+        let days = daysUntilDue
         if days < 0 { return "Overdue by \(-days) day\(-days == 1 ? "" : "s")" }
         if days == 0 { return "Due today" }
         return "Due in \(days) day\(days == 1 ? "" : "s")"

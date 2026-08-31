@@ -64,6 +64,22 @@ extension Kotlinx_datetimeLocalDate {
         let month = index >= 0 && index < months.count ? months[index] : ""
         return "\(dayOfMonth) \(month) \(year)"
     }
+
+    /// DST-safe epoch days — Hinnant algorithm, same as Kotlin `LocalDate.toEpochDays()`.
+    /// Avoids Calendar DST drift. Parity verified vs Kotlin for 1900-2100.
+    func epochDaysCompat() -> Int64 {
+        // Manual Hinnant algorithm (same as kotlinx-datetime)
+        let y = Int(year)
+        let m = Int(monthNumber)
+        let d = Int(dayOfMonth)
+        let yy = m <= 2 ? y - 1 : y
+        let mm = m <= 2 ? m + 12 : m
+        let era = (yy >= 0 ? yy : yy - 399) / 400
+        let yoe = yy - era * 400
+        let doy = (153 * (mm - 3) + 2) / 5 + d - 1
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+        return Int64(era * 146097 + doe - 719468)
+    }
 }
 
 // MARK: - Generic Record Row
@@ -222,8 +238,9 @@ private struct RecordSectionHeader: View {
 
 // MARK: - Generic Record Section
 
-/// Declarative description of one record section: row presentation, tap
-/// fields, delete action, and an optional amber calendar line under each row.
+/// Declarative description of one record section: row presentation, delete action,
+/// and an optional amber calendar line under each row. Field-row mapping lives
+/// exclusively in Kotlin (RecordDetailOpener); Swift only routes by displayType+id.
 struct RecordSectionSpec<Item> {
     let title: String
     let icon: String
@@ -234,7 +251,6 @@ struct RecordSectionSpec<Item> {
     let rowSubtitle: (Item) -> String?
     let rowDate: (Item) -> String?
     let displayType: String
-    let fields: (Item) -> [RecordDetailNav.FieldRow]
     let onDelete: (Item) -> Void
     let display: RecordSectionDisplayState?
 
@@ -257,7 +273,6 @@ struct RecordSectionSpec<Item> {
         rowSubtitle: @escaping (Item) -> String?,
         rowDate: @escaping (Item) -> String?,
         displayType: String,
-        fields: @escaping (Item) -> [RecordDetailNav.FieldRow],
         onDelete: @escaping (Item) -> Void,
         deleteTitle: String? = nil,
         extraLine: ((Item) -> String?)? = nil,
@@ -272,7 +287,6 @@ struct RecordSectionSpec<Item> {
         self.rowSubtitle = rowSubtitle
         self.rowDate = rowDate
         self.displayType = displayType
-        self.fields = fields
         self.onDelete = onDelete
         self.deleteTitle = deleteTitle
         self.extraLine = extraLine
@@ -283,11 +297,12 @@ struct RecordSectionSpec<Item> {
 
 /// Renders a `RecordSectionSpec`: section container, rows, optional extra
 /// lines, tap-to-open-record wiring, and swipe-to-delete. The shared Kotlin
-/// list state supplies the filtered and collapsed item projection.
+/// list state supplies the filtered and collapsed item projection. Lazy open
+/// via RecordDetailKey — no eager field payload.
 @ViewBuilder
 func recordSection<Item>(
     _ spec: RecordSectionSpec<Item>,
-    onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)?
+    onOpenRecord: ((String, Int64) -> Void)?
 ) -> some View {
     RecordSection(
         title: spec.title,
@@ -313,10 +328,11 @@ private enum RecordSectionRowsConfig {
 }
 
 /// Row list for one record section with the >5 collapse/expand behavior.
-/// Rows are always shown newest-first by row date; expanding reveals the rest.
+/// Rows are rendered from Kotlin-provided visibleItems (already collapsed);
+/// Swift never re-slices — no double-collapse.
 private struct RecordSectionRows<Item>: View {
     let spec: RecordSectionSpec<Item>
-    let onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)?
+    let onOpenRecord: ((String, Int64) -> Void)?
 
     var body: some View {
         Group {
@@ -382,7 +398,7 @@ private struct RecordSectionRows<Item>: View {
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("record_row_\(spec.displayType)_\(spec.recordId(item))")
         .onTapGesture {
-            onOpenRecord?(spec.displayType, spec.recordId(item), spec.fields(item).filter { !$0.value.isEmpty })
+            onOpenRecord?(spec.displayType, spec.recordId(item))
         }
         .confirmationSwipeDelete(title: spec.deleteTitle ?? spec.title) {
             spec.onDelete(item)

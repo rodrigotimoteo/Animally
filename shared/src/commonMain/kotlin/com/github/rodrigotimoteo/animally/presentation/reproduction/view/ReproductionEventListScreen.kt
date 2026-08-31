@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEventType
 import com.github.rodrigotimoteo.animally.presentation.common.list.CollapsibleListContent
 import com.github.rodrigotimoteo.animally.presentation.common.list.CollapsibleListState
 import com.github.rodrigotimoteo.animally.presentation.common.list.ListDisplayActions
@@ -111,6 +112,12 @@ private fun ReproductionEventListContent(
     }
 }
 
+private val ReproductionEvent.displayLabel: String
+    get() {
+        val canonical = ReproductionEventType.from(eventType)
+        return if (canonical == ReproductionEventType.Other) eventType.trim() else canonical.displayLabel
+    }
+
 @Composable
 private fun ReproductionEventCard(
     event: ReproductionEvent,
@@ -119,7 +126,7 @@ private fun ReproductionEventCard(
     val cardModifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
     Card(onClick = { onEditClick(event.id) }, modifier = cardModifier) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(event.eventType, style = MaterialTheme.typography.titleMedium)
+            Text(event.displayLabel, style = MaterialTheme.typography.titleMedium)
             Text(event.date.toString(), style = MaterialTheme.typography.bodyMedium)
             event.details?.takeIf { it.isNotBlank() }?.let {
                 Text(

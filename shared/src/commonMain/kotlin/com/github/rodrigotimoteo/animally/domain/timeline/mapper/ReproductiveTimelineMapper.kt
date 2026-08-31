@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.domain.timeline.mapper
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEventType
 import com.github.rodrigotimoteo.animally.domain.repromedication.model.ReproMedication
 import com.github.rodrigotimoteo.animally.domain.timeline.model.TimelineEntry
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
@@ -21,7 +22,10 @@ internal fun ReproductionEvent.toTimelineEntry(patientName: String): TimelineEnt
         recordId = id,
         date = date,
         title = "Reproduction",
-        subtitle = eventType,
+        subtitle =
+            ReproductionEventType.from(eventType).let {
+                if (it == ReproductionEventType.Other) eventType.trim() else it.displayLabel
+            },
     )
 
 internal fun Ultrasound.toTimelineEntry(patientName: String): TimelineEntry =

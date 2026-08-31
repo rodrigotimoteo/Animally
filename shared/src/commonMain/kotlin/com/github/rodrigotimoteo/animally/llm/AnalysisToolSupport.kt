@@ -182,5 +182,4 @@ internal object AnalysisToolLimits {
             RecordType.Deworming.wireName,
             RecordType.FarrierVisit.wireName,
         )
-    val RESOLVED_GESTATION_STATUSES = setOf("completed", "failed", "foaled")
 }

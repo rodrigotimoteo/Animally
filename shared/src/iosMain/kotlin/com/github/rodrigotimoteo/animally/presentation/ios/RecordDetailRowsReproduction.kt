@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.presentation.ios
 
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEventType
 import com.github.rodrigotimoteo.animally.presentation.embryotransfer.EmbryoTransferFormState
 import com.github.rodrigotimoteo.animally.presentation.gestation.GestationFormState
 import com.github.rodrigotimoteo.animally.presentation.icsi.IcsiFormState
@@ -12,11 +13,15 @@ import com.github.rodrigotimoteo.animally.presentation.ultrasound.UltrasoundForm
  * Field-row builders for the reproduction record types of the read-only
  * detail. Labels and ordering mirror the tab views' preview rows exactly.
  */
-internal fun reproductionRows(form: ReproductionEventFormState): List<RecordDetailRow> =
-    recordDetailRows(
+internal fun reproductionRows(form: ReproductionEventFormState): List<RecordDetailRow> {
+    val displayEventType =
+        ReproductionEventType.from(form.eventType).let {
+            if (it == ReproductionEventType.Other) form.eventType.trim() else it.displayLabel
+        }
+    return recordDetailRows(
         listOf(
             "Date" to form.date,
-            "Event Type" to form.eventType,
+            "Event Type" to displayEventType,
             "Details" to form.details,
             "Initial Exam Findings" to form.initialExamFindings,
             "Stallion" to form.stallionName,
@@ -25,6 +30,7 @@ internal fun reproductionRows(form: ReproductionEventFormState): List<RecordDeta
             "Notes" to form.notes,
         ),
     )
+}
 
 internal fun ultrasoundRows(form: UltrasoundFormState): List<RecordDetailRow> {
     val fields =

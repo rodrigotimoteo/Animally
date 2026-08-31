@@ -5,7 +5,7 @@ struct ReproductionEventEditView: View {
     @StateObject private var viewModel: ReproductionEventEditViewModel
     @Environment(\.dismiss) private var dismiss
 
-    private let eventTypes = ["Heat", "Breeding", "Pregnancy Check", "Foaling", "Initial Exam"]
+    private let eventTypes = ReproductionEventTypes.shared.knownDisplayLabels
     private let breedingTypes = [
         ("Natural cover", "NATURAL_COVER"),
         ("Artificial insemination", "ARTIFICIAL_INSEMINATION"),
@@ -55,11 +55,28 @@ struct ReproductionEventEditView: View {
         }
     }
 
+    private func canonicalDisplay(_ raw: String) -> String {
+        ReproductionEventTypes.shared.displayLabel(raw: raw)
+    }
+
+    private func isBreedingSelection(_ form: ReproductionEventFormState) -> Bool {
+        ReproductionEventTypes.shared.isBreeding(raw: form.eventType)
+    }
+
+    private func isInitialExamSelection(_ form: ReproductionEventFormState) -> Bool {
+        ReproductionEventTypes.shared.isInitialExam(raw: form.eventType)
+    }
+
     private func formView(_ form: ReproductionEventFormState) -> some View {
         List {
             Section {
                 Picker("Event type", selection: Binding(
-                    get: { form.eventType.isEmpty ? nil : form.eventType },
+                    get: {
+                        let trimmed = form.eventType.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return nil }
+                        let display = canonicalDisplay(trimmed)
+                        return eventTypes.contains(display) ? display : nil
+                    },
                     set: { viewModel.onEventTypeChange($0 ?? "") }
                 )) {
                     Text("None").tag(String?.none)
@@ -103,7 +120,7 @@ struct ReproductionEventEditView: View {
                 RecordFormStyle.sectionHeader("Details & Notes")
             }
 
-            if form.eventType == "Breeding" {
+            if isBreedingSelection(form) {
                 Section {
                     RecordFormStyle.textField("Stallion", value: form.stallionName) {
                         viewModel.onStallionNameChange($0)
@@ -124,7 +141,7 @@ struct ReproductionEventEditView: View {
                 }
             }
 
-            if form.eventType == "Initial Exam" {
+            if isInitialExamSelection(form) {
                 Section {
                     TextField("Findings", text: Binding(
                         get: { form.initialExamFindings ?? "" },

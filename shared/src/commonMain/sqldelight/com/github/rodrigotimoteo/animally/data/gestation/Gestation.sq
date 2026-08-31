@@ -1,3 +1,5 @@
+import kotlinx.datetime.LocalDate;
+
 -- CRUD Operations --
 insert:
 INSERT INTO Gestation (id, patientId, breedingDate, expectedDueDate, gestationDays, status, fetalCount, lastCheckDate, notes, isActive, createdAt, updatedAt)
@@ -59,3 +61,30 @@ UPDATE Gestation SET serverId = ?, updatedAt = ? WHERE id = ?;
 -- Sync support: unfiltered row read (pull must see soft-deleted rows)
 selectRowById:
 SELECT * FROM Gestation WHERE id = ?;
+
+-- Insights Task 11: current gestation snapshot (sargable, partial index friendly).
+-- Patient-scoped variant uses equality on patientId for SEARCH via idx_gestation_*.
+-- Global variant omits patient predicate for SCAN INDEX covering.
+-- Status filter pushed to SQL: LOWER(status) NOT IN ('completed','failed','foaled') case-insensitive, NULL treated as active.
+-- Note: LOWER(status) is non-sargable (prevents index on status) but gestation table is tiny (<1k rows) and
+-- status cardinality low; adding a functional index or COLLATE NOCASE index is overhead not justified.
+-- Alternative COLLATE NOCASE would require matching index collation; kept LOWER for correctness + simplicity.
+-- Covering indexes: idx_gestation_patient_expected_due_date WHERE isActive=1 and idx_gestation_expected_due_date.
+selectActiveGestationsForPatient:
+SELECT Gestation.id AS gestationId, Gestation.patientId AS patientId, Gestation.breedingDate AS breedingDate, Gestation.expectedDueDate AS expectedDueDate, Gestation.gestationDays AS gestationDays, Gestation.status AS status, Patient.name AS patientName
+FROM Gestation
+JOIN Patient ON Patient.id = Gestation.patientId
+WHERE Gestation.patientId = :patientId
+AND Gestation.isActive = 1
+AND Patient.isActive = 1
+AND (Gestation.status IS NULL OR LOWER(Gestation.status) NOT IN ('completed', 'failed', 'foaled'))
+ORDER BY Gestation.expectedDueDate ASC, Gestation.id ASC;
+
+selectActiveGestationsGlobal:
+SELECT Gestation.id AS gestationId, Gestation.patientId AS patientId, Gestation.breedingDate AS breedingDate, Gestation.expectedDueDate AS expectedDueDate, Gestation.gestationDays AS gestationDays, Gestation.status AS status, Patient.name AS patientName
+FROM Gestation
+JOIN Patient ON Patient.id = Gestation.patientId
+WHERE Gestation.isActive = 1
+AND Patient.isActive = 1
+AND (Gestation.status IS NULL OR LOWER(Gestation.status) NOT IN ('completed', 'failed', 'foaled'))
+ORDER BY Gestation.expectedDueDate ASC, Gestation.id ASC;

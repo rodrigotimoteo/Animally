@@ -1,6 +1,8 @@
 package com.github.rodrigotimoteo.animally.domain.gestation.usecase
 
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.gestation.model.GestationStatus
+import com.github.rodrigotimoteo.animally.domain.gestation.model.isActiveGestation
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
@@ -26,9 +28,9 @@ data class GestationProgress(
  */
 @Single
 class CalculateGestationUseCase {
-    private companion object {
-        const val GESTATION_PERIOD_DAYS = 340
-        val RESOLVED_STATUSES = setOf("Completed", "Failed", "Foaled")
+    companion object {
+        val GESTATION_PERIOD_DAYS get() = GestationStatus.GESTATION_PERIOD_DAYS
+        val RESOLVED_STATUSES get() = GestationStatus.RESOLVED_STATUSES
     }
 
     /**
@@ -53,6 +55,10 @@ class CalculateGestationUseCase {
     /**
      * Applies the current derived progress to an active gestation for display.
      *
+     * Overwrites both [Gestation.expectedDueDate] (breedingDate + 340) and
+     * [Gestation.gestationDays] with deterministic recalculation from [today].
+     * Persisted expectedDueDate may be stale if breedingDate was edited or earlier
+     * calc used wrong period; recalc ensures stored and derived agree for display.
      * Completed, failed, and foaled records retain their recorded day count so
      * historical pregnancies do not appear to keep progressing after they
      * have ended. This is an in-memory projection; it does not rewrite the
@@ -62,7 +68,7 @@ class CalculateGestationUseCase {
         gestation: Gestation,
         today: LocalDate,
     ): Gestation {
-        if (!gestation.isActive || gestation.status.isResolvedGestationStatus()) return gestation
+        if (!gestation.isActiveGestation()) return gestation
 
         val progress = invoke(gestation.breedingDate, today)
         return gestation.copy(
@@ -70,6 +76,4 @@ class CalculateGestationUseCase {
             gestationDays = progress.gestationDays,
         )
     }
-
-    private fun String.isResolvedGestationStatus(): Boolean = RESOLVED_STATUSES.any { equals(it, ignoreCase = true) }
 }

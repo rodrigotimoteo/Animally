@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.llm.analysis
 
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.gestation.model.isActiveGestation
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.CalculateGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.llm.support.DateFormatting

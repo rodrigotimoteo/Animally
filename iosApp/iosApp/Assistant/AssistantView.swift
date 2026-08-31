@@ -149,7 +149,8 @@ struct AssistantView: View {
                 // complete, small tree materialized makes accessibility updates
                 // predictable while a cloud response is streaming.
                 VStack(spacing: 12) {
-                    ForEach(Array(viewModel.state.messages.enumerated()), id: \.offset) { index, message in
+                    ForEach(viewModel.state.messages.indices, id: \.self) { index in
+                        let message = viewModel.state.messages[index]
                         ChatBubble(
                             message: message,
                             accentColor: theme.accentColor,
@@ -593,7 +594,8 @@ private struct ChatBubble: View {
     private var sourceChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(Array(sourceGroups.enumerated()), id: \.offset) { _, group in
+                ForEach(sourceGroups.indices, id: \.self) { index in
+                    let group = sourceGroups[index]
                     let source = group.primarySource
                     Button {
                         onOpenSource(source)
@@ -670,7 +672,8 @@ private struct ChatBubble: View {
     private var webReferenceChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(Array(webSources.enumerated()), id: \.offset) { _, source in
+                ForEach(webSources.indices, id: \.self) { index in
+                    let source = webSources[index]
                     if let url = URL(string: source.url) {
                         Link(destination: url) {
                             HStack(spacing: 5) {

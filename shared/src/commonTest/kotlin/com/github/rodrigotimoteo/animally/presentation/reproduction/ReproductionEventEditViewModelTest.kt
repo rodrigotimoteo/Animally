@@ -271,4 +271,75 @@ class ReproductionEventEditViewModelTest {
             )
             assertTrue(!assertNotNull(vm.formState.value).isLoading)
         }
+
+    @Test
+    fun `legacy PregnancyCheck canonicalised to Pregnancy Check on save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { reproductionRepositoryMock.insert(any()) } returns 1L
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onEventTypeChange("PregnancyCheck")
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            verify(VerifyMode.exactly(1)) {
+                reproductionRepositoryMock.insert(
+                    matches { it.eventType == "Pregnancy Check" },
+                )
+            }
+        }
+
+    @Test
+    fun `variant spellings canonicalised on save`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { reproductionRepositoryMock.insert(any()) } returns 1L
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onEventTypeChange("pregnancy_check")
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            verify(VerifyMode.exactly(1)) {
+                reproductionRepositoryMock.insert(
+                    matches { it.eventType == "Pregnancy Check" },
+                )
+            }
+        }
+
+    @Test
+    fun `Initial Exam canonicalised and unknown preserved as trimmed raw`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { reproductionRepositoryMock.insert(any()) } returns 1L
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+
+            vm.onEventTypeChange("InitialExam")
+            vm.onDateChange("2026-01-15")
+            vm.save()
+            advanceUntilIdle()
+
+            verify(VerifyMode.exactly(1)) {
+                reproductionRepositoryMock.insert(
+                    matches { it.eventType == "Initial Exam" },
+                )
+            }
+
+            // unknown preserved
+            val vm2 = createViewModel(StandardTestDispatcher(testScheduler))
+            every { reproductionRepositoryMock.insert(any()) } returns 2L
+            vm2.onEventTypeChange("  CustomType  ")
+            vm2.onDateChange("2026-01-15")
+            vm2.save()
+            advanceUntilIdle()
+
+            verify(VerifyMode.exactly(1)) {
+                reproductionRepositoryMock.insert(
+                    matches { it.eventType == "CustomType" },
+                )
+            }
+        }
 }

@@ -5,14 +5,13 @@ struct DiagnosticsTabView: View {
     let patientId: Int64
     let refreshToken: Int
     @StateObject private var viewModel: DiagnosticsTabViewModel
-    /// Fires when a record row is tapped; carries the display type, record id,
-    /// and the field rows shown on the read-only detail screen.
-    var onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil
+    /// Lazy open via RecordDetailKey.
+    var onOpenRecord: ((String, Int64) -> Void)? = nil
 
     init(
         patientId: Int64,
         refreshToken: Int = 0,
-        onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil,
+        onOpenRecord: ((String, Int64) -> Void)? = nil,
     ) {
         self.patientId = patientId
         _viewModel = StateObject(wrappedValue: DiagnosticsTabViewModel(patientId: patientId))
@@ -56,14 +55,6 @@ struct DiagnosticsTabView: View {
                     rowSubtitle: { $0.vetName },
                     rowDate: { $0.date.displayString },
                     displayType: "Lab Result",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Test Type", value: record.testType),
-                        .init(label: "Results", value: record.results ?? ""),
-                        .init(label: "Normal Range", value: record.normalRange ?? ""),
-                        .init(label: "Veterinarian", value: record.vetName ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteLabResult($0.id) },
                     extraLine: { record in
                         [
@@ -91,13 +82,6 @@ struct DiagnosticsTabView: View {
                     rowSubtitle: { $0.vetName },
                     rowDate: { $0.date.displayString },
                     displayType: "Imaging",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Type", value: record.type),
-                        .init(label: "Findings", value: record.findings ?? ""),
-                        .init(label: "Veterinarian", value: record.vetName ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteImaging($0.id) },
                     deleteTitle: "Imaging Study",
                     extraLine: { $0.findings },

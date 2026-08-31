@@ -1,0 +1,24 @@
+-- M6 insights perf: sargable patient-scoped vs global UNION ALL.
+-- Fix-5 identified non-sargable (:patientId IS NULL OR patientId = :patientId) → SCAN.
+-- Add composite partial indexes (patientId, date) filtered by isActive=1 so scoped queries
+-- with equality on patientId + range on date can SEARCH. Global queries use SCAN INDEX
+-- (covering) not SCAN TABLE. Medication filtered further by startDate IS NOT NULL.
+-- Also index Patient(isActive) for outer JOIN Patient.isActive=1.
+CREATE INDEX IF NOT EXISTS idx_consultation_patient_date ON Consultation(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_dentistry_patient_date ON Dentistry(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_deworming_patient_date ON Deworming(patientId, dateAdministered) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_farriervisit_patient_date ON FarrierVisit(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_imaging_patient_date ON Imaging(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_labresult_patient_date ON LabResult(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_lameness_patient_date ON Lameness(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_medication_patient_date ON Medication(patientId, startDate) WHERE isActive = 1 AND startDate IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_reproduction_patient_date ON Reproduction(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_repromedication_patient_date ON ReproMedication(patientId, dateAdministered) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_surgery_patient_date ON Surgery(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_substance_patient_date ON Substance(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_ultrasound_patient_date ON Ultrasound(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_vaccination_patient_date ON Vaccination(patientId, dateAdministered) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_weight_patient_date ON Weight(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_embryotransfer_patient_date ON EmbryoTransfer(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_icsi_patient_date ON Icsi(patientId, date) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_patient_is_active ON Patient(isActive) WHERE isActive = 1;

@@ -1,0 +1,5 @@
+-- Task 11: current gestation snapshot indexes. Sargable patient-scoped vs global, partial WHERE isActive=1.
+-- Gestation is not part of activity UNION but needs covering indexes for active + patient + due date.
+CREATE INDEX IF NOT EXISTS idx_gestation_patient_breeding_date ON Gestation(patientId, breedingDate) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_gestation_patient_expected_due_date ON Gestation(patientId, expectedDueDate) WHERE isActive = 1;
+CREATE INDEX IF NOT EXISTS idx_gestation_expected_due_date ON Gestation(expectedDueDate) WHERE isActive = 1;

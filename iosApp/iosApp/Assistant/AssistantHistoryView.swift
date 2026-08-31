@@ -241,7 +241,8 @@ private struct AssistantConversationDetailView: View {
                     Label("Public veterinary references", systemImage: "book.closed")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Theme.textSecondary)
-                    ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
+                    ForEach(sources.indices, id: \.self) { index in
+                        let source = sources[index]
                         if let url = URL(string: source.url) {
                             Link(destination: url) {
                                 HStack(alignment: .top, spacing: 8) {
@@ -277,7 +278,8 @@ private struct AssistantConversationDetailView: View {
                     Label("Patient records", systemImage: "doc.text.magnifyingglass")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Theme.textSecondary)
-                    ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
+                    ForEach(sources.indices, id: \.self) { index in
+                        let source = sources[index]
                         Button {
                             onOpenSource(source)
                         } label: {

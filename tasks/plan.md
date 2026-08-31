@@ -6,6 +6,40 @@ Build an iOS-first, cross-platform insights feature that turns Animally's existi
 
 The first release deliberately reports facts such as activity counts, case mix, breeding events, active gestations, embryo collections, and ICSI totals. It must not claim conception, transfer-success, or foaling-success rates until the data model can link attempts to outcomes with an explicit denominator.
 
+## Agent Handoff Contract
+
+The next implementation agent should start from a clean worktree, read `AGENTS.md`, `ARCHITECTURE.md`, and `STRUCTURE.md`, and run the shared baseline gate before editing:
+
+```bash
+git status --short
+./gradlew :shared:testAndroidHostTest \
+  :shared:iosSimulatorArm64Test \
+  :shared:ktlintCheck \
+  :shared:detekt
+```
+
+The approved first milestone is **Tasks 1–9: Overview MVP with source drill-down**. Tasks 10–13 are the next planned extension and must not delay a working overview. Keep every task independently buildable and commit at the end of each completed work session.
+
+### Locked decisions
+
+- Default range: trailing 30 calendar days, inclusive of today.
+- Initial presets: 30 days, 90 days, all time, and custom. “Current semester” waits for the actual programme dates.
+- Initial scopes: all active patients or one active patient. Owner and saved-cohort scopes are follow-ups.
+- No sixth iOS root tab. Enter global Insights from Timeline and patient Insights from Patient Detail.
+- No production chart dependency. Use Swift Charts on iOS 18.2+; Compose presentation can follow later.
+- No LLM involvement in calculation, classification, comparison, filtering, or export.
+- No outcome-linkage schema migration in the Overview MVP.
+- No opaque quality or performance score. Show defined counts and explicit denominators.
+- Current-state cards use one injected `today` captured for the load; they are not constrained by the historical range.
+- Pseudonyms in the first export are bundle-local `P001`, `P002`, and so on, assigned by ascending patient ID. Persistent study identities belong to the saved-cohort follow-up.
+
+### Non-goals for the first milestone
+
+- Conception, pregnancy, embryo-transfer, treatment-success, or live-foal rates.
+- Inferred visits, internship hours, competencies, diagnoses, outcomes, or causal conclusions.
+- Cloud sync for filters, dashboard cache tables, or precomputed analytics.
+- Replacing Timeline, Search, or existing patient record screens.
+
 ## Product Principles
 
 - **Auditable:** tapping a metric reveals its source records and active filters.
@@ -28,10 +62,51 @@ The dashboard has four sections:
 
 ### Filters
 
-- Date presets: 7 days, 30 days, 90 days, current semester, custom, all time.
-- Scope: all patients or one patient; owner/cohort filters are follow-ups.
-- Optional record-type filter for drill-down.
-- Comparison: previous period of equal length, disabled for all-time/custom ranges without a valid comparison.
+- Date presets: 30 days, 90 days, custom, and all time.
+- Scope: all active patients or one active patient.
+- Comparison: the immediately preceding equal-length range for 30-day, 90-day, and valid custom ranges; disabled for all time.
+- Record type is selected by tapping a case-mix segment and applies only to the drill-down list in the first milestone.
+
+## Exact Metric Semantics
+
+- A **recorded activity** is one active row from the included source matrix below. It is not necessarily a consultation, visit, or procedure.
+- A **case-day** is one unique `(patientId, date)` pair containing at least one recorded activity.
+- **Patients seen** is the distinct patient count across recorded activities. It does not mean newly registered patients.
+- An **active day** is a distinct date containing at least one recorded activity.
+- **Activities per active day** is `activityCount / activeDayCount`, or unavailable when the denominator is zero.
+- **Activities per case-day** is `activityCount / caseDayCount`, or unavailable when the denominator is zero.
+- **Record share** is `recordTypeCount / activityCount`, or unavailable for an empty period.
+- All date ranges are inclusive: `from <= recordDate <= to`.
+- For an inclusive range of `N` days, the comparison range is the `N` days ending on `from - 1 day`.
+- Daily buckets are used through 45 days, calendar-week buckets from 46–180 days, and calendar-month buckets above 180 days.
+- Global metrics only include rows linked to an active patient and with `isActive = 1` on the source row.
+- All-time resolves from the earliest included activity date through the captured `today`; an empty database produces an empty state, not an invented range.
+
+### Activity source matrix
+
+| Record type | Date column | Included in period activity | Notes |
+| --- | --- | --- | --- |
+| Consultation | `date` | Yes | One row is one activity, regardless of SOAP length. |
+| Dentistry | `date` | Yes |  |
+| Deworming | `dateAdministered` | Yes |  |
+| Farrier visit | `date` | Yes |  |
+| Imaging | `date` | Yes |  |
+| Lab result | `date` | Yes |  |
+| Lameness | `date` | Yes |  |
+| Medication | `startDate` | Yes, when non-null | A prescription without a start date has no defensible activity date. |
+| Reproduction event | `date` | Yes | Category is canonicalised in shared Kotlin. |
+| Reproduction medication | `dateAdministered` | Yes |  |
+| Surgery | `date` | Yes |  |
+| Controlled substance | `date` | Yes |  |
+| Ultrasound | `date` | Yes | Child follicle rows are not counted separately. |
+| Vaccination | `dateAdministered` | Yes |  |
+| Weight | `date` | Yes |  |
+| Embryo transfer | `date` | Yes | Counted as donor-side activity with the current model. |
+| ICSI | `date` | Yes |  |
+| Gestation | `breedingDate` | No | A longitudinal/current state that may duplicate a breeding event. |
+| Anamnese | none | No | No natural activity date. |
+| Custom reminder | due date | No | A planned task is not completed clinical activity. |
+| Follicle | parent ultrasound | No | Child measurement; count the ultrasound once. |
 
 ## Metrics That Are Defensible Today
 
@@ -39,8 +114,10 @@ The dashboard has four sections:
 | --- | --- | --- |
 | Patients seen | Distinct patients with at least one active dated record in range | Existing patient-linked record tables |
 | Recorded activities | Count of active dated records in range; never labelled “procedures” | Existing record tables |
+| Case-days | Distinct patient/date pairs with at least one recorded activity | Existing record dates |
 | Active days | Distinct dates with at least one activity | Existing record dates |
 | Activities per active day | Recorded activities divided by active days | Derived in shared use case |
+| Activities per case-day | Recorded activities divided by case-days | Derived in shared use case |
 | Activity trend | Activity count grouped by day/week | Existing record dates |
 | Record mix | Count and percentage by `RecordType` | Existing record tables |
 | Reproduction event mix | Heat, breeding, pregnancy-check, foaling, and initial-exam counts | `Reproduction.eventType` after canonical parsing |
@@ -84,14 +161,15 @@ SwiftUI + Charts    Compose presentation later
 
 ### Shared Models
 
-- `InsightsFilter(from, to, patientId, recordTypes)`
+- `InsightsFilter(from, to, patientId)`; ranges are resolved and always valid before repository access.
 - `InsightsSnapshot(overview, activitySeries, recordMix, reproduction, currentCare, dataIssues)`
-- `OverviewMetrics(patientCount, activityCount, activeDayCount, averagePerActiveDay, comparison)`
+- `OverviewMetrics(patientCount, activityCount, caseDayCount, activeDayCount, averagePerActiveDay, averagePerCaseDay, comparison)`
 - `MetricComparison(current, previous, absoluteDelta, percentageDelta?)`
 - `ActivityPoint(periodStart, count)`
 - `RecordTypeCount(type, count, share)`
 - `ReproductionMetrics(eventCounts, embryoCollections, embryosCollected, icsiSessions, folliclesRecovered)`
 - `CurrentGestationItem(patientId, patientName, gestationDay, dueDate, daysUntilDue, status)`
+- `InsightsRecordRef(recordType, patientId, recordId, patientName, date)`
 - `InsightsDrillDown(recordType?, from, to, patientId?)`
 
 Prefer concrete data classes over a generic chart DSL so Objective-C/Swift interop stays predictable.
@@ -109,210 +187,328 @@ Prefer concrete data classes over a generic chart DSL so Objective-C/Swift inter
 
 The code currently persists both `PregnancyCheck` and `Pregnancy Check` depending on platform. Introduce a shared `ReproductionEventType` with a stable wire value and display label. Its parser accepts legacy spellings, while all new saves use the stable wire value. This is required before charting event categories.
 
+Use canonical storage labels `Heat`, `Breeding`, `Pregnancy Check`, `Foaling`, and `Initial Exam`. Parsing should be case-insensitive and ignore spaces, underscores, and hyphens so historical `PregnancyCheck` remains valid. Unknown values map to the dashboard's `Other` category while the original record text remains untouched.
+
+## Expected File Map
+
+The names below are the intended placement, not an invitation to create all files at once.
+
+```text
+shared/src/commonMain/
+├── kotlin/com/github/rodrigotimoteo/animally/
+│   ├── domain/reproduction/model/ReproductionEventType.kt
+│   ├── domain/insights/
+│   │   ├── IInsightsRepository.kt
+│   │   ├── model/InsightsFilter.kt
+│   │   ├── model/InsightsSnapshot.kt
+│   │   └── usecase/GetInsightsDashboardUseCase.kt
+│   ├── data/insights/SqlDelightInsightsRepository.kt
+│   ├── presentation/insights/InsightsViewModel.kt
+│   └── di/presentation/InsightsPresentationModule.kt
+└── sqldelight/com/github/rodrigotimoteo/animally/data/insights/Insights.sq
+
+shared/src/iosMain/kotlin/com/github/rodrigotimoteo/animally/
+├── presentation/ios/InsightsStore.kt
+└── di/infra/IosInsightsStores.kt
+
+iosApp/iosApp/Insights/
+├── InsightsView.swift
+├── InsightsViewModel.swift
+├── InsightsOverviewSection.swift
+├── InsightsCaseMixSection.swift
+└── InsightsRecordsView.swift
+```
+
+Tests mirror production packages under `shared/src/commonTest`, `shared/src/androidHostTest`, and `shared/src/iosTest`. Add the new presentation module to `PresentationModule`; do not place dashboard construction into an unrelated settings or patient module. `IosInsightsStores` should follow `IosSettingsStores.timelineStore`, and `InsightsStore` should follow `TimelineStore`/`NativeFlow` rather than introducing a second observation bridge.
+
+For source navigation, reuse `RecordDetailKey`, `RecordDetailNav`, and `RecordDetailView`. Do not add another raw-string-to-editor mapping; existing `RecordEditRoute`/record detail handling already owns that boundary.
+
+### SQLDelight query contract
+
+Implement one `WITH activity_rows AS (...)` union in each required named query; do not add an analytics cache table or migration for the MVP.
+
+- `selectActivityBuckets(from, to, patientId)` returns `date`, `patientId`, `recordTypeWireName`, and `count` grouped by those columns.
+- `selectActivityRecordRefs(from, to, patientId, recordTypeWireName)` returns the underlying `recordId`, `patientId`, `patientName`, `date`, and record type for drill-down.
+- `selectEarliestActivityDate(patientId)` resolves all-time range.
+- Reproduction/current-gestation queries are added only in Tasks 9–10.
+
+Pass `patientId` as nullable and use `(:patientId IS NULL OR source.patientId = :patientId)` consistently. Join `Patient` once outside the union where possible and require `Patient.isActive = 1`. Use stable `RecordType.wireName` literals in SQL and parse them with `RecordType.fromWireName` in the repository.
+
 ## Task List
 
-### Phase 1: Trustworthy Foundation
+### Phase 1: Data vocabulary and contracts
 
-#### Task 1: Canonicalise reproduction event types
+#### Task 1: Add reproduction event parsing
 
-**Description:** Add a shared event taxonomy that recognises current Android/iOS legacy values and supplies one stable persisted wire value and one display label.
+**Description:** Introduce `ReproductionEventType` with canonical storage/display labels and tolerant legacy parsing. Do not rewrite historical rows.
 
 **Acceptance criteria:**
 
-- Both `PregnancyCheck` and `Pregnancy Check` map to the same category.
-- New Android and iOS saves use shared wire values.
-- Unknown historical values remain visible as `Other`, not discarded.
+- `PregnancyCheck`, `Pregnancy Check`, `pregnancy_check`, and `pregnancy-check` resolve to one category.
+- Every known picker value round-trips; unknown text resolves to `Other` while the raw model value survives.
+- No platform UI or persistence behaviour changes in this task.
 
-**Verification:** Unit tests for every legacy/canonical value; Android host and iOS simulator compilation.
+**Verification:** `./gradlew :shared:testAndroidHostTest --tests '*ReproductionEventTypeTest*'`
 
 **Dependencies:** None
 
-**Files likely touched:** Shared taxonomy/model, reproduction form state/view model, platform picker adapters, tests.
-
-**Estimated scope:** Medium, split platform picker wiring from the shared taxonomy if it exceeds five files.
-
-#### Task 2: Define the insights contract
-
-**Description:** Add the immutable filter, snapshot, metric, comparison, drill-down, and repository contracts in shared Kotlin.
-
-**Acceptance criteria:**
-
-- Models distinguish period metrics from current-state care items.
-- Empty and zero-denominator states are representable without fake percentages.
-- Models export cleanly to Swift.
-
-**Verification:** Common model tests plus iOS simulator test compilation.
-
-**Dependencies:** Task 1
-
-**Files likely touched:** `domain/insights/model/*`, `domain/insights/IInsightsRepository.kt`.
+**Files likely touched:** `ReproductionEventType.kt`, `ReproductionEventTypeTest.kt`.
 
 **Estimated scope:** Small
 
-#### Task 3: Implement overview and activity facts
+#### Task 2: Canonicalise newly saved reproduction values
 
-**Description:** Add SQLDelight aggregate queries and a repository implementation for patients seen, activity count, active days, activity series, and record mix.
+**Description:** Normalise selected event values in the shared edit ViewModel and align the Compose picker label. Keep the iOS picker displaying labels, not storage internals.
 
 **Acceptance criteria:**
 
-- Only active rows inside the inclusive range are counted.
-- Patient-scoped and global results use identical definitions.
-- A fixture containing one record of each type produces exact expected totals without duplicate joins.
+- New records from both hosts persist the canonical labels.
+- Existing legacy records load and edit without changing category unless saved.
+- List/detail screens display human labels and never `PREGNANCY_CHECK`-style internals.
 
-**Verification:** Android-host SQLDelight integration tests and query performance check on a large fixture.
+**Verification:** Focused `ReproductionEventEditViewModelTest`, iOS simulator compilation, and manual edit of one legacy fixture row.
 
-**Dependencies:** Task 2
+**Dependencies:** Task 1
 
-**Files likely touched:** `Insights.sq`, repository implementation, mapper, integration test.
+**Files likely touched:** `ReproductionEventEditViewModel.kt`, `ReproductionEventEditScreen.kt`, `ReproductionEventEditView.swift`, focused tests.
 
 **Estimated scope:** Medium
 
-### Checkpoint: Foundation
+#### Task 3: Define the overview domain contract
 
-- Reproduction taxonomy tests pass.
-- Shared insights facts are deterministic across Android host and iOS simulator.
-- No LLM or Swift code participates in calculations.
-
-### Phase 2: First Useful Dashboard
-
-#### Task 4: Build the overview use case and shared state
-
-**Description:** Calculate comparison periods, safe percentages, chart granularity, empty states, and drill-down filters in a shared use case and ViewModel.
+**Description:** Add concrete, Swift-friendly filter, facts, snapshot, comparison, drill-down, and repository types. Keep formatting strings out of repository facts.
 
 **Acceptance criteria:**
 
-- Date and patient filter changes reload atomically without stale results.
-- Zero previous values produce an unavailable percentage rather than infinity.
-- Loading, empty, content, and error states are explicit.
+- Invalid ranges cannot reach `IInsightsRepository`.
+- Empty periods and unavailable percentages are represented explicitly.
+- `:shared:compileKotlinIosSimulatorArm64` exports the models without unsupported generic/collection shapes.
 
-**Verification:** ViewModel coroutine tests with fake repositories and fixed clock/date provider.
+**Verification:** Common model tests and `./gradlew :shared:compileKotlinIosSimulatorArm64`.
+
+**Dependencies:** Task 1
+
+**Files likely touched:** `domain/insights/model/InsightsFilter.kt`, `InsightsSnapshot.kt`, `IInsightsRepository.kt`, tests.
+
+**Estimated scope:** Medium
+
+### Checkpoint A: Contracts
+
+- [ ] Tasks 1–3 focused tests pass.
+- [ ] Android host and iOS simulator Kotlin compilation pass.
+- [ ] No database migration or LLM dependency was introduced.
+
+### Phase 2: Deterministic overview vertical slice
+
+#### Task 4: Implement activity queries and repository
+
+**Description:** Add the activity union queries described above and map generated SQLDelight rows into domain facts.
+
+**Acceptance criteria:**
+
+- Every included source type contributes exactly once; excluded types never contribute.
+- Soft-deleted rows, rows linked to inactive patients, out-of-range rows, and null medication start dates are excluded.
+- Record-type counts sum exactly to the total activity count for global and patient scope.
+
+**Verification:** `./gradlew :shared:testAndroidHostTest --tests '*SqlDelightInsightsRepositoryTest*'`
 
 **Dependencies:** Task 3
 
-**Files likely touched:** Use case, ViewModel, UI state, DI registration, tests.
+**Files likely touched:** `Insights.sq`, `SqlDelightInsightsRepository.kt`, repository mapper, Android-host integration test.
 
 **Estimated scope:** Medium
 
-#### Task 5: Render the iOS overview and case mix
+#### Task 5: Calculate overview snapshots
 
-**Description:** Add a SwiftUI dashboard using native Swift Charts and the existing theme/accent environment, with Timeline and Patient Detail entry points.
+**Description:** Build `GetInsightsDashboardUseCase` for resolved ranges, comparison ranges, bucket granularity, case-days, safe averages/shares, and all-time empty handling. Inject `todayProvider` for deterministic tests.
 
 **Acceptance criteria:**
 
-- Summary cards, activity chart, record mix, filters, loading, and empty states work in light/dark/system themes.
-- Charts are accessible without relying on colour alone.
-- Tapping a card or chart category opens a filtered source-record list.
+- The definitions in “Exact Metric Semantics” are executable test cases.
+- Zero denominators yield `null`/unavailable values, never zero, infinity, or NaN percentages.
+- Current and comparison repository calls use exact non-overlapping inclusive ranges.
 
-**Verification:** Xcode build, simulator screenshots at small/large Dynamic Type, VoiceOver labels, and mock-fixture UI walkthrough.
+**Verification:** `./gradlew :shared:testAndroidHostTest --tests '*GetInsightsDashboardUseCaseTest*'`
 
 **Dependencies:** Task 4
 
-**Files likely touched:** Insights SwiftUI view/wrapper, navigation destination, Timeline/Patient Detail entry points.
-
-**Estimated scope:** Medium; split navigation from rendering if needed.
-
-### Checkpoint: MVP Overview
-
-- A user can choose a range, understand workload/case mix, and inspect every source record.
-- Counts match fixture calculations exactly.
-- Existing five-tab navigation remains uncluttered.
-
-### Phase 3: Reproduction and Operational Value
-
-#### Task 6: Add reproduction-period metrics
-
-**Description:** Aggregate canonical reproduction events, embryo collections/counts, ICSI sessions/follicles, and ultrasound activity.
-
-**Acceptance criteria:**
-
-- Metrics use structured fields and show explicit denominators.
-- Unknown event types appear in an `Other` bucket.
-- No conception or transfer-success rate is presented.
-
-**Verification:** Golden fixture tests covering legacy event labels, zero counts, multiple patients, and soft-deleted rows.
-
-**Dependencies:** Tasks 1 and 3
-
-**Files likely touched:** Insights SQL/repository, reproduction metrics use case, tests, shared state.
+**Files likely touched:** `GetInsightsDashboardUseCase.kt`, date-bucketing helper, use-case tests.
 
 **Estimated scope:** Medium
 
-#### Task 7: Add current gestation and due-soon cards
+#### Task 6: Add shared presentation state
 
-**Description:** Present active gestations as a current snapshot with gestation day, expected due date, and due-soon grouping independent of the historical range.
+**Description:** Add `InsightsViewModel`, explicit loading/content/empty/error state, cancellable reloads, presets, patient scope, and custom-range validation. Register it in a dedicated presentation module.
 
 **Acceptance criteria:**
 
-- Gestation day is calculated from breeding date and the injected current date.
-- Resolved/inactive gestations are excluded.
-- Each mare links directly to her gestation record.
+- Rapid filter changes cannot publish an older request over a newer one.
+- The first load defaults to the locked 30-day range; invalid custom input stays visible with validation feedback.
+- ViewModel work runs on the injected IO dispatcher and exposes immutable `StateFlow`.
+
+**Verification:** `./gradlew :shared:testAndroidHostTest --tests '*InsightsViewModelTest*'`
+
+**Dependencies:** Task 5
+
+**Files likely touched:** `InsightsViewModel.kt`, `InsightsPresentationModule.kt`, `PresentationModule.kt`, ViewModel tests.
+
+**Estimated scope:** Medium
+
+#### Task 7: Add the iOS observation bridge
+
+**Description:** Wrap the shared ViewModel with `InsightsStore`/`NativeFlow` and expose construction through `IosInsightsStores`.
+
+**Acceptance criteria:**
+
+- Swift can observe state and invoke reload, preset, custom-range, patient, and error-dismiss actions.
+- Store code contains no calculation, date arithmetic, formatting policy, or database access.
+- An iOS bridge test observes the initial and loaded states and cancels cleanly.
+
+**Verification:** `./gradlew :shared:iosSimulatorArm64Test --tests '*InsightsStoreTest*'`
+
+**Dependencies:** Task 6
+
+**Files likely touched:** `InsightsStore.kt`, `IosInsightsStores.kt`, `InsightsStoreTest.kt`.
+
+**Estimated scope:** Medium
+
+### Checkpoint B: Headless vertical slice
+
+- [ ] A fixture produces the exact expected snapshot through the iOS store.
+- [ ] Full shared Android-host and iOS-simulator tests pass.
+- [ ] Dashboard calculations exist only in shared Kotlin.
+
+### Phase 3: iOS overview MVP
+
+#### Task 8: Render overview and case mix
+
+**Description:** Build the Swift wrapper and SwiftUI screen with summary cards, activity chart, record-mix chart/list, range controls, patient label, and polished state handling.
+
+**Acceptance criteria:**
+
+- Content, loading, empty, validation, and retry states are legible in light/dark/system themes.
+- Charts use accessible labels plus textual values and do not communicate category solely by colour.
+- Compact width and large Dynamic Type do not clip cards, filters, chart labels, or values.
+
+**Verification:** Xcode simulator build; fixture screenshots in light/dark and default/AX3 Dynamic Type; VoiceOver inspection.
+
+**Dependencies:** Task 7
+
+**Files likely touched:** `InsightsViewModel.swift`, `InsightsView.swift`, `InsightsOverviewSection.swift`, `InsightsCaseMixSection.swift`.
+
+**Estimated scope:** Medium
+
+#### Task 9: Wire entry points and source drill-down
+
+**Description:** Add global entry from Timeline, patient-scoped entry from Patient Detail, and a filtered record-reference list that reuses existing record detail navigation.
+
+**Acceptance criteria:**
+
+- No sixth tab is added and Back returns to the originating screen.
+- Global and patient entry points open with the correct scope.
+- Tapping a case-mix category shows matching source rows; tapping a row opens `RecordDetailView` through existing navigation types.
+
+**Verification:** Simulator walkthrough from both entry points and at least three record types; add/update iOS UI smoke coverage if stable identifiers permit.
+
+**Dependencies:** Tasks 4 and 8
+
+**Files likely touched:** `TimelineView.swift`, `PatientDetailView.swift`, `InsightsRecordsView.swift`, Insights navigation state/tests.
+
+**Estimated scope:** Medium
+
+### Checkpoint C: Approved Overview MVP
+
+- [ ] Daniela can answer “how much did I record, on how many horses/days, and what kind of work?” for a chosen range.
+- [ ] Every displayed metric matches a golden fixture and every case-mix value drills down.
+- [ ] No unsupported clinical or reproduction outcome is displayed.
+- [ ] Shared gate, Xcode build, theme/accessibility checks, and simulator smoke test pass.
+- [ ] Commit the Overview MVP with a clean worktree before starting extensions.
+
+### Phase 4: Reproduction and thesis extensions
+
+#### Task 10: Add reproduction-period facts
+
+**Description:** Extend the repository and snapshot with canonical event counts, embryo collections/embryos, ICSI sessions/follicles, and ultrasound counts.
+
+**Acceptance criteria:**
+
+- Unknown event values appear under `Other`; soft-deleted and out-of-range rows are excluded.
+- Sums and averages include explicit sample counts and unavailable zero-denominator states.
+- No conception, transfer-success, or live-foal rate is introduced.
+
+**Verification:** `./gradlew :shared:testAndroidHostTest --tests '*InsightsReproductionTest*'`
+
+**Dependencies:** Tasks 1, 4, and 5
+
+**Files likely touched:** `Insights.sq`, repository/snapshot reproduction models, use case, golden tests.
+
+**Estimated scope:** Medium
+
+#### Task 11: Add current gestation operations
+
+**Description:** Add active gestation and due-soon groups using the captured `today`, independently from the historical period filter.
+
+**Acceptance criteria:**
+
+- Gestation day is recalculated from breeding date rather than trusting stored `gestationDays`.
+- Inactive/resolved gestations are excluded and overdue items are explicit.
+- Each row links to the mare and gestation source record.
 
 **Verification:** Boundary tests for today, overdue, leap dates, resolved statuses, and 30/60/90-day groups.
 
-**Dependencies:** Task 4
+**Dependencies:** Tasks 5 and 9
 
-**Files likely touched:** Shared use case/state, ViewModel tests, iOS section view.
-
-**Estimated scope:** Medium
-
-### Phase 4: Thesis-Ready Output
-
-#### Task 8: Export an auditable analysis bundle
-
-**Description:** Export summary, activity-series, record-mix, reproduction, data-issues, and data-dictionary CSV files using the active filter. Add optional stable pseudonymous patient identifiers.
-
-**Acceptance criteria:**
-
-- Export contains metric definitions, range, scope, generation time, and app/schema version.
-- Pseudonymised mode excludes patient names and all owner contact/location data.
-- Exported totals exactly match dashboard totals.
-
-**Verification:** Golden CSV tests, privacy-field assertion, and round-trip parsing with quoted/newline-containing values.
-
-**Dependencies:** Tasks 4, 6, and 7
-
-**Files likely touched:** Export use case, CSV formatter reuse/extension, pseudonym service, tests, iOS share action.
-
-**Estimated scope:** Medium; PDF summary can be a separate follow-up.
-
-#### Task 9: Add research-readiness checks
-
-**Description:** Show explicit counts for records that weaken analysis: unknown event categories, missing vet names, unlinked owners, free-text recipients, and incomplete structured ultrasound fields.
-
-**Acceptance criteria:**
-
-- Every issue count opens the affected records.
-- The UI explains why the field matters without claiming records are clinically wrong.
-- No opaque aggregate quality score is displayed.
-
-**Verification:** Rule unit tests and drill-down fixture tests.
-
-**Dependencies:** Tasks 4 and 6
-
-**Files likely touched:** Data-quality rules/use case, shared state, iOS section, tests.
+**Files likely touched:** Gestation query/model/use-case extension, tests, `InsightsGestationSection.swift`.
 
 **Estimated scope:** Medium
 
-### Checkpoint: Complete MVP+
+#### Task 12: Export a dashboard-aligned analysis bundle
 
-- Full shared tests, Detekt, KtLint, and Xcode simulator build pass.
-- Dashboard and export agree on every fixture total.
-- Source drill-down works for every metric.
-- Privacy review confirms no owner-identifying data in pseudonymised exports.
-- Implementation is committed with a clean worktree.
+**Description:** Export summary, activity series, record mix, reproduction metrics, and a data dictionary using the exact loaded snapshot/filter. Add optional bundle-local pseudonyms.
 
-## High-Value Follow-Ups
+**Acceptance criteria:**
 
-1. **Saved thesis cohorts:** reusable inclusion/exclusion filters with a frozen cohort snapshot and change log.
-2. **Reproduction cycle linkage:** explicit breeding attempts, pregnancy-check outcomes, recipient links, and foaling outcomes to unlock honest success rates.
-3. **Internship sessions:** date, hours, location, supervisor, role, procedures observed/performed, competencies, and reflection; dashboard can then track official placement hours rather than infer them from records.
-4. **Competency portfolio:** progress by procedure/category with evidence links and supervisor sign-off.
-5. **Reproduction pipeline:** mares grouped as monitoring, ready to breed, bred/awaiting check, pregnant, due soon, or follow-up needed.
-6. **Study workspace:** variable selector, cohort comparison, long/wide export, missingness table, and reproducible analysis snapshot.
-7. **Geographic caseload:** owner/stable map with privacy-preserving aggregation and travel-day summaries.
-8. **Assistant explanation mode:** the LLM may explain a frozen `InsightsSnapshot`, but every statement must cite a dashboard metric or underlying record and it cannot recompute values.
-9. **Supervisor report:** monthly PDF containing hours, case mix, procedures, reflections, and linked evidence for review/sign-off.
-10. **Follow-up inbox:** due gestation checks, incomplete records, failed dictation extraction, expiring preventive care, and dashboard data-quality issues in one queue.
+- Export records range, scope, generation time, app/schema version, and metric definitions.
+- Dashboard totals and CSV totals are byte-for-byte derived from the same snapshot values.
+- Pseudonymised mode contains no patient names or owner contact/location fields.
+
+**Verification:** Golden CSV tests, privacy allowlist test, quoted/newline round-trip test, and iOS share-sheet smoke test.
+
+**Dependencies:** Tasks 9–11
+
+**Files likely touched:** `ExportInsightsBundleUseCase.kt`, exporter/data dictionary, tests, iOS share action.
+
+**Estimated scope:** Medium
+
+#### Task 13: Add research-readiness drill-down
+
+**Description:** Report concrete issue counts for unknown reproduction categories, missing vet names, unlinked owners, free-text embryo recipients, and incomplete structured ultrasound data.
+
+**Acceptance criteria:**
+
+- Each rule has a written definition and opens only the affected source rows.
+- UI language says “missing for analysis,” not “clinically wrong.”
+- No combined quality score or LLM classification is used.
+
+**Verification:** Rule unit tests, repository fixture tests, and simulator drill-down walkthrough.
+
+**Dependencies:** Tasks 9–11
+
+**Files likely touched:** Insights data-quality rules/models, shared state, tests, iOS readiness section.
+
+**Estimated scope:** Medium
+
+### Checkpoint D: Complete dashboard
+
+- [ ] Full shared tests, Detekt, KtLint, and Xcode simulator build pass.
+- [ ] Dashboard and export agree on every fixture total.
+- [ ] Privacy review confirms no owner-identifying data in pseudonymised exports.
+- [ ] Physical-device verification passes before release installation.
+- [ ] Commit with a clean worktree.
+
+## Product Backlog Relationship
+
+Ideas intentionally outside this implementation are tracked in [`docs/FEATURE_IDEAS.md`](../docs/FEATURE_IDEAS.md). Promote an idea into this plan only after the current milestone is complete or the user explicitly changes scope.
 
 ## Risks and Mitigations
 
@@ -326,13 +522,42 @@ The code currently persists both `PregnancyCheck` and `Pregnancy Check` dependin
 | Thesis export leaks personal data | High | Pseudonymised mode, allowlist exported fields, privacy regression tests. |
 | Six-tab iOS navigation becomes crowded | Medium | Enter Insights from Timeline and Patient Detail; keep five root tabs. |
 
-## Recommended Starting Slice
+## Execution and Parallelisation
 
-Implement Tasks 1–5 first. That produces a genuinely useful, auditable workload and case-mix dashboard without schema migration or questionable outcome calculations. Then add Tasks 6–9 once the metric contract and interaction pattern are proven on Daniela's real workflow.
+- Tasks 1 and 3 may be implemented in parallel after their shared naming is agreed; Task 2 follows Task 1.
+- Tasks 4–7 are sequential because each defines the next contract boundary.
+- After Task 7, SwiftUI rendering fixtures and shared drill-down repository tests may proceed in parallel, but Task 9 integration waits for Task 8.
+- Tasks 10 and 11 may proceed in parallel after the Overview MVP checkpoint.
+- Task 12 waits for stable snapshot models from Tasks 10–11. Task 13 may proceed alongside Task 12.
+- Parallel write lanes must use separate worktrees; the integrating agent reviews tests and architecture before merging.
 
-## Open Questions Before Implementation
+## Definition of Done
 
-- What date defines Daniela's semester/internship reporting periods?
-- Does her degree require documented placement hours, competency categories, or supervisor signatures?
-- Should patient-scoped Insights be available for every horse or only reproduction cases?
-- For thesis exports, should pseudonymous IDs remain stable across exports or be unique per study?
+For each task:
+
+1. Add focused behavioural tests before or with the implementation.
+2. Run the narrow task-specific command listed in the task.
+3. Run `./gradlew :shared:ktlintCheck :shared:detekt :shared:compileKotlinIosSimulatorArm64` before handoff.
+4. For Swift changes, run an Xcode simulator build and inspect the changed flow in the simulator.
+5. Review `git diff --check`, verify no unrelated changes, and commit with a clean worktree.
+
+At Checkpoints C and D, run the complete shared gate from the handoff contract plus:
+
+```bash
+xcodebuild \
+  -project iosApp/iosApp.xcodeproj \
+  -scheme iosApp \
+  -configuration Debug \
+  -sdk iphonesimulator \
+  -destination 'generic/platform=iOS Simulator' \
+  build
+```
+
+## Deferred Product Inputs
+
+These do not block the approved Overview MVP:
+
+- Semester dates: omit that preset until Daniela supplies the programme boundaries.
+- Official hours/competencies/signatures: implement as explicit internship-session data, tracked in the feature backlog; never infer them from patient records.
+- Patient eligibility: patient-scoped Insights is available for every active patient, not only reproduction cases.
+- Persistent pseudonyms: bundle-local pseudonyms are the first version; stable cross-export study identities wait for saved cohorts.

@@ -215,7 +215,8 @@ struct OwnerLocationPickerView: View {
             if !searchResults.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(Array(searchResults.enumerated()), id: \.offset) { _, item in
+                        ForEach(searchResults.indices, id: \.self) { index in
+                            let item = searchResults[index]
                             Button {
                                 select(item)
                             } label: {

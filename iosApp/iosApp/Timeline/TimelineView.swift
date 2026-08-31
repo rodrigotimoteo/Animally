@@ -12,6 +12,13 @@ struct TimelineView: View {
                 .id(selectedPatientId)
                 .navigationTitle("Timeline")
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        NavigationLink(value: InsightsNavKey(patientId: nil, patientName: nil)) {
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .accessibilityLabel("Insights")
+                        }
+                        .accessibilityIdentifier("timeline_insights_button")
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         patientFilterMenu
                     }
@@ -98,17 +105,18 @@ private struct TimelineContent: View {
                 recordId: key.recordId
             )
         }
+        .navigationDestination(for: InsightsNavKey.self) { key in
+            InsightsView(patientId: key.patientId, patientName: key.patientName)
+        }
     }
 
     private var timelineList: some View {
         List {
             ForEach(viewModel.state.groups, id: \.date) { group in
                 Section {
-                    ForEach(Array(group.entries.enumerated()), id: \.offset) { _, entry in
+                    ForEach(group.entries, id: \.recordId) { entry in
                         Button {
-                            // Open the read-only record detail with the patient
-                            // page underneath so Back returns to it.
-                            path.append(Route.patientDetail(entry.patientId))
+                            // Single push — detail shows patient context via data, Back returns to timeline.
                             path.append(RecordDetailKey(
                                 displayType: entry.recordType,
                                 patientId: entry.patientId,
@@ -185,7 +193,7 @@ private struct TimelineContent: View {
     }
 
     private func formatDate(_ date: Kotlinx_datetimeLocalDate) -> String {
-        return "\(date.year)-\(String(format: "%02d", date.monthNumber))-\(String(format: "%02d", date.dayOfMonth))"
+        return date.displayString
     }
 }
 

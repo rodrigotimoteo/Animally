@@ -25,11 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEventType
 import com.github.rodrigotimoteo.animally.presentation.common.addEdit.EditEffect
 import com.github.rodrigotimoteo.animally.presentation.reproduction.ReproductionEventEditViewModel
 import com.github.rodrigotimoteo.animally.presentation.reproduction.ReproductionEventFormState
 
-private val EVENT_TYPES = listOf("Heat", "Breeding", "PregnancyCheck", "Foaling")
+private val EVENT_TYPES = ReproductionEventType.knownEntries.map { it.displayLabel }
 
 /**
  * Screen for creating or editing a reproduction-cycle event.
@@ -105,13 +106,20 @@ private fun ReproductionEventTypeFields(
     form: ReproductionEventFormState,
 ) {
     Text("Event Type *", style = MaterialTheme.typography.labelLarge)
+    // Normalise legacy spellings (PregnancyCheck / pregnancy_check etc.) to the
+    // canonical display label so the picker shows the correct selection without
+    // mutating the persisted row until saved.
+    val selectedDisplay =
+        ReproductionEventType.from(form.eventType).let { canonical ->
+            if (canonical == ReproductionEventType.Other) form.eventType.trim() else canonical.displayLabel
+        }
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         EVENT_TYPES.forEach { type ->
             FilterChip(
-                selected = form.eventType == type,
+                selected = selectedDisplay == type,
                 onClick = { viewModel.onEventTypeChange(type) },
                 label = { Text(type) },
             )

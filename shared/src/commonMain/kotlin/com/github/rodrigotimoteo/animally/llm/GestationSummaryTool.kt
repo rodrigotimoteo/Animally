@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.llm
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.gestation.model.isActiveGestation
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.CalculateGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
@@ -117,11 +118,6 @@ internal class GestationSummaryTool(
             date = row.gestation.breedingDate,
             snippet = "${row.gestation.status}; gestation day ${row.gestation.gestationDays}.",
         )
-
-    private fun Gestation.isActiveGestation(): Boolean {
-        val normalizedStatus = status.lowercase()
-        return isActive && normalizedStatus !in AnalysisToolLimits.RESOLVED_GESTATION_STATUSES
-    }
 
     private data class GestationContent(
         val args: JsonObject,

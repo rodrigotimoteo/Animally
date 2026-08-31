@@ -22,6 +22,9 @@ struct PatientsTab: View {
                 .navigationDestination(for: RecordEditRoute.self) { route in
                     recordEditDestination(route)
                 }
+                .navigationDestination(for: InsightsNavKey.self) { key in
+                    InsightsView(patientId: key.patientId, patientName: key.patientName)
+                }
         }
     }
 }

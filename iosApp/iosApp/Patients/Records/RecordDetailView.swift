@@ -3,32 +3,50 @@ import Shared
 import SwiftUI
 
 /// Navigation payload for the read-only record detail screen.
+/// Deterministic identity derived from patientId+recordId+displayType so the same
+/// record always hashes identically and Back/Push diffs remain stable.
 struct RecordDetailNav: Identifiable, Hashable {
     struct FieldRow: Identifiable, Hashable {
         let label: String
         let value: String
-        var id: String { label }
+        let index: Int
+        var id: String { "\(index)-\(label)-\(value)" }
 
-        init(label: String, value: String) {
+        init(label: String, value: String, index: Int = 0) {
             self.label = label
             self.value = value
+            self.index = index
         }
     }
 
-    let id = UUID()
     let title: String
     let displayType: String
     let patientId: Int64
     let recordId: Int64
     let fields: [FieldRow]
+
+    var id: String { "\(patientId)-\(recordId)-\(displayType)" }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(patientId)
+        hasher.combine(recordId)
+        hasher.combine(displayType)
+    }
+
+    static func == (lhs: RecordDetailNav, rhs: RecordDetailNav) -> Bool {
+        lhs.patientId == rhs.patientId && lhs.recordId == rhs.recordId && lhs.displayType == rhs.displayType
+    }
 }
 
 /// Hashable navigation payload for opening the detail by record identity:
 /// the view loads the record itself instead of receiving eager field rows.
-struct RecordDetailKey: Hashable {
+/// Deterministic Identifiable so navigationDestination(item:) diff stable.
+struct RecordDetailKey: Hashable, Identifiable {
     let displayType: String
     let patientId: Int64
     let recordId: Int64
+
+    var id: String { "\(patientId)-\(recordId)-\(displayType)" }
 }
 
 /// Read-only view of everything inside one record. "Edit" pushes the
@@ -230,7 +248,9 @@ final class RecordDetailObserver: ObservableObject {
     }
 
     private func apply(_ state: RecordDetailState) {
-        var rows = state.rows?.map { RecordDetailNav.FieldRow(label: $0.label, value: $0.value) }
+        var rows = state.rows?.enumerated().map { idx, row in
+            RecordDetailNav.FieldRow(label: row.label, value: row.value, index: idx)
+        }
         if rows?.isEmpty == true, !state.isLoading {
             rows = nil
         }

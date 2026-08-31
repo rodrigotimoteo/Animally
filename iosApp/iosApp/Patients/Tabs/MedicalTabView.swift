@@ -5,14 +5,13 @@ struct MedicalTabView: View {
     let patientId: Int64
     let refreshToken: Int
     @StateObject private var viewModel: MedicalTabViewModel
-    /// Fires when a record row is tapped; carries the display type, record id,
-    /// and the field rows shown on the read-only detail screen.
-    var onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil
+    /// Fires when a record row is tapped; lazy open via RecordDetailKey.
+    var onOpenRecord: ((String, Int64) -> Void)? = nil
 
     init(
         patientId: Int64,
         refreshToken: Int = 0,
-        onOpenRecord: ((String, Int64, [RecordDetailNav.FieldRow]) -> Void)? = nil,
+        onOpenRecord: ((String, Int64) -> Void)? = nil,
     ) {
         self.patientId = patientId
         _viewModel = StateObject(wrappedValue: MedicalTabViewModel(patientId: patientId))
@@ -60,15 +59,6 @@ struct MedicalTabView: View {
                     rowSubtitle: { $0.vetName },
                     rowDate: { $0.date.displayString },
                     displayType: "Consultation",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Subjective", value: record.subjective),
-                        .init(label: "Objective", value: record.objective),
-                        .init(label: "Assessment", value: record.assessment),
-                        .init(label: "Plan", value: record.plan),
-                        .init(label: "Veterinarian", value: record.vetName ?? ""),
-                        .init(label: "Next Visit", value: record.nextVisitDate?.displayString ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteConsultation($0.id) },
                     display: viewModel.display(for: .consultations)
                 ),
@@ -85,16 +75,6 @@ struct MedicalTabView: View {
                     rowSubtitle: { $0.limbLocation },
                     rowDate: { $0.date.displayString },
                     displayType: "Lameness",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "AAEP Grade", value: "\(record.gradeAAEP)"),
-                        .init(label: "Limb Location", value: record.limbLocation ?? ""),
-                        .init(label: "Flexion Test", value: record.flexionTest ?? ""),
-                        .init(label: "Diagnosis", value: record.diagnosis ?? ""),
-                        .init(label: "Treatment", value: record.treatment ?? ""),
-                        .init(label: "Veterinarian", value: record.vetName ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteLameness($0.id) },
                     deleteTitle: "Lameness Evaluation",
                     display: viewModel.display(for: .lameness)
@@ -112,17 +92,6 @@ struct MedicalTabView: View {
                     rowSubtitle: { $0.surgeon },
                     rowDate: { $0.date.displayString },
                     displayType: "Surgery",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Type", value: record.type ?? ""),
-                        .init(label: "Description", value: record.description ?? ""),
-                        .init(label: "Outcome", value: record.outcome ?? ""),
-                        .init(label: "Surgeon", value: record.surgeon ?? ""),
-                        .init(label: "Anesthesia", value: record.anesthesia ?? ""),
-                        .init(label: "Analgesia", value: record.analgesia ?? ""),
-                        .init(label: "Complications", value: record.complications ?? ""),
-                        .init(label: "Recovery Notes", value: record.recoveryNotes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteSurgery($0.id) },
                     display: viewModel.display(for: .surgeries)
                 ),
@@ -139,16 +108,6 @@ struct MedicalTabView: View {
                     rowSubtitle: { $0.dosage },
                     rowDate: { $0.startDate?.displayString },
                     displayType: "Medication",
-                    fields: { record in [
-                        .init(label: "Name", value: record.name),
-                        .init(label: "Dosage", value: record.dosage),
-                        .init(label: "Route", value: record.route ?? ""),
-                        .init(label: "Frequency", value: record.frequency ?? ""),
-                        .init(label: "Start Date", value: record.startDate?.displayString ?? ""),
-                        .init(label: "End Date", value: record.endDate?.displayString ?? ""),
-                        .init(label: "Prescribed By", value: record.prescribedBy ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteMedication($0.id) },
                     display: viewModel.display(for: .medications)
                 ),
@@ -165,17 +124,6 @@ struct MedicalTabView: View {
                     rowSubtitle: { $0.dose + ($0.unit.map { " \($0)" } ?? "") },
                     rowDate: { $0.date.displayString },
                     displayType: "Controlled Substance",
-                    fields: { record in [
-                        .init(label: "Drug Name", value: record.drugName),
-                        .init(label: "Dose", value: record.dose),
-                        .init(label: "Unit", value: record.unit ?? ""),
-                        .init(label: "Route", value: record.route ?? ""),
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Administered By", value: record.administeredBy ?? ""),
-                        .init(label: "Witness", value: record.witness ?? ""),
-                        .init(label: "Reason", value: record.reason ?? ""),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteSubstance($0.id) },
                     display: viewModel.display(for: .substances)
                 ),
@@ -188,15 +136,10 @@ struct MedicalTabView: View {
                     icon: "scalemass.fill",
                     items: viewModel.weights.visibleItems,
                     recordId: { $0.id },
-                    rowTitle: { String(format: "%.1f kg", $0.weightKg) },
+                    rowTitle: { String(format: "%.1f kg", locale: Locale(identifier: "en_US_POSIX"), $0.weightKg) },
                     rowSubtitle: { _ in nil },
                     rowDate: { $0.date.displayString },
                     displayType: "Weight",
-                    fields: { record in [
-                        .init(label: "Date", value: record.date.displayString),
-                        .init(label: "Weight (kg)", value: String(format: "%.1f kg", record.weightKg)),
-                        .init(label: "Notes", value: record.notes ?? ""),
-                    ] },
                     onDelete: { viewModel.deleteWeight($0.id) },
                     deleteTitle: "Weight Entry",
                     display: viewModel.display(for: .weights)

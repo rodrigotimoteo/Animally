@@ -27,6 +27,7 @@ final class ReproductionTabViewModel: ObservableObject {
     private let icsiStore: IcsiListStore
 
     init(patientId: Int64) {
+        todayKotlin = Self.makeTodayKotlin()
         reproStore = IosReproAndDiagnosticsStores.shared.reproductionListStore(patientId: patientId)
         ultrasoundStore = IosReproAndDiagnosticsStores.shared.ultrasoundListStore(patientId: patientId)
         gestationStore = IosReproAndDiagnosticsStores.shared.gestationListStore(patientId: patientId)
@@ -262,8 +263,42 @@ final class ReproductionTabViewModel: ObservableObject {
         isLoading = receivedStoreKeys.count < 6
     }
 
-    /// Reloads every store this tab owns; stores re-query Kotlin and republish.
+    // MARK: - Gestation progress aligned with GetInsightsDashboardUseCase todayProvider
+
+    /// Single captured today — reused for all rows to avoid midnight drift.
+    /// Mirrors Kotlin `today` param passed to `CalculateGestationUseCase`/`GetInsightsDashboardUseCase`.
+    /// Refreshed only at init/reload, not per-row.
+    private var todayKotlin: Kotlinx_datetimeLocalDate
+
+    private static func makeTodayKotlin() -> Kotlinx_datetimeLocalDate {
+        let comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        return Kotlinx_datetimeLocalDate(
+            year: Int32(comps.year ?? 1970),
+            month: Int32(comps.month ?? 1),
+            day: Int32(comps.day ?? 1)
+        )
+    }
+
+    /// Gestation day as of injected today (breeding.daysUntil(today)), clamped ≥0 — mirrors Kotlin `CalculateGestationUseCase`.
+    /// Uses epochDaysCompat fallback if SKIE `toEpochDays()` export missing; verified export exists in Shared.h.
+    func gestationDay(for gestation: Gestation_) -> Int {
+        let todayEpoch = todayKotlin.epochDaysCompat()
+        let breedingEpoch = gestation.breedingDate.epochDaysCompat()
+        let diff = Int(todayEpoch - breedingEpoch)
+        return max(0, diff)
+    }
+
+    /// Days until due as of injected today (today.daysUntil(dueDate)) — negative when overdue.
+    /// Uses epoch-day diff to avoid DST drift of Calendar.dateComponents.
+    func daysUntilDue(for gestation: Gestation_) -> Int {
+        let todayEpoch = todayKotlin.epochDaysCompat()
+        let dueEpoch = gestation.expectedDueDate.epochDaysCompat()
+        return Int(dueEpoch - todayEpoch)
+    }
+
+    /// Reloads every store this tab owns; stores re-query Kotlin and republish. Refreshes cached today.
     func reload() {
+        todayKotlin = Self.makeTodayKotlin()
         reproStore.load()
         ultrasoundStore.load()
         gestationStore.load()

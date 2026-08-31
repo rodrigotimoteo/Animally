@@ -70,7 +70,8 @@ struct UltrasoundEditView: View {
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)
             } else {
-                ForEach(Array(follicles.enumerated()), id: \.offset) { index, follicle in
+                ForEach(follicles.indices, id: \.self) { index in
+                    let follicle = follicles[index]
                     follicleCard(side: side, number: index + 1, index: index, follicle: follicle)
                 }
             }

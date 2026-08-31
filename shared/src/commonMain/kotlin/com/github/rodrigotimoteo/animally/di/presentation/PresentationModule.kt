@@ -19,6 +19,7 @@ internal class PresentationModule {
                 DiagnosticsPresentationModule().provide(),
                 ReproductionPresentationModule().provide(),
                 CorePresentationModule().provide(),
+                InsightsPresentationModule().provide(),
             )
         }
 }
