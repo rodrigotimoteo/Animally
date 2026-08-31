@@ -39,7 +39,7 @@ final class LinkPatientViewModel: ObservableObject {
     /// to other owners; both are linkable, this owner's own patients are not shown.
     func reloadPatients() {
         let store = IosSettingsStores.shared.settingsStore()
-        let all = (store.patients as? [Patient_]) ?? []
+        let all = store.patients
         let unassigned = all.filter { $0.ownerId == nil }
         let otherOwners = all.filter { id in
             guard let ownerId = id.ownerId else { return false }

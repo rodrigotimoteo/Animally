@@ -14,6 +14,7 @@ import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationReposit
 import com.github.rodrigotimoteo.animally.domain.weight.IWeightRepository
 import com.github.rodrigotimoteo.animally.llm.analysis.AnalysisAssembler
 import com.github.rodrigotimoteo.animally.llm.analysis.AnalysisIntents
+import com.github.rodrigotimoteo.animally.llm.analysis.AnalysisTopicIntents
 import com.github.rodrigotimoteo.animally.llm.analysis.BreedingFactsProvider
 import com.github.rodrigotimoteo.animally.llm.analysis.CareSummaryBuilder
 import com.github.rodrigotimoteo.animally.llm.analysis.GestationFactsProvider
@@ -57,7 +58,6 @@ internal data class BreedingOutcomeFact(
  * `llm.analysis` so each domain stays <200 lines while the public API for
  * GenerateRagResponseUseCase / AnalysisToolRegistry remains stable.
  */
-@Suppress("TooManyFunctions")
 class AnalysisContextBuilder(
     private val patientRepository: IPatientRepository,
     private val weightRepository: IWeightRepository,
@@ -126,17 +126,17 @@ class AnalysisContextBuilder(
             )
         val blocks =
             buildList {
-                if (AnalysisIntents.wantsCensus(query)) add(censusBuilder.censusBlock(patients))
-                if (AnalysisIntents.wantsWeight(query)) {
+                if (AnalysisTopicIntents.wantsCensus(query)) add(censusBuilder.censusBlock(patients))
+                if (AnalysisTopicIntents.wantsWeight(query)) {
                     weightBuilder.weightTrendBlock(careTargets, dateRange)?.let(::add)
                 }
-                if (AnalysisIntents.wantsCareCounts(query)) {
+                if (AnalysisTopicIntents.wantsCareCounts(query)) {
                     careBuilder.careBlock(careTargets, dateRange)?.let(::add)
                 }
-                if (AnalysisIntents.wantsGestation(query)) {
+                if (AnalysisTopicIntents.wantsGestation(query)) {
                     gestationBuilder.gestationBlock(careTargets, today)?.let(::add)
                 }
-                if (AnalysisIntents.wantsOverdue(query)) overdueBuilder.overdueBlock(careTargets, today)?.let(::add)
+                if (AnalysisTopicIntents.wantsOverdue(query)) overdueBuilder.overdueBlock(careTargets, today)?.let(::add)
             }
         return AnalysisAssembler.assemble(blocks)
     }
@@ -151,10 +151,8 @@ class AnalysisContextBuilder(
         today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
     ): List<BreedingFact>? = breedingFactsProvider.breedingFacts(query, today)
 
-    @Suppress("MaxLineLength")
     internal fun reproductionOutcomeFacts(query: String): List<BreedingOutcomeFact>? = breedingFactsProvider.reproductionOutcomeFacts(query)
 
-    @Suppress("MaxLineLength")
     internal fun reproductionAttributeFacts(query: String): List<ReproductionAttributeFact>? = breedingFactsProvider.reproductionAttributeFacts(query)
 
     internal companion object {

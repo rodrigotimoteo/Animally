@@ -426,6 +426,7 @@ class RagOrchestrationGoldenSetTest {
     fun singularFollowUpSheScopesToLastMentionedPatient() =
         runTest {
             every { patientRepo.patientNames() } returns listOf("Thunder", "Estrela")
+            every { patientRepo.getPatientList() } returns emptyList()
             every { searchRepo.search(any(), any(), any(), any()) } returns listOf(result())
             val history = listOf(RagHistoryEntry("Tell me about Thunder", "Thunder is a 7 year old mare."))
             val out = sut(patRepo = patientRepo)("How old is she?", history).answers()

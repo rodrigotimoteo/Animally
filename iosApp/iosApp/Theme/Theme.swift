@@ -1,17 +1,6 @@
 import SwiftUI
 import Shared
 
-private struct AnimallySystemColorSchemeKey: EnvironmentKey {
-    static let defaultValue: ColorScheme = .light
-}
-
-extension EnvironmentValues {
-    var animallySystemColorScheme: ColorScheme {
-        get { self[AnimallySystemColorSchemeKey.self] }
-        set { self[AnimallySystemColorSchemeKey.self] = newValue }
-    }
-}
-
 enum Theme {
     static let forestGreen = Color.accentColor
     static let amber = Color(red: 0.85, green: 0.65, blue: 0.13)

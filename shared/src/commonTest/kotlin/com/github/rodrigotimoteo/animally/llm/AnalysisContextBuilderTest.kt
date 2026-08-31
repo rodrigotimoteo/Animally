@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.llm.analysis.AnalysisTopicIntents
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -261,7 +262,7 @@ class AnalysisContextBuilderTest {
         val query = "How long ago was Lua bred?"
         val facts = builder.gestationFacts(query, today)
 
-        assertTrue(AnalysisIntents.wantsBreedingTiming(query))
+        assertTrue(AnalysisTopicIntents.wantsBreedingTiming(query))
         assertEquals(LocalDate(2025, 1, 1), facts?.single()?.gestation?.breedingDate)
         assertEquals(130, facts?.single()?.elapsedDays)
     }

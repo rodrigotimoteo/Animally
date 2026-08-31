@@ -224,8 +224,7 @@ class InsightsViewModelTest {
             assertEquals(InsightsPreset.CUSTOM, state.preset)
             assertEquals(LocalDate(2025, 1, 20), state.customFrom)
             assertEquals(LocalDate(2025, 1, 10), state.customTo)
-            assertNotNull(state.validationError)
-            assertTrue(state.validationError!!.contains("Start date"))
+            assertTrue(assertNotNull(state.validationError).contains("Start date"))
             assertFalse(state.isLoading)
             // No additional repository calls beyond baseline (validation blocks load)
             assertEquals(baselineCalls, repo.capturedFilters.size)
@@ -333,10 +332,10 @@ class InsightsViewModelTest {
             advanceUntilIdle()
 
             // Final state must reflect last filter (custom 42) not earlier 90 or 30.
+            val snapshot = assertNotNull(vm.uiState.value.snapshot)
             assertEquals(
                 42,
-                vm.uiState.value.snapshot!!
-                    .overview.activityCount,
+                snapshot.overview.activityCount,
             )
             assertEquals(InsightsPreset.CUSTOM, vm.uiState.value.preset)
         }
@@ -364,10 +363,7 @@ class InsightsViewModelTest {
             assertNull(vm.uiState.value.to)
             assertEquals(InsightsPreset.ALL_TIME, vm.uiState.value.preset)
             // All-time snapshot has no comparison.
-            assertNull(
-                vm.uiState.value.snapshot!!
-                    .overview.comparison,
-            )
+            assertNull(assertNotNull(vm.uiState.value.snapshot).overview.comparison)
 
             vm.selectPreset(InsightsPreset.THIRTY_DAYS)
             advanceUntilIdle()
@@ -433,18 +429,18 @@ class InsightsViewModelTest {
             assertFalse(vm.uiState.value.isLoading)
             assertNotNull(vm.uiState.value.errorMessage)
             assertEquals("db fail", vm.uiState.value.errorMessage)
-            assertTrue(
-                vm.uiState.value.snapshot == null ||
-                    vm.uiState.value.snapshot!!
-                        .overview.activityCount == 0,
-            )
+            val activityCount =
+                vm.uiState.value.snapshot
+                    ?.overview
+                    ?.activityCount
+                    ?: 0
+            assertEquals(0, activityCount)
 
             vm.dismissError()
             assertNull(vm.uiState.value.errorMessage)
 
-            // Verify StateFlow is immutable exposed (not MutableStateFlow).
-            assertTrue(vm.uiState is kotlinx.coroutines.flow.StateFlow)
-            // _uiState is private; cannot cast to MutableStateFlow from outside.
+            // Verify the exposed StateFlow cannot be cast to MutableStateFlow.
+            assertFalse(vm.uiState is kotlinx.coroutines.flow.MutableStateFlow)
         }
 
     @Test

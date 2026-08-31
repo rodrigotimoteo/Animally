@@ -10,7 +10,8 @@ import kotlin.native.ObjCName
  *
  * The per-entity factories remain split across [IosEditStores],
  * [IosEditStoresMedical], [IosEditStoresRepro], [IosEditStoresCare],
- * [IosEditStoresFiles], [IosRecordStores], [IosReproAndDiagnosticsStores],
+ * [IosEditStoresFiles], [IosRecordStores], [IosMedicalRecordStores],
+ * [IosPreventiveRecordStores], [IosCareStores], [IosReproAndDiagnosticsStores],
  * and [IosSettingsStores] to stay within the Detekt `TooManyFunctions`
  * budget (threshold 15). [IosStores] provides a single discoverable
  * namespace that delegates to those domain-grouped modules, reducing

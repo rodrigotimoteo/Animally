@@ -407,7 +407,7 @@ final class CareDuePanelModel: ObservableObject {
     private var loadTask: Task<Void, Never>?
 
     init(patientId: Int64) {
-        store = IosRecordStores.shared.upcomingCareStore(patientId: patientId)
+        store = IosCareStores.shared.upcomingCareStore(patientId: patientId)
         cancellable = store.state.subscribe(onEach: { [weak self] state in
             Task { @MainActor in
                 self?.items = state.items

@@ -1,5 +1,3 @@
-@file:Suppress("Wrapping", "MaximumLineLength", "MaxLineLength")
-
 package com.github.rodrigotimoteo.animally.presentation.insights
 
 import androidx.lifecycle.ViewModel
@@ -162,7 +160,10 @@ class InsightsViewModel(
         today: LocalDate = todayProvider(),
     ) {
         when (val r = resolve(preset, patientId, customFrom, customTo, today)) {
-            is Resolved.Invalid -> _uiState.update { it.copy(validationError = r.error, from = r.from, to = r.to, isLoading = false) }
+            is Resolved.Invalid ->
+                _uiState.update {
+                    it.copy(validationError = r.error, from = r.from, to = r.to, isLoading = false)
+                }
             is Resolved.Finite -> {
                 _uiState.update { it.copy(from = r.filter.from, to = r.filter.to, validationError = null) }
                 launchLoad(r, today)

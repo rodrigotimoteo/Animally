@@ -16,9 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Vaccination as DbVacci
 /**
  * Repository implementation for managing [Vaccination] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
-// base uses `value: Vaccination`, interface uses `vaccination: Vaccination` —
-// names must align per interface
 @Single(binds = [IVaccinationRepository::class])
 class VaccinationRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -67,4 +64,8 @@ class VaccinationRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = vaccinationQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(vaccination: Vaccination): Long = super.insertDomain(vaccination)
+
+    override fun update(vaccination: Vaccination): Long = super.updateDomain(vaccination)
 }

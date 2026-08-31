@@ -108,11 +108,11 @@ class GetInsightsDashboardUseCaseTest {
         assertTrue(snap.recordMix.isEmpty())
         assertTrue(snap.activitySeries.isEmpty())
         // comparison exists and has zero previous -> percentageDelta null
-        assertNotNull(snap.overview.comparison)
-        assertEquals(0, snap.overview.comparison!!.current)
-        assertEquals(0, snap.overview.comparison!!.previous)
-        assertEquals(0, snap.overview.comparison!!.absoluteDelta)
-        assertNull(snap.overview.comparison!!.percentageDelta)
+        val comparison = assertNotNull(snap.overview.comparison)
+        assertEquals(0, comparison.current)
+        assertEquals(0, comparison.previous)
+        assertEquals(0, comparison.absoluteDelta)
+        assertNull(comparison.percentageDelta)
         // two repository calls with exact non-overlapping inclusive ranges
         assertEquals(2, repo.capturedFilters.size)
         val current = repo.capturedFilters[0]
@@ -155,8 +155,8 @@ class GetInsightsDashboardUseCaseTest {
         // active days: d1, d2 =>2
         assertEquals(2, snap.overview.activeDayCount)
         // averages
-        assertEquals(2.0, snap.overview.averagePerActiveDay!!, 0.001)
-        assertEquals(4.0 / 3.0, snap.overview.averagePerCaseDay!!, 0.001)
+        assertEquals(2.0, assertNotNull(snap.overview.averagePerActiveDay), 0.001)
+        assertEquals(4.0 / 3.0, assertNotNull(snap.overview.averagePerCaseDay), 0.001)
         // current/comparison non overlapping verified
         assertEquals(2, repo.capturedFilters.size)
         assertEquals(filter, repo.capturedFilters[0])
@@ -195,10 +195,10 @@ class GetInsightsDashboardUseCaseTest {
         val vac = snap.recordMix.first { it.type == RecordType.Vaccination }
         assertEquals(2, consult.count)
         assertEquals(1, vac.count)
-        assertEquals(2.0 / 3.0, consult.share!!, 0.001)
-        assertEquals(1.0 / 3.0, vac.share!!, 0.001)
+        assertEquals(2.0 / 3.0, assertNotNull(consult.share), 0.001)
+        assertEquals(1.0 / 3.0, assertNotNull(vac.share), 0.001)
         // total = 3, shares sum to 1.0 within rounding
-        val sum = snap.recordMix.sumOf { it.share!! }
+        val sum = snap.recordMix.sumOf { assertNotNull(it.share) }
         assertEquals(1.0, sum, 0.001)
     }
 
@@ -211,18 +211,8 @@ class GetInsightsDashboardUseCaseTest {
         assertNull(snap.overview.averagePerActiveDay)
         assertNull(snap.overview.averagePerCaseDay)
         assertTrue(snap.recordMix.isEmpty())
-        // ensure no share is zero when empty, and no NaN
-        snap.recordMix.forEach {
-            assertNotNull(it.share)
-            assertTrue(it.share!!.isFinite())
-        }
         // comparison percentageDelta null when previous zero
-        assertNull(snap.overview.comparison!!.percentageDelta)
-        assertTrue(
-            snap.overview.comparison!!
-                .percentageDelta
-                ?.isFinite() ?: true,
-        )
+        assertNull(assertNotNull(snap.overview.comparison).percentageDelta)
     }
 
     @Test
@@ -237,7 +227,7 @@ class GetInsightsDashboardUseCaseTest {
 
         val snap = sut(filter)
         assertEquals(1, snap.recordMix.size)
-        assertEquals(1.0, snap.recordMix.single().share!!, 0.001)
+        assertEquals(1.0, assertNotNull(snap.recordMix.single().share), 0.001)
 
         // empty case already covered -> empty list, share not zero
         val emptySnap = GetInsightsDashboardUseCase(FakeRepository()) { today }.invoke(filter)
@@ -285,8 +275,9 @@ class GetInsightsDashboardUseCaseTest {
         assertEquals(filter.patientId, repo.capturedFilters[1].patientId)
         assertEquals(1, snap.overview.activityCount)
         // comparison: current 1, previous 1 => delta 0, pct 0
-        assertEquals(0, snap.overview.comparison!!.absoluteDelta)
-        assertEquals(0.0, snap.overview.comparison!!.percentageDelta!!, 0.001)
+        val comparison = assertNotNull(snap.overview.comparison)
+        assertEquals(0, comparison.absoluteDelta)
+        assertEquals(0.0, assertNotNull(comparison.percentageDelta), 0.001)
     }
 
     @Test
@@ -471,7 +462,7 @@ class GetInsightsDashboardUseCaseTest {
         repo.bucketsByFilter[filter.comparisonRange()] = emptyList()
         val sut = GetInsightsDashboardUseCase(repo) { today }
         val snap1 = sut(filter)
-        assertNull(snap1.overview.comparison!!.percentageDelta)
+        assertNull(assertNotNull(snap1.overview.comparison).percentageDelta)
 
         // current 15, previous 10 => +50%
         val repo2 = FakeRepository()
@@ -479,14 +470,15 @@ class GetInsightsDashboardUseCaseTest {
         repo2.bucketsByFilter[filter.comparisonRange()] = listOf(bucket(LocalDate(2025, 1, 5), 1L, RecordType.Consultation, count = 10))
         val sut2 = GetInsightsDashboardUseCase(repo2) { today }
         val snap2 = sut2(filter)
-        assertEquals(50.0, snap2.overview.comparison!!.percentageDelta!!, 0.001)
-        assertEquals(5, snap2.overview.comparison!!.absoluteDelta)
+        val positiveComparison = assertNotNull(snap2.overview.comparison)
+        assertEquals(50.0, assertNotNull(positiveComparison.percentageDelta), 0.001)
+        assertEquals(5, positiveComparison.absoluteDelta)
         // current 5 previous 10 => -50%
         val repo3 = FakeRepository()
         repo3.bucketsByFilter[filter] = listOf(bucket(LocalDate(2025, 1, 15), 1L, RecordType.Consultation, count = 5))
         repo3.bucketsByFilter[filter.comparisonRange()] = listOf(bucket(LocalDate(2025, 1, 5), 1L, RecordType.Consultation, count = 10))
         val snap3 = GetInsightsDashboardUseCase(repo3) { today }.invoke(filter)
-        assertEquals(-50.0, snap3.overview.comparison!!.percentageDelta!!, 0.001)
+        assertEquals(-50.0, assertNotNull(assertNotNull(snap3.overview.comparison).percentageDelta), 0.001)
     }
 
     @Test

@@ -72,7 +72,7 @@ struct SurgeryEditView: View {
 
             Section {
                 TextField("Description", text: Binding(
-                    get: { form.description ?? "" },
+                    get: { form.description },
                     set: { viewModel.onDescriptionChange($0) }
                 ), axis: .vertical)
                 .lineLimit(3...6)

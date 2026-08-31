@@ -16,7 +16,6 @@ import org.koin.core.annotation.Single
  * ([SearchFtsIndex]) and the FTS index ([SearchFts]) remain transactionally
  * consistent — the FTS rowid is kept aligned with the [SearchFtsIndex] id.
  */
-@Suppress("TooManyFunctions") // One adapter owns the cross-record FTS index.
 @Single(binds = [ISearchRepository::class])
 class SearchRepositoryImpl(
     @Provided private val database: AnimallyDatabase,

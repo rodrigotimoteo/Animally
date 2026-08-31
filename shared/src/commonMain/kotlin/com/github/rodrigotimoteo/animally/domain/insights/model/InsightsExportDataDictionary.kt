@@ -1,5 +1,3 @@
-@file:Suppress("MaxLineLength", "ArgumentListWrapping")
-
 package com.github.rodrigotimoteo.animally.domain.insights.model
 
 import kotlinx.serialization.Serializable

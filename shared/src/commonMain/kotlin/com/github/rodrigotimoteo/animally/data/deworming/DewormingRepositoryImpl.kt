@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Deworming as DbDewormi
 /**
  * Repository implementation for managing [Deworming] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Deworming`, interface uses `deworming: Deworming`
 @Single(binds = [IDewormingRepository::class])
 class DewormingRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -63,4 +62,8 @@ class DewormingRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = dewormingQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(deworming: Deworming): Long = super.insertDomain(deworming)
+
+    override fun update(deworming: Deworming): Long = super.updateDomain(deworming)
 }

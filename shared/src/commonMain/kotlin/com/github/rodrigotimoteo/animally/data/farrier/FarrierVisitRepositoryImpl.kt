@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.FarrierVisit as DbFarr
 /**
  * Repository implementation for managing [FarrierVisit] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: FarrierVisit`, interface uses `farrierVisit: FarrierVisit`
 @Single(binds = [IFarrierVisitRepository::class])
 class FarrierVisitRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -65,4 +64,8 @@ class FarrierVisitRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = farrierVisitQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(farrierVisit: FarrierVisit): Long = super.insertDomain(farrierVisit)
+
+    override fun update(farrierVisit: FarrierVisit): Long = super.updateDomain(farrierVisit)
 }

@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Dentistry as DbDentist
 /**
  * Repository implementation for managing [Dentistry] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Dentistry`, interface uses `dentistry: Dentistry`
 @Single(binds = [IDentistryRepository::class])
 class DentistryRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -63,4 +62,8 @@ class DentistryRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = dentistryQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(dentistry: Dentistry): Long = super.insertDomain(dentistry)
+
+    override fun update(dentistry: Dentistry): Long = super.updateDomain(dentistry)
 }

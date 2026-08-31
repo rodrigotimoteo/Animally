@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Consultation as DbCons
 /**
  * Repository implementation for managing [Consultation] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Consultation`, interface uses `consultation: Consultation`
 @Single(binds = [IConsultationRepository::class])
 class ConsultationRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -65,4 +64,8 @@ class ConsultationRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = consultationQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(consultation: Consultation): Long = super.insertDomain(consultation)
+
+    override fun update(consultation: Consultation): Long = super.updateDomain(consultation)
 }

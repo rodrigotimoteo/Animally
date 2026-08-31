@@ -53,14 +53,21 @@ final class RecordUITests: AnimallyTestCase {
             sleep(1)
         }
 
-        let predicate = NSPredicate(format: "label CONTAINS[c] %@", marker)
-        let row = app.descendants(matching: .any).matching(predicate).firstMatch
+        let rowPredicate = NSPredicate(
+            format: "identifier BEGINSWITH %@ AND label CONTAINS[c] %@",
+            "record_row_Farrier_",
+            marker,
+        )
+        let row = app.descendants(matching: .any).matching(rowPredicate).firstMatch
+        let fallback = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", marker),
+        ).firstMatch
         var attempts = 0
-        while !row.exists && attempts < 20 {
+        while !row.exists && !fallback.exists && attempts < 20 {
             app.swipeUp()
             attempts += 1
         }
-        if !row.exists {
+        if !row.exists && !fallback.exists {
             let visibleLabels = app.descendants(matching: .any).allElementsBoundByIndex
                 .map(\.label)
                 .filter {
@@ -69,7 +76,7 @@ final class RecordUITests: AnimallyTestCase {
                 }
             XCTFail("Record marker '\(marker)' was not rendered; visible record labels: \(visibleLabels)")
         }
-        return row
+        return row.exists ? row : fallback
     }
 
     func testCreateFarrierVisitAppearsInPreventiveTab() throws {

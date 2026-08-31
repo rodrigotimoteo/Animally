@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.llm
 
+import com.github.rodrigotimoteo.animally.llm.analysis.AnalysisTopicIntents
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -243,7 +244,7 @@ class RecordQuestionIntentTest {
 
     @Test
     fun `breeding outcome is a current reproductive question`() {
-        assertTrue(AnalysisIntents.wantsBreedingOutcome("What is Brisa's breeding outcome?"))
-        assertTrue(AnalysisIntents.wantsCurrentGestation("What is Brisa's breeding outcome?"))
+        assertTrue(AnalysisTopicIntents.wantsBreedingOutcome("What is Brisa's breeding outcome?"))
+        assertTrue(AnalysisTopicIntents.wantsCurrentGestation("What is Brisa's breeding outcome?"))
     }
 }

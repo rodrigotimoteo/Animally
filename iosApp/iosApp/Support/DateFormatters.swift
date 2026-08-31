@@ -45,8 +45,8 @@ enum DateFormatters {
     static func date(from localDate: Kotlinx_datetimeLocalDate) -> Date {
         var comps = DateComponents()
         comps.year = Int(localDate.year)
-        comps.month = Int(localDate.monthNumber)
-        comps.day = Int(localDate.dayOfMonth)
+        comps.month = Int(localDate.month.ordinal) + 1
+        comps.day = Int(localDate.day)
         comps.hour = middayHour
         return gregorianUTC.date(from: comps) ?? Date()
     }
@@ -95,8 +95,8 @@ extension Kotlinx_datetimeLocalDate {
     /// Epoch days via proleptic Gregorian — stable for hashing.
     func epochDaysCompat() -> Int64 {
         let y = Int(year)
-        let m = Int(monthNumber)
-        let d = Int(dayOfMonth)
+        let m = Int(month.ordinal) + 1
+        let d = Int(day)
         let yy = m <= 2 ? y - 1 : y
         let mm = m <= 2 ? m + 12 : m
         let era = (yy >= 0 ? yy : yy - 399) / 400

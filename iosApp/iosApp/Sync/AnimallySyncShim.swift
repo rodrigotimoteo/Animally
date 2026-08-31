@@ -23,12 +23,7 @@ final class AnimallySyncShim: NSObject {
     private static let stateKey = "animally_ck_engine_state"
 
     private let container: CKContainer
-    private var engine: CKSyncEngine?
-    private var eventHandler: ((String) -> Void)?
-    /// recordName -> CKRecord, awaiting the next batch build.
-    private var stagedRecords: [String: CKRecord] = [:]
-    private var started = false
-    private let bootLock = NSLock()
+    private let syncState = SyncState()
 
     override private init() {
         self.container = CKContainer(identifier: Self.containerId)
@@ -44,49 +39,35 @@ final class AnimallySyncShim: NSObject {
     // MARK: - Kotlin-facing surface (mirrors AnimallySyncShim.h)
 
     @objc func accountStatus(_ completion: @escaping (String?, String?) -> Void) {
-        container.accountStatus { status, error in
-            if let error {
+        Task { [container] in
+            do {
+                let status = try await container.accountStatus()
+                completion("{\"status\":\"\(Self.accountStatusName(status))\"}", nil)
+            } catch {
                 completion(nil, error.localizedDescription)
-                return
             }
-            let name: String
-            switch status {
-            case .available: name = "available"
-            case .noAccount: name = "noAccount"
-            case .restricted: name = "restricted"
-            case .couldNotDetermine: name = "couldNotDetermine"
-            case .temporarilyUnavailable: name = "temporarilyUnavailable"
-            @unknown default: name = "couldNotDetermine"
-            }
-            completion("{\"status\":\"\(name)\"}", nil)
         }
     }
 
     @objc func start(_ completion: @escaping (String?, String?) -> Void) {
-        bootLock.lock()
-        if started {
-            bootLock.unlock()
+        guard let engine =
+            syncState.startEngine(
+                container: container,
+                stateSerialization: Self.loadState(),
+                delegate: self,
+            )
+        else {
             completion("ok", nil)
             return
         }
-        started = true
-        bootLock.unlock()
-
-        var configuration = CKSyncEngine.Configuration(
-            database: container.privateCloudDatabase,
-            stateSerialization: Self.loadState(),
-            delegate: self
-        )
-        configuration.automaticallySync = true
-        engine = CKSyncEngine(configuration)
         // Zone creation rides the engine's own pending database changes.
         let zone = CKRecordZone(zoneName: Self.zoneName)
-        engine?.state.add(pendingDatabaseChanges: [.saveZone(zone)])
+        engine.state.add(pendingDatabaseChanges: [.saveZone(zone)])
         completion("ok", nil)
     }
 
     @objc func setEventHandler(_ handler: @escaping (String) -> Void) {
-        eventHandler = handler
+        syncState.setEventHandler(handler)
     }
 
     @objc func stageRecords(_ json: String, completion: @escaping (String?, String?) -> Void) {
@@ -95,11 +76,8 @@ final class AnimallySyncShim: NSObject {
             completion(nil, "malformed stage payload")
             return
         }
-        var pendingSaves: [CKSyncEngine.PendingRecordZoneChange] = []
-        for envelope in envelopes {
-            guard let record = makeRecord(from: envelope) else { continue }
-            stagedRecords[record.recordID.recordName] = record
-            pendingSaves.append(.saveRecord(record.recordID))
+        let (engine, pendingSaves) = syncState.stage(envelopes) { [weak self] envelope in
+            self?.makeRecord(from: envelope)
         }
         engine?.state.add(pendingRecordZoneChanges: pendingSaves)
         completion("ok", nil)
@@ -108,7 +86,7 @@ final class AnimallySyncShim: NSObject {
     @objc func fetchChanges(_ completion: @escaping (String?, String?) -> Void) {
         Task {
             do {
-                try await engine?.fetchChanges(CKSyncEngine.FetchChangesOptions())
+                try await syncState.engine?.fetchChanges(CKSyncEngine.FetchChangesOptions())
                 completion("ok", nil)
             } catch {
                 completion(nil, error.localizedDescription)
@@ -117,20 +95,32 @@ final class AnimallySyncShim: NSObject {
     }
 
     @objc func stop() {
-        engine = nil
-        stagedRecords.removeAll()
+        syncState.stop()
         UserDefaults.standard.removeObject(forKey: Self.stateKey)
-        started = false
     }
 
     // MARK: - Account changes
 
     @objc private func accountDidChange() {
-        container.accountStatus { [weak self] status, _ in
-            self?.emit([
-                "type": "accountChange",
-                "available": status == .available
-            ])
+        emitAccountStatus()
+    }
+
+    private func emitAccountStatus() {
+        Task { [weak self, container] in
+            guard let self else { return }
+            do {
+                let status = try await container.accountStatus()
+                self.emit([
+                    "type": "accountChange",
+                    "available": status == .available,
+                ])
+            } catch {
+                self.emit([
+                    "type": "accountChange",
+                    "available": false,
+                    "error": error.localizedDescription,
+                ])
+            }
         }
     }
 
@@ -139,7 +129,7 @@ final class AnimallySyncShim: NSObject {
     private func emit(_ payload: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
-        eventHandler?(json)
+        syncState.eventHandler?(json)
     }
 
     // MARK: - Envelope conversion
@@ -202,6 +192,17 @@ final class AnimallySyncShim: NSObject {
 
     // MARK: - State persistence
 
+    private static func accountStatusName(_ status: CKAccountStatus) -> String {
+        switch status {
+        case .available: return "available"
+        case .noAccount: return "noAccount"
+        case .restricted: return "restricted"
+        case .couldNotDetermine: return "couldNotDetermine"
+        case .temporarilyUnavailable: return "temporarilyUnavailable"
+        @unknown default: return "couldNotDetermine"
+        }
+    }
+
     private static func loadState() -> CKSyncEngine.State.Serialization? {
         guard let data = UserDefaults.standard.data(forKey: stateKey) else { return nil }
         return try? JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: data)
@@ -214,6 +215,95 @@ final class AnimallySyncShim: NSObject {
     }
 }
 
+/// Synchronizes all mutable CloudKit bridge state shared by Objective-C entry
+/// points and CKSyncEngine's Sendable delegate callbacks.
+private final class SyncState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var engineValue: CKSyncEngine?
+    private var eventHandlerValue: ((String) -> Void)?
+    /// recordName -> CKRecord, awaiting the next batch build.
+    private var stagedRecords: [String: CKRecord] = [:]
+    private var started = false
+
+    var engine: CKSyncEngine? {
+        withLock { engineValue }
+    }
+
+    var eventHandler: ((String) -> Void)? {
+        withLock { eventHandlerValue }
+    }
+
+    func setEventHandler(_ handler: @escaping (String) -> Void) {
+        withLock { eventHandlerValue = handler }
+    }
+
+    func startEngine(
+        container: CKContainer,
+        stateSerialization: CKSyncEngine.State.Serialization?,
+        delegate: AnimallySyncShim,
+    ) -> CKSyncEngine? {
+        withLock {
+            guard !started else { return nil }
+            started = true
+            var configuration = CKSyncEngine.Configuration(
+                database: container.privateCloudDatabase,
+                stateSerialization: stateSerialization,
+                delegate: delegate,
+            )
+            configuration.automaticallySync = true
+            let engine = CKSyncEngine(configuration)
+            engineValue = engine
+            return engine
+        }
+    }
+
+    func stage(
+        _ envelopes: [[String: Any]],
+        makeRecord: ([String: Any]) -> CKRecord?,
+    ) -> (engine: CKSyncEngine?, pending: [CKSyncEngine.PendingRecordZoneChange]) {
+        withLock {
+            var pending: [CKSyncEngine.PendingRecordZoneChange] = []
+            for envelope in envelopes {
+                guard let record = makeRecord(envelope) else { continue }
+                stagedRecords[record.recordID.recordName] = record
+                pending.append(.saveRecord(record.recordID))
+            }
+            return (engineValue, pending)
+        }
+    }
+
+    func stop() {
+        withLock {
+            engineValue = nil
+            stagedRecords.removeAll()
+            eventHandlerValue = nil
+            started = false
+        }
+    }
+
+    func removeStagedRecords(named names: [String]) {
+        withLock {
+            for name in names {
+                stagedRecords.removeValue(forKey: name)
+            }
+        }
+    }
+
+    func pendingStagedChanges() -> [CKSyncEngine.PendingRecordZoneChange] {
+        withLock { stagedRecords.values.map { .saveRecord($0.recordID) } }
+    }
+
+    func stagedRecord(named name: String) -> CKRecord? {
+        withLock { stagedRecords[name] }
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
 // MARK: - CKSyncEngineDelegate
 
 extension AnimallySyncShim: CKSyncEngineDelegate {
@@ -223,13 +313,8 @@ extension AnimallySyncShim: CKSyncEngineDelegate {
         case .stateUpdate(let stateUpdate):
             Self.persistState(stateUpdate.stateSerialization)
 
-        case .accountChange(let accountChange):
-            container.accountStatus { [weak self] status, _ in
-                self?.emit([
-                    "type": "accountChange",
-                    "available": status == .available
-                ])
-            }
+        case .accountChange:
+            emitAccountStatus()
 
         case .fetchedRecordZoneChanges(let changes):
             let envelopes = changes.modifications.map { convertToEnvelope($0.record) }
@@ -237,7 +322,7 @@ extension AnimallySyncShim: CKSyncEngineDelegate {
 
         case .sentRecordZoneChanges(let sent):
             let savedNames = sent.savedRecords.map(\.recordID.recordName)
-            for name in savedNames { stagedRecords.removeValue(forKey: name) }
+            syncState.removeStagedRecords(named: savedNames)
             if !savedNames.isEmpty {
                 emit(["type": "exported", "names": savedNames])
             }
@@ -261,13 +346,12 @@ extension AnimallySyncShim: CKSyncEngineDelegate {
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {
         // Synchronous drain from the staged pool — the reason outbound rows
         // are staged eagerly instead of fetched on demand.
-        guard !stagedRecords.isEmpty else { return nil }
-        let pending: [CKSyncEngine.PendingRecordZoneChange] =
-            stagedRecords.values.map { .saveRecord($0.recordID) }
-        return try await CKSyncEngine.RecordZoneChangeBatch(
+        let pending = syncState.pendingStagedChanges()
+        guard !pending.isEmpty else { return nil }
+        return await CKSyncEngine.RecordZoneChangeBatch(
             pendingChanges: pending,
             recordProvider: { [weak self] recordId in
-                self?.stagedRecords[recordId.recordName]
+                self?.syncState.stagedRecord(named: recordId.recordName)
             }
         )
     }

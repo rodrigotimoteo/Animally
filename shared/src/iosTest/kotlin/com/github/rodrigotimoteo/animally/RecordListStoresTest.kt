@@ -1,7 +1,8 @@
 package com.github.rodrigotimoteo.animally
 
 import com.github.rodrigotimoteo.animally.di.infra.IosAppBridge
-import com.github.rodrigotimoteo.animally.di.infra.IosRecordStores
+import com.github.rodrigotimoteo.animally.di.infra.IosMedicalRecordStores
+import com.github.rodrigotimoteo.animally.di.infra.IosPreventiveRecordStores
 import com.github.rodrigotimoteo.animally.di.infra.IosReproAndDiagnosticsStores
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
@@ -27,7 +28,7 @@ import kotlin.time.Instant
 
 /**
  * Tests for the Swift-facing record-list stores, both the medical group
- * ([IosRecordStores]) and the reproduction/diagnostics group
+ * ([IosMedicalRecordStores] and [IosPreventiveRecordStores]) and the reproduction/diagnostics group
  * ([IosReproAndDiagnosticsStores]), against a real in-memory database.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -50,16 +51,16 @@ class RecordListStoresTest {
     fun `all record list stores resolve with patient id and expose empty state`() =
         runTest(scheduler) {
             val patientId = IosAppBridge.koin.get<IPatientRepository>().insertPatient(testPatient())
-            val consultationStore = IosRecordStores.consultationListStore(patientId)
-            val vaccinationStore = IosRecordStores.vaccinationListStore(patientId)
-            val dewormingStore = IosRecordStores.dewormingListStore(patientId)
-            val dentistryStore = IosRecordStores.dentistryListStore(patientId)
-            val farrierVisitStore = IosRecordStores.farrierVisitListStore(patientId)
-            val lamenessStore = IosRecordStores.lamenessListStore(patientId)
-            val surgeryStore = IosRecordStores.surgeryListStore(patientId)
-            val medicationStore = IosRecordStores.medicationListStore(patientId)
-            val substanceStore = IosRecordStores.substanceListStore(patientId)
-            val weightStore = IosRecordStores.weightListStore(patientId)
+            val consultationStore = IosMedicalRecordStores.consultationListStore(patientId)
+            val vaccinationStore = IosPreventiveRecordStores.vaccinationListStore(patientId)
+            val dewormingStore = IosPreventiveRecordStores.dewormingListStore(patientId)
+            val dentistryStore = IosPreventiveRecordStores.dentistryListStore(patientId)
+            val farrierVisitStore = IosPreventiveRecordStores.farrierVisitListStore(patientId)
+            val lamenessStore = IosMedicalRecordStores.lamenessListStore(patientId)
+            val surgeryStore = IosMedicalRecordStores.surgeryListStore(patientId)
+            val medicationStore = IosMedicalRecordStores.medicationListStore(patientId)
+            val substanceStore = IosMedicalRecordStores.substanceListStore(patientId)
+            val weightStore = IosPreventiveRecordStores.weightListStore(patientId)
             val reproductionStore = IosReproAndDiagnosticsStores.reproductionListStore(patientId)
             val ultrasoundStore = IosReproAndDiagnosticsStores.ultrasoundListStore(patientId)
             val gestationStore = IosReproAndDiagnosticsStores.gestationListStore(patientId)
@@ -140,7 +141,7 @@ class RecordListStoresTest {
                     updatedAt = Instant.fromEpochMilliseconds(0L),
                 ),
             )
-            val store = IosRecordStores.consultationListStore(patientId)
+            val store = IosMedicalRecordStores.consultationListStore(patientId)
 
             advanceUntilIdle()
 
@@ -168,7 +169,7 @@ class RecordListStoresTest {
                     updatedAt = Instant.fromEpochMilliseconds(0L),
                 ),
             )
-            val store = IosRecordStores.weightListStore(patientId)
+            val store = IosPreventiveRecordStores.weightListStore(patientId)
 
             advanceUntilIdle()
 

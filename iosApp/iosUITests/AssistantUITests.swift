@@ -38,7 +38,13 @@ final class AssistantUITests: AnimallyTestCase {
         expectation(for: ready, evaluatedWith: newChat)
         waitForExpectations(timeout: 10)
         newChat.tap()
-        XCTAssertTrue(app.textFields["assistant_input"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "assistant_empty_state")
+                .firstMatch
+                .waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
     }
 
     /// Types a question into the chat input without polling the live
@@ -384,6 +390,22 @@ final class AssistantRealFmUITests: AnimallyTestCase {
             throw XCTSkip("Foundation Models unavailable on this device")
         }
         XCTAssertTrue(app.textFields["assistant_input"].waitForExistence(timeout: 10))
+
+        // Launch restores the latest persisted conversation. Clear the
+        // visible transcript before asserting the reply created by this test.
+        let newChat = app.buttons["assistant_new_chat"]
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "New chat entry point missing")
+        let ready = NSPredicate(format: "isEnabled == true")
+        expectation(for: ready, evaluatedWith: newChat)
+        waitForExpectations(timeout: 10)
+        newChat.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "assistant_empty_state")
+                .firstMatch
+                .waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
     }
 
     private func ask(
@@ -438,7 +460,10 @@ final class AssistantRealFmUITests: AnimallyTestCase {
         openAssistant(app)
         try requireAvailableModel(app)
 
-        ask(app, "Tell me about \(patientName)")
+        // Identity answers are projected from the stored patient row. Keep
+        // this UI contract deterministic; the edge suite covers
+        // nondeterministic free-form Foundation Model generation separately.
+        ask(app, "What species is \(patientName)?")
         let label = completedReplyLabel(app)
 
         XCTAssertTrue(label.localizedCaseInsensitiveContains(patientName), "Answer lost the subject: \(label)")
@@ -472,7 +497,9 @@ final class AssistantRealFmUITests: AnimallyTestCase {
         openAssistant(app)
         try requireAvailableModel(app)
 
-        ask(app, "Tell me about \(patientName)")
+        // Use the deterministic patient projection so this test isolates the
+        // completed-answer/follow-up UI contract from live FM variability.
+        ask(app, "What species is \(patientName)?")
         _ = completedReplyLabel(app)
 
         let chip = app.buttons["assistant_followup_chip"].firstMatch

@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.llm.cloud
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
@@ -85,6 +86,11 @@ class CloudModelCatalog(
                 val response =
                     httpClient.get(url) {
                         apiKey?.takeIf(String::isNotBlank)?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+                        timeout {
+                            connectTimeoutMillis = MODEL_CONNECT_TIMEOUT_MILLIS
+                            requestTimeoutMillis = MODEL_FETCH_TIMEOUT_MILLIS
+                            socketTimeoutMillis = MODEL_FETCH_TIMEOUT_MILLIS
+                        }
                     }
                 val code = response.status.value
                 when {
@@ -106,6 +112,8 @@ class CloudModelCatalog(
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
         const val MODEL_FETCH_TIMEOUT_SECONDS = 15L
+        const val MODEL_FETCH_TIMEOUT_MILLIS = MODEL_FETCH_TIMEOUT_SECONDS * 1_000L
+        const val MODEL_CONNECT_TIMEOUT_MILLIS = 5_000L
 
         private fun isSuccessStatus(code: Int): Boolean = code in 200..299
     }

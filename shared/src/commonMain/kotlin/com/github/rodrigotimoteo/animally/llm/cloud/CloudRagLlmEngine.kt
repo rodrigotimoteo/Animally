@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.flow
  * [RagLlmEngine] so [FmFirstRagLlmEngine] can keep its fallback logic
  * unchanged.
  */
-@Suppress("TooManyFunctions")
 class CloudRagLlmEngine(
     private val httpClient: HttpClient,
     private val configProvider: () -> CloudLlmConfig,

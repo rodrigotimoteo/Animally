@@ -19,7 +19,7 @@ internal class BreedingFactsProvider(
         query: String,
         today: kotlinx.datetime.LocalDate,
     ): List<BreedingFact>? {
-        if (!AnalysisIntents.wantsBreedingTiming(query)) return null
+        if (!AnalysisTopicIntents.wantsBreedingTiming(query)) return null
         val repository = reproductionRepository ?: return emptyList()
         val patients = patientRepository.getPatientList()
         val matchedPatients = scopeResolver.patientNameMatches(patients, query)
@@ -48,7 +48,7 @@ internal class BreedingFactsProvider(
     }
 
     fun reproductionOutcomeFacts(query: String): List<BreedingOutcomeFact>? {
-        if (!AnalysisIntents.wantsBreedingOutcome(query)) return null
+        if (!AnalysisTopicIntents.wantsBreedingOutcome(query)) return null
         val repository = reproductionRepository ?: return null
         val patients = patientRepository.getPatientList()
         val matchedPatients = scopeResolver.patientNameMatches(patients, query)

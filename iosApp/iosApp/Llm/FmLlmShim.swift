@@ -100,9 +100,7 @@ class FmLlmShim: NSObject {
     /// shim instance (FoundationModels sessions are single-request-at-a-time). The
     /// boolean is claimed synchronously before the Task launches so completion racing
     /// the property write below cannot wedge the shim.
-    private var streamActive = false
-    private var streamTask: Task<Void, Never>?
-    private let streamLock = NSLock()
+    private let streamState = StreamState()
 
     /// Streams a response for `prompt` grounded in `instructions`. Creates a fresh
     /// LanguageModelSession per call carrying the instructions. Each snapshot's
@@ -121,26 +119,16 @@ class FmLlmShim: NSObject {
             onComplete(nil, "FoundationModels requires iOS 26.0")
             return
         }
-        streamLock.lock()
-        if streamActive {
-            streamLock.unlock()
+        guard streamState.begin() else {
             onComplete(nil, "Another stream is already active")
             return
         }
-        streamActive = true
-        streamLock.unlock()
 
         // Captured strongly: the shim is owned by the app-lifetime LlmEngine, and the
         // cycle (task -> shim -> streamTask) breaks when the defer clears streamTask.
         let task = Task {
             defer {
-                self.streamLock.lock()
-                self.streamActive = false
-                // Release the finished task too: keeps the shim -> task cycle
-                // from outliving the stream and drops the completion handler
-                // context promptly.
-                self.streamTask = nil
-                self.streamLock.unlock()
+                self.streamState.finish()
             }
             do {
                 let session =
@@ -163,16 +151,50 @@ class FmLlmShim: NSObject {
                 onComplete(nil, error.localizedDescription)
             }
         }
-        streamLock.lock()
-        streamTask = task
-        streamLock.unlock()
+        streamState.install(task)
     }
 
     /// Cancels the active streaming task. No-op when idle.
     @objc
     func cancelStream() {
-        streamLock.lock()
-        streamTask?.cancel()
-        streamLock.unlock()
+        streamState.cancel()
+    }
+}
+
+/// Synchronous state boundary for the Foundation Models stream lifecycle.
+/// Locking stays inside synchronous methods so async provider code never calls
+/// `NSLock.lock()` or `unlock()` directly.
+private final class StreamState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var active = false
+    private var task: Task<Void, Never>?
+
+    func begin() -> Bool {
+        withLock {
+            guard !active else { return false }
+            active = true
+            return true
+        }
+    }
+
+    func install(_ task: Task<Void, Never>) {
+        withLock { self.task = task }
+    }
+
+    func finish() {
+        withLock {
+            active = false
+            task = nil
+        }
+    }
+
+    func cancel() {
+        withLock { task?.cancel() }
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
     }
 }

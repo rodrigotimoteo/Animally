@@ -234,7 +234,7 @@ private struct AssistantConversationDetailView: View {
     }
 
     private func webReferenceLinks(for turn: AssistantHistoryItem) -> some View {
-        let sources = (turn.webSources as? [VeterinaryWebSource]) ?? []
+        let sources = turn.webSources
         return Group {
             if !sources.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -271,7 +271,7 @@ private struct AssistantConversationDetailView: View {
     }
 
     private func recordSourceLinks(for turn: AssistantHistoryItem) -> some View {
-        let sources = (turn.recordSources as? [AssistantHistorySource]) ?? []
+        let sources = turn.recordSources
         return Group {
             if !sources.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {

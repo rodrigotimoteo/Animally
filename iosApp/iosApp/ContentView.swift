@@ -3,13 +3,23 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedTab: Tab = .patients
     @StateObject private var theme = ThemeViewModel()
-    @Environment(\.colorScheme) private var systemColorScheme
 
     enum Tab: Hashable {
         case patients, owners, timeline, search, assistant
     }
 
     var body: some View {
+        tabs
+        .tint(theme.accentColor)
+        .background(
+            ThemeAppearanceBridge(colorScheme: theme.preferredColorScheme)
+                .frame(width: 0, height: 0)
+        )
+        .environmentObject(theme)
+    }
+
+    @ViewBuilder
+    private var tabs: some View {
         TabView(selection: $selectedTab) {
             PatientsTab()
                 .tabItem {
@@ -41,11 +51,5 @@ struct ContentView: View {
                 }
                 .tag(Tab.assistant)
         }
-        .preferredColorScheme(theme.preferredColorScheme)
-        .tint(theme.accentColor)
-        .environment(\.animallySystemColorScheme, systemColorScheme)
-        // Sheets capture color scheme at presentation; republishing via the
-        // environment lets SettingsView apply live scheme changes itself.
-        .environmentObject(theme)
     }
 }

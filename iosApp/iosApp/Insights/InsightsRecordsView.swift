@@ -84,12 +84,12 @@ struct InsightsRecordsView: View {
                     errorBanner(message: error)
                 }
                 if let a = viewModel.awaitError {
-                    InlineErrorBanner(message: a, onRetry: { Task { await viewModel.reloadAsync() } }, onDismiss: { viewModel.dismissAwaitError() })
+                    InlineErrorBanner(message: a, onRetry: { Task { _ = await viewModel.reloadAsync() } }, onDismiss: { viewModel.dismissAwaitError() })
                 }
             }
         }
         .refreshable {
-            await viewModel.reloadAsync()
+            _ = await viewModel.reloadAsync()
         }
         .navigationDestination(item: $selectedKey) { key in
             RecordDetailView(displayType: key.displayType, patientId: key.patientId, recordId: key.recordId)

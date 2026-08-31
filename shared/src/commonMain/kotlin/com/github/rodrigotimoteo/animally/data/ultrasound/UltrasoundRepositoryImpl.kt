@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Ultrasound as DbUltras
 /**
  * Repository implementation for managing [Ultrasound] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Ultrasound`, interface uses `ultrasound: Ultrasound`
 @Single(binds = [IUltrasoundRepository::class])
 class UltrasoundRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -83,4 +82,8 @@ class UltrasoundRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = ultrasoundQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(ultrasound: Ultrasound): Long = super.insertDomain(ultrasound)
+
+    override fun update(ultrasound: Ultrasound): Long = super.updateDomain(ultrasound)
 }

@@ -1,7 +1,8 @@
 import Shared
 
-/// Central facade over the two Kotlin store factories (`IosRecordStores` and `IosReproAndDiagnosticsStores`).
-/// Eliminates lane-split leak in `ReproductionTabViewModel` — callers use one surface.
+/// Central facade over the Kotlin store factories grouped by record domain.
+/// SwiftUI callers use one surface while Kotlin owns each store's state and
+/// business logic.
 enum RecordListStores {
     // MARK: - Reproduction / Diagnostics lane (via IosReproAndDiagnosticsStores)
     static func reproductionListStore(patientId: Int64) -> ReproductionListStore {
@@ -22,45 +23,47 @@ enum RecordListStores {
     static func imagingListStore(patientId: Int64) -> ImagingListStore {
         IosReproAndDiagnosticsStores.shared.imagingListStore(patientId: patientId)
     }
-
-    // MARK: - Medical / Preventive lane (via IosRecordStores)
     static func embryoTransferListStore(patientId: Int64) -> EmbryoTransferListStore {
-        IosRecordStores.shared.embryoTransferListStore(patientId: patientId)
+        IosReproAndDiagnosticsStores.shared.embryoTransferListStore(patientId: patientId)
     }
     static func icsiListStore(patientId: Int64) -> IcsiListStore {
-        IosRecordStores.shared.icsiListStore(patientId: patientId)
+        IosReproAndDiagnosticsStores.shared.icsiListStore(patientId: patientId)
     }
+
+    // MARK: - Medical lane (via IosMedicalRecordStores)
     static func consultationListStore(patientId: Int64) -> ConsultationListStore {
-        IosRecordStores.shared.consultationListStore(patientId: patientId)
+        IosMedicalRecordStores.shared.consultationListStore(patientId: patientId)
     }
     static func lamenessListStore(patientId: Int64) -> LamenessListStore {
-        IosRecordStores.shared.lamenessListStore(patientId: patientId)
+        IosMedicalRecordStores.shared.lamenessListStore(patientId: patientId)
     }
     static func surgeryListStore(patientId: Int64) -> SurgeryListStore {
-        IosRecordStores.shared.surgeryListStore(patientId: patientId)
+        IosMedicalRecordStores.shared.surgeryListStore(patientId: patientId)
     }
     static func medicationListStore(patientId: Int64) -> MedicationListStore {
-        IosRecordStores.shared.medicationListStore(patientId: patientId)
+        IosMedicalRecordStores.shared.medicationListStore(patientId: patientId)
     }
     static func substanceListStore(patientId: Int64) -> SubstanceListStore {
-        IosRecordStores.shared.substanceListStore(patientId: patientId)
+        IosMedicalRecordStores.shared.substanceListStore(patientId: patientId)
     }
+
+    // MARK: - Preventive lane (via IosPreventiveRecordStores)
     static func weightListStore(patientId: Int64) -> WeightListStore {
-        IosRecordStores.shared.weightListStore(patientId: patientId)
+        IosPreventiveRecordStores.shared.weightListStore(patientId: patientId)
     }
     static func vaccinationListStore(patientId: Int64) -> VaccinationListStore {
-        IosRecordStores.shared.vaccinationListStore(patientId: patientId)
+        IosPreventiveRecordStores.shared.vaccinationListStore(patientId: patientId)
     }
     static func dewormingListStore(patientId: Int64) -> DewormingListStore {
-        IosRecordStores.shared.dewormingListStore(patientId: patientId)
+        IosPreventiveRecordStores.shared.dewormingListStore(patientId: patientId)
     }
     static func dentistryListStore(patientId: Int64) -> DentistryListStore {
-        IosRecordStores.shared.dentistryListStore(patientId: patientId)
+        IosPreventiveRecordStores.shared.dentistryListStore(patientId: patientId)
     }
     static func farrierVisitListStore(patientId: Int64) -> FarrierVisitListStore {
-        IosRecordStores.shared.farrierVisitListStore(patientId: patientId)
+        IosPreventiveRecordStores.shared.farrierVisitListStore(patientId: patientId)
     }
     static func upcomingCareStore(patientId: Int64) -> UpcomingCareStore {
-        IosRecordStores.shared.upcomingCareStore(patientId: patientId)
+        IosCareStores.shared.upcomingCareStore(patientId: patientId)
     }
 }

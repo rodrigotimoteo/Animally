@@ -68,14 +68,18 @@ final class CloudAiUITests: AnimallyTestCase {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
         }
 
-        let provider = app.buttons["settings_cloud_provider"].firstMatch
+        let provider = frontmostHittable(
+            app.buttons.matching(identifier: "settings_cloud_provider"),
+        )
         XCTAssertTrue(provider.waitForExistence(timeout: 5), "Cloud provider picker is unavailable")
         provider.tap()
         let openCodeGo = app.buttons["OpenCode Go"].firstMatch
         XCTAssertTrue(openCodeGo.waitForExistence(timeout: 5), "OpenCode Go provider option is unavailable")
         openCodeGo.tap()
 
-        let modelField = app.textFields["settings_cloud_model"].firstMatch
+        let modelField = frontmostHittable(
+            app.textFields.matching(identifier: "settings_cloud_model"),
+        )
         XCTAssertTrue(
             modelField.waitForExistence(timeout: 5),
             "The model field was not editable before discovery; cannot test the paid id directly",
@@ -83,7 +87,9 @@ final class CloudAiUITests: AnimallyTestCase {
         makeHittable(modelField, in: app)
         TestHelpers.typeTextAndVerify(modelField, text: "mimo-v2.5")
 
-        let selected = app.textFields["settings_cloud_model"].firstMatch
+        let selected = frontmostHittable(
+            app.textFields.matching(identifier: "settings_cloud_model"),
+        )
         XCTAssertTrue(selected.waitForExistence(timeout: 5), "Selected model field is unavailable")
         XCTAssertTrue(
             ((selected.value as? String) ?? selected.label).lowercased().hasPrefix("mimo-v2.5"),
@@ -101,14 +107,21 @@ final class CloudAiUITests: AnimallyTestCase {
         _ element: XCUIElement,
         in app: XCUIApplication,
     ) {
-        for _ in 0..<3 {
+        for attempt in 0..<8 {
             if element.isHittable { return }
             let keyboard = app.keyboards.firstMatch
             let dismiss = keyboard.buttons["Done"].firstMatch
             if dismiss.exists && dismiss.isHittable {
                 dismiss.tap()
             }
-            app.swipeUp()
+            // A lazy Form row can be published to XCTest just after it has
+            // passed the viewport. Try both directions so the recovery does
+            // not scroll past a control that was found near the bottom.
+            if attempt < 4 {
+                app.swipeUp()
+            } else {
+                app.swipeDown()
+            }
             usleep(300_000)
         }
         XCTAssertTrue(element.isHittable, "Settings model field is visible but not hittable")
@@ -140,6 +153,7 @@ final class CloudAiUITests: AnimallyTestCase {
         XCTAssertTrue(app.staticTexts["Patients"].waitForExistence(timeout: 15))
         openSettings(app)
         ensureCloudEnabled(app)
+        selectKnownCloudProvider(app)
 
         // Normal tests use a deterministic dummy key for the public /models
         // smoke path. Live coverage opts in through the environment and keeps
@@ -154,12 +168,16 @@ final class CloudAiUITests: AnimallyTestCase {
             }
         }
 
-        let fetch = app.buttons["Fetch models"].firstMatch
+        let fetch = frontmostHittable(
+            app.buttons.matching(identifier: "settings_cloud_fetch_models"),
+        )
         XCTAssertTrue(fetch.waitForExistence(timeout: 5))
         fetch.tap()
 
         // Success criterion: the Model TextField is replaced by the picker row.
-        let pickerRow = app.buttons["settings_cloud_model"].firstMatch
+        let pickerRow = frontmostHittable(
+            app.buttons.matching(identifier: "settings_cloud_model"),
+        )
         let statusQuery = app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS[cd] 'fetch'")
         )
@@ -174,8 +192,9 @@ final class CloudAiUITests: AnimallyTestCase {
 
         // The identifier can land on the Button or its List cell depending on
         // the rendered hierarchy - match any element type.
-        let modelRow = app.descendants(matching: .any)
-            .matching(identifier: "cloud_model_row").firstMatch
+        let modelRow = frontmostHittable(
+            app.descendants(matching: .any).matching(identifier: "cloud_model_row"),
+        )
         if !modelRow.waitForExistence(timeout: 5) {
             print("CLOUDAI_DEBUG sheet tree:\n\(app.debugDescription)")
         }
@@ -185,7 +204,9 @@ final class CloudAiUITests: AnimallyTestCase {
         modelRow.tap()
 
         // Selection lands back in the (now picker-style) field.
-        let selected = app.buttons["settings_cloud_model"].firstMatch
+        let selected = frontmostHittable(
+            app.buttons.matching(identifier: "settings_cloud_model"),
+        )
         XCTAssertTrue(selected.waitForExistence(timeout: 5))
         XCTAssertEqual(selected.label, chosen)
 
@@ -1065,27 +1086,112 @@ final class CloudAiUITests: AnimallyTestCase {
         let app = TestHelpers.launchApp()
         openSettings(app)
         ensureCloudEnabled(app)
+        selectKnownCloudProvider(app)
 
-        // Point the endpoint at an unreachable host via the Advanced field.
-        app.staticTexts["Advanced"].firstMatch.tap()
-        let urlField = app.textFields["settings_cloud_base_url"].firstMatch
-        XCTAssertTrue(urlField.waitForExistence(timeout: 5))
+        // Use a malformed endpoint so the UI error path is deterministic on
+        // every simulator network configuration. Real transport timeouts are
+        // covered by CloudModelCatalogNetworkTest with a controlled client.
+        let advanced = frontmostHittable(
+            app.staticTexts.matching(identifier: "settings_cloud_advanced"),
+        )
+        XCTAssertTrue(advanced.waitForExistence(timeout: 5), "Advanced cloud settings are unavailable")
+        makeHittable(advanced, in: app)
+        advanced.tap()
+        let urlField = frontmostHittable(
+            app.textFields.matching(identifier: "settings_cloud_base_url"),
+        )
+        // The field is inside a Form row below the fold. SwiftUI does not
+        // publish lazy Form children to XCTest until the row is brought into
+        // the accessibility viewport.
+        var scrollAttempts = 0
+        while !urlField.exists && scrollAttempts < 8 {
+            app.swipeUp()
+            usleep(250_000)
+            scrollAttempts += 1
+        }
+        XCTAssertTrue(urlField.waitForExistence(timeout: 5), "Expanded endpoint field is unavailable")
+        makeHittable(urlField, in: app)
         // Healing typer: plain typeText drops keystrokes on live-binding fields,
         // which would leave a mangled URL persisted for subsequent runs.
-        TestHelpers.typeSearchText(app, field: urlField, text: "https://127.0.0.1:9/v1")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        TestHelpers.typeTextAndVerify(urlField, text: "not-a-valid-http-endpoint")
+        dismissKeyboard(in: app)
 
-        app.buttons["Fetch models"].firstMatch.tap()
+        let fetch = frontmostHittable(
+            app.buttons.matching(identifier: "settings_cloud_fetch_models"),
+        )
+        XCTAssertTrue(fetch.waitForExistence(timeout: 5), "Fetch models button is unavailable")
+        makeHittable(fetch, in: app)
+        fetch.tap()
 
-        let failure = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Could not fetch models")
-        ).firstMatch
-        XCTAssertTrue(failure.waitForExistence(timeout: 60),
-            "Network failure did not surface an error status")
+        let failureQuery = app.descendants(matching: .any)
+            .matching(identifier: "settings_cloud_models_status")
+        let failure = frontmostHittable(failureQuery)
+        if !failure.waitForExistence(timeout: 60) {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "cloud-fetch-failure-state"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            XCTFail("Network failure did not surface an error status. UI:\n\(app.debugDescription)")
+        } else {
+            XCTAssertTrue(
+                failure.label.hasPrefix("Could not fetch models"),
+                "Unexpected cloud fetch status: \(failure.label)",
+            )
+        }
 
         // Restore the working endpoint for subsequent runs/tests.
-        TestHelpers.typeSearchText(app, field: urlField, text: "https://opencode.ai/zen/v1")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        TestHelpers.typeTextAndVerify(urlField, text: "https://opencode.ai/zen/v1")
+        dismissKeyboard(in: app)
+    }
+
+    private func dismissKeyboard(in app: XCUIApplication) {
+        let keyboard = app.keyboards.firstMatch
+        let done = keyboard.buttons["Done"].firstMatch
+        if done.exists && done.isHittable {
+            done.tap()
+        } else {
+            let returnKey = keyboard.buttons.matching(
+                NSPredicate(format: "label ==[c] %@", "return")
+            ).firstMatch
+            if returnKey.exists && returnKey.isHittable {
+                returnKey.tap()
+            } else {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+            }
+        }
+
+        if app.keyboards.firstMatch.waitForNonExistence(timeout: 2) {
+            return
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        }
+    }
+
+    /// Each UI test gets a fresh app process but shares the simulator's
+    /// persisted Settings. Re-selecting a real preset makes the cloud tests
+    /// independent of a previous test's intentionally invalid endpoint.
+    private func selectKnownCloudProvider(_ app: XCUIApplication) {
+        let provider = frontmostHittable(
+            app.buttons.matching(identifier: "settings_cloud_provider"),
+        )
+        XCTAssertTrue(provider.waitForExistence(timeout: 5), "Cloud provider picker is unavailable")
+        makeHittable(provider, in: app)
+        provider.tap()
+        let zen = frontmostHittable(
+            app.buttons.matching(identifier: "OpenCode Zen"),
+        )
+        XCTAssertTrue(zen.waitForExistence(timeout: 5), "OpenCode Zen provider option is unavailable")
+        zen.tap()
+    }
+
+    /// SwiftUI can expose an old Settings presentation and the current one in
+    /// the same accessibility snapshot while a sheet/navigation transition is
+    /// settling. Selecting the last visible match prevents XCTest from
+    /// tapping a stale control that belongs to the background presentation.
+    private func frontmostHittable(_ query: XCUIElementQuery) -> XCUIElement {
+        query.allElementsBoundByIndex.reversed().first(where: { element in
+            element.exists && element.isHittable
+        }) ?? query.firstMatch
     }
 }
 

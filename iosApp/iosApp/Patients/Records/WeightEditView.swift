@@ -47,7 +47,7 @@ struct WeightEditView: View {
             viewModel.onSaved = { dismiss() }
             viewModel.applyPrefillIfNeeded()
         }
-        .onChange(of: viewModel.hasForm) { _ in
+        .onChange(of: viewModel.hasForm) { _, _ in
             viewModel.applyPrefillIfNeeded()
         }
     }

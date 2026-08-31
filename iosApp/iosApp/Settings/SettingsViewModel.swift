@@ -33,7 +33,7 @@ final class SettingsViewModel: ObservableObject {
         store = IosSettingsStores.shared.settingsStore()
         themeMode = store.state.current
         accentColor = store.accentColor
-        patients = store.patients as? [Patient_] ?? []
+        patients = store.patients
         selectedPatientId = store.selectedPatientId?.int64Value
         restoreJson = store.restoreJson
         backupStatus = store.backupStatus
@@ -118,7 +118,7 @@ final class SettingsViewModel: ObservableObject {
     /// Selectable provider presets, in display order. Local runtimes
     /// (Ollama/LM Studio) point at localhost and are hidden on iOS.
     var cloudProviderPresets: [CloudLlmProviderPreset] {
-        let all = (store.cloudProviderPresets as? [CloudLlmProviderPreset]) ?? []
+        let all = store.cloudProviderPresets
         return all.filter { $0.visibleOnMobile }
     }
 
@@ -143,7 +143,7 @@ final class SettingsViewModel: ObservableObject {
             // (e.g. bridge/threading failures); surface it instead of swallowing.
             cloudModelsStatus = "Could not fetch models: \(error.localizedDescription)"
         }
-        cloudModelChoices = (store.cloudModelChoices as? [String]) ?? []
+        cloudModelChoices = store.cloudModelChoices
         isFetchingCloudModels = false
     }
 

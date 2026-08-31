@@ -4,7 +4,6 @@ import Shared
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.animallySystemColorScheme) private var systemColorScheme
     @EnvironmentObject private var theme: ThemeViewModel
     @State private var showModelPicker = false
     @State private var showWipeConfirmation = false
@@ -50,10 +49,6 @@ struct SettingsView: View {
                 }
             }
         }
-        // A presented sheet can retain the color scheme it had at presentation
-        // time. Explicitly supplying the inherited system scheme when the
-        // preference is System lets Dark → System update the sheet immediately.
-        .preferredColorScheme(theme.preferredColorScheme ?? systemColorScheme)
         .tint(selectedAccentColor)
     }
 
@@ -87,14 +82,24 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityIdentifier("settings_theme_picker")
+            .accessibilityValue(viewModel.themeMode.label)
             .onChange(of: viewModel.themeMode) { _, newValue in
                 viewModel.setThemeMode(mode: newValue)
+                // Keep the already-presented sheet in sync even if the
+                // NSUserDefaults notification is delivered asynchronously.
+                theme.reloadFromPreferences()
             }
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: 12)], spacing: 12) {
                 ForEach(accentColors, id: \.self) { accent in
                     Button {
                         viewModel.setAccentColor(accent)
+                        // The settings VM writes through Kotlin, while the
+                        // root theme VM owns the SwiftUI environment. Refresh
+                        // it immediately so the tab bar, sheets, and visible
+                        // settings controls all use the new accent.
+                        theme.reloadFromPreferences()
                     } label: {
                         VStack(spacing: 6) {
                             ZStack {
@@ -203,6 +208,7 @@ struct SettingsView: View {
                     Button("Fetch models") {
                         Task { await viewModel.fetchCloudModels() }
                     }
+                    .accessibilityIdentifier("settings_cloud_fetch_models")
                     .disabled(viewModel.isFetchingCloudModels)
 
                     if viewModel.isFetchingCloudModels {
@@ -214,9 +220,10 @@ struct SettingsView: View {
                     Text(status)
                         .font(.caption)
                         .foregroundStyle(Theme.textSecondary)
+                        .accessibilityIdentifier("settings_cloud_models_status")
                 }
 
-                DisclosureGroup("Advanced") {
+                DisclosureGroup {
                     TextField("Endpoint URL", text: Binding(
                         get: { viewModel.cloudBaseUrl },
                         set: { viewModel.setCloudBaseUrl($0) }
@@ -224,6 +231,12 @@ struct SettingsView: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .accessibilityIdentifier("settings_cloud_base_url")
+                } label: {
+                    // Put the test/accessibility identity on the visible
+                    // disclosure label. Applying it to DisclosureGroup itself
+                    // can hide the child TextField from XCTest after expand.
+                    Text("Advanced")
+                        .accessibilityIdentifier("settings_cloud_advanced")
                 }
             }
         } header: {

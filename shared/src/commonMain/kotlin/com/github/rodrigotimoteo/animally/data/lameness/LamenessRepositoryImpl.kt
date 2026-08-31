@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Lameness as DbLameness
 /**
  * Repository implementation for managing [Lameness] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Lameness`, interface uses `lameness: Lameness`
 @Single(binds = [ILamenessRepository::class])
 class LamenessRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -67,4 +66,8 @@ class LamenessRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = lamenessQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(lameness: Lameness): Long = super.insertDomain(lameness)
+
+    override fun update(lameness: Lameness): Long = super.updateDomain(lameness)
 }

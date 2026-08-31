@@ -277,6 +277,7 @@ struct AssistantView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .contentShape(Rectangle())
+        .accessibilityIdentifier("assistant_empty_state")
         .onTapGesture {
             inputFocused = false
         }
@@ -488,15 +489,15 @@ private struct ChatBubble: View {
     }
 
     private var sourceGroups: [AssistantSourceGroup] {
-        (message.sourceGroups as? [AssistantSourceGroup]) ?? []
+        message.sourceGroups
     }
 
     private var followUps: [String] {
-        (message.followUps as? [String]) ?? []
+        message.followUps
     }
 
     private var webSources: [VeterinaryWebSource] {
-        (message.webSources as? [VeterinaryWebSource]) ?? []
+        message.webSources
     }
 
     var body: some View {

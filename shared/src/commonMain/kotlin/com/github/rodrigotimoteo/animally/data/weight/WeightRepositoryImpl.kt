@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Weight as DbWeight
 /**
  * Repository implementation for managing [Weight] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Weight`, interface uses `weight: Weight`
 @Single(binds = [IWeightRepository::class])
 class WeightRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -57,4 +56,8 @@ class WeightRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = weightQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(weight: Weight): Long = super.insertDomain(weight)
+
+    override fun update(weight: Weight): Long = super.updateDomain(weight)
 }

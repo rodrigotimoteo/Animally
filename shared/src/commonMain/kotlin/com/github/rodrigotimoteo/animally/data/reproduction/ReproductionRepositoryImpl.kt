@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Reproduction as DbRepr
 /**
  * Repository implementation for managing [ReproductionEvent] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: ReproductionEvent`, interface uses `reproductionEvent: ReproductionEvent`
 @Single(binds = [IReproductionRepository::class])
 class ReproductionRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -67,4 +66,8 @@ class ReproductionRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = reproQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(reproductionEvent: ReproductionEvent): Long = super.insertDomain(reproductionEvent)
+
+    override fun update(reproductionEvent: ReproductionEvent): Long = super.updateDomain(reproductionEvent)
 }

@@ -90,6 +90,7 @@ struct AddRecordMenu: View {
                             Label(option.title, systemImage: option.systemImage)
                         }
                         .disabled(!option.isAvailable)
+                        .accessibilityIdentifier("add_record_\(option.id)")
                     }
                 }
             }

@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.LabResult as DbLabResu
 /**
  * Repository implementation for managing [LabResult] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: LabResult`, interface uses `labResult: LabResult`
 @Single(binds = [ILabResultRepository::class])
 class LabResultRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -63,4 +62,8 @@ class LabResultRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = labResultQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(labResult: LabResult): Long = super.insertDomain(labResult)
+
+    override fun update(labResult: LabResult): Long = super.updateDomain(labResult)
 }

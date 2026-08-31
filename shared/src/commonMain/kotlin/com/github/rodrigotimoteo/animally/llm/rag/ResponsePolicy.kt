@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.llm.RecordTypeIntent
  * Keeps all "should we answer from records or refuse?" decisions in one place
  * so the thin facade stays declarative. Pure functions — no I/O.
  */
-@Suppress("TooManyFunctions")
 internal object ResponsePolicy {
     fun shouldUseNoResultsFallback(
         policy: RagQueryPolicy,
@@ -106,11 +105,6 @@ internal object ResponsePolicy {
             toolCallingEngine?.supportsToolCalling == true &&
             toolRegistry?.definitions?.isNotEmpty() == true
 
-    fun isMedicationRecord(result: SearchResult): Boolean =
-        result.recordType == RecordType.Medication.wireName ||
-            result.recordType == RecordType.ControlledSubstance.wireName ||
-            result.recordType == RecordType.ReproMedication.wireName
-
     fun isDosageRefusalNeeded(
         query: String,
         results: List<SearchResult>,
@@ -121,3 +115,8 @@ internal object ResponsePolicy {
         analysisQuery: Boolean,
     ): Boolean = recordQuestion || analysisQuery
 }
+
+private fun isMedicationRecord(result: SearchResult): Boolean =
+    result.recordType == RecordType.Medication.wireName ||
+        result.recordType == RecordType.ControlledSubstance.wireName ||
+        result.recordType == RecordType.ReproMedication.wireName

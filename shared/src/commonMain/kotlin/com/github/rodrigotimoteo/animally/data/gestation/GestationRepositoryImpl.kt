@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Gestation as DbGestati
 /**
  * Repository implementation for managing [Gestation] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Gestation`, interface uses `gestation: Gestation`
 @Single(binds = [IGestationRepository::class])
 class GestationRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -65,4 +64,8 @@ class GestationRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = gestationQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(gestation: Gestation): Long = super.insertDomain(gestation)
+
+    override fun update(gestation: Gestation): Long = super.updateDomain(gestation)
 }

@@ -1,5 +1,3 @@
-@file:Suppress("MaxLineLength", "MaximumLineLength", "LongLine")
-
 package com.github.rodrigotimoteo.animally.domain.insights.model
 
 /**
@@ -15,12 +13,16 @@ enum class InsightsDataIssueType(
 ) {
     UnknownReproductionCategory(
         "Unknown reproduction category",
-        "Reproduction event where eventType does not map to Heat, Breeding, Pregnancy Check, Foaling or Initial Exam after tolerant parsing — counted as Other, missing for analysis.",
+        "Reproduction event where eventType does not map to Heat, Breeding, " +
+            "Pregnancy Check, Foaling or Initial Exam after tolerant parsing — " +
+            "counted as Other, missing for analysis.",
         "Unknown category — missing for analysis",
     ),
     MissingVetName(
         "Missing veterinarian name",
-        "Activity record where veterinarian attribution (vetName, surgeon, administeredBy, farrier, prescribedBy) is null or blank in period — missing for analysis, not clinically wrong.",
+        "Activity record where veterinarian attribution (vetName, surgeon, administeredBy, " +
+            "farrier, prescribedBy) is null or blank in period — missing for analysis, " +
+            "not clinically wrong.",
         "Missing veterinarian name — missing for analysis",
     ),
     UnlinkedOwner(
@@ -35,7 +37,8 @@ enum class InsightsDataIssueType(
     ),
     IncompleteUltrasoundData(
         "Incomplete ultrasound data",
-        "Ultrasound record where structured fields (ovary/uterine status, follicle sizes, uterine edema/liquid, uterus description) are all null/blank — missing for analysis.",
+        "Ultrasound record where structured fields (ovary/uterine status, follicle sizes, " +
+            "uterine edema/liquid, uterus description) are all null/blank — missing for analysis.",
         "Incomplete structured data — missing for analysis",
     ),
 }

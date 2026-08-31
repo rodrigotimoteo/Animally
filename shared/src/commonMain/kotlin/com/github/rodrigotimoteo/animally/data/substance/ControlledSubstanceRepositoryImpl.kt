@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Substance as DbSubstan
 /**
  * Repository implementation for managing [ControlledSubstance] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: ControlledSubstance`, interface uses `controlledSubstance: ControlledSubstance`
 @Single(binds = [IControlledSubstanceRepository::class])
 class ControlledSubstanceRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -69,4 +68,8 @@ class ControlledSubstanceRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = substanceQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(controlledSubstance: ControlledSubstance): Long = super.insertDomain(controlledSubstance)
+
+    override fun update(controlledSubstance: ControlledSubstance): Long = super.updateDomain(controlledSubstance)
 }

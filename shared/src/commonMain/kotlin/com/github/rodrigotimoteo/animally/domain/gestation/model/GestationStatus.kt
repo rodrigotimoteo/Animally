@@ -1,5 +1,3 @@
-@file:Suppress("Wrapping")
-
 package com.github.rodrigotimoteo.animally.domain.gestation.model
 
 /**
@@ -23,7 +21,10 @@ object GestationStatus {
  *
  * Comparison is case-insensitive so legacy capitalisations all match.
  */
-fun String.isResolvedGestationStatus(): Boolean = GestationStatus.RESOLVED_STATUSES.any { equals(it, ignoreCase = true) }
+fun String.isResolvedGestationStatus(): Boolean =
+    GestationStatus.RESOLVED_STATUSES.any {
+        equals(it, ignoreCase = true)
+    }
 
 /**
  * Whether this gestation is currently active (ongoing pregnancy).

@@ -2,9 +2,13 @@
 
 package com.github.rodrigotimoteo.animally.di.infra
 
+import com.github.rodrigotimoteo.animally.presentation.embryotransfer.EmbryoTransferListViewModel
 import com.github.rodrigotimoteo.animally.presentation.gestation.GestationListViewModel
+import com.github.rodrigotimoteo.animally.presentation.icsi.IcsiListViewModel
 import com.github.rodrigotimoteo.animally.presentation.imaging.ImagingListViewModel
+import com.github.rodrigotimoteo.animally.presentation.ios.EmbryoTransferListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.GestationListStore
+import com.github.rodrigotimoteo.animally.presentation.ios.IcsiListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.ImagingListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.LabResultListStore
 import com.github.rodrigotimoteo.animally.presentation.ios.ReproMedicationListStore
@@ -25,6 +29,18 @@ import kotlin.native.ObjCName
  */
 @ObjCName("IosReproAndDiagnosticsStores")
 object IosReproAndDiagnosticsStores {
+    /** Returns a store exposing the embryo-transfer list for [patientId]. */
+    fun embryoTransferListStore(patientId: Long): EmbryoTransferListStore {
+        val viewModel: EmbryoTransferListViewModel = IosAppBridge.koin.get { parametersOf(patientId) }
+        return EmbryoTransferListStore(viewModel)
+    }
+
+    /** Returns a store exposing the ICSI list for [patientId]. */
+    fun icsiListStore(patientId: Long): IcsiListStore {
+        val viewModel: IcsiListViewModel = IosAppBridge.koin.get { parametersOf(patientId) }
+        return IcsiListStore(viewModel)
+    }
+
     /** Returns a store exposing the reproduction-event list for the patient with [patientId]. */
     fun reproductionListStore(patientId: Long): ReproductionListStore {
         val viewModel: ReproductionEventListViewModel = IosAppBridge.koin.get { parametersOf(patientId) }

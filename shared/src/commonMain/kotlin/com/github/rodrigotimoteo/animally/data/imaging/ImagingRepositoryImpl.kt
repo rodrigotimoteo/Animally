@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Imaging as DbImaging
 /**
  * Repository implementation for managing [Imaging] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Imaging`, interface uses `imaging: Imaging`
 @Single(binds = [IImagingRepository::class])
 class ImagingRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -63,4 +62,8 @@ class ImagingRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = imagingQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(imaging: Imaging): Long = super.insertDomain(imaging)
+
+    override fun update(imaging: Imaging): Long = super.updateDomain(imaging)
 }

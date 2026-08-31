@@ -177,7 +177,12 @@ class GenericRecordTabVM<SectionID: Hashable>: ObservableObject {
 
     func display(for section: SectionID) -> RecordSectionDisplayState {
         guard let builder = sections[section]?.display else {
-            fatalError("display not registered for \(section)")
+            // A missing registration is a programming error, but it should
+            // not terminate a user's clinical record session in production.
+            // Keep the diagnostic in debug builds and render a safe empty
+            // state until the registration is corrected.
+            assertionFailure("display not registered for \(section)")
+            return Self.emptyDisplay
         }
         return builder()
     }

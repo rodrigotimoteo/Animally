@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.ReproMedication as DbR
 /**
  * Repository implementation for managing [ReproMedication] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: ReproMedication`, interface uses `reproMedication: ReproMedication`
 @Single(binds = [IReproMedicationRepository::class])
 class ReproMedicationRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -63,4 +62,8 @@ class ReproMedicationRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = reproMedQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(reproMedication: ReproMedication): Long = super.insertDomain(reproMedication)
+
+    override fun update(reproMedication: ReproMedication): Long = super.updateDomain(reproMedication)
 }

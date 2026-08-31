@@ -19,7 +19,7 @@ internal class GestationFactsProvider(
         query: String,
         today: LocalDate,
     ): List<GestationFact>? {
-        if (!AnalysisIntents.wantsCurrentGestation(query)) return null
+        if (!AnalysisTopicIntents.wantsCurrentGestation(query)) return null
         val patients = patientRepository.getPatientList()
         val matchedPatients = scopeResolver.patientNameMatches(patients, query)
         val scoped = matchedPatients.singleOrNull()

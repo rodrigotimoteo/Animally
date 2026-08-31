@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Medication as DbMedica
 /**
  * Repository implementation for managing [Medication] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Medication`, interface uses `medication: Medication`
 @Single(binds = [IMedicationRepository::class])
 class MedicationRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -67,4 +66,8 @@ class MedicationRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = medicationQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(medication: Medication): Long = super.insertDomain(medication)
+
+    override fun update(medication: Medication): Long = super.updateDomain(medication)
 }

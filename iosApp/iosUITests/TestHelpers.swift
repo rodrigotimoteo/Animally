@@ -103,26 +103,42 @@ extension TestHelpers {
         _ field: XCUIElement,
         text: String,
     ) {
-        var attempts = 0
-        while attempts < 3 {
+        for _ in 0..<3 {
             field.tap()
             usleep(300_000)
 
-            let existing = (field.value as? String) ?? ""
-            if !existing.isEmpty {
-                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count + 2))
-                usleep(200_000)
-            }
+            clearTextField(field)
+            guard !containsUserText(field) else { continue }
 
             field.typeText(text)
             usleep(400_000)
             if (field.value as? String) == text {
                 return
             }
-            attempts += 1
         }
 
         XCTFail("Field never received '\(text)'; landed '\(field.value ?? "nil")'")
+    }
+
+    /// Clears a live-bound SwiftUI field even when a state round-trip drops a
+    /// synthesized delete keystroke. Re-read the value after each batch and
+    /// retry the remaining suffix before the caller types replacement text.
+    private static func clearTextField(_ field: XCUIElement) {
+        for _ in 0..<8 {
+            guard containsUserText(field) else { return }
+            let existing = (field.value as? String) ?? ""
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
+            usleep(150_000)
+        }
+    }
+
+    /// On iOS 26 XCTest reports a SwiftUI TextField's placeholder through
+    /// `value` when the control is empty. Treat that presentation value as
+    /// empty so form tests do not attempt to delete the placeholder itself.
+    private static func containsUserText(_ field: XCUIElement) -> Bool {
+        let value = (field.value as? String) ?? ""
+        guard !value.isEmpty else { return false }
+        return value != (field.placeholderValue ?? "")
     }
 
     /// Types text into a search field, verifying what actually landed.

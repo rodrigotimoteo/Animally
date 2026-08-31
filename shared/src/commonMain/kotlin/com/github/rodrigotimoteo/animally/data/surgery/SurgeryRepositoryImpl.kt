@@ -16,7 +16,6 @@ import com.github.rodrigotimoteo.animally.data.migrations.Surgery as DbSurgery
 /**
  * Repository implementation for managing [Surgery] records.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Surgery`, interface uses `surgery: Surgery`
 @Single(binds = [ISurgeryRepository::class])
 class SurgeryRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -69,4 +68,8 @@ class SurgeryRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = surgeryQueries.setInactive(updatedAt = updatedAt, id = id)
+
+    override fun insert(surgery: Surgery): Long = super.insertDomain(surgery)
+
+    override fun update(surgery: Surgery): Long = super.updateDomain(surgery)
 }

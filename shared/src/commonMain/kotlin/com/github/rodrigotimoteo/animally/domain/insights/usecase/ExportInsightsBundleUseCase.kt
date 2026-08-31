@@ -1,5 +1,3 @@
-@file:Suppress("MaxLineLength", "ArgumentListWrapping", "Wrapping", "PropertyWrapping", "MaximumLineLength", "ConstructorParameterNaming")
-
 package com.github.rodrigotimoteo.animally.domain.insights.usecase
 
 import com.github.rodrigotimoteo.animally.domain.backup.BACKUP_SCHEMA_VERSION
@@ -14,6 +12,7 @@ import com.github.rodrigotimoteo.animally.domain.insights.model.InsightsExportTa
 import com.github.rodrigotimoteo.animally.domain.insights.model.InsightsRecordRef
 import com.github.rodrigotimoteo.animally.domain.insights.model.InsightsSnapshot
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
@@ -22,11 +21,10 @@ import kotlin.time.Instant
 
 @Serializable
 private data class DictionaryJson(
-    val generated_note: String,
+    @SerialName("generated_note") val generatedNote: String,
     val tables: List<InsightsExportTableDef>,
 )
 
-@Suppress("TooManyFunctions", "LongMethod")
 @Single
 class ExportInsightsBundleUseCase(
     private val clock: () -> Instant = { Clock.System.now() },
@@ -104,19 +102,8 @@ class ExportInsightsBundleUseCase(
                 snapshot.appliedFilter?.patientId?.let { add(it) }
                 refs.forEach { add(it.patientId) }
             }.sorted()
-        return ids.mapIndexed { i, pid -> pid to pseudonym(i) }.toMap()
+        return ids.mapIndexed { i, pid -> pid to insightsPseudonym(i) }.toMap()
     }
-
-    private fun pseudonym(index: Int): String = "P${(index + 1).toString().padStart(PSEUDONYM_PAD, '0')}"
-
-    private fun patientColumns(pseudonymize: Boolean): List<String> = if (pseudonymize) listOf("patient_pseudonym") else listOf("patient_id", "patient_name")
-
-    private fun patientCells(
-        pseudonymize: Boolean,
-        patientId: Long,
-        patientName: String,
-        map: Map<Long, String>,
-    ): List<String> = if (pseudonymize) listOf(map[patientId] ?: FALLBACK_PSEUDONYM) else listOf(patientId.toString(), patientName)
 
     private fun buildOverviewCsv(snapshot: InsightsSnapshot): String {
         val o = snapshot.overview
@@ -140,31 +127,37 @@ class ExportInsightsBundleUseCase(
                 o.activityCount,
                 o.caseDayCount,
                 o.activeDayCount,
-                formatDouble(o.averagePerActiveDay),
-                formatDouble(o.averagePerCaseDay),
+                formatInsightsDouble(o.averagePerActiveDay),
+                formatInsightsDouble(o.averagePerCaseDay),
                 c?.current ?: "",
                 c?.previous ?: "",
                 c?.absoluteDelta ?: "",
-                formatDouble(c?.percentageDelta),
+                formatInsightsDouble(c?.percentageDelta),
             )
         return csv(headers, listOf(row))
     }
 
     private fun buildActivitySeriesCsv(snapshot: InsightsSnapshot): String {
         val headers = listOf("period_start", "count")
-        val rows = snapshot.activitySeries.map { listOf(it.periodStart.toString(), it.count.toString()) }
+        val rows = snapshot.activitySeries.map { point -> listOf(point.periodStart.toString(), point.count.toString()) }
         return csv(headers, rows)
     }
 
     private fun buildRecordMixCsv(snapshot: InsightsSnapshot): String {
         val headers = listOf("record_type_wire", "record_type_display", "count", "share")
-        val rows = snapshot.recordMix.map { listOf(it.type.wireName, it.type.displayName, it.count.toString(), formatDouble(it.share)) }
+        val rows =
+            snapshot.recordMix.map { entry ->
+                listOf(entry.type.wireName, entry.type.displayName, entry.count.toString(), formatInsightsDouble(entry.share))
+            }
         return csv(headers, rows)
     }
 
     private fun buildReproductionEventsCsv(snapshot: InsightsSnapshot): String {
         val headers = listOf("event_type_storage", "event_type_display", "count")
-        val rows = snapshot.reproduction.eventCounts.map { listOf(it.type.storageLabel, it.type.displayLabel, it.count.toString()) }
+        val rows =
+            snapshot.reproduction.eventCounts.map { entry ->
+                listOf(entry.type.storageLabel, entry.type.displayLabel, entry.count.toString())
+            }
         return csv(headers, rows)
     }
 
@@ -184,10 +177,10 @@ class ExportInsightsBundleUseCase(
             listOf(
                 r.embryoCollections,
                 r.embryosCollected,
-                formatDouble(r.averageEmbryosPerCollection),
+                formatInsightsDouble(r.averageEmbryosPerCollection),
                 r.icsiSessions,
                 r.folliclesRecovered,
-                formatDouble(r.averageFolliclesPerIcsi),
+                formatInsightsDouble(r.averageFolliclesPerIcsi),
                 r.ultrasoundCount,
             )
         return csv(headers, listOf(row))
@@ -199,7 +192,7 @@ class ExportInsightsBundleUseCase(
         pseudonymize: Boolean,
     ): String {
         val headers =
-            patientColumns(pseudonymize) +
+            insightsPatientColumns(pseudonymize) +
                 listOf(
                     "gestation_id",
                     "gestation_day",
@@ -212,16 +205,16 @@ class ExportInsightsBundleUseCase(
                 )
         val rows =
             items.sortedBy { it.dueDate }.map { item ->
-                patientCells(pseudonymize, item.patientId, item.patientName, pseudonymMap) +
+                insightsPatientCells(pseudonymize, item.patientId, item.patientName, pseudonymMap) +
                     listOf(
                         item.gestationId.toString(),
                         item.gestationDay.toString(),
                         item.dueDate.toString(),
                         item.daysUntilDue.toString(),
                         item.status,
-                        flag(item.isDueSoon(CurrentCareSnapshot.DUE_SOON_30_DAYS)),
-                        flag(item.isDueSoon(CurrentCareSnapshot.DUE_SOON_60_DAYS)),
-                        flag(item.isDueSoon(CurrentCareSnapshot.DUE_SOON_90_DAYS)),
+                        insightsFlag(item.isDueSoon(CurrentCareSnapshot.DUE_SOON_30_DAYS)),
+                        insightsFlag(item.isDueSoon(CurrentCareSnapshot.DUE_SOON_60_DAYS)),
+                        insightsFlag(item.isDueSoon(CurrentCareSnapshot.DUE_SOON_90_DAYS)),
                     )
             }
         return csv(headers, rows)
@@ -232,10 +225,10 @@ class ExportInsightsBundleUseCase(
         pseudonymMap: Map<Long, String>,
         pseudonymize: Boolean,
     ): String {
-        val headers = patientColumns(pseudonymize) + listOf("record_type_wire", "record_id", "date")
+        val headers = insightsPatientColumns(pseudonymize) + listOf("record_type_wire", "record_id", "date")
         val rows =
             refs.sortedWith(compareByDescending<InsightsRecordRef> { it.date }.thenByDescending { it.recordId }).map { ref ->
-                patientCells(pseudonymize, ref.patientId, ref.patientName, pseudonymMap) +
+                insightsPatientCells(pseudonymize, ref.patientId, ref.patientName, pseudonymMap) +
                     listOf(ref.recordType.wireName, ref.recordId.toString(), ref.date.toString())
             }
         return csv(headers, rows)
@@ -281,12 +274,16 @@ class ExportInsightsBundleUseCase(
             append(
                 "# Insights Export Data Dictionary\n\nGenerated from the same `InsightsSnapshot` as the dashboard; all totals match the on-screen values.\n\n",
             )
-            append(
-                "Ranges are inclusive (`from <= date <= to`). Zero denominators yield empty values, not zero or NaN. Current-care rows are as of the captured `today`, independent of the historical range. Pseudonymized mode replaces `patientId`/`patientName` with bundle-local `P001` codes assigned by ascending patientId.\n\n## Files\n\n",
-            )
+            append("Ranges are inclusive (`from <= date <= to`). Zero denominators yield empty values, not zero or NaN. ")
+            append("Current-care rows are as of the captured `today`, independent of the historical range. ")
+            append("Pseudonymized mode replaces `patientId`/`patientName` with bundle-local `P001` codes assigned by ascending patientId.\n\n")
+            append("## Files\n\n")
             InsightsExportDataDictionary.tables.forEach { table ->
                 append("### `${table.file}`\n\n${table.description}\n\n| Column | Type | Definition |\n|--------|------|------------|\n")
-                table.columns.forEach { col -> append("| `${col.name}` | ${col.type} | ${col.definition.replace("|","\\|").replace("\n"," ")} |\n") }
+                table.columns.forEach { col ->
+                    val definition = col.definition.replace("|", "\\|").replace("\n", " ")
+                    append("| `${col.name}` | ${col.type} | $definition |\n")
+                }
                 append("\n")
             }
         }
@@ -301,14 +298,8 @@ class ExportInsightsBundleUseCase(
         return sb.toString()
     }
 
-    private fun formatDouble(v: Double?): String = v?.toString() ?: ""
-
-    private fun flag(c: Boolean): String = if (c) "1" else "0"
-
     private companion object {
         const val DEFAULT_APP_VERSION = "1.0.0"
-        const val PSEUDONYM_PAD = 3
-        const val FALLBACK_PSEUDONYM = "P000"
         val json: Json = Json { prettyPrint = true }
     }
 }

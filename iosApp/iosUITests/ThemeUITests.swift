@@ -55,6 +55,10 @@ final class ThemeUITests: AnimallyTestCase {
         XCTAssertTrue(system.waitForExistence(timeout: 8), "System theme option is missing")
         system.tap()
         Thread.sleep(forTimeInterval: 1)
+        let picker = app.descendants(matching: .any)
+            .matching(identifier: "settings_theme_picker")
+            .firstMatch
+        XCTAssertEqual(picker.value as? String, "System", "System selection did not persist in the settings control")
         let systemBrightness = backgroundBrightness(XCUIScreen.main.screenshot())
 
         XCTAssertLessThan(darkBrightness, 0.25, "Dark selection did not darken Settings")

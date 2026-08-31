@@ -28,9 +28,9 @@ abstract class BasePatientRepository<Db : Any, Domain : Any>(
         updatedAt: Instant,
     ): QueryResult<Long>
 
-    protected abstract fun doInsert(value: Domain): QueryResult<Long>
+    protected abstract fun doInsert(domain: Domain): QueryResult<Long>
 
-    protected abstract fun doUpdate(value: Domain): QueryResult<Long>
+    protected abstract fun doUpdate(domain: Domain): QueryResult<Long>
 
     open fun getByPatient(patientId: Long): List<Domain> =
         selectByPatient(patientId).executeAsList().map { db ->
@@ -42,15 +42,13 @@ abstract class BasePatientRepository<Db : Any, Domain : Any>(
             with(mapper) { it.toDomain() }
         }
 
-    @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
-    open fun insert(value: Domain): Long =
+    protected fun insertDomain(domain: Domain): Long =
         database.transactionWithResult {
-            doInsert(value)
+            doInsert(domain)
             database.commonQueries.selectLastRowId().executeAsOne()
         }
 
-    @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
-    open fun update(value: Domain): Long = doUpdate(value).value
+    protected fun updateDomain(domain: Domain): Long = doUpdate(domain).value
 
     open fun setInactive(
         id: Long,

@@ -26,7 +26,7 @@ struct InsightsView: View {
             VStack(spacing: 8) {
                 if let e = viewModel.state.errorMessage { InlineErrorBanner(message: e, onRetry: { viewModel.retry() }, onDismiss: { viewModel.dismissError() }) }
                 if let v = viewModel.state.validationError { InlineErrorBanner(message: v, onDismiss: { viewModel.dismissValidationError() }) }
-                if let a = viewModel.awaitError { InlineErrorBanner(message: a, onRetry: { Task { await viewModel.reloadAsync() } }, onDismiss: { viewModel.dismissAwaitError() }) }
+                if let a = viewModel.awaitError { InlineErrorBanner(message: a, onRetry: { Task { _ = await viewModel.reloadAsync() } }, onDismiss: { viewModel.dismissAwaitError() }) }
             }.animation(.easeInOut(duration: 0.2), value: viewModel.state.errorMessage).animation(.easeInOut(duration: 0.2), value: viewModel.state.validationError)
         }
         .navigationDestination(item: $drillDownKey) { key in InsightsRecordsView(drillDown: key.drillDown, patientName: patientName) }
@@ -41,16 +41,14 @@ struct InsightsView: View {
                 if snapshot.overview.activityCount == 0 {
                     emptyView
                 } else {
-                    InsightsCaseMixSection(activitySeries: snapshot.activitySeries as? [ActivityPoint] ?? [], recordMix: snapshot.recordMix as? [RecordTypeCount] ?? [], totalActivityCount: snapshot.overview.activityCount, isDrillDownEnabled: effectiveRange() != nil, onSelectRecordType: { openDrillDown(recordType: $0) }).accessibilityElement(children: .contain)
+                    InsightsCaseMixSection(activitySeries: snapshot.activitySeries, recordMix: snapshot.recordMix, totalActivityCount: snapshot.overview.activityCount, isDrillDownEnabled: effectiveRange() != nil, onSelectRecordType: { openDrillDown(recordType: $0) }).accessibilityElement(children: .contain)
                 }
                 InsightsReproductionSection(metrics: snapshot.reproduction, isDrillDownEnabled: effectiveRange() != nil) { t, e in openDrillDown(recordType: t, reproductionEventType: e) }.accessibilityElement(children: .contain)
-                if let care = snapshot.currentCare as? CurrentCareSnapshot {
-                    InsightsGestationSection(currentCare: care) { pid, gid in gestationKey = RecordDetailKey(displayType: "GESTATION", patientId: pid, recordId: gid) }.accessibilityElement(children: .contain)
-                }
+                InsightsGestationSection(currentCare: snapshot.currentCare) { pid, gid in gestationKey = RecordDetailKey(displayType: "GESTATION", patientId: pid, recordId: gid) }.accessibilityElement(children: .contain)
                 InsightsReadinessSection(dataIssues: snapshot.dataIssues, isDrillDownEnabled: effectiveRange() != nil) { openDrillDown(dataIssueType: $0) }.accessibilityElement(children: .contain)
                 if viewModel.state.isLoading { HStack(spacing: 8) { ProgressView().scaleEffect(0.8); Text("Updating…").font(.caption).foregroundStyle(Theme.textSecondary) }.frame(maxWidth: .infinity).padding(.vertical, 4).accessibilityLabel("Updating insights") }
             }.padding()
-        }.accessibilityIdentifier("insights_dashboard").refreshable { await viewModel.reloadAsync() }
+        }.accessibilityIdentifier("insights_dashboard").refreshable { _ = await viewModel.reloadAsync() }
     }
 
     private var controlsSection: some View {
@@ -125,7 +123,7 @@ struct InsightsView: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 48)).foregroundStyle(Theme.amber).accessibilityHidden(true)
             Text(message).font(.subheadline).foregroundStyle(Theme.textPrimary).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            Button { Task { await viewModel.reloadAsync() } } label: { Text("Retry").font(.subheadline.weight(.semibold)).padding(.horizontal, 16).padding(.vertical, 10).background(Theme.forestGreen).foregroundStyle(.white).clipShape(Capsule()) }.buttonStyle(.plain).accessibilityLabel("Retry loading insights")
+            Button { Task { _ = await viewModel.reloadAsync() } } label: { Text("Retry").font(.subheadline.weight(.semibold)).padding(.horizontal, 16).padding(.vertical, 10).background(Theme.forestGreen).foregroundStyle(.white).clipShape(Capsule()) }.buttonStyle(.plain).accessibilityLabel("Retry loading insights")
             Button { viewModel.dismissError() } label: { Text("Dismiss").font(.caption.weight(.medium)).foregroundStyle(Theme.textSecondary) }.buttonStyle(.plain).accessibilityLabel("Dismiss error")
         }.frame(maxWidth: .infinity).padding(.vertical, 32).padding(.horizontal).background(Theme.surfaceElevated).clipShape(RoundedRectangle(cornerRadius: 14)).accessibilityElement(children: .combine).accessibilityLabel("Error: \(message)")
     }

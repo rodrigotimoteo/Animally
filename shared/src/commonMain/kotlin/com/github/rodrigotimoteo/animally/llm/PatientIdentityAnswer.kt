@@ -109,7 +109,12 @@ internal suspend fun FlowCollector<RagStreamEvent>.emitPatientIdentityAnswer(
 ): Boolean {
     val fields = PatientIdentityAnswer.requestedFields(query)
     if (fields.isEmpty()) return false
-    if (!patientNameMentioned) return false
+    // A resolved conversational scope is just as authoritative as an explicit
+    // name for projecting the patient row. The retriever only supplies
+    // `scopedPatient` after matching an active patient or resolving a singular
+    // pronoun from the previous user turn; an unresolved reference remains
+    // blocked by the null check below.
+    if (!patientNameMentioned && scopedPatient == null) return false
     val patientName = scopedPatient
     val repository = patientRepository
     return if (patientName == null || repository == null) {

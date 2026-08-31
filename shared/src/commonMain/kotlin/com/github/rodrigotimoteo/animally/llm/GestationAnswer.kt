@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.llm
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
+import com.github.rodrigotimoteo.animally.llm.analysis.AnalysisTopicIntents
 import kotlinx.coroutines.flow.FlowCollector
 
 /** Emits a human-readable current-pregnancy answer from Kotlin-owned facts. */
@@ -11,7 +12,7 @@ internal suspend fun FlowCollector<RagStreamEvent>.emitGestationAnswer(
     scopedPatient: String?,
 ): Boolean {
     val portuguese = AssistantPrompts.isPortugueseQuery(query)
-    val asksBreedingTiming = AnalysisIntents.wantsBreedingTiming(query)
+    val asksBreedingTiming = AnalysisTopicIntents.wantsBreedingTiming(query)
     val activeFacts = facts.filter(GestationFact::isActive)
     val sourceFacts = (if (asksBreedingTiming) facts else activeFacts.ifEmpty { facts }).take(MAX_GESTATION_SOURCES)
     val answer =

@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
+import com.github.rodrigotimoteo.animally.llm.analysis.AnalysisTopicIntents
 import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
 import dev.mokkery.answering.sequentiallyReturns
@@ -817,6 +818,25 @@ class GenerateRagResponseUseCaseTest {
         }
 
     @Test
+    fun `given history-resolved patient identity follow-up then exact row is projected`() =
+        runTest {
+            val patient = testPatient(7L, "Thunder").copy(dateOfBirth = LocalDate(2017, 4, 18))
+            every { searchRepositoryMock.search(any(), any(), any(), any()) } returns emptyList()
+
+            val events =
+                sut(
+                    patientRepository = FakePatientRepository(listOf(patient)),
+                    today = LocalDate(2026, 8, 24),
+                )(
+                    "How old is she?",
+                    listOf(RagHistoryEntry("Tell me about Thunder", "Thunder is a mare.")),
+                ).toList()
+
+            assertEquals(0, engine.calls)
+            assertEquals("Thunder's age is 9.", events.filterIsInstance<RagStreamEvent.Chunk>().last().text)
+        }
+
+    @Test
     fun `given missing patient identity fields when asked then no values are invented`() =
         runTest {
             val patient = testPatient(7L, "Thunder")
@@ -1263,6 +1283,7 @@ class GenerateRagResponseUseCaseTest {
     fun `given a singular follow-up then the latest active patient in history scopes retrieval`() =
         runTest {
             every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Estrela")
+            every { patientRepositoryMock.getPatientList() } returns emptyList()
             every { searchRepositoryMock.search(any(), any(), any(), any()) } returns listOf(result())
 
             val history = listOf(RagHistoryEntry("Tell me about Thunder", "Thunder is a 7 year old mare."))
@@ -1277,6 +1298,7 @@ class GenerateRagResponseUseCaseTest {
     fun `given a singular follow-up when AND misses then retry keeps the resolved patient scope`() =
         runTest {
             every { patientRepositoryMock.patientNames() } returns listOf("Thunder", "Estrela")
+            every { patientRepositoryMock.getPatientList() } returns emptyList()
             val searchedQueries = mutableListOf<String>()
             val scopedSearch =
                 RagRecordSearch { ftsQuery ->
@@ -1825,7 +1847,7 @@ class GenerateRagResponseUseCaseTest {
                 )
 
             val query = "Which mares are currently pregnant, how many days along are they, and when are they due?"
-            assertTrue(AnalysisIntents.wantsCurrentGestation(query))
+            assertTrue(AnalysisTopicIntents.wantsCurrentGestation(query))
             assertTrue(RecordQuestionIntent.isRecordQuestion(query, null, null))
             assertEquals(2, repos.builder.gestationFacts(query, LocalDate(2025, 5, 11))?.size)
 

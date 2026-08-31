@@ -38,7 +38,13 @@ final class AssistantRealFmEdgeUITests: AnimallyTestCase {
         expectation(for: ready, evaluatedWith: newChat)
         waitForExpectations(timeout: 10)
         newChat.tap()
-        XCTAssertTrue(app.textFields["assistant_input"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "assistant_empty_state")
+                .firstMatch
+                .waitForExistence(timeout: 10),
+            "New chat did not clear the visible transcript",
+        )
     }
 
     /// Types a question into the chat input without polling the live
@@ -70,6 +76,16 @@ final class AssistantRealFmEdgeUITests: AnimallyTestCase {
             "Assistant reply never appeared"
         )
         Thread.sleep(forTimeInterval: 6)
+        let input = app.textFields["assistant_input"]
+        let inputReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"),
+            object: input,
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [inputReady], timeout: 120),
+            .completed,
+            "Assistant did not finish generating before the next assertion",
+        )
         return query.allElementsBoundByIndex.map(\.label)
     }
 
@@ -161,7 +177,10 @@ final class AssistantRealFmEdgeUITests: AnimallyTestCase {
         // Keep this test tied to the current simulator data rather than to a
         // removed demo patient. The behavior under test is conversational
         // subject resolution, not a specific fixture name.
-        ask(app, "Tell me about \(patientName)")
+        // Start with a deterministic patient-row question so this regression
+        // does not depend on a nondeterministic free-form FM generation. The
+        // follow-up still proves that a completed prior turn resolves "she".
+        ask(app, "What species is \(patientName)?")
         _ = waitForReply(app)
         ask(app, "How old is she?")
         let labels = waitForReply(app, minCount: 2)
