@@ -30,6 +30,21 @@ object PdfTheme {
     const val COLOR_MUTED = 0xFF9AA19DL
     const val COLOR_WHITE = 0xFFFFFFFFL
 
+    // Accent variants used by the selected app palette. The body remains a
+    // light document for reliable printing and sharing in either app mode.
+    const val COLOR_BRAND_OCEAN = 0xFF1763A6L
+    const val COLOR_BRAND_PLUM = 0xFF7A3D73L
+    const val COLOR_BRAND_TERRACOTTA = 0xFF9C4D33L
+    const val COLOR_BRAND_SLATE = 0xFF425978L
+    const val COLOR_ROW_ALT_OCEAN = 0xFFF2F6FAL
+    const val COLOR_ROW_ALT_PLUM = 0xFFF7F1F6L
+    const val COLOR_ROW_ALT_TERRACOTTA = 0xFFF8F3F1L
+    const val COLOR_ROW_ALT_SLATE = 0xFFF3F5F8L
+    const val COLOR_CARD_TINT_OCEAN = 0xFFE3ECF4L
+    const val COLOR_CARD_TINT_PLUM = 0xFFEFE8EEL
+    const val COLOR_CARD_TINT_TERRACOTTA = 0xFFF3EAE6L
+    const val COLOR_CARD_TINT_SLATE = 0xFFE8EBEFL
+
     // ---------------------------------------------------------------------
     // Type sizes (points)
     // ---------------------------------------------------------------------
@@ -152,4 +167,50 @@ object PdfTheme {
 
     /** Extracts the blue channel of an ARGB [argb] color as `0.0..1.0`. */
     fun blue(argb: Long): Double = (argb and CHANNEL_MASK) / CHANNEL_SCALE
+}
+
+/** Accent-derived colors carried by one report generation request. */
+data class PdfPalette(
+    val brandColor: Long,
+    val rowAltColor: Long,
+    val cardTintColor: Long,
+) {
+    companion object {
+        val DEFAULT =
+            PdfPalette(
+                brandColor = PdfTheme.COLOR_BRAND,
+                rowAltColor = PdfTheme.COLOR_ROW_ALT,
+                cardTintColor = PdfTheme.COLOR_CARD_TINT,
+            )
+
+        /** Resolves the stable accent IDs persisted by the theme preference store. */
+        fun forAccentId(accentId: String?): PdfPalette =
+            when (accentId) {
+                "ocean" ->
+                    PdfPalette(
+                        brandColor = PdfTheme.COLOR_BRAND_OCEAN,
+                        rowAltColor = PdfTheme.COLOR_ROW_ALT_OCEAN,
+                        cardTintColor = PdfTheme.COLOR_CARD_TINT_OCEAN,
+                    )
+                "plum" ->
+                    PdfPalette(
+                        brandColor = PdfTheme.COLOR_BRAND_PLUM,
+                        rowAltColor = PdfTheme.COLOR_ROW_ALT_PLUM,
+                        cardTintColor = PdfTheme.COLOR_CARD_TINT_PLUM,
+                    )
+                "terracotta" ->
+                    PdfPalette(
+                        brandColor = PdfTheme.COLOR_BRAND_TERRACOTTA,
+                        rowAltColor = PdfTheme.COLOR_ROW_ALT_TERRACOTTA,
+                        cardTintColor = PdfTheme.COLOR_CARD_TINT_TERRACOTTA,
+                    )
+                "slate" ->
+                    PdfPalette(
+                        brandColor = PdfTheme.COLOR_BRAND_SLATE,
+                        rowAltColor = PdfTheme.COLOR_ROW_ALT_SLATE,
+                        cardTintColor = PdfTheme.COLOR_CARD_TINT_SLATE,
+                    )
+                else -> DEFAULT
+            }
+    }
 }

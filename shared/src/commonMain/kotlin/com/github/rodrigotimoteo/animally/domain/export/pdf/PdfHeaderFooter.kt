@@ -1,13 +1,16 @@
 package com.github.rodrigotimoteo.animally.domain.export.pdf
 
-internal fun headerBandOps(generatedAt: String): List<PdfOp> =
+internal fun headerBandOps(
+    generatedAt: String,
+    palette: PdfPalette,
+): List<PdfOp> =
     listOf(
         PdfOp.Rect(
             x = PdfTheme.MARGIN,
             y = PdfTheme.MARGIN,
             width = PdfTheme.CONTENT_WIDTH,
             height = PdfTheme.HEADER_BAND_HEIGHT,
-            color = PdfTheme.COLOR_BRAND,
+            color = palette.brandColor,
         ),
         PdfOp.Text(
             "Animally",

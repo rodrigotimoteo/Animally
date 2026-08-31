@@ -83,6 +83,29 @@ class ResolvePatientUseCaseTest {
     }
 
     @Test
+    fun `when spoken name is a unique patient prefix then resolved`() {
+        every {
+            patientRepositoryMock.getPatientList()
+        } returns listOf(patient(1L, "Descarada do Monte Alto"), patient(2L, "Lua do Pinhal"))
+
+        val result = sut("Descarada")
+
+        assertEquals(1L, (result as PatientResolution.Resolved).patient.id)
+    }
+
+    @Test
+    fun `when spoken prefix matches several patients then ambiguous`() {
+        every {
+            patientRepositoryMock.getPatientList()
+        } returns listOf(patient(1L, "Descarada do Monte Alto"), patient(2L, "Descarada II"))
+
+        val result = sut("Descarada")
+
+        val ambiguous = assertIs<PatientResolution.Ambiguous>(result)
+        assertEquals(listOf(1L, 2L), ambiguous.candidates.map { it.id })
+    }
+
+    @Test
     fun `when no match then not found`() {
         every { patientRepositoryMock.getPatientList() } returns listOf(patient(1L, "Relâmpago"))
 

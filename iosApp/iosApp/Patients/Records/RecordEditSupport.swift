@@ -60,6 +60,8 @@ struct RecordPrefill {
     var uterineStatus: String?
     var follicleSizeMm: String?
     var drugName: String?
+    var medicationName: String?
+    var medicationDosage: String?
     var notes: String?
 }
 

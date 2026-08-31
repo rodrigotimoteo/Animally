@@ -5,6 +5,8 @@ import com.github.rodrigotimoteo.animally.domain.deworming.usecase.SaveDeworming
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecord
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecordType
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState
+import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
+import com.github.rodrigotimoteo.animally.domain.medication.usecase.SaveMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import com.github.rodrigotimoteo.animally.domain.ultrasound.usecase.SaveUltrasoundUseCase
 import com.github.rodrigotimoteo.animally.domain.weight.model.Weight
@@ -52,12 +54,14 @@ sealed interface InsertionResult {
  * @param saveUltrasoundUseCase Save path for ultrasound records.
  * @param saveWeightUseCase Save path for weight entries.
  * @param saveDewormingUseCase Save path for deworming records.
+ * @param saveMedicationUseCase Save path for medication records.
  * @param patientExists Active-patient lookup checked immediately before every insertion.
  */
 class InsertSuggestionsUseCase(
     private val saveUltrasoundUseCase: SaveUltrasoundUseCase,
     private val saveWeightUseCase: SaveWeightUseCase,
     private val saveDewormingUseCase: SaveDewormingUseCase,
+    private val saveMedicationUseCase: SaveMedicationUseCase,
     private val patientExists: (Long) -> Boolean,
 ) {
     /**
@@ -107,6 +111,7 @@ class InsertSuggestionsUseCase(
             SuggestedRecordType.Ultrasound -> insertUltrasound(insertion)
             SuggestedRecordType.Weight -> insertWeight(insertion)
             SuggestedRecordType.Deworming -> insertDeworming(insertion)
+            SuggestedRecordType.Medication -> insertMedication(insertion)
         }
 
     private fun insertUltrasound(insertion: SuggestedInsertion): Long {
@@ -152,6 +157,23 @@ class InsertSuggestionsUseCase(
                 notes = record.notes,
                 createdAt = Clock.System.now(),
                 updatedAt = Clock.System.now(),
+            ),
+        )
+    }
+
+    private fun insertMedication(insertion: SuggestedInsertion): Long {
+        val record = insertion.record
+        val now = Clock.System.now()
+        return saveMedicationUseCase(
+            Medication(
+                id = 0L,
+                patientId = insertion.patientId,
+                name = requireNotNull(record.medicationName) { "medication suggestion without medicationName" },
+                dosage = requireNotNull(record.medicationDosage) { "medication suggestion without medicationDosage" },
+                startDate = requireDate(record),
+                notes = record.notes,
+                createdAt = now,
+                updatedAt = now,
             ),
         )
     }

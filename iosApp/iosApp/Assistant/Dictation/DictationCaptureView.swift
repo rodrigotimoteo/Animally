@@ -23,6 +23,7 @@ struct DictationCaptureView: View {
     @State private var phase: Phase = .idle
     @State private var liveTranscript = ""
     @State private var editableTranscript = ""
+    @State private var extractionPreview = ""
     @State private var selectedLanguage = DictationLanguage.deviceDefault
     @State private var errorMessage: String?
     @State private var fallbackLocaleHint: String?
@@ -96,7 +97,7 @@ struct DictationCaptureView: View {
 
     private var idleView: some View {
         VStack(spacing: 24) {
-            Text("Describe the records you want to save — weights, ultrasounds, deworming.")
+            Text("Describe the records you want to save — weights, ultrasounds, deworming, or medication.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -200,6 +201,7 @@ struct DictationCaptureView: View {
                         .stroke(Theme.textTertiary.opacity(0.35), lineWidth: 1)
                 )
                 .padding(.horizontal, 24)
+                .frame(height: 260)
                 .accessibilityIdentifier("dictation_transcript_editor")
 
             if extractor?.usesCloudModel == true {
@@ -216,10 +218,12 @@ struct DictationCaptureView: View {
 
             Button {
                 errorMessage = nil
+                extractionPreview = editableTranscript
                 phase = .transcribing
                 operationTask?.cancel()
+                let transcript = editableTranscript
                 operationTask = Task {
-                    await runExtraction(transcript: editableTranscript)
+                    await runExtraction(transcript: transcript)
                 }
             } label: {
                 Label("Extract", systemImage: "sparkles")
@@ -245,12 +249,19 @@ struct DictationCaptureView: View {
             Text("Reading your dictation…")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
-            Text(liveTranscript)
-                .font(.caption)
-                .foregroundStyle(Theme.textTertiary)
-                .lineLimit(4)
-                .padding(.horizontal, 32)
-                .multilineTextAlignment(.center)
+            ScrollView {
+                Text(extractionPreview)
+                    .font(.body)
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(maxHeight: 180)
+            .background(Theme.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 24)
+            .accessibilityIdentifier("dictation_extraction_preview")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -283,6 +294,7 @@ struct DictationCaptureView: View {
         persistedCaptureId = nil
         liveTranscript = ""
         editableTranscript = ""
+        extractionPreview = ""
         isStartingRecording = true
         operationTask?.cancel()
         operationTask = Task {
@@ -356,6 +368,7 @@ struct DictationCaptureView: View {
                     durationMillis: transcriber.recordingDurationMillis
                 )
                 editableTranscript = reviewedTranscript
+                extractionPreview = reviewedTranscript
                 guard !reviewedTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     errorMessage = "No words were transcribed. Type the note here or try recording again."
                     return

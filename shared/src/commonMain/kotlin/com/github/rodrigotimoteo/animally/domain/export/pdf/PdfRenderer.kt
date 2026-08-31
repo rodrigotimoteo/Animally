@@ -126,6 +126,7 @@ internal class RecordCardBlock(
         record: CardRecord,
         index: Int,
         y: Double,
+        palette: PdfPalette,
     ): List<PdfOp> =
         buildList {
             add(
@@ -134,7 +135,7 @@ internal class RecordCardBlock(
                     y,
                     PdfTheme.CONTENT_WIDTH,
                     PdfTheme.CARD_HEADER_HEIGHT,
-                    PdfTheme.COLOR_CARD_TINT,
+                    palette.cardTintColor,
                 ),
             )
             val headerTextY = y + PdfTheme.CARD_HEADER_TEXT_OFFSET_Y
@@ -196,6 +197,7 @@ internal fun drawTable(
     table: TableBlock,
     pages: MutableList<MutableList<PdfOp>>,
     startY: Double,
+    palette: PdfPalette,
 ): Double {
     var ops = pages.last()
     var y = startY
@@ -204,7 +206,7 @@ internal fun drawTable(
     fun startNewPage() {
         ops = newContentPage(pages)
         y = PdfTheme.CONTENT_TOP
-        ops += tableHeadOps(table, y)
+        ops += tableHeadOps(table, y, palette)
         y += headBlockHeight
     }
 
@@ -213,7 +215,7 @@ internal fun drawTable(
         ops = newContentPage(pages)
         y = PdfTheme.CONTENT_TOP
     }
-    ops += tableHeadOps(table, y)
+    ops += tableHeadOps(table, y, palette)
     y += headBlockHeight
 
     table.bodyRowLines.forEachIndexed { index, cells ->
@@ -221,7 +223,7 @@ internal fun drawTable(
         if (y + rowHeight > PdfTheme.CONTENT_BOTTOM) {
             startNewPage()
         }
-        ops += bodyRowOps(table, cells, y, zebra = index % 2 == 1)
+        ops += bodyRowOps(table, cells, y, zebra = index % 2 == 1, palette = palette)
         y += rowHeight
     }
     return y + PdfTheme.SECTION_GAP
@@ -230,6 +232,7 @@ internal fun drawTable(
 private fun tableHeadOps(
     table: TableBlock,
     y: Double,
+    palette: PdfPalette,
 ): List<PdfOp> =
     buildList {
         add(
@@ -242,7 +245,7 @@ private fun tableHeadOps(
                 headerY,
                 PdfTheme.CONTENT_WIDTH,
                 table.headerHeight(),
-                PdfTheme.COLOR_BRAND,
+                palette.brandColor,
             ),
         )
         addAll(table.textOps(table.headerLines, headerY, bold = true, color = PdfTheme.COLOR_WHITE))
@@ -253,11 +256,12 @@ private fun bodyRowOps(
     cells: List<List<String>>,
     y: Double,
     zebra: Boolean,
+    palette: PdfPalette,
 ): List<PdfOp> {
     val rowHeight = table.rowHeight(cells)
     return buildList {
         if (zebra) {
-            add(PdfOp.Rect(PdfTheme.MARGIN, y, PdfTheme.CONTENT_WIDTH, rowHeight, PdfTheme.COLOR_ROW_ALT))
+            add(PdfOp.Rect(PdfTheme.MARGIN, y, PdfTheme.CONTENT_WIDTH, rowHeight, palette.rowAltColor))
         }
         add(
             PdfOp.Rect(
@@ -280,6 +284,7 @@ internal fun drawCards(
     block: RecordCardBlock,
     pages: MutableList<MutableList<PdfOp>>,
     startY: Double,
+    palette: PdfPalette,
 ): Double {
     var ops = pages.last()
     var y = startY
@@ -308,7 +313,7 @@ internal fun drawCards(
         if (y + cardHeight > PdfTheme.CONTENT_BOTTOM) {
             startNewPage()
         }
-        ops += block.cardOps(record, index, y)
+        ops += block.cardOps(record, index, y, palette)
         y += cardHeight
         if (index < block.records.lastIndex) {
             y += PdfTheme.CARD_GAP

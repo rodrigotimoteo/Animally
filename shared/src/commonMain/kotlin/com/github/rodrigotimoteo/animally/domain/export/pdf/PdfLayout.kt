@@ -17,7 +17,7 @@ internal fun layoutReport(report: PdfReportData): List<PdfPageModel> {
     return contentOps.mapIndexed { index, ops ->
         val pageOps =
             buildList {
-                addAll(headerBandOps(generatedAt))
+                addAll(headerBandOps(generatedAt, report.palette))
                 addAll(ops)
                 addAll(footerOps(index + 1, totalPages, generatedAt))
             }

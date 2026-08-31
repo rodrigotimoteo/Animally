@@ -3,12 +3,13 @@ import Foundation
 /// Canned extractor used on devices without FoundationModels (e.g. the
 /// simulator without Apple Intelligence).
 ///
-/// Returns three records that deliberately exercise every review path:
+/// Returns four records that deliberately exercise every review path:
 /// 1. A clean weight entry (validation `Ok`) for Lua, which is part of the
 ///    committed demo herd.
 /// 2. A deworming entry with an unparseable date (silently becomes today)
 ///    and an over-long drug name (truncated + flagged).
-/// 3. An ultrasound for a patient name that matches nothing (quarantined
+/// 3. A medication entry for Lua, including the name and dosage fields.
+/// 4. An ultrasound for a patient name that matches nothing (quarantined
 ///    by patient resolution) with an implausible follicle size (flagged).
 struct MockDictationExtractor: DictationExtracting {
     /// Simulated extraction latency so the transcribing state is visible.
@@ -44,6 +45,14 @@ extension MockDictationExtractor {
           "date": "1999-13-45",
           "drugName": "Ivermectina Comprimido Palatável para Equinos de Grande Porte Formulação Estendida",
           "notes": "dose única administrada pela manhã"
+        },
+        {
+          "recordType": "medication",
+          "patientName": "Lua do Pinhal",
+          "date": "2026-08-20",
+          "medicationName": "Ibuprofen",
+          "medicationDosage": "100 mg",
+          "notes": "administered after examination"
         },
         {
           "recordType": "ultrasound",

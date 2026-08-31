@@ -53,6 +53,7 @@ private const val DRUG_NAME_MAX_LENGTH = 100
  * - Weight <= 0 or > 3000 kg -> nulled, flagged; 1500-3000 kg -> kept, flagged.
  * - Follicle size <= 0 or > 100 mm -> kept, flagged.
  * - Drug name longer than 100 chars -> truncated, flagged.
+ * - Medication name and dosage must both be present for a medication suggestion.
  */
 class ValidateSuggestionsUseCase {
     /**
@@ -86,6 +87,8 @@ class ValidateSuggestionsUseCase {
         val weightKg = sanitizeWeight(dto.weightKg, reasons)
         validateFollicleSize(dto.follicleSizeMm, reasons)
         val drugName = truncateDrugName(dto.drugName, reasons)
+        val medicationName = truncateMedicationText(dto.medicationName, reasons, REASON_MEDICATION_NAME_TRUNCATED)
+        val medicationDosage = truncateMedicationText(dto.medicationDosage, reasons, REASON_MEDICATION_DOSAGE_TRUNCATED)
 
         val validation =
             if (reasons.isEmpty()) {
@@ -97,6 +100,8 @@ class ValidateSuggestionsUseCase {
             date = date,
             weightKg = weightKg,
             drugName = drugName,
+            medicationName = medicationName,
+            medicationDosage = medicationDosage,
             validation = validation,
         )
     }
@@ -106,9 +111,13 @@ class ValidateSuggestionsUseCase {
         dto: SuggestedRecordDto,
     ): Boolean =
         when (record.recordType) {
-            SuggestedRecordType.Ultrasound -> hasUltrasoundPayload(dto) && hasNoWeightOrDrug(dto)
-            SuggestedRecordType.Weight -> dto.weightKg != null && hasNoUltrasoundOrDrugPayload(dto)
-            SuggestedRecordType.Deworming -> !dto.drugName.isNullOrBlank() && hasNoWeightOrUltrasoundPayload(dto)
+            SuggestedRecordType.Ultrasound -> hasUltrasoundPayload(dto) && hasNoOtherPayload(dto, includeUltrasound = true)
+            SuggestedRecordType.Weight -> dto.weightKg != null && hasNoOtherPayload(dto, includeWeight = true)
+            SuggestedRecordType.Deworming -> !dto.drugName.isNullOrBlank() && hasNoOtherPayload(dto, includeDeworming = true)
+            SuggestedRecordType.Medication ->
+                !dto.medicationName.isNullOrBlank() &&
+                    !dto.medicationDosage.isNullOrBlank() &&
+                    hasNoOtherPayload(dto, includeMedication = true)
         }
 
     private fun hasUltrasoundPayload(dto: SuggestedRecordDto): Boolean =
@@ -117,19 +126,20 @@ class ValidateSuggestionsUseCase {
             dto.follicleSizeMm != null ||
             !dto.notes.isNullOrBlank()
 
-    private fun hasNoWeightOrDrug(dto: SuggestedRecordDto): Boolean = dto.weightKg == null && dto.drugName == null
-
-    private fun hasNoUltrasoundOrDrugPayload(dto: SuggestedRecordDto): Boolean =
-        dto.ovaryStatus == null &&
-            dto.uterineStatus == null &&
-            dto.follicleSizeMm == null &&
-            dto.drugName == null
-
-    private fun hasNoWeightOrUltrasoundPayload(dto: SuggestedRecordDto): Boolean =
-        dto.weightKg == null &&
-            dto.ovaryStatus == null &&
-            dto.uterineStatus == null &&
-            dto.follicleSizeMm == null
+    private fun hasNoOtherPayload(
+        dto: SuggestedRecordDto,
+        includeUltrasound: Boolean = false,
+        includeWeight: Boolean = false,
+        includeDeworming: Boolean = false,
+        includeMedication: Boolean = false,
+    ): Boolean =
+        (
+            includeUltrasound ||
+                (dto.ovaryStatus == null && dto.uterineStatus == null && dto.follicleSizeMm == null)
+        ) &&
+            (includeWeight || dto.weightKg == null) &&
+            (includeDeworming || dto.drugName == null) &&
+            (includeMedication || (dto.medicationName == null && dto.medicationDosage == null))
 
     private fun resolveDate(
         raw: String?,
@@ -187,6 +197,16 @@ class ValidateSuggestionsUseCase {
         return drugName.take(DRUG_NAME_MAX_LENGTH)
     }
 
+    private fun truncateMedicationText(
+        value: String?,
+        reasons: MutableList<String>,
+        reason: String,
+    ): String? {
+        if (value == null || value.length <= MEDICATION_TEXT_MAX_LENGTH) return value
+        reasons += reason
+        return value.take(MEDICATION_TEXT_MAX_LENGTH)
+    }
+
     private companion object {
         const val REASON_DATE_UNPARSEABLE = "date_unparseable"
         const val REASON_DATE_OUT_OF_RANGE = "date_out_of_range"
@@ -194,5 +214,8 @@ class ValidateSuggestionsUseCase {
         const val REASON_WEIGHT_HIGH = "weight_high"
         const val REASON_FOLLICLE_IMPLAUSIBLE = "follicle_size_implausible"
         const val REASON_DRUG_NAME_TRUNCATED = "drug_name_truncated"
+        const val REASON_MEDICATION_NAME_TRUNCATED = "medication_name_truncated"
+        const val REASON_MEDICATION_DOSAGE_TRUNCATED = "medication_dosage_truncated"
+        const val MEDICATION_TEXT_MAX_LENGTH = 120
     }
 }

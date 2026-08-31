@@ -40,6 +40,20 @@ class DictationDtosTest {
     }
 
     @Test
+    fun `when medication dto maps then medication fields mirror`() {
+        val record =
+            SuggestedRecordDto(
+                recordType = "medication",
+                medicationName = "ibuprofen",
+                medicationDosage = "100 mg",
+            ).toSuggestedRecord()
+
+        assertEquals(SuggestedRecordType.Medication, record?.recordType)
+        assertEquals("ibuprofen", record?.medicationName)
+        assertEquals("100 mg", record?.medicationDosage)
+    }
+
+    @Test
     fun `when unknown record type then mapper returns null`() {
         val record = SuggestedRecordDto(recordType = "dentistry").toSuggestedRecord()
 

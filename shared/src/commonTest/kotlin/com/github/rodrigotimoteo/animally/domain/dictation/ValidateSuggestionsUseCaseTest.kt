@@ -21,6 +21,8 @@ class ValidateSuggestionsUseCaseTest {
         uterineStatus: String? = null,
         follicleSizeMm: Double? = null,
         drugName: String? = null,
+        medicationName: String? = null,
+        medicationDosage: String? = null,
         notes: String? = null,
     ) = SuggestedRecordDto(
         recordType = recordType,
@@ -31,6 +33,8 @@ class ValidateSuggestionsUseCaseTest {
         uterineStatus = uterineStatus,
         follicleSizeMm = follicleSizeMm,
         drugName = drugName,
+        medicationName = medicationName,
+        medicationDosage = medicationDosage,
         notes = notes,
     )
 
@@ -62,6 +66,38 @@ class ValidateSuggestionsUseCaseTest {
     @Test
     fun `when deworming suggestion has only notes then dropped`() {
         val result = sut(listOf(dto(recordType = "deworming", notes = "Routine visit")), today)
+
+        assertIs<SuggestedValidationState.Dropped>(result.single().validation)
+    }
+
+    @Test
+    fun `when medication has name and dosage then ok`() {
+        val result =
+            sut(
+                listOf(
+                    dto(
+                        recordType = "medication",
+                        medicationName = "ibuprofen",
+                        medicationDosage = "100 mg",
+                    ),
+                ),
+                today,
+            )
+
+        val record = result.single()
+        assertEquals(SuggestedRecordType.Medication, record.recordType)
+        assertEquals("ibuprofen", record.medicationName)
+        assertEquals("100 mg", record.medicationDosage)
+        assertEquals(SuggestedValidationState.Ok, record.validation)
+    }
+
+    @Test
+    fun `when medication dosage is missing then dropped`() {
+        val result =
+            sut(
+                listOf(dto(recordType = "medication", medicationName = "ibuprofen")),
+                today,
+            )
 
         assertIs<SuggestedValidationState.Dropped>(result.single().validation)
     }

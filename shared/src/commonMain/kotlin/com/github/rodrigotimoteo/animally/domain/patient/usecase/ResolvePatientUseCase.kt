@@ -24,10 +24,13 @@ sealed interface PatientResolution {
 /**
  * Resolves a patient name from a dictation transcript to existing patients.
  *
- * Matching is exact on the fully normalized name only — no fuzzy or prefix
- * matching. Normalization lowercases the name and strips Portuguese
- * diacritics via a hardcoded map (commonMain has no `java.text.Normalizer`),
- * so "Trovão" matches "Trovao".
+ * Matching first tries the fully normalized name. If a spoken name is a
+ * unique leading part of exactly one active patient name, that patient is
+ * also resolved; this supports natural dictation such as "Descarada" for
+ * "Descarada do Monte Alto" without guessing between similar patients.
+ * Normalization lowercases the name and strips Portuguese diacritics via a
+ * hardcoded map (commonMain has no `java.text.Normalizer`), so "Trovão"
+ * matches "Trovao".
  *
  * @param patientRepository Repository instance for accessing patients.
  */
@@ -38,23 +41,33 @@ class ResolvePatientUseCase(
      * Resolves [name] against all active patients.
      *
      * @param name Patient name as captured in the transcript.
-     * @return [PatientResolution.Resolved] on a single exact match,
-     *   [PatientResolution.Ambiguous] when several patients match, and
+     * @return [PatientResolution.Resolved] on a single exact or unique-prefix
+     *   match, [PatientResolution.Ambiguous] when several patients match, and
      *   [PatientResolution.NotFound] when none does.
      */
     operator fun invoke(name: String): PatientResolution {
         val normalized = normalize(name)
         if (normalized.isEmpty()) return PatientResolution.NotFound
-        val candidates =
+        val exactCandidates =
             patientRepository.getPatientList().filter {
                 normalize(it.name) == normalized
             }
-        return when (candidates.size) {
+        if (exactCandidates.isNotEmpty()) return resolution(exactCandidates)
+
+        val prefix = "$normalized "
+        val prefixCandidates =
+            patientRepository.getPatientList().filter {
+                normalize(it.name).startsWith(prefix)
+            }
+        return resolution(prefixCandidates)
+    }
+
+    private fun resolution(candidates: List<Patient>): PatientResolution =
+        when (candidates.size) {
             0 -> PatientResolution.NotFound
             1 -> PatientResolution.Resolved(candidates.single())
             else -> PatientResolution.Ambiguous(candidates)
         }
-    }
 
     private companion object {
         val DIACRITICS: Map<Char, Char> =

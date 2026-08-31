@@ -4,7 +4,8 @@ import Foundation
 /// `DictationStore.validate` — i.e. a `DictatedSessionDto` payload whose
 /// records carry exactly these keys:
 /// `recordType`, `patientName`, `date`, `weightKg`, `ovaryStatus`,
-/// `uterineStatus`, `follicleSizeMm`, `drugName`, `notes`.
+/// `uterineStatus`, `follicleSizeMm`, `drugName`, `medicationName`,
+/// `medicationDosage`, `notes`.
 ///
 /// Implementations: FoundationModels on-device (`FmDictationExtractor`), a
 /// Kotlin-routed cloud extractor, a deterministic UI-test extractor

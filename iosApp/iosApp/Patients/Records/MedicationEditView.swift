@@ -5,8 +5,8 @@ struct MedicationEditView: View {
     @StateObject private var viewModel: MedicationEditViewModel
     @Environment(\.dismiss) private var dismiss
 
-    init(patientId: Int64, medicationId: Int64?) {
-        _viewModel = StateObject(wrappedValue: MedicationEditViewModel(patientId: patientId, medicationId: medicationId))
+    init(patientId: Int64, medicationId: Int64?, prefill: RecordPrefill? = nil) {
+        _viewModel = StateObject(wrappedValue: MedicationEditViewModel(patientId: patientId, medicationId: medicationId, prefill: prefill))
     }
 
     var body: some View {
@@ -48,6 +48,10 @@ struct MedicationEditView: View {
         }
         .onAppear {
             viewModel.onSaved = { dismiss() }
+            viewModel.applyPrefillIfNeeded()
+        }
+        .onChange(of: viewModel.hasForm) { _, _ in
+            viewModel.applyPrefillIfNeeded()
         }
     }
 
@@ -119,10 +123,13 @@ struct MedicationEditView: View {
 @MainActor
 final class MedicationEditViewModel: RecordFormViewModel<MedicationEditStoreState> {
     private let store: MedicationEditStore
+    private let prefill: RecordPrefill?
+    private var prefillApplied = false
 
-    init(patientId: Int64, medicationId: Int64?) {
+    init(patientId: Int64, medicationId: Int64?, prefill: RecordPrefill? = nil) {
         let store = RecordStores.medicationEditStore(patientId: patientId, medicationId: medicationId)
         self.store = store
+        self.prefill = prefill
         super.init(
             initial: store.state.current,
             subscribe: { store.state.subscribe(onEach: $0) },
@@ -132,6 +139,19 @@ final class MedicationEditViewModel: RecordFormViewModel<MedicationEditStoreStat
     }
 
     var form: MedicationFormState? { state.form }
+
+    var hasForm: Bool { state.form != nil }
+
+    /// Applies dictated values once the Kotlin form has loaded. Runs at most
+    /// once; user edits afterwards always win.
+    func applyPrefillIfNeeded() {
+        guard let prefill, !prefillApplied, state.form != nil else { return }
+        prefillApplied = true
+        if let medicationName = prefill.medicationName { onNameChange(medicationName) }
+        if let medicationDosage = prefill.medicationDosage { onDosageChange(medicationDosage) }
+        if let date = prefill.date { onStartDateChange(date) }
+        if let notes = prefill.notes { onNotesChange(notes) }
+    }
 
     func onNameChange(_ value: String) { store.onNameChange(value: value) }
     func onDosageChange(_ value: String) { store.onDosageChange(value: value) }

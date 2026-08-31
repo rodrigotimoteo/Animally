@@ -23,8 +23,8 @@ internal fun paginate(report: PdfReportData): List<List<PdfOp>> {
     for (block in tables) {
         y =
             when (block) {
-                is TableBlock -> drawTable(block, pages, y)
-                is RecordCardBlock -> drawCards(block, pages, y)
+                is TableBlock -> drawTable(block, pages, y, report.palette)
+                is RecordCardBlock -> drawCards(block, pages, y, report.palette)
             }
     }
     return pages

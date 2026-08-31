@@ -5,12 +5,13 @@ import kotlinx.datetime.LocalDate
 /**
  * Record types the dictation pipeline can suggest. Deliberately a narrow
  * subset of [com.github.rodrigotimoteo.animally.domain.common.RecordType]:
- * only record kinds whose fields the LLM contract can populate.
+ * only record kinds whose fields the LLM contract can populate safely.
  */
 enum class SuggestedRecordType {
     Ultrasound,
     Weight,
     Deworming,
+    Medication,
 }
 
 /**
@@ -43,6 +44,8 @@ sealed interface SuggestedValidationState {
  * @property uterineStatus Uterine status description (Ultrasound suggestions).
  * @property follicleSizeMm Follicle size in millimeters (Ultrasound suggestions).
  * @property drugName Anthelmintic product name (Deworming suggestions).
+ * @property medicationName Medication name (Medication suggestions).
+ * @property medicationDosage Medication dosage as spoken (Medication suggestions).
  * @property notes Free-form notes captured from the transcript.
  * @property validation Outcome of [com.github.rodrigotimoteo.animally.domain.dictation.ValidateSuggestionsUseCase].
  */
@@ -55,6 +58,8 @@ data class SuggestedRecord(
     val uterineStatus: String? = null,
     val follicleSizeMm: Double? = null,
     val drugName: String? = null,
+    val medicationName: String? = null,
+    val medicationDosage: String? = null,
     val notes: String? = null,
     val validation: SuggestedValidationState = SuggestedValidationState.Ok,
 )

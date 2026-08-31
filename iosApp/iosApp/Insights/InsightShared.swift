@@ -27,10 +27,19 @@ struct InsightSectionHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage).foregroundStyle(tint).accessibilityHidden(true)
-            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.textPrimary)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
             Spacer()
             if let c = countText {
-                Text(c).font(.caption.weight(.semibold)).foregroundStyle(Theme.textSecondary)
+                Text(c)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 150, alignment: .trailing)
             }
         }
         .accessibilityElement(children: .combine)
@@ -71,7 +80,7 @@ struct InsightStatCard: View {
             Text(value).font(.title3.weight(.bold)).foregroundStyle(isAvailable ? Theme.textPrimary : Theme.textSecondary).lineLimit(1).minimumScaleFactor(0.6)
             Text(subtitle).font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
         .padding(12)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 10))

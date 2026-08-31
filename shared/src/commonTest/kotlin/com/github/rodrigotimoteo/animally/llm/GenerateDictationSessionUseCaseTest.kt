@@ -75,6 +75,23 @@ class GenerateDictationSessionUseCaseTest {
         }
 
     @Test
+    fun `given medication output then medication fields remain in the session`() =
+        runTest {
+            val engine =
+                FakeDictationExtractionEngine(
+                    """{"records":[{"recordType":"medication","patientName":"Descarada","date":"2026-08-31","medicationName":"ibuprofen","medicationDosage":"100 mg","notes":"administered"}]}""",
+                )
+
+            val result = GenerateDictationSessionUseCase(engine)("Descarada received 100 mg ibuprofen", "english")
+            val record = json.decodeFromString<DictatedSessionDto>(result).records.single()
+
+            assertEquals("medication", record.recordType)
+            assertEquals("ibuprofen", record.medicationName)
+            assertEquals("100 mg", record.medicationDosage)
+            assertTrue(engine.instructions.orEmpty().contains("medication"))
+        }
+
+    @Test
     fun `given common reasoning wrappers then private blocks are omitted`() =
         runTest {
             val engine =

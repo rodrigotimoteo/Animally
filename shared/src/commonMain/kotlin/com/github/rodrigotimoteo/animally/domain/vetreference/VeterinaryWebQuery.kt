@@ -36,6 +36,8 @@ object VeterinaryWebQuery {
             "veterinaria",
             "vacina",
             "laminitis",
+            // Common user spelling; normalize it before the public lookup.
+            "laminites",
             "laminite",
             "founder",
             "colic",
@@ -56,8 +58,38 @@ object VeterinaryWebQuery {
             "fracture",
             "wound",
             "infection",
+            "inflammation",
+            "inflammatory",
+            "laminae",
+            "hoof",
+            "coffin",
+            "bone",
+            "arthritis",
+            "osteoarthritis",
+            "dermatitis",
+            "abscess",
+            "edema",
+            "oedema",
+            "swelling",
             "fever",
             "pain",
+            "analgesic",
+            "antiinflammatory",
+            "antibiotic",
+            "antimicrobial",
+            "ibuprofen",
+            "phenylbutazone",
+            "flunixin",
+            "firocoxib",
+            "medication",
+            "medicine",
+            "drug",
+            "dose",
+            "dosage",
+            "adverse",
+            "prognosis",
+            "disease",
+            "disorder",
             "metabolic",
             "syndrome",
             "obesity",
@@ -93,6 +125,21 @@ object VeterinaryWebQuery {
             "influenza",
             "tetanus",
             "rabies",
+            "strangles",
+            "herpesvirus",
+            "coggins",
+            "anemia",
+            "anaemia",
+            "anaphylaxis",
+            "shock",
+            "sepsis",
+            "colitis",
+            "impaction",
+            "choke",
+            "dental",
+            "tooth",
+            "allergy",
+            "allergies",
             "diagnosis",
             "diagnóstico",
             "diagnostico",
@@ -120,6 +167,20 @@ object VeterinaryWebQuery {
             "tosse",
             "nutrição",
             "nutricao",
+            "inflamação",
+            "inflamacao",
+            "artrite",
+            "artrose",
+            "casco",
+            "osso",
+            "infeção",
+            "infecao",
+            "abcesso",
+            "medicamento",
+            "medicação",
+            "medicacao",
+            "doença",
+            "doenca",
             "alimentação",
             "alimentacao",
             "tratamento",
@@ -162,6 +223,7 @@ object VeterinaryWebQuery {
             "veterinaria" to "veterinary",
             "vacina" to "vaccine",
             "laminite" to "laminitis",
+            "laminites" to "laminitis",
             "ecografia" to "ultrasound",
             "ultrassom" to "ultrasound",
             "transretal" to "transrectal",
@@ -172,6 +234,20 @@ object VeterinaryWebQuery {
             "ulceras" to "ulcer",
             "claudicação" to "lameness",
             "claudicacao" to "lameness",
+            "inflamação" to "inflammation",
+            "inflamacao" to "inflammation",
+            "artrite" to "arthritis",
+            "artrose" to "osteoarthritis",
+            "casco" to "hoof",
+            "osso" to "bone",
+            "infeção" to "infection",
+            "infecao" to "infection",
+            "abcesso" to "abscess",
+            "medicamento" to "medication",
+            "medicação" to "medication",
+            "medicacao" to "medication",
+            "doença" to "disease",
+            "doenca" to "disease",
             "vacinação" to "vaccination",
             "vacinacao" to "vaccination",
             "gestação" to "gestation",
@@ -231,6 +307,10 @@ object VeterinaryWebQuery {
             "treatment" to setOf("treatment", "treatments", "therapy", "management"),
             "management" to setOf("management", "treatment", "therapy"),
             "prevention" to setOf("prevention", "preventive", "prophylaxis"),
+            "ibuprofen" to setOf("ibuprofen", "nsaid", "nsaids", "analgesic", "inflammatory"),
+            "arthritis" to setOf("arthritis", "osteoarthritis", "arthrosis"),
+            "laminae" to setOf("laminae", "lamina", "hoof"),
+            "inflammation" to setOf("inflammation", "inflammatory"),
         )
 
     /** Returns true only for general medical/veterinary questions. */
@@ -279,8 +359,7 @@ object VeterinaryWebQuery {
                 .lowercase()
                 .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
                 .split(Regex("\\s+"))
-                .filter { it in topicTerms }
-                .map { referenceAliases[it] ?: it }
+                .mapNotNull(::canonicalTopicToken)
                 .distinct()
                 .take(MAX_TOPIC_TERMS)
         return tokens.takeIf { it.isNotEmpty() }?.joinToString(" ")
@@ -288,6 +367,84 @@ object VeterinaryWebQuery {
 
     private const val MAX_QUERY_CHARS = 240
     private const val MAX_TOPIC_TERMS = 8
+
+    /**
+     * Resolves exact vocabulary entries first, then accepts only a unique
+     * nearby vocabulary term. This catches common speech-to-text errors while
+     * keeping arbitrary words out of the public lookup query.
+     */
+    private fun canonicalTopicToken(token: String): String? {
+        val exactMatch = referenceAliases[token] ?: token.takeIf { it in topicTerms }
+        return exactMatch ?: fuzzyTopicToken(token)
+    }
+
+    private fun fuzzyTopicToken(token: String): String? {
+        val normalizedToken = foldDiacritics(token)
+        if (normalizedToken.length < MIN_FUZZY_TOKEN_LENGTH) return null
+        val maxDistance = if (normalizedToken.length >= LONG_FUZZY_TOKEN_LENGTH) 2 else 1
+        val distances =
+            topicTerms.map { candidate ->
+                FuzzyTopicMatch(
+                    term = candidate,
+                    distance = editDistance(normalizedToken, foldDiacritics(candidate)),
+                )
+            }
+        val matches = distances.filter { it.distance <= maxDistance }.sortedBy { it.distance }
+        val best = matches.firstOrNull()
+        val isUnique = best != null && matches.count { it.distance == best.distance } == 1
+        return best?.takeIf { isUnique }?.let { referenceAliases[it.term] ?: it.term }
+    }
+
+    private fun foldDiacritics(value: String): String =
+        value
+            .map { character ->
+                when (character) {
+                    'á', 'à', 'â', 'ã', 'ä' -> 'a'
+                    'é', 'è', 'ê', 'ë' -> 'e'
+                    'í', 'ì', 'î', 'ï' -> 'i'
+                    'ó', 'ò', 'ô', 'õ', 'ö' -> 'o'
+                    'ú', 'ù', 'û', 'ü' -> 'u'
+                    'ç' -> 'c'
+                    'ñ' -> 'n'
+                    else -> character
+                }
+            }.joinToString("")
+
+    /** Levenshtein distance; the vocabulary is small and this stays allocation-light. */
+    private fun editDistance(
+        left: String,
+        right: String,
+    ): Int =
+        when {
+            left == right -> 0
+            left.isEmpty() -> right.length
+            right.isEmpty() -> left.length
+            else -> {
+                var previous = IntArray(right.length + 1) { it }
+                for (leftIndex in left.indices) {
+                    val current = IntArray(right.length + 1)
+                    current[0] = leftIndex + 1
+                    for (rightIndex in right.indices) {
+                        current[rightIndex + 1] =
+                            minOf(
+                                current[rightIndex] + 1,
+                                previous[rightIndex + 1] + 1,
+                                previous[rightIndex] + if (left[leftIndex] == right[rightIndex]) 0 else 1,
+                            )
+                    }
+                    previous = current
+                }
+                previous[right.length]
+            }
+        }
+
+    private data class FuzzyTopicMatch(
+        val term: String,
+        val distance: Int,
+    )
+
+    private const val MIN_FUZZY_TOKEN_LENGTH = 4
+    private const val LONG_FUZZY_TOKEN_LENGTH = 8
 
     private fun tokenizeReferenceText(text: String): Set<String> =
         text

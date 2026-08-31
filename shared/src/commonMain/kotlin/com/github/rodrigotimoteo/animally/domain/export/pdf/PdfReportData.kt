@@ -20,6 +20,7 @@ data class PdfReportData(
     val sections: List<PdfSection>,
     val fromDate: LocalDate? = null,
     val toDate: LocalDate? = null,
+    val palette: PdfPalette = PdfPalette.DEFAULT,
 )
 
 /**

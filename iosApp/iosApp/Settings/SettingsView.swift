@@ -347,6 +347,7 @@ struct SettingsView: View {
                     viewModel.exportPdf()
                 } label: {
                     Label("Export PDF", systemImage: "doc.richtext")
+                        .foregroundStyle(selectedAccentColor)
                 }
                 .disabled(viewModel.selectedPatientId == nil || viewModel.selectedPatientId == 0)
 

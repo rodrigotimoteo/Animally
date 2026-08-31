@@ -30,6 +30,7 @@ val dictationModule =
                 saveUltrasoundUseCase = get(),
                 saveWeightUseCase = get(),
                 saveDewormingUseCase = get(),
+                saveMedicationUseCase = get(),
                 patientExists = { patientId -> patientRepository.getPatientById(patientId) != null },
             )
         }

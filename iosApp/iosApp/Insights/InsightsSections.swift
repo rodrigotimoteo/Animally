@@ -8,11 +8,11 @@ struct InsightsOverviewSection: View {
     let overview: OverviewMetrics
     let isComparisonEnabled: Bool
     var onOpenSourceRecords: (() -> Void)?
-    private let columns = [GridItem(.flexible(minimum: 148), spacing: 12), GridItem(.flexible(minimum: 148), spacing: 12)]
+    private let columns = [GridItem(.adaptive(minimum: 136), spacing: 12)]
     var body: some View {
         InsightCardContainer {
             VStack(alignment: .leading, spacing: 12) {
-                InsightSectionHeader(systemImage: "chart.bar.doc.horizontal", title: "Internship overview")
+                InsightSectionHeader(systemImage: "chart.bar.doc.horizontal", title: "Activity overview")
                 LazyVGrid(columns: columns, spacing: 12) {
                     InsightStatCard(title: "Patients seen", value: "\(overview.patientCount)", subtitle: "Distinct horses with activity", action: onOpenSourceRecords)
                     InsightStatCard(title: "Recorded activities", value: "\(overview.activityCount)", subtitle: "Active dated records", action: onOpenSourceRecords)
@@ -139,7 +139,7 @@ struct InsightsReproductionSection: View {
     let metrics: ReproductionMetrics
     var isDrillDownEnabled = true
     var onOpenRecords: ((RecordType, ReproductionEventType?) -> Void)?
-    private let cols = [GridItem(.flexible(minimum: 142), spacing: 10), GridItem(.flexible(minimum: 142), spacing: 10)]
+    private let cols = [GridItem(.adaptive(minimum: 136), spacing: 10)]
     var body: some View {
         InsightCardContainer {
             VStack(alignment: .leading, spacing: 14) {
@@ -257,8 +257,29 @@ struct InsightsReadinessSection: View {
                 Button { onSelectIssue?(issue.type) } label: {
                     HStack(spacing: 10) {
                         RecordBadgeIcon(systemName: iconFor(issue.type), tint: Theme.amber, size: 28, corner: 7)
-                        VStack(alignment: .leading, spacing: 2) { Text(issue.type.displayName).font(.subheadline.weight(.medium)).foregroundStyle(Theme.textPrimary).lineLimit(1); Text(issue.type.missingForAnalysisLabel).font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1) }
-                        Spacer(); Text("\(issue.count)").font(.subheadline.weight(.bold)).foregroundStyle(Theme.textPrimary); Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(Theme.textTertiary).accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(issue.type.displayName)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Theme.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(issue.type.missingForAnalysisLabel)
+                                .font(.caption2)
+                                .foregroundStyle(Theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 8) {
+                            Text("\(issue.count)")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Theme.textPrimary)
+                                .frame(minWidth: 22, alignment: .trailing)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Theme.textTertiary)
+                                .frame(width: 12)
+                                .accessibilityHidden(true)
+                        }
+                        .padding(.top, 2)
                     }.padding(.vertical, 10).contentShape(Rectangle())
                 }.buttonStyle(.plain).disabled(!isDrillDownEnabled).opacity(isDrillDownEnabled ? 1 : 0.52).accessibilityLabel("\(issue.type.displayName), \(issue.count) missing for analysis").accessibilityHint("Shows records missing for analysis").accessibilityIdentifier("insights_readiness_\(issue.type.name.lowercased())")
                 if issue.type != dataIssues.last?.type { Divider().opacity(0.5) }

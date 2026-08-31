@@ -35,3 +35,19 @@
 - [ ] Shared Android-host/iOS tests, Detekt, KtLint, and Xcode build pass.
 - [ ] Install on a physical iPhone for workflow verification.
 - [ ] Commit the completed implementation batch.
+
+## Follow-up UI polish
+
+- [x] Make playback-speed sheet labels readable in both appearances.
+- [x] Pass the selected accent into patient-history PDF rendering.
+- [x] Use a neutral “Activity overview” heading and equal-height stat cards.
+- [x] Let research-readiness copy wrap without crowding the count or chevron.
+- [x] Run focused shared tests, iOS compilation/build checks, and `git diff --check`.
+
+## Current request: dictation and medical reference follow-up
+
+- [x] Add bounded typo-tolerant canonicalisation for the supported medical reference vocabulary.
+- [x] Add medication to the dictation DTO, validator, insertion path, and review projection.
+- [x] Resolve unique patient-name prefixes while preserving ambiguity for collisions.
+- [x] Show the finalized transcript during extraction and tighten the dictation review layout.
+- [x] Run focused shared tests, lint/detekt, iOS build, and reinstall the verified build on Rodrigo’s iPhone.

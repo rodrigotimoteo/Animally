@@ -72,9 +72,9 @@ class GenerateDictationSessionUseCase(
         $transcript
 
         Return one JSON object only. Do not add commentary, Markdown, or a summary.
-        Include one record for each ultrasound, weight, or deworming record explicitly spoken.
+        Include one record for each ultrasound, weight, deworming, or medication record explicitly spoken.
         Use exactly this envelope and field names:
-        {"records":[{"recordType":"ultrasound|weight|deworming","patientName":null,"date":null,"weightKg":null,"ovaryStatus":null,"uterineStatus":null,"follicleSizeMm":null,"drugName":null,"notes":null}]}
+        {"records":[{"recordType":"ultrasound|weight|deworming|medication","patientName":null,"date":null,"weightKg":null,"ovaryStatus":null,"uterineStatus":null,"follicleSizeMm":null,"drugName":null,"medicationName":null,"medicationDosage":null,"notes":null}]}
         Keep patient names and clinical wording faithful to the transcript. Fill only values explicitly present; use null for every field not spoken. Never infer a diagnosis, treatment, measurement, date, patient, or record. If no supported record was spoken, return {"records":[]}.
         """.trimIndent()
 
@@ -91,7 +91,7 @@ class GenerateDictationSessionUseCase(
             Extract only information explicitly stated in the transcript. Do not complete
             missing fields from veterinary knowledge and do not turn a possibility into a fact.
             Output valid JSON only, with the exact DictatedSession envelope requested by the user.
-            Supported recordType values are lowercase ultrasound, weight, and deworming only.
+            Supported recordType values are lowercase ultrasound, weight, deworming, and medication only.
             A record needs at least one supported payload field; otherwise omit it.
             """.trimIndent()
     }

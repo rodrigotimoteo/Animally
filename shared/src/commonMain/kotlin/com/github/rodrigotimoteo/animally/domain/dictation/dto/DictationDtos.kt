@@ -22,7 +22,7 @@ data class DictatedSessionDto(
  * fills only what the transcript expressed. Unknown extra keys are tolerated
  * by the decoder so the Swift contract can evolve independently.
  *
- * @property recordType One of "ultrasound", "weight", "deworming" (case-insensitive).
+ * @property recordType One of "ultrasound", "weight", "deworming", "medication" (case-insensitive).
  * @property patientName Patient name as spoken, unresolved.
  * @property date ISO-8601 local date (`yyyy-MM-dd`), or free text when unparseable.
  * @property weightKg Measured weight in kilograms.
@@ -30,6 +30,8 @@ data class DictatedSessionDto(
  * @property uterineStatus Uterine status description.
  * @property follicleSizeMm Follicle size in millimeters.
  * @property drugName Anthelmintic product name.
+ * @property medicationName Medication name.
+ * @property medicationDosage Medication dosage as spoken.
  * @property notes Free-form notes from the transcript.
  */
 @Serializable
@@ -42,6 +44,8 @@ data class SuggestedRecordDto(
     val uterineStatus: String? = null,
     val follicleSizeMm: Double? = null,
     val drugName: String? = null,
+    val medicationName: String? = null,
+    val medicationDosage: String? = null,
     val notes: String? = null,
 )
 
@@ -64,6 +68,8 @@ fun SuggestedRecordDto.toSuggestedRecord(): SuggestedRecord? {
         uterineStatus = uterineStatus,
         follicleSizeMm = follicleSizeMm,
         drugName = drugName,
+        medicationName = medicationName,
+        medicationDosage = medicationDosage,
         notes = notes,
     )
 }

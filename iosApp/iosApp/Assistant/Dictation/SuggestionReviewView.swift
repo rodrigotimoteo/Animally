@@ -200,7 +200,7 @@ struct SuggestionReviewView: View {
                             "No supported records found",
                             systemImage: "doc.questionmark",
                             description: Text(
-                                "Nothing was added. The transcript did not contain a clear ultrasound, weight, or deworming record. Edit it and try again — the app will never invent a record."
+                                "Nothing was added. The transcript did not contain a clear ultrasound, weight, deworming, or medication record. Edit it and try again — the app will never invent a record."
                             )
                         )
                         retryExtractionButton
@@ -321,6 +321,8 @@ struct SuggestionReviewView: View {
             WeightEditView(patientId: patientId, weightId: nil, prefill: prefill)
         case "deworming":
             DewormingEditView(patientId: patientId, dewormingId: nil, prefill: prefill)
+        case "medication":
+            MedicationEditView(patientId: patientId, medicationId: nil, prefill: prefill)
         default:
             UltrasoundEditView(patientId: patientId, ultrasoundId: nil, prefill: prefill)
         }
@@ -330,7 +332,7 @@ struct SuggestionReviewView: View {
         let systemName: String =
             switch typeName {
             case "weight": "scalemass"
-            case "deworming": "pills"
+            case "deworming", "medication": "pills"
             default: "waveform.path.ecg"
             }
         return Image(systemName: systemName)
@@ -450,6 +452,8 @@ struct SuggestionReviewView: View {
             uterineStatus: record.uterineStatus,
             follicleSizeMm: record.follicleSizeMm.map { "\($0)" },
             drugName: record.drugName,
+            medicationName: record.medicationName,
+            medicationDosage: record.medicationDosage,
             notes: record.notes
         )
     }
@@ -488,6 +492,7 @@ struct SuggestionCardContent: View {
         switch suggestion.record.recordType.name {
         case "weight": return "Weight entry"
         case "deworming": return "Deworming"
+        case "medication": return "Medication"
         default: return "Ultrasound"
         }
     }
@@ -499,6 +504,9 @@ struct SuggestionCardContent: View {
             return record.weightKg.map { "\($0) kg" }
         case "deworming":
             return record.drugName
+        case "medication":
+            let parts = [record.medicationName, record.medicationDosage].compactMap { $0 }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
         default:
             var parts: [String] = []
             if let ovary = record.ovaryStatus { parts.append(ovary) }

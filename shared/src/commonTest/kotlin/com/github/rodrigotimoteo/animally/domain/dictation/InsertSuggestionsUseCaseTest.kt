@@ -6,6 +6,9 @@ import com.github.rodrigotimoteo.animally.domain.deworming.usecase.SaveDeworming
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecord
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedRecordType
 import com.github.rodrigotimoteo.animally.domain.dictation.model.SuggestedValidationState
+import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepository
+import com.github.rodrigotimoteo.animally.domain.medication.model.Medication
+import com.github.rodrigotimoteo.animally.domain.medication.usecase.SaveMedicationUseCase
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.ultrasound.IUltrasoundRepository
@@ -25,12 +28,14 @@ class InsertSuggestionsUseCaseTest {
     private val weightRepository = FakeWeightRepository()
     private val dewormingRepository = FakeDewormingRepository()
     private val ultrasoundRepository = FakeUltrasoundRepository()
+    private val medicationRepository = FakeMedicationRepository()
 
     private val sut =
         InsertSuggestionsUseCase(
             saveUltrasoundUseCase = SaveUltrasoundUseCase(ultrasoundRepository, FakeSearchRepository()),
             saveWeightUseCase = SaveWeightUseCase(weightRepository, FakeSearchRepository()),
             saveDewormingUseCase = SaveDewormingUseCase(dewormingRepository, FakeSearchRepository()),
+            saveMedicationUseCase = SaveMedicationUseCase(medicationRepository, FakeSearchRepository()),
             patientExists = { it in setOf(1L, 7L) },
         )
 
@@ -42,6 +47,8 @@ class InsertSuggestionsUseCaseTest {
         date = LocalDate(2026, 8, 20),
         weightKg = if (recordType == SuggestedRecordType.Weight) 500.0 else null,
         drugName = if (recordType == SuggestedRecordType.Deworming) "Ivermectina" else null,
+        medicationName = if (recordType == SuggestedRecordType.Medication) "Ibuprofen" else null,
+        medicationDosage = if (recordType == SuggestedRecordType.Medication) "100 mg" else null,
         ovaryStatus = if (recordType == SuggestedRecordType.Ultrasound) "normal" else null,
         validation = validation,
     )
@@ -97,6 +104,25 @@ class InsertSuggestionsUseCaseTest {
         val inserted = assertIs<InsertionResult.Inserted>(result.single())
         assertEquals(SuggestedRecordType.Weight, inserted.recordType)
         assertEquals(7L, weightRepository.inserted.single().patientId)
+    }
+
+    @Test
+    fun `when medication record then inserts through medication save path`() {
+        val result =
+            sut(
+                listOf(
+                    SuggestedInsertion(
+                        record(SuggestedValidationState.Ok, SuggestedRecordType.Medication),
+                        patientId = 1L,
+                    ),
+                ),
+            )
+
+        val inserted = assertIs<InsertionResult.Inserted>(result.single())
+        assertEquals(SuggestedRecordType.Medication, inserted.recordType)
+        assertEquals(1L, medicationRepository.inserted.single().patientId)
+        assertEquals("Ibuprofen", medicationRepository.inserted.single().name)
+        assertEquals("100 mg", medicationRepository.inserted.single().dosage)
     }
 
     @Test
@@ -173,6 +199,26 @@ private class FakeUltrasoundRepository : IUltrasoundRepository {
     override fun insert(ultrasound: Ultrasound): Long = 1L
 
     override fun update(ultrasound: Ultrasound): Long = ultrasound.id
+
+    override fun setInactive(
+        id: Long,
+        updatedAt: Instant,
+    ): Long = id
+}
+
+private class FakeMedicationRepository : IMedicationRepository {
+    val inserted = mutableListOf<Medication>()
+
+    override fun getByPatient(patientId: Long): List<Medication> = emptyList()
+
+    override fun getById(id: Long): Medication? = null
+
+    override fun insert(medication: Medication): Long {
+        inserted += medication
+        return inserted.size.toLong()
+    }
+
+    override fun update(medication: Medication): Long = medication.id
 
     override fun setInactive(
         id: Long,

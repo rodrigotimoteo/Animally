@@ -97,6 +97,23 @@ class VeterinaryWebReferenceTest {
         }
 
     @Test
+    fun `common laminitis spelling still gets a trusted web source`() =
+        runTest {
+            val provider = FakeVeterinaryWebSourceProvider(VeterinaryWebSearchResult.Success(listOf(source)))
+            val events =
+                GenerateRagResponseUseCase(
+                    searchUseCase = SearchUseCase(FakeSearchRepository()),
+                    llmEngine = WebReferenceLlmEngine(),
+                    recordSearch = RagRecordSearch { emptyList() },
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                    webSourceProvider = provider,
+                )("Can you tell me what laminites is?").toList()
+
+            assertEquals(1, provider.calls)
+            assertTrue(events.any { it is RagStreamEvent.WebSources && it.sources == listOf(source) })
+        }
+
+    @Test
     fun `web answer without a valid citation is replaced with a safe response`() =
         runTest {
             val engine = WebReferenceLlmEngine("Laminitis is a painful hoof condition from memory.")

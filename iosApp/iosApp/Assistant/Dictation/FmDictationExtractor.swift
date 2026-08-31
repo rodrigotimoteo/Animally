@@ -15,7 +15,7 @@ struct DictatedSessionPayload {
 @available(iOS 26.0, *)
 @Generable
 struct SuggestedRecordPayload {
-    @Guide(description: "Record kind: \"ultrasound\", \"weight\" or \"deworming\" (lowercase).")
+    @Guide(description: "Record kind: \"ultrasound\", \"weight\", \"deworming\" or \"medication\" (lowercase).")
     var recordType: String = ""
 
     @Guide(description: "Horse name exactly as spoken in the transcript; null when not mentioned.")
@@ -38,6 +38,12 @@ struct SuggestedRecordPayload {
 
     @Guide(description: "Anthelmintic product name (deworming records only).")
     var drugName: String? = nil
+
+    @Guide(description: "Medication name (medication records only), exactly as spoken.")
+    var medicationName: String? = nil
+
+    @Guide(description: "Medication dosage (medication records only), exactly as spoken.")
+    var medicationDosage: String? = nil
 
     @Guide(description: "Free-form clinical notes from the transcript.")
     var notes: String? = nil
@@ -68,11 +74,11 @@ struct FmDictationExtractor: DictationExtracting {
     private var instructions: String {
         if language == .portuguese {
             return """
-            Transforma ditados veterinários em português (Portugal) sobre cavalos em registos estruturados. A data de hoje é \(Self.todayISO). Para cada registo mencionado pelo utilizador, emite uma entrada com recordType "ultrasound", "weight" ou "deworming". Converte datas relativas ("ontem", "hoje") para o formato ISO yyyy-MM-dd. Mantém os nomes dos pacientes exatamente como foram ditados, mesmo que sejam desconhecidos. Preenche apenas os campos expressos no texto e deixa os restantes a null. Nunca inventes valores.
+            Transforma ditados veterinários em português (Portugal) sobre cavalos em registos estruturados. A data de hoje é \(Self.todayISO). Para cada registo mencionado pelo utilizador, emite uma entrada com recordType "ultrasound", "weight", "deworming" ou "medication". Para medicação, extrai o nome e a dose exatamente como foram ditados. Converte datas relativas ("ontem", "hoje") para o formato ISO yyyy-MM-dd. Mantém os nomes dos pacientes exatamente como foram ditados, mesmo que sejam desconhecidos. Preenche apenas os campos expressos no texto e deixa os restantes a null. Nunca inventes valores.
             """
         }
         return """
-        Convert English veterinary dictations about horses into structured records. Today's date is \(Self.todayISO). For each record mentioned by the user, emit one entry with recordType "ultrasound", "weight" or "deworming". Resolve relative dates ("yesterday", "today") to ISO yyyy-MM-dd. Keep patient names exactly as spoken, even when unknown. Fill only fields expressed in the transcript and leave the rest null. Never invent values.
+        Convert English veterinary dictations about horses into structured records. Today's date is \(Self.todayISO). For each record mentioned by the user, emit one entry with recordType "ultrasound", "weight", "deworming" or "medication". For medication, extract the name and dosage exactly as spoken. Resolve relative dates ("yesterday", "today") to ISO yyyy-MM-dd. Keep patient names exactly as spoken, even when unknown. Fill only fields expressed in the transcript and leave the rest null. Never invent values.
         """
     }
 
@@ -112,6 +118,8 @@ struct FmDictationExtractor: DictationExtracting {
                     uterineStatus: record.uterineStatus ?? nil,
                     follicleSizeMm: record.follicleSizeMm ?? nil,
                     drugName: record.drugName ?? nil,
+                    medicationName: record.medicationName ?? nil,
+                    medicationDosage: record.medicationDosage ?? nil,
                     notes: record.notes ?? nil
                 )
             }
@@ -131,6 +139,8 @@ struct FmDictationExtractor: DictationExtracting {
                     uterineStatus: record.uterineStatus,
                     follicleSizeMm: record.follicleSizeMm,
                     drugName: record.drugName,
+                    medicationName: record.medicationName,
+                    medicationDosage: record.medicationDosage,
                     notes: record.notes
                 )
             }
@@ -146,6 +156,8 @@ struct FmDictationExtractor: DictationExtracting {
         let uterineStatus: String?
         let follicleSizeMm: Double?
         let drugName: String?
+        let medicationName: String?
+        let medicationDosage: String?
         let notes: String?
     }
 

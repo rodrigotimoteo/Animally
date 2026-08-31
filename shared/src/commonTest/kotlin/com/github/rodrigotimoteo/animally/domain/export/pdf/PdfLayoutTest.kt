@@ -12,6 +12,32 @@ import kotlin.test.assertTrue
  */
 class PdfLayoutTest {
     @Test
+    fun `selected accent palette reaches branded and card fills`() {
+        val palette = PdfPalette.forAccentId("plum")
+        val report =
+            PdfReportData(
+                patient = PdfPatient(name = "Thunder", species = "Equine"),
+                sections =
+                    listOf(
+                        PdfSection(
+                            "Ultrasound",
+                            listOf(
+                                listOf("Id", "PatientId", "FieldA", "FieldB", "Notes"),
+                                listOf("1", "1", "left", "18", "ok"),
+                            ),
+                        ),
+                    ),
+                palette = palette,
+            )
+
+        val rects = layoutReport(report).flatMap { it.ops }.filterIsInstance<PdfOp.Rect>()
+
+        assertTrue(rects.any { it.color == palette.brandColor })
+        assertTrue(rects.any { it.color == palette.cardTintColor })
+        assertTrue(palette.brandColor != PdfTheme.COLOR_BRAND)
+    }
+
+    @Test
     fun `long cell value wraps into multiple text ops without ellipsis`() {
         val longValue = (1..40).joinToString(separator = " ") { "word$it" }
         val report =

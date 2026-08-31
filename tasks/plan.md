@@ -561,3 +561,54 @@ These do not block the approved Overview MVP:
 - Official hours/competencies/signatures: implement as explicit internship-session data, tracked in the feature backlog; never infer them from patient records.
 - Patient eligibility: patient-scoped Insights is available for every active patient, not only reproduction cases.
 - Persistent pseudonyms: bundle-local pseudonyms are the first version; stable cross-export study identities wait for saved cohorts.
+
+## Follow-up UI polish: playback, export theme, and insight cards
+
+### Behaviors that must become true
+
+- Playback-speed choices remain readable in the confirmation sheet in both light and dark appearances, including the selected option.
+- The PDF export uses the currently selected accent palette when it is generated, while retaining a readable light document and the existing report content/layout.
+- Insight stat cards have a consistent default height, and readiness rows keep their count/chevron visible while allowing explanatory copy to wrap.
+- The overview heading is user-facing neutral language: “Activity overview”.
+
+### Behaviors that must remain true
+
+- Playback rate values, seeking, stop behavior, and accessibility identifiers do not change.
+- PDF Android/iOS renderers continue to consume the same platform-neutral operations and existing default reports remain forest-themed.
+- Insight counts, filters, drill-down actions, and unsupported-rate caveats remain unchanged.
+- Accessibility text remains available; larger text may grow cards/rows rather than clipping content.
+
+### Failure modes and verification
+
+- Verify shared PDF layout tests and a new palette assertion, then compile the iOS simulator target.
+- Run the iOS UI test target/build when Xcode tooling is available; otherwise report that visual simulator evidence is unavailable.
+- Review the diff for accidental metric/string changes and run `git diff --check`.
+
+## Current request: dictation extraction and medical reference coverage
+
+### Task A — Expand safe medical-term recognition
+
+- **Goal:** make assistant reference cards appear for the full supported veterinary/medical vocabulary, including common transcription misspellings.
+- **Acceptance criteria:** exact known terms and bounded one-edit misspellings canonicalise to the same topic; only canonical topics are sent to trusted-source search; patient-specific or otherwise unsafe prompts do not become public search queries; focused matcher and reference-provider tests pass.
+- **Verification:** run the veterinary query/reference tests, then shared lint and relevant compilation.
+- **Dependency:** none. This is the first checkpoint.
+
+### Task B — Make dictation preserve every supported record
+
+- **Goal:** retain medication records in the structured dictation contract and resolve a uniquely spoken patient-name prefix such as “Descarada” to “Descarada do Monte Alto”.
+- **Acceptance criteria:** the screenshot transcript can yield both an ultrasound and a medication suggestion; medication fields validate and persist through the existing medication save path; ambiguous or unsafe patient matches remain for user review; focused DTO/validation/insertion/patient-resolution tests pass.
+- **Verification:** run all focused dictation tests and the shared Android-host test target.
+- **Dependency:** Task A can be verified independently; this task is the second checkpoint.
+
+### Task C — Repair dictation review presentation
+
+- **Goal:** show the finalized transcript during extraction and give the review editor/action area a deliberate, usable size.
+- **Acceptance criteria:** extraction preview contains the complete finalized transcript rather than the last partial speech fragment; the transcript editor no longer consumes the whole sheet on a short transcript; accessibility labels and extraction behavior remain intact.
+- **Verification:** build the iOS app target and install the verified build on Rodrigo’s paired iPhone when the build succeeds. Simulator/physical visual inspection is reported separately from compilation evidence.
+- **Dependency:** Task B’s expanded contract must compile before the iOS build checkpoint.
+
+### Risks and mitigations
+
+- **Fuzzy matching false positives:** use bounded edit distance and a curated vocabulary; fail closed for unknown terms and never forward raw patient-bearing text.
+- **Model omission or hallucination:** require exact JSON fields, validate each record structurally, and preserve the transcript for correction before extraction.
+- **New medication persistence path:** reuse the existing `Medication` model and `SaveMedicationUseCase`; add focused tests before changing UI wiring.

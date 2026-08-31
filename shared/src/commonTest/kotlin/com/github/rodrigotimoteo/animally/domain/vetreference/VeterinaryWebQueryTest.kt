@@ -71,6 +71,22 @@ class VeterinaryWebQueryTest {
     }
 
     @Test
+    fun `common laminitis spelling is normalized for medical references`() {
+        val question = "Can you tell me what laminites is?"
+
+        assertEquals("laminitis", VeterinaryWebQuery.extractTopic(question))
+        assertTrue(VeterinaryWebQuery.isMedicalQuestion(question))
+    }
+
+    @Test
+    fun `single transcription typo is normalized to the known medical term`() {
+        val question = "What is an ultrasaund?"
+
+        assertEquals("ultrasound", VeterinaryWebQuery.extractTopic(question))
+        assertTrue(VeterinaryWebQuery.isMedicalQuestion(question))
+    }
+
+    @Test
     fun `portuguese medical question is supported`() {
         assertEquals("laminitis horses", VeterinaryWebQuery.extractTopic("O que é laminite em cavalos?"))
         assertTrue(VeterinaryWebQuery.isMedicalQuestion("O que é laminite em cavalos?"))

@@ -195,6 +195,7 @@ struct DictationArchiveView: View {
                 } label: {
                     Label(playbackRateText(playback.playbackRate), systemImage: "speedometer")
                         .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
                 }
                 .confirmationDialog(
                     "Playback speed",
@@ -207,14 +208,17 @@ struct DictationArchiveView: View {
                         } label: {
                             HStack {
                                 Text(playbackRateText(rate))
+                                    .foregroundStyle(Theme.textPrimary)
                                 if playback.playbackRate == rate {
                                     Image(systemName: "checkmark")
+                                        .foregroundStyle(Theme.textPrimary)
                                 }
                             }
                         }
                         .accessibilityIdentifier("dictation_speed_option_\(playbackRateText(rate))")
                     }
                 }
+                .tint(Theme.textPrimary)
                 .accessibilityLabel("Playback speed")
                 .accessibilityIdentifier("dictation_speed_\(playback.playingCaptureId ?? 0)")
                 Spacer(minLength: 4)

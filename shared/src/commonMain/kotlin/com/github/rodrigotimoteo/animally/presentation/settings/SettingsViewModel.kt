@@ -8,6 +8,7 @@ import com.github.rodrigotimoteo.animally.domain.backup.ExportBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.backup.RestoreBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportCsvUseCase
 import com.github.rodrigotimoteo.animally.domain.export.pdf.ExportPatientReportUseCase
+import com.github.rodrigotimoteo.animally.domain.export.pdf.PdfPalette
 import com.github.rodrigotimoteo.animally.domain.export.pdf.generatePdf
 import com.github.rodrigotimoteo.animally.domain.export.shareFile
 import com.github.rodrigotimoteo.animally.domain.export.shareFileAt
@@ -209,7 +210,10 @@ class SettingsViewModel(
             pdfStatus = "Select a patient first"
             return
         }
-        val report = exportReportUseCase(patientId = patientId, from = null, to = null)
+        val report =
+            exportReportUseCase(patientId = patientId, from = null, to = null).copy(
+                palette = PdfPalette.forAccentId(themePreferenceStore.getAccentColor().id),
+            )
         sharePdf(fileName = "patient-history-${report.patient.name}.pdf", bytes = generatePdf(report))
         pdfStatus = "PDF exported for ${report.patient.name}"
     }
