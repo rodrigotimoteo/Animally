@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.Imaging as DbImaging
 
 /**
  * Repository implementation for managing [Imaging] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IImagingRepository] with its domain-named parameters (`imaging` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: Imaging`, interface uses `imaging: Imaging`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Imaging`, interface uses `imaging: Imaging`
 @Single(binds = [IImagingRepository::class])
 class ImagingRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -67,21 +63,4 @@ class ImagingRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = imagingQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
-
-    override fun getByPatient(patientId: Long): List<Imaging> = super.getByPatient(patientId).sortedByDescending { it.date }
-
-    override fun getById(id: Long): Imaging? = super.getById(id)
-
-    override fun insert(imaging: Imaging): Long = super.insert(imaging)
-
-    override fun update(imaging: Imaging): Long = super.update(imaging)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

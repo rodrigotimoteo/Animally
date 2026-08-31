@@ -13,18 +13,4 @@ data class RecordTypeCount(
     val type: RecordType,
     val count: Int,
     val share: Double?,
-) {
-    companion object {
-        /**
-         * Computes share for a type count over total.
-         *
-         * @param count type count.
-         * @param total total activity count.
-         * @return share or null when total is zero.
-         */
-        fun share(
-            count: Int,
-            total: Int,
-        ): Double? = if (total == 0) null else count.toDouble() / total.toDouble()
-    }
-}
+)

@@ -3,19 +3,15 @@ import Shared
 
 struct DiagnosticsTabView: View {
     let patientId: Int64
-    let refreshToken: Int
     @StateObject private var viewModel: DiagnosticsTabViewModel
-    /// Lazy open via RecordDetailKey.
     var onOpenRecord: ((String, Int64) -> Void)? = nil
 
     init(
         patientId: Int64,
-        refreshToken: Int = 0,
         onOpenRecord: ((String, Int64) -> Void)? = nil,
     ) {
         self.patientId = patientId
         _viewModel = StateObject(wrappedValue: DiagnosticsTabViewModel(patientId: patientId))
-        self.refreshToken = refreshToken
         self.onOpenRecord = onOpenRecord
     }
 
@@ -24,6 +20,7 @@ struct DiagnosticsTabView: View {
             if viewModel.isLoading {
                 ProgressView("Loading records…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("Loading diagnostics records")
             } else if totalRecords == 0 {
                 TabEmptyStateView(
                     icon: "doc.text.fill",
@@ -33,9 +30,6 @@ struct DiagnosticsTabView: View {
                 recordList
             }
         }
-        .onChange(of: refreshToken) { _, _ in
-            viewModel.reload()
-        }
     }
 
     private var totalRecords: Int {
@@ -44,7 +38,6 @@ struct DiagnosticsTabView: View {
 
     private var recordList: some View {
         List {
-            // Lab Results
             recordSection(
                 RecordSectionSpec(
                     title: "Lab Results",
@@ -71,7 +64,6 @@ struct DiagnosticsTabView: View {
                 onOpenRecord: onOpenRecord
             )
 
-            // Imaging
             recordSection(
                 RecordSectionSpec(
                     title: "Imaging",
@@ -92,5 +84,6 @@ struct DiagnosticsTabView: View {
             )
         }
         .listStyle(.insetGrouped)
+        .accessibilityIdentifier("diagnostics_tab_list")
     }
 }

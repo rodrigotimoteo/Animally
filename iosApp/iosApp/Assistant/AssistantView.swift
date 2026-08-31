@@ -74,8 +74,10 @@ struct AssistantView: View {
                 }
             }
             .overlay(alignment: .top) {
-                if let errorMessage = viewModel.state.error ?? viewModel.state.historyError {
-                    errorBanner(message: errorMessage)
+                if let errorMessage = viewModel.state.error {
+                    InlineErrorBanner(message: errorMessage, onDismiss: { viewModel.dismissError() })
+                } else if let historyError = viewModel.state.historyError {
+                    InlineErrorBanner(message: historyError, onDismiss: { viewModel.dismissError() })
                 }
             }
             .onAppear {
@@ -465,33 +467,10 @@ struct AssistantView: View {
         }
     }
 
-    // MARK: - Error banner
+    // MARK: - Error banner — deduplicated via InlineErrorBanner
 
     private func errorBanner(message: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Theme.amber)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(2)
-            Spacer()
-            Button {
-                viewModel.dismissError()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.textSecondary)
-                    .accessibilityLabel("Dismiss error")
-            }
-        }
-        .padding(12)
-        .background(Theme.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        InlineErrorBanner(message: message, onDismiss: { viewModel.dismissError() })
     }
 }
 

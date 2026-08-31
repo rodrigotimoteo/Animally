@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.FarrierVisit as DbFarr
 
 /**
  * Repository implementation for managing [FarrierVisit] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IFarrierVisitRepository] with its domain-named parameters (`farrierVisit` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: FarrierVisit`, interface uses `farrierVisit: FarrierVisit`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: FarrierVisit`, interface uses `farrierVisit: FarrierVisit`
 @Single(binds = [IFarrierVisitRepository::class])
 class FarrierVisitRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -69,21 +65,4 @@ class FarrierVisitRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = farrierVisitQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super.
-
-    override fun getByPatient(patientId: Long): List<FarrierVisit> = super.getByPatient(patientId)
-
-    override fun getById(id: Long): FarrierVisit? = super.getById(id)
-
-    override fun insert(farrierVisit: FarrierVisit): Long = super.insert(farrierVisit)
-
-    override fun update(farrierVisit: FarrierVisit): Long = super.update(farrierVisit)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.Deworming as DbDewormi
 
 /**
  * Repository implementation for managing [Deworming] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IDewormingRepository] with its domain-named parameters (`deworming` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: Deworming`, interface uses `deworming: Deworming`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Deworming`, interface uses `deworming: Deworming`
 @Single(binds = [IDewormingRepository::class])
 class DewormingRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -67,21 +63,4 @@ class DewormingRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = dewormingQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super.
-
-    override fun getByPatient(patientId: Long): List<Deworming> = super.getByPatient(patientId)
-
-    override fun getById(id: Long): Deworming? = super.getById(id)
-
-    override fun insert(deworming: Deworming): Long = super.insert(deworming)
-
-    override fun update(deworming: Deworming): Long = super.update(deworming)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

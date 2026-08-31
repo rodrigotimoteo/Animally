@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.Reproduction as DbRepr
 
 /**
  * Repository implementation for managing [ReproductionEvent] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IReproductionRepository] with its domain-named parameters (`reproductionEvent` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: ReproductionEvent`, interface uses `reproductionEvent: ReproductionEvent`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: ReproductionEvent`, interface uses `reproductionEvent: ReproductionEvent`
 @Single(binds = [IReproductionRepository::class])
 class ReproductionRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -71,24 +67,4 @@ class ReproductionRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = reproQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
-
-    override fun getByPatient(patientId: Long): List<ReproductionEvent> =
-        super
-            .getByPatient(patientId)
-            .sortedByDescending { it.date }
-
-    override fun getById(id: Long): ReproductionEvent? = super.getById(id)
-
-    override fun insert(reproductionEvent: ReproductionEvent): Long = super.insert(reproductionEvent)
-
-    override fun update(reproductionEvent: ReproductionEvent): Long = super.update(reproductionEvent)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

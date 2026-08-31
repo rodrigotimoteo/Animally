@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.LabResult as DbLabResu
 
 /**
  * Repository implementation for managing [LabResult] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [ILabResultRepository] with its domain-named parameters (`labResult` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: LabResult`, interface uses `labResult: LabResult`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: LabResult`, interface uses `labResult: LabResult`
 @Single(binds = [ILabResultRepository::class])
 class LabResultRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -67,24 +63,4 @@ class LabResultRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = labResultQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
-
-    override fun getByPatient(patientId: Long): List<LabResult> =
-        super
-            .getByPatient(patientId)
-            .sortedByDescending { it.date }
-
-    override fun getById(id: Long): LabResult? = super.getById(id)
-
-    override fun insert(labResult: LabResult): Long = super.insert(labResult)
-
-    override fun update(labResult: LabResult): Long = super.update(labResult)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

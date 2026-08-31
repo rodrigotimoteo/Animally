@@ -27,7 +27,7 @@ selectById:
 SELECT * FROM Gestation WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM Gestation WHERE patientId = ? AND isActive = 1;
+SELECT * FROM Gestation WHERE patientId = ? AND isActive = 1 ORDER BY breedingDate DESC;
 
 selectAll:
 SELECT * FROM Gestation WHERE isActive = 1;

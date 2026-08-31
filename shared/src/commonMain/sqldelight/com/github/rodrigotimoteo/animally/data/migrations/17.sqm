@@ -1,0 +1,52 @@
+-- C1: extract reusable activity union to views for simplicity, keep sargable predicates.
+
+CREATE VIEW IF NOT EXISTS insights_activity_rows AS
+  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType, vetName AS vetAttr FROM Consultation WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'DENTISTRY', vetName FROM Dentistry WHERE isActive = 1
+  UNION ALL SELECT id, patientId, dateAdministered, 'DEWORMING', vetName FROM Deworming WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'FARRIER_VISIT', farrier FROM FarrierVisit WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'IMAGING', vetName FROM Imaging WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'LAB_RESULT', vetName FROM LabResult WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'LAMENESS', vetName FROM Lameness WHERE isActive = 1
+  UNION ALL SELECT id, patientId, startDate, 'MEDICATION', prescribedBy FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL
+  UNION ALL SELECT id, patientId, date, 'REPRODUCTION_EVENT', vetName FROM Reproduction WHERE isActive = 1
+  UNION ALL SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION', vetName FROM ReproMedication WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'SURGERY', surgeon FROM Surgery WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE', administeredBy FROM Substance WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'ULTRASOUND', vetName FROM Ultrasound WHERE isActive = 1
+  UNION ALL SELECT id, patientId, dateAdministered, 'VACCINATION', vetName FROM Vaccination WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'WEIGHT', 'ok' FROM Weight WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'EMBRYO_TRANSFER', vetName FROM EmbryoTransfer WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'ICSI', vetName FROM Icsi WHERE isActive = 1;
+
+CREATE VIEW IF NOT EXISTS insights_activity_active AS
+  SELECT r.recordId, r.patientId, r.activityDate, r.recordType, r.vetAttr, p.name AS patientName, p.ownerId
+  FROM insights_activity_rows r JOIN Patient p ON p.id = r.patientId WHERE p.isActive = 1;
+
+-- Helpers for data-issue predicates to avoid repeating complex WHERE fragments.
+CREATE VIEW IF NOT EXISTS insights_missing_vet AS
+  SELECT * FROM insights_activity_active WHERE vetAttr IS NULL OR LENGTH(TRIM(vetAttr)) = 0;
+
+CREATE VIEW IF NOT EXISTS insights_unlinked_owner AS
+  SELECT * FROM insights_activity_active WHERE ownerId IS NULL;
+
+CREATE VIEW IF NOT EXISTS insights_free_text_embryo AS
+  SELECT EmbryoTransfer.id AS recordId, EmbryoTransfer.patientId AS patientId, Patient.name AS patientName, EmbryoTransfer.date AS date, 'EMBRYO_TRANSFER' AS recordTypeWireName
+  FROM EmbryoTransfer JOIN Patient ON Patient.id = EmbryoTransfer.patientId
+  WHERE EmbryoTransfer.isActive = 1 AND Patient.isActive = 1 AND EmbryoTransfer.recipientMares IS NOT NULL AND LENGTH(TRIM(EmbryoTransfer.recipientMares)) > 0;
+
+CREATE VIEW IF NOT EXISTS insights_incomplete_ultrasound AS
+  SELECT Ultrasound.id AS recordId, Ultrasound.patientId AS patientId, Patient.name AS patientName, Ultrasound.date AS date, 'ULTRASOUND' AS recordTypeWireName
+  FROM Ultrasound JOIN Patient ON Patient.id = Ultrasound.patientId
+  WHERE Ultrasound.isActive = 1 AND Patient.isActive = 1
+  AND (Ultrasound.ovaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.ovaryStatus)) = 0)
+  AND (Ultrasound.uterineStatus IS NULL OR LENGTH(TRIM(Ultrasound.uterineStatus)) = 0)
+  AND Ultrasound.follicleSizeMm IS NULL
+  AND (Ultrasound.leftOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.leftOvaryStatus)) = 0)
+  AND (Ultrasound.rightOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.rightOvaryStatus)) = 0)
+  AND Ultrasound.leftFollicleSizeMm IS NULL
+  AND Ultrasound.rightFollicleSizeMm IS NULL
+  AND (Ultrasound.uterineEdema IS NULL OR LENGTH(TRIM(Ultrasound.uterineEdema)) = 0)
+  AND Ultrasound.uterineLiquid IS NULL
+  AND (Ultrasound.uterineLiquidDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterineLiquidDescription)) = 0)
+  AND (Ultrasound.uterusDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterusDescription)) = 0);

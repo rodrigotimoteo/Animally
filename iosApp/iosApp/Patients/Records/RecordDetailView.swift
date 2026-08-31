@@ -2,51 +2,18 @@ import Foundation
 import Shared
 import SwiftUI
 
-/// Navigation payload for the read-only record detail screen.
-/// Deterministic identity derived from patientId+recordId+displayType so the same
-/// record always hashes identically and Back/Push diffs remain stable.
-struct RecordDetailNav: Identifiable, Hashable {
-    struct FieldRow: Identifiable, Hashable {
-        let label: String
-        let value: String
-        let index: Int
-        var id: String { "\(index)-\(label)-\(value)" }
+/// Single field row for the read-only detail.
+struct RecordDetailFieldRow: Identifiable, Hashable {
+    let label: String
+    let value: String
+    let index: Int
+    var id: String { "\(index)-\(label)-\(value)" }
 
-        init(label: String, value: String, index: Int = 0) {
-            self.label = label
-            self.value = value
-            self.index = index
-        }
+    init(label: String, value: String, index: Int = 0) {
+        self.label = label
+        self.value = value
+        self.index = index
     }
-
-    let title: String
-    let displayType: String
-    let patientId: Int64
-    let recordId: Int64
-    let fields: [FieldRow]
-
-    var id: String { "\(patientId)-\(recordId)-\(displayType)" }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(patientId)
-        hasher.combine(recordId)
-        hasher.combine(displayType)
-    }
-
-    static func == (lhs: RecordDetailNav, rhs: RecordDetailNav) -> Bool {
-        lhs.patientId == rhs.patientId && lhs.recordId == rhs.recordId && lhs.displayType == rhs.displayType
-    }
-}
-
-/// Hashable navigation payload for opening the detail by record identity:
-/// the view loads the record itself instead of receiving eager field rows.
-/// Deterministic Identifiable so navigationDestination(item:) diff stable.
-struct RecordDetailKey: Hashable, Identifiable {
-    let displayType: String
-    let patientId: Int64
-    let recordId: Int64
-
-    var id: String { "\(patientId)-\(recordId)-\(displayType)" }
 }
 
 /// Read-only view of everything inside one record. "Edit" pushes the
@@ -62,13 +29,9 @@ struct RecordDetailView: View {
     let key: RecordDetailKey
     let fallbackTitle: String
 
-    init(nav: RecordDetailNav) {
-        key = RecordDetailKey(
-            displayType: nav.displayType,
-            patientId: nav.patientId,
-            recordId: nav.recordId
-        )
-        fallbackTitle = nav.title
+    init(key: RecordDetailKey, fallbackTitle: String) {
+        self.key = key
+        self.fallbackTitle = fallbackTitle
     }
 
     init(
@@ -90,7 +53,7 @@ struct RecordDetailView: View {
 }
 
 private struct FieldCell: View {
-    let field: RecordDetailNav.FieldRow
+    let field: RecordDetailFieldRow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -205,7 +168,7 @@ private struct IdLoadedRecordDetailView: View {
 /// carries the title, the typed rows, and the edit-route descriptor.
 @MainActor
 final class RecordDetailObserver: ObservableObject {
-    @Published private(set) var fields: [RecordDetailNav.FieldRow]?
+    @Published private(set) var fields: [RecordDetailFieldRow]?
     @Published private(set) var attachments: [RecordDetailAttachment] = []
     @Published private(set) var isLoading = true
     @Published private(set) var title: String?
@@ -249,7 +212,7 @@ final class RecordDetailObserver: ObservableObject {
 
     private func apply(_ state: RecordDetailState) {
         var rows = state.rows?.enumerated().map { idx, row in
-            RecordDetailNav.FieldRow(label: row.label, value: row.value, index: idx)
+            RecordDetailFieldRow(label: row.label, value: row.value, index: idx)
         }
         if rows?.isEmpty == true, !state.isLoading {
             rows = nil

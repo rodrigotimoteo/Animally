@@ -2,26 +2,16 @@
 
 package com.github.rodrigotimoteo.animally.domain.insights.model
 
-/**
- * Column definition for the export data dictionary.
- *
- * @property name header name as it appears in the CSV.
- * @property type logical type (`STRING`, `INTEGER`, `DOUBLE`, `DATE`, `DATETIME`).
- * @property definition human-readable meaning and derivation rule.
- */
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class InsightsExportColumnDef(
     val name: String,
     val type: String,
     val definition: String,
 )
 
-/**
- * Table definition for one CSV/JSON file.
- *
- * @property file filename.
- * @property description purpose of the file and relation to dashboard.
- * @property columns ordered column defs as they appear in the header.
- */
+@Serializable
 data class InsightsExportTableDef(
     val file: String,
     val description: String,

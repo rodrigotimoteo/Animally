@@ -24,7 +24,7 @@ selectById:
 SELECT * FROM Imaging WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM Imaging WHERE patientId = ? AND isActive = 1;
+SELECT * FROM Imaging WHERE patientId = ? AND isActive = 1 ORDER BY date DESC;
 
 selectAll:
 SELECT * FROM Imaging WHERE isActive = 1;

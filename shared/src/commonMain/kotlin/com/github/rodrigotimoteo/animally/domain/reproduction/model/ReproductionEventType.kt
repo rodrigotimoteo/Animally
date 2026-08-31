@@ -24,10 +24,16 @@ enum class ReproductionEventType(
     ;
 
     companion object {
-        private fun normalize(value: String): String = value.filterNot { it == ' ' || it == '_' || it == '-' }.lowercase()
+        fun normalize(value: String): String = value.filterNot { it == ' ' || it == '_' || it == '-' }.lowercase()
+
+        /** Known picker values that round-trip through [from]. */
+        val knownEntries: List<ReproductionEventType> = entries.filter { it != Other }
 
         private val byNormalized: Map<String, ReproductionEventType> =
-            entries.filter { it != Other }.associateBy { normalize(it.storageLabel) }
+            knownEntries.associateBy { normalize(it.storageLabel) }
+
+        /** Normalized known labels for SQL NOT IN single-source derivation. */
+        val knownNormalizedValues: List<String> = knownEntries.map { normalize(it.storageLabel) }
 
         /**
          * Parses [raw] into a canonical type.
@@ -35,8 +41,5 @@ enum class ReproductionEventType(
          * Returns [Other] for unknown values.
          */
         fun from(raw: String): ReproductionEventType = byNormalized[normalize(raw.trim())] ?: Other
-
-        /** Known picker values that round-trip through [from]. */
-        val knownEntries: List<ReproductionEventType> = entries.filter { it != Other }
     }
 }

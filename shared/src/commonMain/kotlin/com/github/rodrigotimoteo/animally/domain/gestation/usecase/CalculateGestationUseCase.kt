@@ -28,11 +28,6 @@ data class GestationProgress(
  */
 @Single
 class CalculateGestationUseCase {
-    companion object {
-        val GESTATION_PERIOD_DAYS get() = GestationStatus.GESTATION_PERIOD_DAYS
-        val RESOLVED_STATUSES get() = GestationStatus.RESOLVED_STATUSES
-    }
-
     /**
      * Computes the gestation progress for the given [breedingDate] as of [today].
      *
@@ -44,7 +39,7 @@ class CalculateGestationUseCase {
         breedingDate: LocalDate,
         today: LocalDate,
     ): GestationProgress {
-        val expectedDueDate = breedingDate.plus(DatePeriod(days = GESTATION_PERIOD_DAYS))
+        val expectedDueDate = breedingDate.plus(DatePeriod(days = GestationStatus.GESTATION_PERIOD_DAYS))
         val gestationDays = breedingDate.daysUntil(today).coerceAtLeast(0)
         return GestationProgress(
             expectedDueDate = expectedDueDate,

@@ -26,4 +26,6 @@ data class CurrentGestationItem(
     val dueDate: LocalDate,
     val daysUntilDue: Int,
     val status: String,
-)
+) {
+    fun isDueSoon(days: Int): Boolean = daysUntilDue in 0..days
+}

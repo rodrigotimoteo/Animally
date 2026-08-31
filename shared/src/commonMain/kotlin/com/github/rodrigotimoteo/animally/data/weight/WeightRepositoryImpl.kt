@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.Weight as DbWeight
 
 /**
  * Repository implementation for managing [Weight] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IWeightRepository] with its domain-named parameters (`weight` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: Weight`, interface uses `weight: Weight`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Weight`, interface uses `weight: Weight`
 @Single(binds = [IWeightRepository::class])
 class WeightRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -61,21 +57,4 @@ class WeightRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = weightQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
-
-    override fun getByPatient(patientId: Long): List<Weight> = super.getByPatient(patientId).sortedByDescending { it.date }
-
-    override fun getById(id: Long): Weight? = super.getById(id)
-
-    override fun insert(weight: Weight): Long = super.insert(weight)
-
-    override fun update(weight: Weight): Long = super.update(weight)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

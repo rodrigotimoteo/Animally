@@ -1,6 +1,5 @@
 import SwiftUI
 import Shared
-import os
 
 @MainActor
 final class InsightsRecordsListViewModel: ObservableObject {
@@ -18,27 +17,20 @@ final class InsightsRecordsListViewModel: ObservableObject {
         })
     }
 
-    func reload() {
-        store.reload()
-    }
+    @Published var awaitError: String?
 
-    func reloadAsync() async {
+    func reload() { store.reload(); awaitError = nil }
+
+    func reloadAsync() async -> Bool {
+        awaitError = nil
         reload()
-        for _ in 0..<50 {
-            if !state.isLoading { break }
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
-        if state.isLoading {
-            // 5s bound reached but isLoading still true → log timeout (spinner hang guard)
-            Logger(subsystem: "com.animally.insights", category: "insights")
-                .error("InsightsRecords reloadAsync timeout: isLoading still true after 5s")
-        }
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        let ok = await StoreAwait.awaitIdle(store.state, isLoading: { $0.isLoading })
+        if !ok { awaitError = StoreAwaitError.timeout.localizedDescription }
+        return ok
     }
 
-    func dismissError() {
-        store.dismissError()
-    }
+    func dismissError() { store.dismissError() }
+    func dismissAwaitError() { awaitError = nil }
 
     deinit {
         cancellable?.cancel()
@@ -87,8 +79,13 @@ struct InsightsRecordsView: View {
             }
         }
         .overlay(alignment: .top) {
-            if let error = viewModel.state.errorMessage, !viewModel.state.refs.isEmpty {
-                errorBanner(message: error)
+            VStack(spacing: 8) {
+                if let error = viewModel.state.errorMessage, !viewModel.state.refs.isEmpty {
+                    errorBanner(message: error)
+                }
+                if let a = viewModel.awaitError {
+                    InlineErrorBanner(message: a, onRetry: { Task { await viewModel.reloadAsync() } }, onDismiss: { viewModel.dismissAwaitError() })
+                }
             }
         }
         .refreshable {
@@ -162,36 +159,13 @@ struct InsightsRecordsView: View {
     }
 
     private func recordRow(ref: InsightsRecordRef) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconForRecordType(ref.recordType))
-                .font(.body)
-                .foregroundStyle(Theme.forestGreen)
-                .frame(width: 36, height: 36)
-                .background(Theme.forestGreen.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(ref.recordType.displayName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(1)
-                Text(ref.patientName)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Text(ref.date.displayString)
-                .font(.caption)
-                .foregroundStyle(Theme.textTertiary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
+        RecordRowView(
+            icon: RecordTypeIcon.systemName(for: ref.recordType),
+            iconTint: Theme.forestGreen,
+            title: ref.recordType.displayName,
+            subtitle: ref.patientName,
+            date: ref.date.displayString
+        )
     }
 
     private var loadingView: some View {
@@ -243,53 +217,10 @@ struct InsightsRecordsView: View {
     }
 
     private func errorBanner(message: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.amber)
-            Text(message).font(.subheadline).foregroundStyle(Theme.textPrimary).lineLimit(2)
-            Spacer()
-            Button("Retry") { viewModel.reload() }
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Theme.forestGreen)
-            Button {
-                viewModel.dismissError()
-            } label: {
-                Image(systemName: "xmark").font(.caption.weight(.bold)).foregroundStyle(Theme.textSecondary)
-                    .accessibilityLabel("Dismiss error")
-            }
-        }
-        .padding(12)
-        .background(Theme.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-        .padding(.horizontal)
-        .padding(.top, 8)
+        InlineErrorBanner(systemImage: "exclamationmark.triangle.fill", message: message, tint: Theme.amber, showsRetry: true, onRetry: { viewModel.reload() }, onDismiss: { viewModel.dismissError() })
     }
 
-    private func iconForRecordType(_ type: RecordType) -> String {
-        switch type.wireName {
-        case "VACCINATION": return "syringe.fill"
-        case "DEWORMING": return "pills.fill"
-        case "CONSULTATION": return "stethoscope"
-        case "WEIGHT": return "scalemass.fill"
-        case "REPRODUCTION_EVENT": return "heart.fill"
-        case "FARRIER_VISIT": return "figure.walk"
-        case "DENTISTRY": return "mouth.fill"
-        case "CUSTOM_REMINDER": return "bell.badge.fill"
-        case "EMBRYO_TRANSFER": return "arrow.triangle.branch"
-        case "ICSI": return "scope"
-        case "ULTRASOUND": return "waveform.path.ecg"
-        case "GESTATION": return "heart.circle.fill"
-        case "REPRO_MEDICATION": return "pills"
-        case "LAB_RESULT": return "testtube.2"
-        case "IMAGING": return "photo.fill"
-        case "LAMENESS": return "figure.walk.motion"
-        case "SURGERY": return "cross.case.fill"
-        case "MEDICATION": return "pill.fill"
-        case "CONTROLLED_SUBSTANCE": return "cross.vial.fill"
-        case "ANAMNESE": return "doc.text.fill"
-        default: return "doc.text.fill"
-        }
-    }
+
 }
 
 private extension String {

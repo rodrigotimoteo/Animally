@@ -23,7 +23,7 @@ selectById:
 SELECT * FROM EmbryoTransfer WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM EmbryoTransfer WHERE patientId = ? AND isActive = 1;
+SELECT * FROM EmbryoTransfer WHERE patientId = ? AND isActive = 1 ORDER BY date DESC;
 
 selectAll:
 SELECT * FROM EmbryoTransfer WHERE isActive = 1;

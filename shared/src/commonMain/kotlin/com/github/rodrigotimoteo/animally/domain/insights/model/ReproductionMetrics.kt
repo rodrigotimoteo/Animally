@@ -24,30 +24,9 @@ data class ReproductionMetrics(
     val folliclesRecovered: Int,
     val averageFolliclesPerIcsi: Double?,
     val ultrasoundCount: Int,
-) {
-    companion object {
-        /**
-         * Computes average embryos per collection.
-         *
-         * @param collected total embryos.
-         * @param collections number of collections.
-         * @return average or null when [collections] == 0.
-         */
-        fun avgEmbryos(
-            collected: Int,
-            collections: Int,
-        ): Double? = if (collections == 0) null else collected.toDouble() / collections.toDouble()
+)
 
-        /**
-         * Computes average follicles per ICSI session.
-         *
-         * @param follicles total follicles.
-         * @param sessions number of sessions.
-         * @return average or null when [sessions] == 0.
-         */
-        fun avgFollicles(
-            follicles: Int,
-            sessions: Int,
-        ): Double? = if (sessions == 0) null else follicles.toDouble() / sessions.toDouble()
-    }
-}
+internal fun avgOrNull(
+    numerator: Int,
+    denominator: Int,
+): Double? = if (denominator == 0) null else numerator.toDouble() / denominator

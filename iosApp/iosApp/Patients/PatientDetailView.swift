@@ -7,10 +7,8 @@ struct PatientDetailView: View {
     @State private var selectedTab: DetailTab = .overview
     @State private var addRecordRoute: RecordEditRoute?
     @State private var selectedRecordKey: RecordDetailKey?
-    /// Bumped when returning from a record editor so the visible tab's
-    /// view model is recreated and reloads fresh data. Deduplicated via task.
-    @State private var recordsRefreshToken = 0
-    @State private var reloadTask: Task<Void, Never>?
+    // Only gestation needs a refresh token for day calc; other tabs react to store flows.
+    @State private var gestationRefreshToken = 0
 
     enum DetailTab: String, CaseIterable, Identifiable {
         case overview = "Overview"
@@ -21,8 +19,6 @@ struct PatientDetailView: View {
 
         var id: String { rawValue }
 
-        /// Full name for accessibility — the short segmented labels are
-        /// compressed, VoiceOver should speak the real section names.
         var accessibilityName: String {
             switch self {
             case .overview: return "Overview"
@@ -83,43 +79,35 @@ struct PatientDetailView: View {
             }
             .overlay(alignment: .top) {
                 if let errorMessage = viewModel.state.errorMessage {
-                    errorBanner(message: errorMessage)
+                    InlineErrorBanner(message: errorMessage, onDismiss: { viewModel.dismissError() })
                 }
             }
             .onAppear {
                 viewModel.load()
-                debouncedReload()
+                gestationRefreshToken += 1
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
                 viewModel.load()
-                debouncedReload()
+                gestationRefreshToken += 1
             }
-
             .onChange(of: addRecordRoute) { oldValue, newValue in
-                // Returning from a record editor: reload visible tab once. Deduplicated
-                // via debouncedReload so rapid nil→value→nil does not double-trigger.
                 if oldValue != nil, newValue == nil {
-                    debouncedReload()
                     viewModel.load()
+                    gestationRefreshToken += 1
                 }
             }
             .navigationDestination(item: $addRecordRoute) { route in
                 recordEditDestination(route)
             }
             .navigationDestination(item: $selectedRecordKey) { key in
-                // Lazy detail via Kotlin opener — no eager field payload.
                 RecordDetailView(displayType: key.displayType, patientId: key.patientId, recordId: key.recordId)
             }
     }
 
-    private func debouncedReload() {
-        reloadTask?.cancel()
-        reloadTask = Task { @MainActor in
-            // Small debounce avoids double reload when onAppear + scenePhase fire together
-            try? await Task.sleep(nanoseconds: 20_000_000)
-            guard !Task.isCancelled else { return }
-            recordsRefreshToken += 1
+    private func makeOpenRecord(for patientId: Int64) -> (String, Int64) -> Void {
+        { type, recordId in
+            selectedRecordKey = RecordDetailKey(displayType: type, patientId: patientId, recordId: recordId)
         }
     }
 
@@ -159,39 +147,14 @@ struct PatientDetailView: View {
                 OverviewTab(patient: patient, ownerName: viewModel.state.ownerName) {
                     selectedTab = .reproduction
                 }
-                .id(recordsRefreshToken)
             case .medical:
-                MedicalTabView(
-                    patientId: patient.id,
-                    refreshToken: recordsRefreshToken,
-                    onOpenRecord: { type, recordId in
-                        selectedRecordKey = RecordDetailKey(displayType: type, patientId: patient.id, recordId: recordId)
-                    }
-                )
+                MedicalTabView(patientId: patient.id, onOpenRecord: makeOpenRecord(for: patient.id))
             case .preventive:
-                PreventiveTabView(
-                    patientId: patient.id,
-                    refreshToken: recordsRefreshToken,
-                    onOpenRecord: { type, recordId in
-                        selectedRecordKey = RecordDetailKey(displayType: type, patientId: patient.id, recordId: recordId)
-                    }
-                )
+                PreventiveTabView(patientId: patient.id, onOpenRecord: makeOpenRecord(for: patient.id))
             case .reproduction:
-                ReproductionTabView(
-                    patientId: patient.id,
-                    refreshToken: recordsRefreshToken,
-                    onOpenRecord: { type, recordId in
-                        selectedRecordKey = RecordDetailKey(displayType: type, patientId: patient.id, recordId: recordId)
-                    }
-                )
+                ReproductionTabView(patientId: patient.id, gestationRefreshToken: gestationRefreshToken, onOpenRecord: makeOpenRecord(for: patient.id))
             case .diagnostics:
-                DiagnosticsTabView(
-                    patientId: patient.id,
-                    refreshToken: recordsRefreshToken,
-                    onOpenRecord: { type, recordId in
-                        selectedRecordKey = RecordDetailKey(displayType: type, patientId: patient.id, recordId: recordId)
-                    }
-                )
+                DiagnosticsTabView(patientId: patient.id, onOpenRecord: makeOpenRecord(for: patient.id))
             }
         }
     }
@@ -218,54 +181,17 @@ struct PatientDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private func errorBanner(message: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Theme.amber)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(2)
-            Spacer()
-            Button {
-                viewModel.dismissError()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.textSecondary)
-                    .accessibilityLabel("Dismiss error")
-            }
-        }
-        .padding(12)
-        .background(Theme.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
 }
 
 struct OverviewTab: View {
     let patient: Patient_
     let ownerName: String?
-    /// Switches the detail screen to the Reproduction tab.
     var onOpenReproduction: (() -> Void)? = nil
 
     @StateObject private var careModel: CareDuePanelModel
     @StateObject private var gestationModel: GestationPanelModel
     @State private var todayKotlin: Kotlinx_datetimeLocalDate
     @Environment(\.scenePhase) private var scenePhase
-
-    private static func makeTodayKotlin() -> Kotlinx_datetimeLocalDate {
-        let comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        return Kotlinx_datetimeLocalDate(
-            year: Int32(comps.year ?? 1970),
-            month: Int32(comps.month ?? 1),
-            day: Int32(comps.day ?? 1)
-        )
-    }
 
     init(
         patient: Patient_,
@@ -275,7 +201,7 @@ struct OverviewTab: View {
         self.patient = patient
         self.ownerName = ownerName
         self.onOpenReproduction = onOpenReproduction
-        _todayKotlin = State(initialValue: Self.makeTodayKotlin())
+        _todayKotlin = State(initialValue: DateFormatters.todayLocalDate())
         _careModel = StateObject(wrappedValue: CareDuePanelModel(patientId: patient.id))
         _gestationModel = StateObject(wrappedValue: GestationPanelModel(patientId: patient.id))
     }
@@ -296,58 +222,22 @@ struct OverviewTab: View {
             }
             .padding()
         }
-        .onAppear { todayKotlin = Self.makeTodayKotlin() }
+        .onAppear { todayKotlin = DateFormatters.todayLocalDate() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                todayKotlin = Self.makeTodayKotlin()
+                todayKotlin = DateFormatters.todayLocalDate()
             }
         }
     }
 
-    /// Compact "In Foal" status card shown only while a gestation is active;
-    /// taps through to the Reproduction tab. Uses cached todayKotlin for stable day calc.
     private func pregnancyCard(_ gestation: Gestation_) -> some View {
-        let gestationDay = gestationDay(for: gestation)
-        let due = gestation.expectedDueDate.friendlyString
-        return Button {
-            onOpenReproduction?()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "heart.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(Theme.forestGreen)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("In Foal")
-                        .font(.caption.weight(.bold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Theme.forestGreen)
-                        .foregroundStyle(.white)
-                        .clipShape(Capsule())
-
-                    Text("Day \(gestationDay) · Due \(due)")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Theme.textPrimary)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.textTertiary)
-            }
-            .padding(14)
-            .background(Theme.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("In foal, day \(gestationDay), due \(due). Opens reproduction tab")
+        CompactGestationCard(
+            gestation: gestation,
+            gestationDay: gestationDay(for: gestation),
+            onTap: { onOpenReproduction?() }
+        )
     }
 
-    /// Upcoming and overdue care, surfaced where the vet looks first.
-    /// Static rows for v1; tapping through to the record is a follow-up.
     private var careDueSection: some View {
         Group {
             if !careModel.items.isEmpty {
@@ -394,25 +284,21 @@ struct OverviewTab: View {
     }
 
     private func dueText(for item: CareDueItem) -> String {
-        let due = "\(item.dueDate.dayOfMonth) \(Self.monthAbbreviation(item.dueDate.monthNumber)) \(item.dueDate.year)"
+        let due = item.dueDate.friendlyString
         if item.overdue {
             return "Overdue — due \(due)"
         }
-        if daysUntil(item.dueDate) == 0 {
-            return "Due today"
-        }
-        let days = daysUntil(item.dueDate)
-        return "Due in \(days) day\(days == 1 ? "" : "s")"
+        let days = GestationCalculator.daysUntil(item.dueDate, today: todayKotlin)
+        if days == 0 { return "Due today" }
+        return GestationDueText.daysLabel(daysUntilDue: days)
     }
 
     private func dueColor(for item: CareDueItem) -> Color {
         if item.overdue { return .red }
-        if daysUntil(item.dueDate) <= 3 { return .orange }
+        if GestationCalculator.daysUntil(item.dueDate, today: todayKotlin) <= 3 { return .orange }
         return Theme.amber
     }
 
-    /// Stable rows with deduplication counter — avoids global idx instability when list reorders.
-    /// Duplicates get "-1", "-2" suffix; unique rows keep base id stable even when other items inserted.
     private var careDueStableRows: [(stableId: String, item: CareDueItem)] {
         var seen: [String: Int] = [:]
         return careModel.items.map { item in
@@ -425,21 +311,11 @@ struct OverviewTab: View {
     }
 
     func gestationDay(for gestation: Gestation_) -> Int {
-        let todayEpoch = todayKotlin.epochDaysCompat()
-        let breedingEpoch = gestation.breedingDate.epochDaysCompat()
-        return max(0, Int(todayEpoch - breedingEpoch))
+        GestationCalculator.gestationDay(for: gestation, today: todayKotlin)
     }
 
     private func daysUntil(_ date: Kotlinx_datetimeLocalDate) -> Int {
-        let todayEpoch = todayKotlin.epochDaysCompat()
-        let dueEpoch = date.epochDaysCompat()
-        return Int(dueEpoch - todayEpoch)
-    }
-
-    private static func monthAbbreviation(_ monthNumber: Int32) -> String {
-        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        let index = Int(monthNumber) - 1
-        return index >= 0 && index < months.count ? months[index] : ""
+        GestationCalculator.daysUntil(date, today: todayKotlin)
     }
 
     private var patientHeader: some View {
@@ -518,16 +394,10 @@ struct OverviewTab: View {
     }
 }
 
-// Stable identity for CareDueItem — Kotlin data class hash collapses duplicate title+type+date rows.
-// Mirrors S3 Insights stableId pattern; uses "\(typeLabel)-\(title)-\(dueDate.displayString)" composite
-// plus deduplication counter in careDueStableRows for uniqueness when two reminders share same fields.
 private extension CareDueItem {
     var careDueStableId: String { "\(typeLabel)-\(title)-\(dueDate.displayString)" }
 }
 
-/// Swift-side observation for the Care Due panel: bridges the Kotlin
-/// UpcomingCareStore's state flow into published properties. Subscription is
-/// tied to view lifecycle — cancelled on deinit so rapid open/close cannot leak.
 @MainActor
 final class CareDuePanelModel: ObservableObject {
     @Published var items: [CareDueItem] = []
@@ -552,9 +422,6 @@ final class CareDuePanelModel: ObservableObject {
     }
 }
 
-/// Observes the patient's gestation list so the Overview can surface an
-/// active pregnancy. Single-source rule: active check mirrors Kotlin
-/// CalculateGestationUseCase RESOLVED_STATUSES + isActive flag.
 @MainActor
 final class GestationPanelModel: ObservableObject {
     @Published var activeGestation: Gestation_?
@@ -578,27 +445,5 @@ final class GestationPanelModel: ObservableObject {
     deinit {
         loadTask?.cancel()
         cancellable?.cancel()
-    }
-}
-
-struct StubTabView: View {
-    let title: String
-    let systemImage: String
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: systemImage)
-                .font(.system(size: 64))
-                .foregroundStyle(Theme.forestGreen.opacity(0.4))
-            Text("Coming soon")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-            Text("\(title) information will appear here")
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
 }

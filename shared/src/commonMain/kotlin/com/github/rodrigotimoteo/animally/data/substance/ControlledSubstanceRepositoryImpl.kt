@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.Substance as DbSubstan
 
 /**
  * Repository implementation for managing [ControlledSubstance] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IControlledSubstanceRepository] with its domain-named parameters (`controlledSubstance` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: ControlledSubstance`, interface uses `controlledSubstance: ControlledSubstance`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: ControlledSubstance`, interface uses `controlledSubstance: ControlledSubstance`
 @Single(binds = [IControlledSubstanceRepository::class])
 class ControlledSubstanceRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -73,24 +69,4 @@ class ControlledSubstanceRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = substanceQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
-
-    override fun getByPatient(patientId: Long): List<ControlledSubstance> =
-        super
-            .getByPatient(patientId)
-            .sortedByDescending { it.date }
-
-    override fun getById(id: Long): ControlledSubstance? = super.getById(id)
-
-    override fun insert(controlledSubstance: ControlledSubstance): Long = super.insert(controlledSubstance)
-
-    override fun update(controlledSubstance: ControlledSubstance): Long = super.update(controlledSubstance)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

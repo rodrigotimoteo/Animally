@@ -80,13 +80,8 @@ enum RecordFormStyle {
             .foregroundStyle(.red)
     }
 
-    /// ISO yyyy-MM-dd formatter shared by every date field.
-    static let isoDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
+    /// ISO yyyy-MM-dd formatter — single source via DateFormatters.
+    static var isoDateFormatter: DateFormatter { DateFormatters.iso }
 
     /// Native compact date picker bound through an ISO yyyy-MM-dd string so
     /// it can drive the Kotlin-backed form fields without any parsing glue
@@ -95,8 +90,8 @@ enum RecordFormStyle {
         DatePicker(
             placeholder,
             selection: Binding(
-                get: { isoDateFormatter.date(from: value) ?? Date() },
-                set: { onChange(isoDateFormatter.string(from: $0)) }
+                get: { DateFormatters.iso.date(from: value) ?? Date() },
+                set: { onChange(DateFormatters.iso.string(from: $0)) }
             ),
             displayedComponents: .date
         )
@@ -113,12 +108,12 @@ enum RecordFormStyle {
         onChange: @escaping (String?) -> Void
     ) -> some View {
         HStack {
-            if let value, let parsedDate = isoDateFormatter.date(from: value) {
+            if let value, let parsedDate = DateFormatters.iso.date(from: value) {
                 DatePicker(
                     title,
                     selection: Binding(
                         get: { parsedDate },
-                        set: { onChange(isoDateFormatter.string(from: $0)) }
+                        set: { onChange(DateFormatters.iso.string(from: $0)) }
                     ),
                     displayedComponents: .date
                 )
@@ -139,7 +134,7 @@ enum RecordFormStyle {
                 Text("Not set")
                     .foregroundStyle(Theme.textSecondary)
                 Button("Set") {
-                    onChange(isoDateFormatter.string(from: Date()))
+                    onChange(DateFormatters.iso.string(from: Date()))
                 }
                 .buttonStyle(.borderless)
             }
@@ -188,29 +183,6 @@ enum RecordFormStyle {
     }
 
     static func errorBanner(message: String, onDismiss: @escaping () -> Void) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Theme.amber)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(2)
-            Spacer()
-            Button {
-                onDismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.textSecondary)
-                    .accessibilityLabel("Dismiss error")
-            }
-        }
-        .padding(12)
-        .background(Theme.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        InlineErrorBanner(message: message, onDismiss: onDismiss)
     }
 }

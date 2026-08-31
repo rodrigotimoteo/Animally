@@ -38,9 +38,4 @@ data class InsightsSnapshot(
      * Missing types are omitted (count 0).
      */
     val issuesByType: Map<InsightsDataIssueType, Int> get() = dataIssues.associate { it.type to it.count }
-
-    /**
-     * Alias for [dataIssues] using the plan's preferred naming `issueCounts`.
-     */
-    val issueCounts: List<InsightsDataIssueCount> get() = dataIssues
 }

@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.ReproMedication as DbR
 
 /**
  * Repository implementation for managing [ReproMedication] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IReproMedicationRepository] with its domain-named parameters (`reproMedication` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: ReproMedication`, interface uses `reproMedication: ReproMedication`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: ReproMedication`, interface uses `reproMedication: ReproMedication`
 @Single(binds = [IReproMedicationRepository::class])
 class ReproMedicationRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -67,24 +63,4 @@ class ReproMedicationRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = reproMedQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
-
-    override fun getByPatient(patientId: Long): List<ReproMedication> =
-        super
-            .getByPatient(patientId)
-            .sortedByDescending { it.dateAdministered }
-
-    override fun getById(id: Long): ReproMedication? = super.getById(id)
-
-    override fun insert(reproMedication: ReproMedication): Long = super.insert(reproMedication)
-
-    override fun update(reproMedication: ReproMedication): Long = super.update(reproMedication)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

@@ -25,7 +25,7 @@ struct SearchView: View {
             .navigationTitle("Search")
             .overlay(alignment: .top) {
                 if let errorMessage = viewModel.state.errorMessage {
-                    errorBanner(message: errorMessage)
+                    InlineErrorBanner(message: errorMessage, onDismiss: { viewModel.dismissError() })
                 }
             }
             .safeAreaInset(edge: .top) {
@@ -98,8 +98,6 @@ struct SearchView: View {
             ForEach(viewModel.state.results, id: \.self) { result in
                 Group {
                     if result.recordType == "OWNER" {
-                        // Owner hits navigate to the owner; patientId mirrors
-                        // the owner id for these rows.
                         NavigationLink(value: Route.ownerDetail(result.patientId)) {
                             SearchResultRow(result: result, showsDisclosureIndicator: false)
                         }
@@ -110,8 +108,6 @@ struct SearchView: View {
                         }
                         .buttonStyle(.plain)
                     } else {
-                        // Record hits open the read-only record detail with the
-                        // patient page underneath so Back returns to it.
                         Button {
                             path.append(Route.patientDetail(result.patientId))
                             path.append(RecordDetailKey(
@@ -164,32 +160,6 @@ struct SearchView: View {
         .padding()
     }
 
-    private func errorBanner(message: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Theme.amber)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(2)
-            Spacer()
-            Button {
-                viewModel.dismissError()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.textSecondary)
-                    .accessibilityLabel("Dismiss error")
-            }
-        }
-        .padding(12)
-        .background(Theme.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
 }
 
 struct SearchResultRow: View {
@@ -197,60 +167,16 @@ struct SearchResultRow: View {
     var showsDisclosureIndicator = true
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconForRecordType(result.recordType))
-                .font(.title2)
-                .foregroundStyle(Theme.forestGreen)
-                .frame(width: 44, height: 44)
-                .background(Theme.forestGreen.opacity(0.12))
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(result.patientName)
-                    .font(.headline)
-                    .foregroundStyle(Theme.textPrimary)
-
-                Text(result.snippet)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(2)
-
-                if let date = result.date {
-                    Text(formatDate(date))
-                        .font(.caption)
-                        .foregroundStyle(Theme.textTertiary)
-                }
-            }
-
-            Spacer()
-
-            if showsDisclosureIndicator {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.textTertiary)
-            }
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
+        RecordRowView(
+            icon: RecordTypeIcon.systemName(for: result.recordType),
+            iconTint: Theme.forestGreen,
+            title: result.patientName,
+            subtitle: result.snippet,
+            date: result.date?.displayString,
+            showsDisclosure: showsDisclosureIndicator,
+            badgeSize: 44,
+            badgeCorner: 22
+        )
         .accessibilityLabel("Result for \(result.patientName), \(result.recordType): \(result.snippet)")
-    }
-
-    private func iconForRecordType(_ type: String) -> String {
-        switch type.uppercased() {
-        case "PATIENT":
-            return "pawprint.fill"
-        case "OWNER":
-            return "person.fill"
-        case "CONSULTATION":
-            return "stethoscope"
-        case "MEDICATION":
-            return "pills.fill"
-        default:
-            return "doc.text.fill"
-        }
-    }
-
-    private func formatDate(_ date: Kotlinx_datetimeLocalDate) -> String {
-        return date.displayString
     }
 }

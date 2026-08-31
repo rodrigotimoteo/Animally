@@ -21,7 +21,7 @@ selectById:
 SELECT * FROM Weight WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM Weight WHERE patientId = ? AND isActive = 1;
+SELECT * FROM Weight WHERE patientId = ? AND isActive = 1 ORDER BY date DESC;
 
 selectAll:
 SELECT * FROM Weight WHERE isActive = 1;

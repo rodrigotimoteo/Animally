@@ -522,9 +522,6 @@ class GetInsightsDashboardUseCaseTest {
                             status = "Active",
                         ),
                     ),
-                dueSoon30 = emptyList(),
-                dueSoon60 = emptyList(),
-                dueSoon90 = emptyList(),
             )
         val repo = FakeRepository()
         repo.bucketsByFilter[filter] = emptyList()
@@ -554,9 +551,6 @@ class GetInsightsDashboardUseCaseTest {
                         CurrentGestationItem(4L, "D", 4L, 310, LocalDate(2025, 3, 1), 29, "Active"),
                         CurrentGestationItem(5L, "E", 5L, 300, LocalDate(2025, 3, 15), 43, "Active"),
                     ),
-                dueSoon30 = emptyList(),
-                dueSoon60 = emptyList(),
-                dueSoon90 = emptyList(),
             )
         val overdue = care.activeGestations.first { it.daysUntilDue < 0 }
         assertEquals(-11, overdue.daysUntilDue)

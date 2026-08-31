@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.domain.insights.model
 
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.insights.model.avgOrNull
 import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEventType
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -73,38 +74,30 @@ class InsightsModelTest {
 
     @Test
     fun overviewMetrics_averagesNullForEmptyPeriod() {
-        val (perActive, perCase) =
-            OverviewMetrics.averages(
-                activityCount = 0,
-                caseDayCount = 0,
-                activeDayCount = 0,
-            )
+        val perActive = avgOrNull(0, 0)
+        val perCase = avgOrNull(0, 0)
         assertNull(perActive)
         assertNull(perCase)
     }
 
     @Test
     fun overviewMetrics_averagesComputedWhenNonEmpty() {
-        val (perActive, perCase) =
-            OverviewMetrics.averages(
-                activityCount = 10,
-                caseDayCount = 5,
-                activeDayCount = 2,
-            )
+        val perActive = avgOrNull(10, 2)
+        val perCase = avgOrNull(10, 5)
         assertEquals(5.0, perActive!!, 0.001)
         assertEquals(2.0, perCase!!, 0.001)
     }
 
     @Test
     fun recordTypeCount_shareNullForEmptyTotal() {
-        assertNull(RecordTypeCount.share(count = 0, total = 0))
-        assertEquals(0.5, RecordTypeCount.share(count = 1, total = 2)!!, 0.001)
+        assertNull(avgOrNull(0, 0))
+        assertEquals(0.5, avgOrNull(1, 2)!!, 0.001)
     }
 
     @Test
     fun reproductionMetrics_averagesNullWhenNoCollections() {
-        assertNull(ReproductionMetrics.avgEmbryos(collected = 0, collections = 0))
-        assertNull(ReproductionMetrics.avgFollicles(follicles = 0, sessions = 0))
+        assertNull(avgOrNull(0, 0))
+        assertNull(avgOrNull(0, 0))
     }
 
     @Test

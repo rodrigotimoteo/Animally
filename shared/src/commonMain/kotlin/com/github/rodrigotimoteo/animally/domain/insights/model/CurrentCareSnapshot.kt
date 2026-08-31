@@ -7,13 +7,19 @@ package com.github.rodrigotimoteo.animally.domain.insights.model
  * the historical period filter.
  *
  * @property activeGestations all active, unresolved gestations as of today.
- * @property dueSoon30 gestations due in 0..30 days inclusive.
- * @property dueSoon60 gestations due in 0..60 days inclusive.
- * @property dueSoon90 gestations due in 0..90 days inclusive.
  */
 data class CurrentCareSnapshot(
     val activeGestations: List<CurrentGestationItem>,
-    val dueSoon30: List<CurrentGestationItem> = emptyList(),
-    val dueSoon60: List<CurrentGestationItem> = emptyList(),
-    val dueSoon90: List<CurrentGestationItem> = emptyList(),
-)
+) {
+    fun dueSoon(days: Int): List<CurrentGestationItem> = activeGestations.filter { it.isDueSoon(days) }
+
+    val dueSoon30: List<CurrentGestationItem> get() = dueSoon(DUE_SOON_30_DAYS)
+    val dueSoon60: List<CurrentGestationItem> get() = dueSoon(DUE_SOON_60_DAYS)
+    val dueSoon90: List<CurrentGestationItem> get() = dueSoon(DUE_SOON_90_DAYS)
+
+    companion object {
+        const val DUE_SOON_30_DAYS = 30
+        const val DUE_SOON_60_DAYS = 60
+        const val DUE_SOON_90_DAYS = 90
+    }
+}

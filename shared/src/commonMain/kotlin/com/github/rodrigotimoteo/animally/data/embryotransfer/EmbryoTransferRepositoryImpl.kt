@@ -22,7 +22,6 @@ class EmbryoTransferRepositoryImpl(
             .selectByPatient(patientId)
             .executeAsList()
             .map { it.toDomain() }
-            .sortedByDescending { it.date }
 
     override fun getById(id: Long): EmbryoTransfer? = queries.selectById(id).executeAsOneOrNull()?.toDomain()
 

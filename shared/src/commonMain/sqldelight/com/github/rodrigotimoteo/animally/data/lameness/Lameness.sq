@@ -26,7 +26,7 @@ selectById:
 SELECT * FROM Lameness WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM Lameness WHERE patientId = ? AND isActive = 1;
+SELECT * FROM Lameness WHERE patientId = ? AND isActive = 1 ORDER BY date DESC;
 
 selectAll:
 SELECT * FROM Lameness WHERE isActive = 1;

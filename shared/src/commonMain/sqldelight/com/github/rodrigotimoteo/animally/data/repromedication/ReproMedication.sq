@@ -24,7 +24,7 @@ selectById:
 SELECT * FROM ReproMedication WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM ReproMedication WHERE patientId = ? AND isActive = 1;
+SELECT * FROM ReproMedication WHERE patientId = ? AND isActive = 1 ORDER BY dateAdministered DESC;
 
 selectAll:
 SELECT * FROM ReproMedication WHERE isActive = 1;

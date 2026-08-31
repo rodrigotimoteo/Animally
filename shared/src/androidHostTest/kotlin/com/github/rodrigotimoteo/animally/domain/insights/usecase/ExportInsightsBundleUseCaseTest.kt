@@ -71,9 +71,6 @@ class ExportInsightsBundleUseCaseTest {
                         CurrentGestationItem(5L, "Star", 101L, 200, LocalDate(2025, 4, 10), 54, "Active"),
                         CurrentGestationItem(42L, "Nova", 102L, 350, LocalDate(2025, 2, 10), -5, "Active"),
                     ),
-                dueSoon30 = emptyList(),
-                dueSoon60 = emptyList(),
-                dueSoon90 = emptyList(),
             )
         return InsightsSnapshot(
             overview = overview,

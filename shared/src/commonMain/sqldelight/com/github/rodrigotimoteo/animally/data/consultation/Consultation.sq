@@ -25,7 +25,7 @@ selectById:
 SELECT * FROM Consultation WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM Consultation WHERE patientId = ? AND isActive = 1;
+SELECT * FROM Consultation WHERE patientId = ? AND isActive = 1 ORDER BY date DESC;
 
 selectAll:
 SELECT * FROM Consultation WHERE isActive = 1;

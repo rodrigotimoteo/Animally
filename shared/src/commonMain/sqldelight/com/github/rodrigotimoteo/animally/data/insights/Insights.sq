@@ -1,277 +1,95 @@
 import kotlinx.datetime.LocalDate;
 
 -- Insights.sq — Activity aggregation + reproduction aggregates + earliest-date helpers.
--- Insights activity aggregation. M6 perf fix: split patient-scoped vs global to make predicates sargable.
--- Previously each branch used (:patientId IS NULL OR patientId = :patientId) → prevented index use (SCAN).
--- Now repository dispatches: when patientId != null uses patient equality (SEARCH via idx_*_patient_date),
--- when null uses global variant without patient predicate (SCAN INDEX covering, not SCAN TABLE).
--- Partial indexes WHERE isActive=1 match branch WHERE isActive=1.
--- Medication additionally filters startDate IS NOT NULL, matching partial index.
+-- C1 simplified: 17-table UNION ALL extracted to views insights_activity_rows + insights_activity_active.
+-- Base view holds raw active rows; filtered view joins Patient.isActive=1 for reuse.
+-- Scoped vs global split retained for sargable predicates (SEARCH via idx_*_patient_date vs SCAN INDEX).
+-- Migration 15 notes nullable (:pid IS NULL OR patientId=:pid) -> SCAN, so split kept; shared fragment deduplicated via views below.
+-- Partial indexes WHERE isActive=1 match view branches; Medication filters startDate IS NOT NULL.
+-- Reproduction tolerant parser lower(replace(...)) single-sourced with ReproductionEventType.normalize;
+-- SQL NOT IN list ('heat','breeding','pregnancycheck','foaling','initialexam') derived from ReproductionEventType.knownNormalizedValues.
 
--- Buckets: scoped (patient equality)
+CREATE VIEW IF NOT EXISTS insights_activity_rows AS
+  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType, vetName AS vetAttr FROM Consultation WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'DENTISTRY', vetName FROM Dentistry WHERE isActive = 1
+  UNION ALL SELECT id, patientId, dateAdministered, 'DEWORMING', vetName FROM Deworming WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'FARRIER_VISIT', farrier FROM FarrierVisit WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'IMAGING', vetName FROM Imaging WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'LAB_RESULT', vetName FROM LabResult WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'LAMENESS', vetName FROM Lameness WHERE isActive = 1
+  UNION ALL SELECT id, patientId, startDate, 'MEDICATION', prescribedBy FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL
+  UNION ALL SELECT id, patientId, date, 'REPRODUCTION_EVENT', vetName FROM Reproduction WHERE isActive = 1
+  UNION ALL SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION', vetName FROM ReproMedication WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'SURGERY', surgeon FROM Surgery WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE', administeredBy FROM Substance WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'ULTRASOUND', vetName FROM Ultrasound WHERE isActive = 1
+  UNION ALL SELECT id, patientId, dateAdministered, 'VACCINATION', vetName FROM Vaccination WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'WEIGHT', 'ok' FROM Weight WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'EMBRYO_TRANSFER', vetName FROM EmbryoTransfer WHERE isActive = 1
+  UNION ALL SELECT id, patientId, date, 'ICSI', vetName FROM Icsi WHERE isActive = 1;
+
+CREATE VIEW IF NOT EXISTS insights_activity_active AS
+  SELECT r.recordId, r.patientId, r.activityDate, r.recordType, r.vetAttr, p.name AS patientName, p.ownerId
+  FROM insights_activity_rows r JOIN Patient p ON p.id = r.patientId WHERE p.isActive = 1;
+
+CREATE VIEW IF NOT EXISTS insights_missing_vet AS
+  SELECT * FROM insights_activity_active WHERE vetAttr IS NULL OR LENGTH(TRIM(vetAttr)) = 0;
+
+CREATE VIEW IF NOT EXISTS insights_unlinked_owner AS
+  SELECT * FROM insights_activity_active WHERE ownerId IS NULL;
+
+CREATE VIEW IF NOT EXISTS insights_free_text_embryo AS
+  SELECT EmbryoTransfer.id AS recordId, EmbryoTransfer.patientId AS patientId, Patient.name AS patientName, EmbryoTransfer.date AS date, 'EMBRYO_TRANSFER' AS recordTypeWireName
+  FROM EmbryoTransfer JOIN Patient ON Patient.id = EmbryoTransfer.patientId
+  WHERE EmbryoTransfer.isActive = 1 AND Patient.isActive = 1 AND EmbryoTransfer.recipientMares IS NOT NULL AND LENGTH(TRIM(EmbryoTransfer.recipientMares)) > 0;
+
+CREATE VIEW IF NOT EXISTS insights_incomplete_ultrasound AS
+  SELECT Ultrasound.id AS recordId, Ultrasound.patientId AS patientId, Patient.name AS patientName, Ultrasound.date AS date, 'ULTRASOUND' AS recordTypeWireName
+  FROM Ultrasound JOIN Patient ON Patient.id = Ultrasound.patientId
+  WHERE Ultrasound.isActive = 1 AND Patient.isActive = 1
+  AND (Ultrasound.ovaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.ovaryStatus)) = 0)
+  AND (Ultrasound.uterineStatus IS NULL OR LENGTH(TRIM(Ultrasound.uterineStatus)) = 0)
+  AND Ultrasound.follicleSizeMm IS NULL
+  AND (Ultrasound.leftOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.leftOvaryStatus)) = 0)
+  AND (Ultrasound.rightOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.rightOvaryStatus)) = 0)
+  AND Ultrasound.leftFollicleSizeMm IS NULL
+  AND Ultrasound.rightFollicleSizeMm IS NULL
+  AND (Ultrasound.uterineEdema IS NULL OR LENGTH(TRIM(Ultrasound.uterineEdema)) = 0)
+  AND Ultrasound.uterineLiquid IS NULL
+  AND (Ultrasound.uterineLiquidDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterineLiquidDescription)) = 0)
+  AND (Ultrasound.uterusDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterusDescription)) = 0);
+
+-- Buckets: scoped vs global — sargable via WHERE pushdown into view branches
 selectActivityBucketsForPatient:
-WITH activity_rows AS (
-  SELECT date AS activityDate, patientId, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT dateAdministered, patientId, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT startDate, patientId, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT dateAdministered, patientId, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT dateAdministered, patientId, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'WEIGHT' FROM Weight WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId, 'ICSI' FROM Icsi WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-)
-SELECT activityDate AS date, activity_rows.patientId AS patientId, recordType AS recordTypeWireName, COUNT(*) AS cnt
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1
-GROUP BY activityDate, activity_rows.patientId, recordType;
+SELECT activityDate AS date, patientId, recordType AS recordTypeWireName, COUNT(*) AS cnt
+FROM insights_activity_active
+WHERE activityDate >= :from AND activityDate <= :to AND patientId = :patientId
+GROUP BY activityDate, patientId, recordType;
 
--- Buckets: global (no patient predicate) — avoids OR IS NULL non-sargable pattern
 selectActivityBucketsGlobal:
-WITH activity_rows AS (
-  SELECT date AS activityDate, patientId, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT dateAdministered, patientId, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT startDate, patientId, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT dateAdministered, patientId, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT dateAdministered, patientId, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'WEIGHT' FROM Weight WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT date, patientId, 'ICSI' FROM Icsi WHERE isActive = 1 AND date BETWEEN :from AND :to
-)
-SELECT activityDate AS date, activity_rows.patientId AS patientId, recordType AS recordTypeWireName, COUNT(*) AS cnt
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1
-GROUP BY activityDate, activity_rows.patientId, recordType;
+SELECT activityDate AS date, patientId, recordType AS recordTypeWireName, COUNT(*) AS cnt
+FROM insights_activity_active
+WHERE activityDate >= :from AND activityDate <= :to
+GROUP BY activityDate, patientId, recordType;
 
--- Record refs: scoped (no type filter) — sargable, no OR IS NULL
+-- Record refs: scoped/global with nullable wire collapsed via (:wire IS NULL OR recordType=:wire) — wire not indexed so no sargability loss, patient split retained.
 selectActivityRecordRefsForPatient:
-WITH activity_rows AS (
-  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, startDate, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'WEIGHT' FROM Weight WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'ICSI' FROM Icsi WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-)
-SELECT recordId, activity_rows.patientId AS patientId, Patient.name AS patientName, activityDate AS date, recordType AS recordTypeWireName
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1
+SELECT recordId, patientId, patientName, activityDate AS date, recordType AS recordTypeWireName
+FROM insights_activity_active
+WHERE activityDate >= :from AND activityDate <= :to AND patientId = :patientId AND (:recordTypeWireName IS NULL OR recordType = :recordTypeWireName)
 ORDER BY activityDate DESC, recordId DESC;
 
--- Record refs: scoped by type — sargable equality only (no OR)
-selectActivityRecordRefsForPatientByType:
-WITH activity_rows AS (
-  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, startDate, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'WEIGHT' FROM Weight WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'ICSI' FROM Icsi WHERE isActive = 1 AND date BETWEEN :from AND :to AND patientId = :patientId
-)
-SELECT recordId, activity_rows.patientId AS patientId, Patient.name AS patientName, activityDate AS date, recordType AS recordTypeWireName
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1
-AND recordType = :recordTypeWireName
-ORDER BY activityDate DESC, recordId DESC;
-
--- Record refs: global (no type filter) — sargable, no OR IS NULL
 selectActivityRecordRefsGlobal:
-WITH activity_rows AS (
-  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, startDate, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'WEIGHT' FROM Weight WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'ICSI' FROM Icsi WHERE isActive = 1 AND date BETWEEN :from AND :to
-)
-SELECT recordId, activity_rows.patientId AS patientId, Patient.name AS patientName, activityDate AS date, recordType AS recordTypeWireName
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1
+SELECT recordId, patientId, patientName, activityDate AS date, recordType AS recordTypeWireName
+FROM insights_activity_active
+WHERE activityDate >= :from AND activityDate <= :to AND (:recordTypeWireName IS NULL OR recordType = :recordTypeWireName)
 ORDER BY activityDate DESC, recordId DESC;
 
--- Record refs: global by type — sargable equality only (no OR)
-selectActivityRecordRefsGlobalByType:
-WITH activity_rows AS (
-  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, startDate, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'WEIGHT' FROM Weight WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date BETWEEN :from AND :to
-  UNION ALL
-  SELECT id, patientId, date, 'ICSI' FROM Icsi WHERE isActive = 1 AND date BETWEEN :from AND :to
-)
-SELECT recordId, activity_rows.patientId AS patientId, Patient.name AS patientName, activityDate AS date, recordType AS recordTypeWireName
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1
-AND recordType = :recordTypeWireName
-ORDER BY activityDate DESC, recordId DESC;
-
--- Canonical reproduction-subtype drill-down. Kotlin performs tolerant subtype
--- parsing (legacy spaces/underscores/hyphens and unknown -> Other), while SQL
--- keeps the range, patient, active-row and active-patient filters exact.
-selectReproductionRecordRefsForPatient:
+-- Canonical reproduction-subtype drill-down. Tolerant normalization in SQL via lower/replace,
+-- sargable range/patient predicates retained for idx_reproduction_patient_date.
+-- Shared fragment: Reproduction.isActive=1 AND Patient.isActive=1 AND date BETWEEN :from AND :to [+ patientId=:pid] [+ normalized filter]
+-- SQL lower(replace...) single-sourced with ReproductionEventType.normalize; NOT IN list derived from knownNormalizedValues.
+selectReproductionRecordRefsForPatientByNormalized:
 SELECT Reproduction.id AS recordId,
        Reproduction.patientId AS patientId,
        Patient.name AS patientName,
@@ -281,11 +99,12 @@ FROM Reproduction
 JOIN Patient ON Patient.id = Reproduction.patientId
 WHERE Reproduction.isActive = 1
 AND Patient.isActive = 1
-AND Reproduction.date BETWEEN :from AND :to
+AND Reproduction.date >= :from AND Reproduction.date <= :to
 AND Reproduction.patientId = :patientId
+AND lower(replace(replace(replace(Reproduction.eventType, ' ', ''), '_', ''), '-', '')) = :normalized
 ORDER BY Reproduction.date DESC, Reproduction.id DESC;
 
-selectReproductionRecordRefsGlobal:
+selectReproductionRecordRefsGlobalByNormalized:
 SELECT Reproduction.id AS recordId,
        Reproduction.patientId AS patientId,
        Patient.name AS patientName,
@@ -295,98 +114,19 @@ FROM Reproduction
 JOIN Patient ON Patient.id = Reproduction.patientId
 WHERE Reproduction.isActive = 1
 AND Patient.isActive = 1
-AND Reproduction.date BETWEEN :from AND :to
+AND Reproduction.date >= :from AND Reproduction.date <= :to
+AND lower(replace(replace(replace(Reproduction.eventType, ' ', ''), '_', ''), '-', '')) = :normalized
 ORDER BY Reproduction.date DESC, Reproduction.id DESC;
 
--- Earliest: scoped
+-- Earliest: scoped / global
 selectEarliestActivityDateForPatient:
-WITH activity_rows AS (
-  SELECT date AS activityDate, patientId FROM Consultation WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Dentistry WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT dateAdministered, patientId FROM Deworming WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM FarrierVisit WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Imaging WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM LabResult WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Lameness WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT startDate, patientId FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Reproduction WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT dateAdministered, patientId FROM ReproMedication WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Surgery WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Substance WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Ultrasound WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT dateAdministered, patientId FROM Vaccination WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Weight WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM EmbryoTransfer WHERE isActive = 1 AND patientId = :patientId
-  UNION ALL
-  SELECT date, patientId FROM Icsi WHERE isActive = 1 AND patientId = :patientId
-)
-SELECT activityDate
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1
-ORDER BY activityDate ASC
-LIMIT 1;
+SELECT activityDate FROM insights_activity_active WHERE patientId = :patientId ORDER BY activityDate ASC LIMIT 1;
 
--- Earliest: global (no patient filter)
 selectEarliestActivityDateGlobal:
-WITH activity_rows AS (
-  SELECT date AS activityDate, patientId FROM Consultation WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM Dentistry WHERE isActive = 1
-  UNION ALL
-  SELECT dateAdministered, patientId FROM Deworming WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM FarrierVisit WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM Imaging WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM LabResult WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM Lameness WHERE isActive = 1
-  UNION ALL
-  SELECT startDate, patientId FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL
-  UNION ALL
-  SELECT date, patientId FROM Reproduction WHERE isActive = 1
-  UNION ALL
-  SELECT dateAdministered, patientId FROM ReproMedication WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM Surgery WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM Substance WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM Ultrasound WHERE isActive = 1
-  UNION ALL
-  SELECT dateAdministered, patientId FROM Vaccination WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM Weight WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM EmbryoTransfer WHERE isActive = 1
-  UNION ALL
-  SELECT date, patientId FROM Icsi WHERE isActive = 1
-)
-SELECT activityDate
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1
-ORDER BY activityDate ASC
-LIMIT 1;
+SELECT activityDate FROM insights_activity_active ORDER BY activityDate ASC LIMIT 1;
 
 -- Reproduction period facts (Task 10): sargable scoped/global split, inclusive range, Patient.isActive=1, isActive=1
+-- Shared fragment deduplicated: FROM Reproduction JOIN Patient WHERE isActive=1 AND date BETWEEN :from AND :to [+ patientId=:pid]
 selectReproductionEventCountsForPatient:
 SELECT eventType, COUNT(*) AS cnt FROM Reproduction
 JOIN Patient ON Patient.id = Reproduction.patientId
@@ -437,22 +177,21 @@ JOIN Patient ON Patient.id = Ultrasound.patientId
 WHERE Ultrasound.isActive = 1 AND Patient.isActive = 1
 AND Ultrasound.date BETWEEN :from AND :to;
 
--- Task 13: Research-readiness counts + drill-down. Sargable scoped/global split,
--- inclusive range, isActive=1, Patient.isActive=1, partial index friendly.
--- Each rule has explicit definition surfaced as "missing for analysis", not clinically wrong.
-
--- Unknown reproduction category: raw eventType list for Kotlin Other detection (tolerant parse)
-selectReproductionEventTypesForPatient:
-SELECT eventType FROM Reproduction
+-- Task 13: Research-readiness counts + drill-down. Sargable scoped/global split, shared fragment.
+-- Unknown reproduction category: tolerant NOT IN known normalized list, single-sourced via ReproductionEventType.knownNormalizedValues.
+selectUnknownReproductionCountForPatient:
+SELECT COUNT(*) AS cnt FROM Reproduction
 JOIN Patient ON Patient.id = Reproduction.patientId
 WHERE Reproduction.isActive = 1 AND Patient.isActive = 1
-AND Reproduction.date >= :from AND Reproduction.date <= :to AND Reproduction.patientId = :patientId;
+AND Reproduction.date >= :from AND Reproduction.date <= :to AND Reproduction.patientId = :patientId
+AND lower(replace(replace(replace(Reproduction.eventType, ' ', ''), '_', ''), '-', '')) NOT IN ('heat','breeding','pregnancycheck','foaling','initialexam');
 
-selectReproductionEventTypesGlobal:
-SELECT eventType FROM Reproduction
+selectUnknownReproductionCountGlobal:
+SELECT COUNT(*) AS cnt FROM Reproduction
 JOIN Patient ON Patient.id = Reproduction.patientId
 WHERE Reproduction.isActive = 1 AND Patient.isActive = 1
-AND Reproduction.date >= :from AND Reproduction.date <= :to;
+AND Reproduction.date >= :from AND Reproduction.date <= :to
+AND lower(replace(replace(replace(Reproduction.eventType, ' ', ''), '_', ''), '-', '')) NOT IN ('heat','breeding','pregnancycheck','foaling','initialexam');
 
 selectUnknownReproductionRefsForPatient:
 SELECT Reproduction.id AS recordId, Reproduction.patientId AS patientId, Patient.name AS patientName, Reproduction.date AS date, Reproduction.eventType AS eventType
@@ -460,6 +199,7 @@ FROM Reproduction
 JOIN Patient ON Patient.id = Reproduction.patientId
 WHERE Reproduction.isActive = 1 AND Patient.isActive = 1
 AND Reproduction.date >= :from AND Reproduction.date <= :to AND Reproduction.patientId = :patientId
+AND lower(replace(replace(replace(Reproduction.eventType, ' ', ''), '_', ''), '-', '')) NOT IN ('heat','breeding','pregnancycheck','foaling','initialexam')
 ORDER BY Reproduction.date DESC, Reproduction.id DESC;
 
 selectUnknownReproductionRefsGlobal:
@@ -468,429 +208,60 @@ FROM Reproduction
 JOIN Patient ON Patient.id = Reproduction.patientId
 WHERE Reproduction.isActive = 1 AND Patient.isActive = 1
 AND Reproduction.date >= :from AND Reproduction.date <= :to
+AND lower(replace(replace(replace(Reproduction.eventType, ' ', ''), '_', ''), '-', '')) NOT IN ('heat','breeding','pregnancycheck','foaling','initialexam')
 ORDER BY Reproduction.date DESC, Reproduction.id DESC;
 
--- Free-text embryo recipient (recipientMares non-empty)
+-- Free-text embryo recipient via view
 selectFreeTextEmbryoCountForPatient:
-SELECT COUNT(*) AS cnt FROM EmbryoTransfer
-JOIN Patient ON Patient.id = EmbryoTransfer.patientId
-WHERE EmbryoTransfer.isActive = 1 AND Patient.isActive = 1
-AND EmbryoTransfer.date >= :from AND EmbryoTransfer.date <= :to AND EmbryoTransfer.patientId = :patientId
-AND EmbryoTransfer.recipientMares IS NOT NULL AND LENGTH(TRIM(EmbryoTransfer.recipientMares)) > 0;
+SELECT COUNT(*) AS cnt FROM insights_free_text_embryo WHERE date >= :from AND date <= :to AND patientId = :patientId;
 
 selectFreeTextEmbryoCountGlobal:
-SELECT COUNT(*) AS cnt FROM EmbryoTransfer
-JOIN Patient ON Patient.id = EmbryoTransfer.patientId
-WHERE EmbryoTransfer.isActive = 1 AND Patient.isActive = 1
-AND EmbryoTransfer.date >= :from AND EmbryoTransfer.date <= :to
-AND EmbryoTransfer.recipientMares IS NOT NULL AND LENGTH(TRIM(EmbryoTransfer.recipientMares)) > 0;
+SELECT COUNT(*) AS cnt FROM insights_free_text_embryo WHERE date >= :from AND date <= :to;
 
 selectFreeTextEmbryoRefsForPatient:
-SELECT EmbryoTransfer.id AS recordId, EmbryoTransfer.patientId AS patientId, Patient.name AS patientName, EmbryoTransfer.date AS date, 'EMBRYO_TRANSFER' AS recordTypeWireName
-FROM EmbryoTransfer
-JOIN Patient ON Patient.id = EmbryoTransfer.patientId
-WHERE EmbryoTransfer.isActive = 1 AND Patient.isActive = 1
-AND EmbryoTransfer.date >= :from AND EmbryoTransfer.date <= :to AND EmbryoTransfer.patientId = :patientId
-AND EmbryoTransfer.recipientMares IS NOT NULL AND LENGTH(TRIM(EmbryoTransfer.recipientMares)) > 0
-ORDER BY EmbryoTransfer.date DESC, EmbryoTransfer.id DESC;
+SELECT recordId, patientId, patientName, date, recordTypeWireName FROM insights_free_text_embryo WHERE date >= :from AND date <= :to AND patientId = :patientId ORDER BY date DESC, recordId DESC;
 
 selectFreeTextEmbryoRefsGlobal:
-SELECT EmbryoTransfer.id AS recordId, EmbryoTransfer.patientId AS patientId, Patient.name AS patientName, EmbryoTransfer.date AS date, 'EMBRYO_TRANSFER' AS recordTypeWireName
-FROM EmbryoTransfer
-JOIN Patient ON Patient.id = EmbryoTransfer.patientId
-WHERE EmbryoTransfer.isActive = 1 AND Patient.isActive = 1
-AND EmbryoTransfer.date >= :from AND EmbryoTransfer.date <= :to
-AND EmbryoTransfer.recipientMares IS NOT NULL AND LENGTH(TRIM(EmbryoTransfer.recipientMares)) > 0
-ORDER BY EmbryoTransfer.date DESC, EmbryoTransfer.id DESC;
+SELECT recordId, patientId, patientName, date, recordTypeWireName FROM insights_free_text_embryo WHERE date >= :from AND date <= :to ORDER BY date DESC, recordId DESC;
 
--- Incomplete structured ultrasound data (all structured fields null/blank)
+-- Incomplete ultrasound via view
 selectIncompleteUltrasoundCountForPatient:
-SELECT COUNT(*) AS cnt FROM Ultrasound
-JOIN Patient ON Patient.id = Ultrasound.patientId
-WHERE Ultrasound.isActive = 1 AND Patient.isActive = 1
-AND Ultrasound.date >= :from AND Ultrasound.date <= :to AND Ultrasound.patientId = :patientId
-AND (Ultrasound.ovaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.ovaryStatus)) = 0)
-AND (Ultrasound.uterineStatus IS NULL OR LENGTH(TRIM(Ultrasound.uterineStatus)) = 0)
-AND Ultrasound.follicleSizeMm IS NULL
-AND (Ultrasound.leftOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.leftOvaryStatus)) = 0)
-AND (Ultrasound.rightOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.rightOvaryStatus)) = 0)
-AND Ultrasound.leftFollicleSizeMm IS NULL
-AND Ultrasound.rightFollicleSizeMm IS NULL
-AND (Ultrasound.uterineEdema IS NULL OR LENGTH(TRIM(Ultrasound.uterineEdema)) = 0)
-AND Ultrasound.uterineLiquid IS NULL
-AND (Ultrasound.uterineLiquidDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterineLiquidDescription)) = 0)
-AND (Ultrasound.uterusDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterusDescription)) = 0);
+SELECT COUNT(*) AS cnt FROM insights_incomplete_ultrasound WHERE date >= :from AND date <= :to AND patientId = :patientId;
 
 selectIncompleteUltrasoundCountGlobal:
-SELECT COUNT(*) AS cnt FROM Ultrasound
-JOIN Patient ON Patient.id = Ultrasound.patientId
-WHERE Ultrasound.isActive = 1 AND Patient.isActive = 1
-AND Ultrasound.date >= :from AND Ultrasound.date <= :to
-AND (Ultrasound.ovaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.ovaryStatus)) = 0)
-AND (Ultrasound.uterineStatus IS NULL OR LENGTH(TRIM(Ultrasound.uterineStatus)) = 0)
-AND Ultrasound.follicleSizeMm IS NULL
-AND (Ultrasound.leftOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.leftOvaryStatus)) = 0)
-AND (Ultrasound.rightOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.rightOvaryStatus)) = 0)
-AND Ultrasound.leftFollicleSizeMm IS NULL
-AND Ultrasound.rightFollicleSizeMm IS NULL
-AND (Ultrasound.uterineEdema IS NULL OR LENGTH(TRIM(Ultrasound.uterineEdema)) = 0)
-AND Ultrasound.uterineLiquid IS NULL
-AND (Ultrasound.uterineLiquidDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterineLiquidDescription)) = 0)
-AND (Ultrasound.uterusDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterusDescription)) = 0);
+SELECT COUNT(*) AS cnt FROM insights_incomplete_ultrasound WHERE date >= :from AND date <= :to;
 
 selectIncompleteUltrasoundRefsForPatient:
-SELECT Ultrasound.id AS recordId, Ultrasound.patientId AS patientId, Patient.name AS patientName, Ultrasound.date AS date, 'ULTRASOUND' AS recordTypeWireName
-FROM Ultrasound
-JOIN Patient ON Patient.id = Ultrasound.patientId
-WHERE Ultrasound.isActive = 1 AND Patient.isActive = 1
-AND Ultrasound.date >= :from AND Ultrasound.date <= :to AND Ultrasound.patientId = :patientId
-AND (Ultrasound.ovaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.ovaryStatus)) = 0)
-AND (Ultrasound.uterineStatus IS NULL OR LENGTH(TRIM(Ultrasound.uterineStatus)) = 0)
-AND Ultrasound.follicleSizeMm IS NULL
-AND (Ultrasound.leftOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.leftOvaryStatus)) = 0)
-AND (Ultrasound.rightOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.rightOvaryStatus)) = 0)
-AND Ultrasound.leftFollicleSizeMm IS NULL
-AND Ultrasound.rightFollicleSizeMm IS NULL
-AND (Ultrasound.uterineEdema IS NULL OR LENGTH(TRIM(Ultrasound.uterineEdema)) = 0)
-AND Ultrasound.uterineLiquid IS NULL
-AND (Ultrasound.uterineLiquidDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterineLiquidDescription)) = 0)
-AND (Ultrasound.uterusDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterusDescription)) = 0)
-ORDER BY Ultrasound.date DESC, Ultrasound.id DESC;
+SELECT recordId, patientId, patientName, date, recordTypeWireName FROM insights_incomplete_ultrasound WHERE date >= :from AND date <= :to AND patientId = :patientId ORDER BY date DESC, recordId DESC;
 
 selectIncompleteUltrasoundRefsGlobal:
-SELECT Ultrasound.id AS recordId, Ultrasound.patientId AS patientId, Patient.name AS patientName, Ultrasound.date AS date, 'ULTRASOUND' AS recordTypeWireName
-FROM Ultrasound
-JOIN Patient ON Patient.id = Ultrasound.patientId
-WHERE Ultrasound.isActive = 1 AND Patient.isActive = 1
-AND Ultrasound.date >= :from AND Ultrasound.date <= :to
-AND (Ultrasound.ovaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.ovaryStatus)) = 0)
-AND (Ultrasound.uterineStatus IS NULL OR LENGTH(TRIM(Ultrasound.uterineStatus)) = 0)
-AND Ultrasound.follicleSizeMm IS NULL
-AND (Ultrasound.leftOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.leftOvaryStatus)) = 0)
-AND (Ultrasound.rightOvaryStatus IS NULL OR LENGTH(TRIM(Ultrasound.rightOvaryStatus)) = 0)
-AND Ultrasound.leftFollicleSizeMm IS NULL
-AND Ultrasound.rightFollicleSizeMm IS NULL
-AND (Ultrasound.uterineEdema IS NULL OR LENGTH(TRIM(Ultrasound.uterineEdema)) = 0)
-AND Ultrasound.uterineLiquid IS NULL
-AND (Ultrasound.uterineLiquidDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterineLiquidDescription)) = 0)
-AND (Ultrasound.uterusDescription IS NULL OR LENGTH(TRIM(Ultrasound.uterusDescription)) = 0)
-ORDER BY Ultrasound.date DESC, Ultrasound.id DESC;
+SELECT recordId, patientId, patientName, date, recordTypeWireName FROM insights_incomplete_ultrasound WHERE date >= :from AND date <= :to ORDER BY date DESC, recordId DESC;
 
--- Missing veterinarian name: UNION across 16 dated tables (Weight excluded, no vet field).
--- Branch predicates are sargable on (patientId, date) via existing partial indexes.
+-- Missing vet / unlinked owner via views
 selectMissingVetCountForPatient:
-SELECT COUNT(*) AS cnt FROM (
-  SELECT patientId FROM Consultation WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Dentistry WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Deworming WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM FarrierVisit WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (farrier IS NULL OR LENGTH(TRIM(farrier)) = 0)
-  UNION ALL
-  SELECT patientId FROM Imaging WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM LabResult WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Lameness WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate >= :from AND startDate <= :to AND patientId = :patientId AND (prescribedBy IS NULL OR LENGTH(TRIM(prescribedBy)) = 0)
-  UNION ALL
-  SELECT patientId FROM Reproduction WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM ReproMedication WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Surgery WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (surgeon IS NULL OR LENGTH(TRIM(surgeon)) = 0)
-  UNION ALL
-  SELECT patientId FROM Substance WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (administeredBy IS NULL OR LENGTH(TRIM(administeredBy)) = 0)
-  UNION ALL
-  SELECT patientId FROM Ultrasound WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Vaccination WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM EmbryoTransfer WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Icsi WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-) AS missing
-JOIN Patient ON Patient.id = missing.patientId
-WHERE Patient.isActive = 1;
+SELECT COUNT(*) AS cnt FROM insights_missing_vet WHERE activityDate >= :from AND activityDate <= :to AND patientId = :patientId;
 
 selectMissingVetCountGlobal:
-SELECT COUNT(*) AS cnt FROM (
-  SELECT patientId FROM Consultation WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Dentistry WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Deworming WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM FarrierVisit WHERE isActive = 1 AND date >= :from AND date <= :to AND (farrier IS NULL OR LENGTH(TRIM(farrier)) = 0)
-  UNION ALL
-  SELECT patientId FROM Imaging WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM LabResult WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Lameness WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate >= :from AND startDate <= :to AND (prescribedBy IS NULL OR LENGTH(TRIM(prescribedBy)) = 0)
-  UNION ALL
-  SELECT patientId FROM Reproduction WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM ReproMedication WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Surgery WHERE isActive = 1 AND date >= :from AND date <= :to AND (surgeon IS NULL OR LENGTH(TRIM(surgeon)) = 0)
-  UNION ALL
-  SELECT patientId FROM Substance WHERE isActive = 1 AND date >= :from AND date <= :to AND (administeredBy IS NULL OR LENGTH(TRIM(administeredBy)) = 0)
-  UNION ALL
-  SELECT patientId FROM Ultrasound WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Vaccination WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM EmbryoTransfer WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT patientId FROM Icsi WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-) AS missing
-JOIN Patient ON Patient.id = missing.patientId
-WHERE Patient.isActive = 1;
+SELECT COUNT(*) AS cnt FROM insights_missing_vet WHERE activityDate >= :from AND activityDate <= :to;
 
 selectMissingVetRefsForPatient:
-WITH missing_rows AS (
-  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (farrier IS NULL OR LENGTH(TRIM(farrier)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, startDate, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate >= :from AND startDate <= :to AND patientId = :patientId AND (prescribedBy IS NULL OR LENGTH(TRIM(prescribedBy)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (surgeon IS NULL OR LENGTH(TRIM(surgeon)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (administeredBy IS NULL OR LENGTH(TRIM(administeredBy)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'ICSI' FROM Icsi WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-)
-SELECT recordId, missing_rows.patientId AS patientId, Patient.name AS patientName, activityDate AS date, recordType AS recordTypeWireName
-FROM missing_rows
-JOIN Patient ON Patient.id = missing_rows.patientId
-WHERE Patient.isActive = 1
-ORDER BY activityDate DESC, recordId DESC;
+SELECT recordId, patientId, patientName, activityDate AS date, recordType AS recordTypeWireName FROM insights_missing_vet WHERE activityDate >= :from AND activityDate <= :to AND patientId = :patientId ORDER BY activityDate DESC, recordId DESC;
 
 selectMissingVetRefsGlobal:
-WITH missing_rows AS (
-  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date >= :from AND date <= :to AND (farrier IS NULL OR LENGTH(TRIM(farrier)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, startDate, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate >= :from AND startDate <= :to AND (prescribedBy IS NULL OR LENGTH(TRIM(prescribedBy)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date >= :from AND date <= :to AND (surgeon IS NULL OR LENGTH(TRIM(surgeon)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date >= :from AND date <= :to AND (administeredBy IS NULL OR LENGTH(TRIM(administeredBy)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-  UNION ALL
-  SELECT id, patientId, date, 'ICSI' FROM Icsi WHERE isActive = 1 AND date >= :from AND date <= :to AND (vetName IS NULL OR LENGTH(TRIM(vetName)) = 0)
-)
-SELECT recordId, missing_rows.patientId AS patientId, Patient.name AS patientName, activityDate AS date, recordType AS recordTypeWireName
-FROM missing_rows
-JOIN Patient ON Patient.id = missing_rows.patientId
-WHERE Patient.isActive = 1
-ORDER BY activityDate DESC, recordId DESC;
+SELECT recordId, patientId, patientName, activityDate AS date, recordType AS recordTypeWireName FROM insights_missing_vet WHERE activityDate >= :from AND activityDate <= :to ORDER BY activityDate DESC, recordId DESC;
 
--- Unlinked owner: activity rows whose patient has ownerId IS NULL (missing for analysis)
 selectUnlinkedOwnerCountForPatient:
-SELECT COUNT(*) AS cnt FROM (
-  SELECT patientId FROM Consultation WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Dentistry WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Deworming WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM FarrierVisit WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Imaging WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM LabResult WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Lameness WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate >= :from AND startDate <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Reproduction WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM ReproMedication WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Surgery WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Substance WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Ultrasound WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Vaccination WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Weight WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM EmbryoTransfer WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT patientId FROM Icsi WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-) AS activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1 AND Patient.ownerId IS NULL;
+SELECT COUNT(*) AS cnt FROM insights_unlinked_owner WHERE activityDate >= :from AND activityDate <= :to AND patientId = :patientId;
 
 selectUnlinkedOwnerCountGlobal:
-SELECT COUNT(*) AS cnt FROM (
-  SELECT patientId FROM Consultation WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Dentistry WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Deworming WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to
-  UNION ALL
-  SELECT patientId FROM FarrierVisit WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Imaging WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM LabResult WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Lameness WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate >= :from AND startDate <= :to
-  UNION ALL
-  SELECT patientId FROM Reproduction WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM ReproMedication WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to
-  UNION ALL
-  SELECT patientId FROM Surgery WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Substance WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Ultrasound WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Vaccination WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to
-  UNION ALL
-  SELECT patientId FROM Weight WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM EmbryoTransfer WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT patientId FROM Icsi WHERE isActive = 1 AND date >= :from AND date <= :to
-) AS activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1 AND Patient.ownerId IS NULL;
+SELECT COUNT(*) AS cnt FROM insights_unlinked_owner WHERE activityDate >= :from AND activityDate <= :to;
 
 selectUnlinkedOwnerRefsForPatient:
-WITH activity_rows AS (
-  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, startDate, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate >= :from AND startDate <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'WEIGHT' FROM Weight WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-  UNION ALL
-  SELECT id, patientId, date, 'ICSI' FROM Icsi WHERE isActive = 1 AND date >= :from AND date <= :to AND patientId = :patientId
-)
-SELECT recordId, activity_rows.patientId AS patientId, Patient.name AS patientName, activityDate AS date, recordType AS recordTypeWireName
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1 AND Patient.ownerId IS NULL
-ORDER BY activityDate DESC, recordId DESC;
+SELECT recordId, patientId, patientName, activityDate AS date, recordType AS recordTypeWireName FROM insights_unlinked_owner WHERE activityDate >= :from AND activityDate <= :to AND patientId = :patientId ORDER BY activityDate DESC, recordId DESC;
 
 selectUnlinkedOwnerRefsGlobal:
-WITH activity_rows AS (
-  SELECT id AS recordId, patientId, date AS activityDate, 'CONSULTATION' AS recordType FROM Consultation WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'DENTISTRY' FROM Dentistry WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'DEWORMING' FROM Deworming WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'FARRIER_VISIT' FROM FarrierVisit WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'IMAGING' FROM Imaging WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'LAB_RESULT' FROM LabResult WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'LAMENESS' FROM Lameness WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, startDate, 'MEDICATION' FROM Medication WHERE isActive = 1 AND startDate IS NOT NULL AND startDate >= :from AND startDate <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'REPRODUCTION_EVENT' FROM Reproduction WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'REPRO_MEDICATION' FROM ReproMedication WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'SURGERY' FROM Surgery WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'CONTROLLED_SUBSTANCE' FROM Substance WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'ULTRASOUND' FROM Ultrasound WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, dateAdministered, 'VACCINATION' FROM Vaccination WHERE isActive = 1 AND dateAdministered >= :from AND dateAdministered <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'WEIGHT' FROM Weight WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'EMBRYO_TRANSFER' FROM EmbryoTransfer WHERE isActive = 1 AND date >= :from AND date <= :to
-  UNION ALL
-  SELECT id, patientId, date, 'ICSI' FROM Icsi WHERE isActive = 1 AND date >= :from AND date <= :to
-)
-SELECT recordId, activity_rows.patientId AS patientId, Patient.name AS patientName, activityDate AS date, recordType AS recordTypeWireName
-FROM activity_rows
-JOIN Patient ON Patient.id = activity_rows.patientId
-WHERE Patient.isActive = 1 AND Patient.ownerId IS NULL
-ORDER BY activityDate DESC, recordId DESC;
+SELECT recordId, patientId, patientName, activityDate AS date, recordType AS recordTypeWireName FROM insights_unlinked_owner WHERE activityDate >= :from AND activityDate <= :to ORDER BY activityDate DESC, recordId DESC;
+
+-- LocalDate adapter reference via import; view queries rely on import for date handling
+selectAdapterWarmup:
+SELECT date AS d FROM Consultation UNION ALL SELECT date FROM Dentistry UNION ALL SELECT dateAdministered FROM Deworming UNION ALL SELECT date FROM FarrierVisit UNION ALL SELECT date FROM Imaging UNION ALL SELECT date FROM LabResult UNION ALL SELECT date FROM Lameness UNION ALL SELECT startDate FROM Medication UNION ALL SELECT date FROM Reproduction UNION ALL SELECT dateAdministered FROM ReproMedication UNION ALL SELECT date FROM Surgery UNION ALL SELECT date FROM Substance UNION ALL SELECT date FROM Ultrasound UNION ALL SELECT dateAdministered FROM Vaccination UNION ALL SELECT date FROM Weight UNION ALL SELECT date FROM EmbryoTransfer UNION ALL SELECT date FROM Icsi LIMIT 1;

@@ -2,10 +2,6 @@ import SwiftUI
 import Shared
 
 /// Presentation state for one record section.
-///
-/// The Kotlin list view model owns filtering, ordering, and the collapsed
-/// projection. SwiftUI only keeps the full collection available for derived
-/// tab-level content such as the active gestation card.
 struct RecordListState<Item> {
     var allItems: [Item] = []
     var visibleItems: [Item] = []
@@ -35,7 +31,6 @@ struct RecordListState<Item> {
     }
 }
 
-/// Search and expansion actions supplied by the shared Kotlin list state.
 struct RecordSectionDisplayState {
     let totalCount: Int
     let matchingCount: Int
@@ -50,56 +45,211 @@ struct RecordSectionDisplayState {
     var hasBlankSearch: Bool { searchQuery?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true }
 }
 
-// MARK: - Date Formatting Helper
+// MARK: - Date helpers are centralized in DateFormatters.swift — single source
+// (displayString / friendlyString / swiftDate / kotlinLocalDate / TodayProvider all delegate there)
 
-extension Kotlinx_datetimeLocalDate {
-    var displayString: String {
-        "\(year)-\(String(format: "%02d", monthNumber))-\(String(format: "%02d", dayOfMonth))"
+// MARK: - Gestation helpers
+
+enum GestationCalculator {
+    static func gestationDay(for gestation: Gestation_, today: Kotlinx_datetimeLocalDate) -> Int {
+        max(0, Int(today.epochDaysCompat() - gestation.breedingDate.epochDaysCompat()))
     }
-
-    /// Human-friendly date, e.g. "22 Aug 2026".
-    var friendlyString: String {
-        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        let index = Int(monthNumber) - 1
-        let month = index >= 0 && index < months.count ? months[index] : ""
-        return "\(dayOfMonth) \(month) \(year)"
+    static func daysUntilDue(for gestation: Gestation_, today: Kotlinx_datetimeLocalDate) -> Int {
+        Int(gestation.expectedDueDate.epochDaysCompat() - today.epochDaysCompat())
     }
-
-    /// DST-safe epoch days — Hinnant algorithm, same as Kotlin `LocalDate.toEpochDays()`.
-    /// Avoids Calendar DST drift. Parity verified vs Kotlin for 1900-2100.
-    func epochDaysCompat() -> Int64 {
-        // Manual Hinnant algorithm (same as kotlinx-datetime)
-        let y = Int(year)
-        let m = Int(monthNumber)
-        let d = Int(dayOfMonth)
-        let yy = m <= 2 ? y - 1 : y
-        let mm = m <= 2 ? m + 12 : m
-        let era = (yy >= 0 ? yy : yy - 399) / 400
-        let yoe = yy - era * 400
-        let doy = (153 * (mm - 3) + 2) / 5 + d - 1
-        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
-        return Int64(era * 146097 + doe - 719468)
+    static func daysUntil(_ date: Kotlinx_datetimeLocalDate, today: Kotlinx_datetimeLocalDate) -> Int {
+        Int(date.epochDaysCompat() - today.epochDaysCompat())
     }
 }
 
-// MARK: - Generic Record Row
+enum GestationDueText {
+    static func daysLabel(daysUntilDue: Int) -> String {
+        if daysUntilDue < 0 { return "Overdue by \(-daysUntilDue) day\(-daysUntilDue == 1 ? "" : "s")" }
+        if daysUntilDue == 0 { return "Due today" }
+        return "Due in \(daysUntilDue) day\(daysUntilDue == 1 ? "" : "s")"
+    }
+}
 
-/// Standard row for displaying a record with date, title, subtitle, and icon.
+// MARK: - RecordTypeIcon — single map for 15+ cases
+
+enum RecordTypeIcon {
+    static func systemName(for raw: String) -> String {
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "VACCINATION": return "syringe.fill"
+        case "DEWORMING": return "pills.fill"
+        case "CONSULTATION": return "stethoscope"
+        case "WEIGHT": return "scalemass.fill"
+        case "REPRODUCTION", "REPRODUCTION_EVENT", "REPRODUCTIONEVENT": return "heart.fill"
+        case "FARRIER", "FARRIER_VISIT", "FARRIERVISIT": return "figure.walk"
+        case "DENTISTRY": return "mouth.fill"
+        case "CUSTOM_REMINDER", "CUSTOMREMINDER", "CUSTOM REMINDER": return "bell.badge.fill"
+        case "EMBRYO_TRANSFER", "EMBRYOTRANSFER", "EMBRYO TRANSFER": return "arrow.triangle.branch"
+        case "ICSI": return "scope"
+        case "ULTRASOUND": return "waveform.path.ecg"
+        case "GESTATION": return "heart.circle.fill"
+        case "REPRO_MEDICATION", "REPROMEDICATION", "REPRO MEDICATION": return "pills"
+        case "LAB_RESULT", "LABRESULT", "LAB RESULT": return "testtube.2"
+        case "IMAGING": return "photo.fill"
+        case "LAMENESS": return "figure.walk.motion"
+        case "SURGERY": return "cross.case.fill"
+        case "MEDICATION": return "pill.fill"
+        case "CONTROLLED_SUBSTANCE", "CONTROLLEDSUBSTANCE", "CONTROLLED SUBSTANCE", "SUBSTANCE": return "cross.vial.fill"
+        case "ANAMNESE": return "doc.text.fill"
+        case "PATIENT": return "pawprint.fill"
+        case "OWNER": return "person.fill"
+        default: return "doc.text.fill"
+        }
+    }
+
+    static func systemName(for recordType: RecordType) -> String {
+        systemName(for: recordType.wireName)
+    }
+}
+
+// MARK: - Shared Gestation Card — replaces pregnancyCard vs ActiveGestationCard duplication
+
+struct GestationCard: View {
+    let gestation: Gestation_
+    let gestationDay: Int
+    let daysUntilDue: Int
+    let onTap: () -> Void
+
+    private static let dueSoonDays = 30
+
+    private var isDueSoon: Bool { daysUntilDue <= Self.dueSoonDays }
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "heart.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(Theme.forestGreen)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("In Foal")
+                            .font(.caption.weight(.bold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Theme.forestGreen)
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+
+                        Text("Day \(gestationDay)")
+                            .font(.title.weight(.bold))
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(gestation.expectedDueDate.friendlyString)
+                            .font(.headline)
+                            .foregroundStyle(isDueSoon ? Theme.amber : Theme.textPrimary)
+                        Text(GestationDueText.daysLabel(daysUntilDue: daysUntilDue))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(isDueSoon ? Theme.amber : Theme.textSecondary)
+                    }
+                }
+
+                Divider()
+
+                HStack(spacing: 16) {
+                    Label {
+                        Text("Bred \(gestation.breedingDate.friendlyString)")
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+
+                    if let fetalCount = gestation.fetalCount {
+                        Label {
+                            Text("\(fetalCount) fetus\(fetalCount.intValue > 1 ? "es" : "")")
+                        } icon: {
+                            Image(systemName: "number")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+            .padding(14)
+            .background(Theme.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("In foal, day \(gestationDay), due \(gestation.expectedDueDate.friendlyString)")
+        .accessibilityHint("Opens gestation detail")
+    }
+}
+
+/// Compact gestation card for overview — same visuals, smaller footprint
+struct CompactGestationCard: View {
+    let gestation: Gestation_
+    let gestationDay: Int
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Image(systemName: "heart.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Theme.forestGreen)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("In Foal")
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Theme.forestGreen)
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+
+                    Text("Day \(gestationDay) · Due \(gestation.expectedDueDate.friendlyString)")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.textPrimary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .padding(14)
+            .background(Theme.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("In foal, day \(gestationDay), due \(gestation.expectedDueDate.friendlyString). Opens reproduction tab")
+    }
+}
+
+// MARK: - Generic Record Row — expanded reuse for Search / Timeline
+
 struct RecordRowView: View {
     let icon: String
     let iconTint: Color
     let title: String
     let subtitle: String?
     let date: String?
+    var showsDisclosure: Bool = false
+    var badgeSize: CGFloat = 36
+    var badgeCorner: CGFloat = 8
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.body)
-                .foregroundStyle(iconTint)
-                .frame(width: 36, height: 36)
-                .background(iconTint.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            RecordBadgeIcon(systemName: icon, tint: iconTint, size: badgeSize, corner: badgeCorner)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -124,15 +274,21 @@ struct RecordRowView: View {
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
+
+            if showsDisclosure {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textTertiary)
+            }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(subtitle ?? ""), \(date ?? "")")
     }
 }
 
 // MARK: - Section Container
 
-/// Collapsible section for a record type within a tab.
 struct RecordSection<Content: View>: View {
     let title: String
     let icon: String
@@ -165,6 +321,7 @@ struct RecordSection<Content: View>: View {
                         Button("Clear search", action: display.onCloseSearch)
                             .font(.caption.weight(.medium))
                             .foregroundStyle(Theme.forestGreen)
+                            .accessibilityLabel("Clear search for \(title)")
                     }
                     .padding(.vertical, 8)
                 } else {
@@ -209,6 +366,7 @@ private struct RecordSectionHeader: View {
                 Image(systemName: icon)
                     .font(.caption)
                     .foregroundStyle(Theme.forestGreen)
+                    .accessibilityHidden(true)
                 Text("\(title) (\(count))")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.forestGreen)
@@ -224,6 +382,7 @@ private struct RecordSectionHeader: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Search \(title)")
+                    .accessibilityHint("Opens search for \(title)")
                 }
             }
         }
@@ -238,14 +397,17 @@ private struct RecordSectionHeader: View {
 
 // MARK: - Generic Record Section
 
-/// Declarative description of one record section: row presentation, delete action,
-/// and an optional amber calendar line under each row. Field-row mapping lives
-/// exclusively in Kotlin (RecordDetailOpener); Swift only routes by displayType+id.
+// Simplified: String? directly, enum wrapper removed
+typealias RecordExtraLineLabel = String?
+
+extension String {
+    static var nextDueLabel: String { "Next due" }
+}
+
 struct RecordSectionSpec<Item> {
     let title: String
     let icon: String
     let items: [Item]
-    /// Extracts the Kotlin record id for tap/swipe wiring.
     let recordId: (Item) -> Int64
     let rowTitle: (Item) -> String
     let rowSubtitle: (Item) -> String?
@@ -254,14 +416,8 @@ struct RecordSectionSpec<Item> {
     let onDelete: (Item) -> Void
     let display: RecordSectionDisplayState?
 
-    /// Title shown on the swipe-delete button; defaults to `title`.
     var deleteTitle: String? = nil
-
-    /// Optional single-line extra under the row (rendered in the amber
-    /// calendar style used by next-due lines). Nil line = no extra.
     var extraLine: ((Item) -> String?)? = nil
-
-    /// Optional label for [extraLine]. `nil` renders the value without a prefix.
     var extraLineLabel: String? = "Next due"
 
     init(
@@ -295,10 +451,23 @@ struct RecordSectionSpec<Item> {
     }
 }
 
-/// Renders a `RecordSectionSpec`: section container, rows, optional extra
-/// lines, tap-to-open-record wiring, and swipe-to-delete. The shared Kotlin
-/// list state supplies the filtered and collapsed item projection. Lazy open
-/// via RecordDetailKey — no eager field payload.
+// MARK: - RecordBadgeIcon — moved from InsightShared to single shared location
+struct RecordBadgeIcon: View {
+    let systemName: String
+    var tint: Color = Theme.forestGreen
+    var size: CGFloat = 36
+    var corner: CGFloat = 8
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.body)
+            .foregroundStyle(tint)
+            .frame(width: size, height: size)
+            .background(tint.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: corner))
+            .accessibilityHidden(true)
+    }
+}
+
 @ViewBuilder
 func recordSection<Item>(
     _ spec: RecordSectionSpec<Item>,
@@ -312,35 +481,21 @@ func recordSection<Item>(
     ) {
         RecordSectionRows(spec: spec, onOpenRecord: onOpenRecord)
     }
-    .id(sectionIdentity(for: spec))
 }
 
-private func sectionIdentity<Item>(for spec: RecordSectionSpec<Item>) -> String {
-    let query = spec.display?.searchQuery ?? "<closed>"
-    let expanded = spec.display?.isExpanded == true
-    return "\(spec.title)|\(expanded)|\(query)"
-}
-
-/// Collapse threshold shared by every section: sections with more rows show
-/// only the most recent N until expanded.
 private enum RecordSectionRowsConfig {
     static let collapseLimit = 5
 }
 
-/// Row list for one record section with the >5 collapse/expand behavior.
-/// Rows are rendered from Kotlin-provided visibleItems (already collapsed);
-/// Swift never re-slices — no double-collapse.
 private struct RecordSectionRows<Item>: View {
     let spec: RecordSectionSpec<Item>
     let onOpenRecord: ((String, Int64) -> Void)?
 
     var body: some View {
         Group {
-            ForEach(
-                spec.items.map { (spec.recordId($0), $0) },
-                id: \.0
-            ) { _, item in
-                row(item)
+            // No tuple allocation, stable index id avoids duplicate-id crash
+            ForEach(spec.items.indices, id: \.self) { idx in
+                row(spec.items[idx])
             }
 
             if let display = spec.display,
@@ -387,11 +542,13 @@ private struct RecordSectionRows<Item>: View {
                 HStack(spacing: 4) {
                     Image(systemName: "calendar")
                         .font(.caption2)
-                    Text("\(spec.extraLineLabel.map { "\($0): " } ?? "")\(extra)")
+                        .accessibilityHidden(true)
+                    Text(extraLineText(extra))
                         .font(.caption2)
                 }
                 .foregroundStyle(Theme.amber)
                 .padding(.leading, 48)
+                .accessibilityLabel(accessibilityExtraLabel(extra))
             }
         }
         .contentShape(Rectangle())
@@ -400,9 +557,21 @@ private struct RecordSectionRows<Item>: View {
         .onTapGesture {
             onOpenRecord?(spec.displayType, spec.recordId(item))
         }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens \(spec.displayType) detail")
         .confirmationSwipeDelete(title: spec.deleteTitle ?? spec.title) {
             spec.onDelete(item)
         }
+    }
+
+    private func extraLineText(_ extra: String) -> String {
+        if let label = spec.extraLineLabel { return "\(label): \(extra)" }
+        return extra
+    }
+
+    private func accessibilityExtraLabel(_ extra: String) -> String {
+        if let label = spec.extraLineLabel { return "\(label) \(extra)" }
+        return extra
     }
 }
 
@@ -417,6 +586,7 @@ struct TabEmptyStateView: View {
             Image(systemName: icon)
                 .font(.system(size: 48))
                 .foregroundStyle(Theme.forestGreen.opacity(0.4))
+                .accessibilityHidden(true)
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
@@ -424,5 +594,7 @@ struct TabEmptyStateView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(message)
     }
 }

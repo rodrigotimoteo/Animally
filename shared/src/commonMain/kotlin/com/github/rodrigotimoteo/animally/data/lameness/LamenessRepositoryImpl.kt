@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.Lameness as DbLameness
 
 /**
  * Repository implementation for managing [Lameness] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [ILamenessRepository] with its domain-named parameters (`lameness` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: Lameness`, interface uses `lameness: Lameness`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Lameness`, interface uses `lameness: Lameness`
 @Single(binds = [ILamenessRepository::class])
 class LamenessRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -71,24 +67,4 @@ class LamenessRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = lamenessQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
-
-    override fun getByPatient(patientId: Long): List<Lameness> =
-        super
-            .getByPatient(patientId)
-            .sortedByDescending { it.date }
-
-    override fun getById(id: Long): Lameness? = super.getById(id)
-
-    override fun insert(lameness: Lameness): Long = super.insert(lameness)
-
-    override fun update(lameness: Lameness): Long = super.update(lameness)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

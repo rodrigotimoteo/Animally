@@ -22,7 +22,6 @@ class IcsiRepositoryImpl(
             .selectByPatient(patientId)
             .executeAsList()
             .map { it.toDomain() }
-            .sortedByDescending { it.date }
 
     override fun getById(id: Long): Icsi? = queries.selectById(id).executeAsOneOrNull()?.toDomain()
 

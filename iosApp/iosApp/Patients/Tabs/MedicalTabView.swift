@@ -3,19 +3,15 @@ import Shared
 
 struct MedicalTabView: View {
     let patientId: Int64
-    let refreshToken: Int
     @StateObject private var viewModel: MedicalTabViewModel
-    /// Fires when a record row is tapped; lazy open via RecordDetailKey.
     var onOpenRecord: ((String, Int64) -> Void)? = nil
 
     init(
         patientId: Int64,
-        refreshToken: Int = 0,
         onOpenRecord: ((String, Int64) -> Void)? = nil,
     ) {
         self.patientId = patientId
         _viewModel = StateObject(wrappedValue: MedicalTabViewModel(patientId: patientId))
-        self.refreshToken = refreshToken
         self.onOpenRecord = onOpenRecord
     }
 
@@ -24,6 +20,7 @@ struct MedicalTabView: View {
             if viewModel.isLoading {
                 ProgressView("Loading records…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("Loading medical records")
             } else if totalRecords == 0 {
                 TabEmptyStateView(
                     icon: "cross.case.fill",
@@ -32,9 +29,6 @@ struct MedicalTabView: View {
             } else {
                 recordList
             }
-        }
-        .onChange(of: refreshToken) { _, _ in
-            viewModel.reload()
         }
     }
 
@@ -148,5 +142,6 @@ struct MedicalTabView: View {
             )
         }
         .listStyle(.insetGrouped)
+        .accessibilityIdentifier("medical_tab_list")
     }
 }

@@ -26,7 +26,7 @@ selectById:
 SELECT * FROM Medication WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM Medication WHERE patientId = ? AND isActive = 1;
+SELECT * FROM Medication WHERE patientId = ? AND isActive = 1 ORDER BY startDate DESC;
 
 selectAll:
 SELECT * FROM Medication WHERE isActive = 1;

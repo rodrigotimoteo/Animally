@@ -15,12 +15,8 @@ import com.github.rodrigotimoteo.animally.data.migrations.Ultrasound as DbUltras
 
 /**
  * Repository implementation for managing [Ultrasound] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IUltrasoundRepository] with its domain-named parameters (`ultrasound` vs base `domain`).
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `domain: Ultrasound`, interface uses `ultrasound: Ultrasound`
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE") // base uses `value: Ultrasound`, interface uses `ultrasound: Ultrasound`
 @Single(binds = [IUltrasoundRepository::class])
 class UltrasoundRepositoryImpl(
     @Provided database: AnimallyDatabase,
@@ -87,24 +83,4 @@ class UltrasoundRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = ultrasoundQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // See VaccinationRepositoryImpl for rationale: required for PARAMETER_NAME_CHANGED alignment;
-    // no behavior change, each delegates to super. Sorting preserved via super+sortedByDescending.
-
-    override fun getByPatient(patientId: Long): List<Ultrasound> =
-        super
-            .getByPatient(patientId)
-            .sortedByDescending { it.date }
-
-    override fun getById(id: Long): Ultrasound? = super.getById(id)
-
-    override fun insert(ultrasound: Ultrasound): Long = super.insert(ultrasound)
-
-    override fun update(ultrasound: Ultrasound): Long = super.update(ultrasound)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

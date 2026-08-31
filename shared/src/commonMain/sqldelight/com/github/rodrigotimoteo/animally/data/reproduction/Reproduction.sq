@@ -26,7 +26,7 @@ selectById:
 SELECT * FROM Reproduction WHERE id = ? AND isActive = 1;
 
 selectByPatient:
-SELECT * FROM Reproduction WHERE patientId = ? AND isActive = 1;
+SELECT * FROM Reproduction WHERE patientId = ? AND isActive = 1 ORDER BY date DESC;
 
 selectAll:
 SELECT * FROM Reproduction WHERE isActive = 1;

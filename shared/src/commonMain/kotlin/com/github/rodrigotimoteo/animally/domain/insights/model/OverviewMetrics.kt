@@ -22,24 +22,4 @@ data class OverviewMetrics(
     val averagePerActiveDay: Double?,
     val averagePerCaseDay: Double?,
     val comparison: MetricComparison?,
-) {
-    companion object {
-        /**
-         * Computes safe averages for the given counts.
-         *
-         * @param activityCount total activities.
-         * @param caseDayCount distinct patient/date pairs.
-         * @param activeDayCount distinct dates.
-         * @return pair of (perActiveDay, perCaseDay) with nulls for zero denominators.
-         */
-        fun averages(
-            activityCount: Int,
-            caseDayCount: Int,
-            activeDayCount: Int,
-        ): Pair<Double?, Double?> {
-            val perActive = if (activeDayCount == 0) null else activityCount.toDouble() / activeDayCount.toDouble()
-            val perCase = if (caseDayCount == 0) null else activityCount.toDouble() / caseDayCount.toDouble()
-            return perActive to perCase
-        }
-    }
-}
+)

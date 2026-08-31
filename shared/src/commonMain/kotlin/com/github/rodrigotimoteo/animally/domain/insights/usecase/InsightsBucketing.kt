@@ -2,7 +2,6 @@ package com.github.rodrigotimoteo.animally.domain.insights.usecase
 
 import com.github.rodrigotimoteo.animally.domain.insights.model.ActivityPoint
 import com.github.rodrigotimoteo.animally.domain.insights.model.InsightsActivityBucket
-import com.github.rodrigotimoteo.animally.domain.insights.model.InsightsFilter
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
@@ -67,7 +66,7 @@ object InsightsBucketing {
      * @param date record date.
      * @return first day of the calendar month containing [date].
      */
-    fun monthStart(date: LocalDate): LocalDate = LocalDate(date.year, date.month.ordinal + 1, 1)
+    fun monthStart(date: LocalDate): LocalDate = LocalDate(date.year, date.month, 1)
 
     /**
      * Bucket start for [date] under [granularity].
@@ -115,53 +114,4 @@ object InsightsBucketing {
                 )
             }.sortedBy { it.periodStart }
     }
-
-    /**
-     * Convenience overload taking a validated filter.
-     *
-     * @param filter validated inclusive range defining granularity.
-     * @param buckets repository rows.
-     * @return series.
-     */
-    fun buildSeries(
-        filter: InsightsFilter,
-        buckets: List<InsightsActivityBucket>,
-    ): List<ActivityPoint> = buildSeries(buckets, filter.from, filter.to)
-
-    /**
-     * Inclusive day count for [filter].
-     *
-     * @param filter validated inclusive range.
-     * @return number of days inclusive.
-     */
-    fun inclusiveDayCount(filter: InsightsFilter): Int = filter.from.daysUntil(filter.to) + 1
-
-    /**
-     * Comparison filter for [filter] using inclusive semantics.
-     *
-     * @param filter current period.
-     * @return preceding equal-length inclusive filter.
-     */
-    fun comparisonFilter(filter: InsightsFilter): InsightsFilter = filter.comparisonRange()
-}
-
-/**
- * Computes the comparison filter for an inclusive range.
- *
- * For an inclusive range of N days [from]..[to], the comparison range is the
- * N days ending on [from] minus one day, so the two ranges are exact,
- * non-overlapping and inclusive.
- *
- * @return filter for the immediately preceding equal-length period with same patient scope.
- */
-fun com.github.rodrigotimoteo.animally.domain.insights.model.InsightsFilter.comparisonRange():
-    com.github.rodrigotimoteo.animally.domain.insights.model.InsightsFilter {
-    val daysInclusive = from.daysUntil(to) + 1
-    val comparisonTo = from.minus(DatePeriod(days = 1))
-    val comparisonFrom = comparisonTo.minus(DatePeriod(days = daysInclusive - 1))
-    return com.github.rodrigotimoteo.animally.domain.insights.model.InsightsFilter(
-        from = comparisonFrom,
-        to = comparisonTo,
-        patientId = patientId,
-    )
 }

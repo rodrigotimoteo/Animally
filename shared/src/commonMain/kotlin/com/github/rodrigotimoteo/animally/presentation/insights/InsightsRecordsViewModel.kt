@@ -16,22 +16,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Named
 
-/**
- * Shared ViewModel for the filtered insights drill-down list.
- *
- * Holds a validated [InsightsDrillDown] and exposes matching
- * [InsightsRecordRef] rows via immutable [StateFlow].
- * Work runs on [ioDispatcher]; rapid reloads cancel prior jobs.
- *
- * @param repository aggregate facts repository.
- * @param ioDispatcher dispatcher for database work.
- * @param drillDown validated inclusive filter for this list.
- */
 class InsightsRecordsViewModel(
     private val repository: IInsightsRepository,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
     private val drillDown: InsightsDrillDown,
-    private val logger: InsightsLogger = NoOpInsightsLogger,
+    private val logError: (Throwable, String) -> Unit = { _, _ -> },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(InsightsRecordsUiState(drillDown = drillDown, isLoading = true))
     val uiState: StateFlow<InsightsRecordsUiState> = _uiState.asStateFlow()
@@ -52,16 +41,25 @@ class InsightsRecordsViewModel(
                 } catch (ce: CancellationException) {
                     throw ce
                 } catch (t: Exception) {
-                    logger.e(t, "Insights records load failed: ${t.message}")
-                    _uiState.update {
-                        it.copy(isLoading = false, errorMessage = InsightsErrorMapper.map(t, FALLBACK_ERROR))
-                    }
+                    logError(t, "Insights records load failed: ${t.message}")
+                    _uiState.update { it.copy(isLoading = false, errorMessage = mapError(t, FALLBACK_ERROR)) }
                 }
             }
     }
 
     fun dismissError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    private fun mapError(
+        t: Throwable,
+        fallback: String,
+    ): String {
+        val raw = t.message?.trim()
+        if (raw.isNullOrBlank()) return fallback
+        val lower = raw.lowercase()
+        if (lower.contains("sql") || lower.contains("sqlite") || lower.contains("driver")) return fallback
+        return raw
     }
 
     private companion object {

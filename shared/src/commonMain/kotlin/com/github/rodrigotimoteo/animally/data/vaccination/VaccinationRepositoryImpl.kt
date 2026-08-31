@@ -15,13 +15,9 @@ import com.github.rodrigotimoteo.animally.data.migrations.Vaccination as DbVacci
 
 /**
  * Repository implementation for managing [Vaccination] records.
- *
- * Extends [BasePatientRepository] for shared getByPatient/getById/insert/update/setInactive wiring.
- * The explicit trampoline overrides below look redundant (they just delegate to `super`) but are required
- * to satisfy [IVaccinationRepository] with its domain-named parameters (`vaccination` vs base `domain`).
  */
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
-// base uses `domain: Vaccination`, interface uses `vaccination: Vaccination` —
+// base uses `value: Vaccination`, interface uses `vaccination: Vaccination` —
 // names must align per interface
 @Single(binds = [IVaccinationRepository::class])
 class VaccinationRepositoryImpl(
@@ -71,23 +67,4 @@ class VaccinationRepositoryImpl(
         id: Long,
         updatedAt: Instant,
     ): QueryResult<Long> = vaccinationQueries.setInactive(updatedAt = updatedAt, id = id)
-
-    // --- Trampolines to BasePatientRepository ---
-    // Direct inheritance would inherit the implementation, but Kotlin still requires explicit overrides
-    // because the interface parameter names (vaccination) differ from the base generic name (domain).
-    // Without these, @Suppress would be insufficient and callers would see mismatched parameter names in
-    // IDE/metadata. No behavior change — each just delegates to super.
-
-    override fun getByPatient(patientId: Long): List<Vaccination> = super.getByPatient(patientId)
-
-    override fun getById(id: Long): Vaccination? = super.getById(id)
-
-    override fun insert(vaccination: Vaccination): Long = super.insert(vaccination)
-
-    override fun update(vaccination: Vaccination): Long = super.update(vaccination)
-
-    override fun setInactive(
-        id: Long,
-        updatedAt: Instant,
-    ): Long = super.setInactive(id, updatedAt)
 }

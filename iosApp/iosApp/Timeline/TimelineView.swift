@@ -74,7 +74,7 @@ private struct TimelineContent: View {
         }
         .overlay(alignment: .top) {
             if let errorMessage = viewModel.state.errorMessage {
-                errorBanner(message: errorMessage)
+                InlineErrorBanner(message: errorMessage, onDismiss: { viewModel.dismissError() })
             }
         }
         .onAppear {
@@ -116,7 +116,6 @@ private struct TimelineContent: View {
                 Section {
                     ForEach(group.entries, id: \.recordId) { entry in
                         Button {
-                            // Single push — detail shows patient context via data, Back returns to timeline.
                             path.append(RecordDetailKey(
                                 displayType: entry.recordType,
                                 patientId: entry.patientId,
@@ -128,7 +127,7 @@ private struct TimelineContent: View {
                         .buttonStyle(.plain)
                     }
                 } header: {
-                    Text(formatDate(group.date))
+                    Text(group.date.displayString)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.forestGreen)
                         .textCase(nil)
@@ -164,37 +163,6 @@ private struct TimelineContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private func errorBanner(message: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Theme.amber)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(2)
-            Spacer()
-            Button {
-                viewModel.dismissError()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.textSecondary)
-                    .accessibilityLabel("Dismiss error")
-            }
-        }
-        .padding(12)
-        .background(Theme.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
-
-    private func formatDate(_ date: Kotlinx_datetimeLocalDate) -> String {
-        return date.displayString
-    }
 }
 
 struct TimelineEntryRow: View {
@@ -202,62 +170,19 @@ struct TimelineEntryRow: View {
     let showPatientName: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconForRecordType(entry.recordType))
-                .font(.title2)
-                .foregroundStyle(Theme.forestGreen)
-                .frame(width: 44, height: 44)
-                .background(Theme.forestGreen.opacity(0.12))
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(entry.title)
-                    .font(.headline)
-                    .foregroundStyle(Theme.textPrimary)
-
-                Text(entry.subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(2)
-
-                if showPatientName {
-                    Text(entry.patientName)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textTertiary)
-                }
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
+        RecordRowView(
+            icon: RecordTypeIcon.systemName(for: entry.recordType),
+            iconTint: Theme.forestGreen,
+            title: entry.title,
+            subtitle: subtitleText,
+            date: nil,
+            badgeSize: 44,
+            badgeCorner: 22
+        )
         .accessibilityLabel("Timeline entry: \(entry.title), \(entry.subtitle)\(showPatientName ? ", \(entry.patientName)" : "")")
     }
 
-    private func iconForRecordType(_ type: String) -> String {
-        switch type {
-        case "Vaccination":
-            return "syringe.fill"
-        case "Deworming":
-            return "pills.fill"
-        case "Consultation":
-            return "stethoscope"
-        case "Weight":
-            return "scalemass.fill"
-        case "Reproduction":
-            return "heart.fill"
-        case "Farrier":
-            return "figure.walk"
-        case "Dentistry":
-            return "mouth.fill"
-        case "Custom Reminder":
-            return "bell.badge.fill"
-        case "Embryo Transfer":
-            return "arrow.triangle.branch"
-        case "Icsi":
-            return "scope"
-        default:
-            return "doc.text.fill"
-        }
+    private var subtitleText: String {
+        if showPatientName { "\(entry.subtitle) · \(entry.patientName)" } else { entry.subtitle }
     }
 }
