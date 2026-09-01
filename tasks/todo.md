@@ -51,3 +51,9 @@
 - [x] Resolve unique patient-name prefixes while preserving ambiguity for collisions.
 - [x] Show the finalized transcript during extraction and tighten the dictation review layout.
 - [x] Run focused shared tests, lint/detekt, iOS build, and reinstall the verified build on Rodrigo’s iPhone.
+
+## Current request: generated trusted medical vocabulary
+
+- [x] Add the NLM MeSH vocabulary update script and generated disease/drug index.
+- [x] Use generated terms/aliases in the privacy-safe reference matcher.
+- [x] Verify leishmaniasis and trusted-source card regressions, lint, compilation, and iPhone install.

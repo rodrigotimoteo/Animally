@@ -114,6 +114,38 @@ class VeterinaryWebReferenceTest {
         }
 
     @Test
+    fun `portuguese leishmaniasis question gets a trusted web source`() =
+        runTest {
+            val leishmaniasisSource =
+                source.copy(
+                    sourceId = "pubmed:leishmaniasis",
+                    title = "Leishmania infection in domestic animals",
+                    url = "https://pubmed.ncbi.nlm.nih.gov/leishmaniasis/",
+                    excerpt = "Leishmaniasis is a parasitic disease caused by Leishmania species.",
+                )
+            val provider =
+                FakeVeterinaryWebSourceProvider(
+                    VeterinaryWebSearchResult.Success(listOf(leishmaniasisSource)),
+                )
+            val events =
+                GenerateRagResponseUseCase(
+                    searchUseCase = SearchUseCase(FakeSearchRepository()),
+                    llmEngine = WebReferenceLlmEngine(),
+                    recordSearch = RagRecordSearch { emptyList() },
+                    queryPolicyProvider = { RagQueryPolicy.CLOUD },
+                    webSourceProvider = provider,
+                )("O que é leishmaniose?").toList()
+
+            assertEquals(1, provider.calls)
+            assertEquals("leishmaniasis", provider.lastQuery)
+            assertTrue(
+                events.any {
+                    it is RagStreamEvent.WebSources && it.sources == listOf(leishmaniasisSource)
+                },
+            )
+        }
+
+    @Test
     fun `web answer without a valid citation is replaced with a safe response`() =
         runTest {
             val engine = WebReferenceLlmEngine("Laminitis is a painful hoof condition from memory.")

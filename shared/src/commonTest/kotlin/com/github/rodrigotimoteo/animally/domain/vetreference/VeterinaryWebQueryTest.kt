@@ -87,6 +87,41 @@ class VeterinaryWebQueryTest {
     }
 
     @Test
+    fun `leishmaniasis variants become a safe medical topic`() {
+        assertEquals("leishmaniasis", VeterinaryWebQuery.extractTopic("What is leishmaniasis?"))
+        assertEquals("leishmaniasis", VeterinaryWebQuery.extractTopic("O que é leishmaniose?"))
+        assertTrue(VeterinaryWebQuery.isMedicalQuestion("What is leishmaniasis?"))
+        assertTrue(VeterinaryWebQuery.isMedicalQuestion("O que é leishmaniose?"))
+    }
+
+    @Test
+    fun `leishmaniasis source survives trusted relevance filtering`() {
+        val relevant =
+            VeterinaryWebSource(
+                sourceId = "pubmed:leishmaniasis",
+                title = "Leishmania infection in domestic animals",
+                publisher = "PubMed / Europe PMC",
+                url = "https://pubmed.ncbi.nlm.nih.gov/leishmaniasis/",
+                excerpt = "Leishmaniasis is a parasitic disease caused by Leishmania species.",
+            )
+        val unrelated =
+            relevant.copy(
+                sourceId = "pubmed:colic",
+                title = "Colic in horses",
+                url = "https://pubmed.ncbi.nlm.nih.gov/colic/",
+                excerpt = "Colic is a common gastrointestinal emergency.",
+            )
+
+        assertEquals(
+            listOf(relevant),
+            VeterinaryWebQuery.filterRelevantSources(
+                "O que é leishmaniose?",
+                listOf(unrelated, relevant),
+            ),
+        )
+    }
+
+    @Test
     fun `portuguese medical question is supported`() {
         assertEquals("laminitis horses", VeterinaryWebQuery.extractTopic("O que é laminite em cavalos?"))
         assertTrue(VeterinaryWebQuery.isMedicalQuestion("O que é laminite em cavalos?"))

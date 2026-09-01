@@ -612,3 +612,32 @@ These do not block the approved Overview MVP:
 - **Fuzzy matching false positives:** use bounded edit distance and a curated vocabulary; fail closed for unknown terms and never forward raw patient-bearing text.
 - **Model omission or hallucination:** require exact JSON fields, validate each record structurally, and preserve the transcript for correction before extraction.
 - **New medication persistence path:** reuse the existing `Medication` model and `SaveMedicationUseCase`; add focused tests before changing UI wiring.
+
+## Current request: generated trusted medical vocabulary
+
+### Architecture decision
+
+Use the current NLM Medical Subject Headings (MeSH) descriptor dataset as a
+build-time input. Generate a compact local index from disease and drug
+descriptors, including entry terms, and keep the existing runtime privacy gate
+and trusted-source relevance filter. Do not call a terminology service with a
+raw patient question merely to discover whether a token is medical.
+
+### Tasks
+
+- **Generate the vocabulary:** add a standard-library-only update script and
+  check in the generated index with source/year metadata.
+- **Use the vocabulary:** merge generated terms and safe generated aliases into
+  `VeterinaryWebQuery`, preserving the small curated set for species, language,
+  modifiers, and privacy-sensitive routing.
+- **Prove the path:** cover an NLM term such as leishmaniasis, Portuguese alias
+  handling, trusted-source relevance filtering, and run shared lint/build checks.
+
+### Acceptance criteria
+
+- A new NLM disease term can be added by rerunning the update script rather
+  than editing `VeterinaryWebQuery` term-by-term.
+- Runtime public requests still contain only canonical vocabulary terms and
+  never raw patient/owner text.
+- A relevant trusted provider result produces a source card; unrelated results
+  remain filtered.

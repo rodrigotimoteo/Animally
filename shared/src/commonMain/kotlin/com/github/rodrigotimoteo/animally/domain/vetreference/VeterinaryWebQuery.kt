@@ -1,13 +1,15 @@
 package com.github.rodrigotimoteo.animally.domain.vetreference
 
+import com.github.rodrigotimoteo.animally.domain.vetreference.generated.NlmMedicalVocabulary
 import com.github.rodrigotimoteo.animally.domain.vetreference.model.VeterinaryWebSource
 
 /**
  * Privacy and scope gate for public veterinary-reference searches.
  *
  * The provider never receives the raw user question. Only terms from the
- * controlled vocabulary below are forwarded, which keeps patient names,
- * owner details, record text, and identifiers out of the external request.
+ * curated vocabulary and generated NLM MeSH index are forwarded, which keeps
+ * patient names, owner details, record text, and identifiers out of the
+ * external request.
  */
 object VeterinaryWebQuery {
     private val unsafeIdentifierRegex =
@@ -18,7 +20,8 @@ object VeterinaryWebQuery {
             RegexOption.IGNORE_CASE,
         )
 
-    private val topicTerms =
+    /** Species, qualifiers, and app-specific language terms not supplied by MeSH. */
+    private val curatedTopicTerms =
         setOf(
             "horse",
             "horses",
@@ -193,6 +196,9 @@ object VeterinaryWebQuery {
             "emergencia",
         )
 
+    private val topicTerms = curatedTopicTerms + NlmMedicalVocabulary.terms
+    private val fuzzyTopicTermsByLength = topicTerms.groupBy(String::length)
+
     private val medicalTopicTerms =
         topicTerms -
             setOf(
@@ -262,6 +268,9 @@ object VeterinaryWebQuery {
             "sintomas" to "symptoms",
             "sinais" to "signs",
             "causas" to "causes",
+            "leishmaniose" to "leishmaniasis",
+            "leishmaniosis" to "leishmaniasis",
+            "leishmania" to "leishmaniasis",
         )
 
     private val genericReferenceTerms =
@@ -298,6 +307,7 @@ object VeterinaryWebQuery {
             "transrectal" to setOf("transrectal"),
             "vaccination" to setOf("vaccination", "vaccinated", "vaccine", "vaccines"),
             "deworming" to setOf("deworming", "dewormed", "parasite", "parasites"),
+            "leishmaniasis" to setOf("leishmaniasis", "leishmania", "leishmaniosis", "leishmaniose"),
             "laminitis" to setOf("laminitis", "founder"),
             "lameness" to setOf("lameness", "claudication"),
             "symptoms" to setOf("symptoms", "symptom", "signs"),
@@ -374,7 +384,10 @@ object VeterinaryWebQuery {
      * keeping arbitrary words out of the public lookup query.
      */
     private fun canonicalTopicToken(token: String): String? {
-        val exactMatch = referenceAliases[token] ?: token.takeIf { it in topicTerms }
+        val exactMatch =
+            referenceAliases[token]
+                ?: NlmMedicalVocabulary.aliases[token]
+                ?: token.takeIf { it in topicTerms }
         return exactMatch ?: fuzzyTopicToken(token)
     }
 
@@ -382,8 +395,11 @@ object VeterinaryWebQuery {
         val normalizedToken = foldDiacritics(token)
         if (normalizedToken.length < MIN_FUZZY_TOKEN_LENGTH) return null
         val maxDistance = if (normalizedToken.length >= LONG_FUZZY_TOKEN_LENGTH) 2 else 1
+        val candidates =
+            (normalizedToken.length - maxDistance..normalizedToken.length + maxDistance)
+                .flatMap { fuzzyTopicTermsByLength[it].orEmpty() }
         val distances =
-            topicTerms.map { candidate ->
+            candidates.map { candidate ->
                 FuzzyTopicMatch(
                     term = candidate,
                     distance = editDistance(normalizedToken, foldDiacritics(candidate)),
@@ -392,7 +408,9 @@ object VeterinaryWebQuery {
         val matches = distances.filter { it.distance <= maxDistance }.sortedBy { it.distance }
         val best = matches.firstOrNull()
         val isUnique = best != null && matches.count { it.distance == best.distance } == 1
-        return best?.takeIf { isUnique }?.let { referenceAliases[it.term] ?: it.term }
+        return best?.takeIf { isUnique }?.let {
+            referenceAliases[it.term] ?: NlmMedicalVocabulary.aliases[it.term] ?: it.term
+        }
     }
 
     private fun foldDiacritics(value: String): String =

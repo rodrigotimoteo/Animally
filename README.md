@@ -34,6 +34,7 @@ The project is currently **iOS-first**, while keeping its business rules, persis
 - Use basic data-analysis tools for patient counts, weight trends, gestation, breeding, and farrier-related information.
 - Display source groups and record links so an answer can be checked against the underlying data.
 - Optionally consult trusted veterinary references, including the [MSD Veterinary Manual](https://www.msdvetmanual.com/) and [Europe PMC](https://europepmc.org/), when a question calls for external medical information.
+- The privacy-safe medical lookup vocabulary is refreshed in bulk from the [NLM MeSH descriptor dataset](https://www.nlm.nih.gov/databases/download/mesh.html); run `python3 scripts/update-medical-vocabulary.py --year YYYY` when a new release is available.
 - Use on-device Apple Foundation Models where supported, or configure an OpenAI-compatible cloud model as an optional fallback.
 - Dictate in English or Portuguese, review and edit the transcript, extract suggested records, and keep the original audio for later playback.
 - Keep recent assistant conversations and a searchable dictation archive instead of losing the source material after extraction.
