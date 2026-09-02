@@ -39,7 +39,7 @@ actual object FileStorage {
         )
         val fileUrl =
             requireNotNull(
-                attachmentsUrl.URLByAppendingPathComponent(sanitizeFileName(fileName), isDirectory = false),
+                attachmentsUrl.URLByAppendingPathComponent(appOwnedStorageFileName(fileName), isDirectory = false),
             )
         val data =
             bytes.usePinned { pinned ->

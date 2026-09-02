@@ -369,6 +369,8 @@ class GenerateRagResponseUseCase(
                     grounded = grounded,
                     webSources = context.webSources,
                     webReferencesUnavailable = input.webReferencesUnavailable,
+                    toolExecutionScope =
+                        if (context.useTools) resolveToolExecutionScope(intent.patientScope) else null,
                 ),
             useFallback = false,
         )
@@ -413,6 +415,23 @@ class GenerateRagResponseUseCase(
             historyGrounding = historyGrounding,
             useTools = ResponsePolicy.shouldUseAnalysisTools(input.query, toolCallingEngine, toolRegistry),
             webSources = input.webSources,
+        )
+    }
+
+    private fun resolveToolExecutionScope(scope: com.github.rodrigotimoteo.animally.llm.rag.PatientScope): RagToolExecutionScope? {
+        if (!scope.requiresFilter) return null
+        val resolvedPatientId =
+            scope.name
+                ?.let { name ->
+                    patientRepository
+                        ?.getPatientList()
+                        ?.filter { normalizePatientName(it.name) == normalizePatientName(name) }
+                        ?.singleOrNull()
+                        ?.id
+                }
+        return RagToolExecutionScope(
+            resolvedPatientId = resolvedPatientId,
+            requiresPatientName = true,
         )
     }
 
@@ -604,3 +623,10 @@ class GenerateRagResponseUseCase(
         return true
     }
 }
+
+private fun normalizePatientName(value: String): String =
+    value
+        .trim()
+        .split(Regex("\\s+"))
+        .joinToString(" ")
+        .lowercase()

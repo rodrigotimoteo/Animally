@@ -44,11 +44,30 @@ internal class AnalysisToolSupport(
         return AnalysisDateRange(from, to)
     }
 
-    fun matchingPatients(args: JsonObject): List<Patient> {
+    @Suppress("ThrowsCount")
+    fun matchingPatients(
+        args: JsonObject,
+        executionScope: RagToolExecutionScope? = null,
+    ): List<Patient> {
+        val patients = patientRepository.getPatientList()
+        if (executionScope?.requiresPatientName == true) {
+            val requestedName =
+                args.optionalString(AnalysisToolArguments.PATIENT_NAME)
+                    ?: throw AnalysisToolInputException("patient_name is required for a scoped analysis.")
+            val resolvedPatientId =
+                executionScope.resolvedPatientId
+                    ?: throw AnalysisToolInputException("The requested patient could not be resolved safely.")
+            val resolvedPatient =
+                patients.singleOrNull { it.id == resolvedPatientId }
+                    ?: throw AnalysisToolInputException("The requested patient is no longer available.")
+            if (normalizePatientName(requestedName) != normalizePatientName(resolvedPatient.name)) {
+                throw AnalysisToolInputException("patient_name does not match the requested patient.")
+            }
+            return listOf(resolvedPatient)
+        }
         val requestedName =
             args.optionalString(AnalysisToolArguments.PATIENT_NAME)
-                ?: return patientRepository.getPatientList()
-        val patients = patientRepository.getPatientList()
+                ?: return patients
         val normalized = normalizePatientName(requestedName)
         val matches = patients.filter { normalizePatientName(it.name) == normalized }
         if (matches.size == 1) return matches

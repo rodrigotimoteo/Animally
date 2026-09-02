@@ -27,7 +27,7 @@ internal class GestationSummaryTool(
         val args = input.arguments(call)
         input.rejectUnknownKeys(args, setOf(AnalysisToolArguments.PATIENT_NAME, AnalysisToolArguments.ACTIVE_ONLY))
         val activeOnly = args.optionalBoolean(AnalysisToolArguments.ACTIVE_ONLY) ?: true
-        val patients = input.matchingPatients(args)
+        val patients = input.matchingPatients(args, call.executionScope)
         val today = todayProvider()
         val rows = loadRows(patients, today, activeOnly)
         val returnedRows = rows.take(AnalysisToolLimits.MAX_DATA_ROWS)

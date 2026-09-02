@@ -6,6 +6,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import io.ktor.http.URLBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
@@ -66,8 +67,8 @@ fun parseCloudModelsList(jsonText: String): List<String> {
 /**
  * Fetches the `/models` list from an OpenAI-compatible endpoint using the same
  * [HttpClient] engine wiring as [CloudRagLlmEngine]. The Authorization header is
- * only sent when [apiKey] is non-blank, so local runtimes (Ollama / LM Studio)
- * work keyless.
+ * sent only for HTTPS endpoints; explicitly configured local runtimes (Ollama /
+ * LM Studio) stay keyless even if a stale hosted key remains in settings.
  */
 class CloudModelCatalog(
     private val httpClient: HttpClient,
@@ -79,13 +80,22 @@ class CloudModelCatalog(
     suspend fun fetch(
         baseUrl: String,
         apiKey: String?,
+        allowInsecureLocalEndpoint: Boolean = false,
     ): CloudModelsResult {
+        if (!isValidCloudBaseUrl(baseUrl, allowInsecureLocalEndpoint)) {
+            return CloudModelsResult.Failure(
+                "Endpoint must use HTTPS; HTTP is limited to explicitly configured local runtimes",
+            )
+        }
         val url = cloudModelsUrl(baseUrl)
         return try {
             withTimeoutOrNull(MODEL_FETCH_TIMEOUT_SECONDS.seconds) {
                 val response =
                     httpClient.get(url) {
-                        apiKey?.takeIf(String::isNotBlank)?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+                        apiKey
+                            ?.takeIf(String::isNotBlank)
+                            ?.takeUnless { isInsecureCloudBaseUrl(baseUrl) }
+                            ?.let { header(HttpHeaders.Authorization, "Bearer $it") }
                         timeout {
                             connectTimeoutMillis = MODEL_CONNECT_TIMEOUT_MILLIS
                             requestTimeoutMillis = MODEL_FETCH_TIMEOUT_MILLIS
@@ -118,6 +128,37 @@ class CloudModelCatalog(
         private fun isSuccessStatus(code: Int): Boolean = code in 200..299
     }
 }
+
+/**
+ * Accepts HTTPS for hosted endpoints and HTTP only for exact loopback hosts used
+ * by local runtimes. Keep this policy in the cloud transport package so direct
+ * catalog callers cannot bypass the settings-layer readiness check.
+ */
+internal fun isValidCloudBaseUrl(
+    value: String,
+    allowInsecureLocalEndpoint: Boolean = false,
+): Boolean {
+    val normalized = value.trim()
+    if (!ABSOLUTE_HTTP_URL_REGEX.matches(normalized)) return false
+    val url = runCatching { URLBuilder(normalized).build() }.getOrNull() ?: return false
+    val host = url.host.lowercase()
+    return when (url.protocol.name.lowercase()) {
+        "https" -> host.isNotBlank()
+        "http" -> allowInsecureLocalEndpoint && host in LOOPBACK_HOSTS
+        else -> false
+    }
+}
+
+/** Returns true for syntactically valid HTTP URLs, which must remain keyless. */
+internal fun isInsecureCloudBaseUrl(value: String): Boolean {
+    val normalized = value.trim()
+    if (!ABSOLUTE_HTTP_URL_REGEX.matches(normalized)) return false
+    val url = runCatching { URLBuilder(normalized).build() }.getOrNull() ?: return false
+    return url.protocol.name.equals("http", ignoreCase = true)
+}
+
+private val ABSOLUTE_HTTP_URL_REGEX = Regex("^https?://[^\\s/?#]+(?:[/?#][^\\s]*)?$", RegexOption.IGNORE_CASE)
+private val LOOPBACK_HOSTS = setOf("localhost", "127.0.0.1", "::1", "[::1]")
 
 /**
  * Builds the OpenAI-compatible models URL from either an API root or a full

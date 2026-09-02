@@ -21,13 +21,17 @@ final class DictationAudioPlaybackController: NSObject, ObservableObject {
     func play(path: String, captureId: Int64) throws {
         stop()
 
+        guard let audioURL = Self.resolvedAudioURL(for: path) else {
+            throw DictationAudioPlaybackError.unplayableFile
+        }
+
         let session = AVAudioSession.sharedInstance()
         previousSessionConfiguration = AudioSessionConfiguration(session: session)
         do {
             try session.setCategory(.playback, mode: .default)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
 
-            let newPlayer = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: path))
+            let newPlayer = try AVAudioPlayer(contentsOf: audioURL)
             newPlayer.delegate = self
             guard newPlayer.duration > 0, newPlayer.prepareToPlay() else {
                 throw DictationAudioPlaybackError.unplayableFile
@@ -50,6 +54,48 @@ final class DictationAudioPlaybackController: NSObject, ObservableObject {
             releaseSession()
             throw error
         }
+    }
+
+    /// Resolves current and restored dictation paths without allowing reads
+    /// outside the app-owned Documents/dictations directory.
+    static func resolvedAudioURL(for storedPath: String) -> URL? {
+        let trimmedPath = storedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { return nil }
+
+        let storedURL: URL
+        if let parsedURL = URL(string: trimmedPath), parsedURL.scheme != nil {
+            guard parsedURL.isFileURL else { return nil }
+            storedURL = parsedURL
+        } else {
+            storedURL = URL(fileURLWithPath: trimmedPath)
+        }
+
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dictationsURL = documentsURL.appendingPathComponent("dictations", isDirectory: true)
+        if let currentURL = containedExistingFile(storedURL, under: dictationsURL) {
+            return currentURL
+        }
+
+        guard !storedURL.lastPathComponent.isEmpty else { return nil }
+        let fallbackURL = dictationsURL.appendingPathComponent(storedURL.lastPathComponent, isDirectory: false)
+        return containedExistingFile(fallbackURL, under: dictationsURL)
+    }
+
+    private static func containedExistingFile(_ candidate: URL, under root: URL) -> URL? {
+        let canonicalRoot = root.resolvingSymlinksInPath().standardizedFileURL.path
+        let canonicalCandidate = candidate.resolvingSymlinksInPath().standardizedFileURL
+        let candidatePath = canonicalCandidate.path
+        guard candidatePath == canonicalRoot || candidatePath.hasPrefix(canonicalRoot + "/") else {
+            return nil
+        }
+        var isDirectory = ObjCBool(false)
+        guard
+            FileManager.default.fileExists(atPath: candidatePath, isDirectory: &isDirectory),
+            !isDirectory.boolValue
+        else {
+            return nil
+        }
+        return canonicalCandidate
     }
 
     /// Seeks the active recording to a clamped position in seconds.

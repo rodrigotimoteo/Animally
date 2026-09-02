@@ -19,5 +19,6 @@ internal object AssistantWebSourcesCodec {
         value
             ?.takeIf(String::isNotBlank)
             ?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() }
+            ?.filter { it.hasTrustedUrl() }
             .orEmpty()
 }

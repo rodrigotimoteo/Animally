@@ -25,7 +25,7 @@ internal class WeightSummaryTool(
         val args = input.arguments(call)
         input.rejectUnknownKeys(args, AnalysisToolLimits.DATE_RANGE_KEYS)
         val range = input.dateRange(args)
-        val patients = input.matchingPatients(args)
+        val patients = input.matchingPatients(args, call.executionScope)
         val rows = loadRows(patients, range)
         val returnedRows = rows.take(AnalysisToolLimits.MAX_DATA_ROWS)
         val summaryPatients = patients.take(AnalysisToolLimits.MAX_PATIENTS)

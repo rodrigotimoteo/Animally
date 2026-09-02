@@ -19,11 +19,11 @@ actual class NotificationScheduler {
     actual fun scheduleCogginsNotifications(alerts: List<CogginsAlert>) {
         if (alerts.isEmpty()) return
         ensureInitialized(REMINDER_CHANNEL_ID)
-        alerts.forEachIndexed { index, alert ->
+        alerts.forEachIndexed { index, _ ->
             LocalNotifications.notifier.notify(
                 id = index,
-                title = "Coggins ${alert.status.name}",
-                body = "${alert.patient.name} — Coggins expires ${alert.expiryDate}",
+                title = "Health reminder",
+                body = "A health reminder needs your attention.",
             )
         }
     }
@@ -35,8 +35,8 @@ actual class NotificationScheduler {
         ensureInitialized(channelId)
         LocalNotifications.notifier.notify {
             id = reminder.notificationId()
-            title = reminder.title
-            body = "${reminder.recordType} due ${reminder.dueDate} — ${reminder.patientName}"
+            title = "Scheduled reminder"
+            body = "A scheduled reminder is due."
             scheduledAt = reminder.fireAt(TimeZone.currentSystemDefault())
         }
     }

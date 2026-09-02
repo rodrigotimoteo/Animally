@@ -34,7 +34,7 @@ internal class CareSummaryTool(
         if (recordType !in AnalysisToolLimits.CARE_RECORD_TYPES) {
             throw AnalysisToolInputException("record_type must be all, vaccination, deworming, or farrier.")
         }
-        val patients = input.matchingPatients(args)
+        val patients = input.matchingPatients(args, call.executionScope)
         val rows = loadRows(patients, recordType, range)
         val returnedRows = rows.take(AnalysisToolLimits.MAX_DATA_ROWS)
         val summaryPatients = patients.take(AnalysisToolLimits.MAX_PATIENTS)

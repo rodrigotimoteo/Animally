@@ -65,6 +65,31 @@ class CloudLlmSettingsReadinessTest {
         store.storedBaseUrl = "https://example.com/v1/chat/completions"
         assertTrue(store.isReadyForCloudRouting())
     }
+
+    @Test
+    fun `http is accepted only for exact loopback hosts`() {
+        val store = FakeCloudSettings()
+        store.storedEnabled = true
+        store.storedPresetId = CloudLlmProviderPreset.OLLAMA.id
+        store.storedModel = "local-model"
+
+        store.storedBaseUrl = "http://localhost:11434/v1"
+        assertTrue(store.isReadyForCloudRouting())
+
+        store.storedBaseUrl = "http://127.0.0.1:8080/v1"
+        assertTrue(store.isReadyForCloudRouting())
+
+        store.storedPresetId = CloudLlmProviderPreset.CUSTOM.id
+        store.storedApiKey = "key"
+        store.storedBaseUrl = "http://localhost:8080/v1"
+        assertFalse(store.isReadyForCloudRouting())
+
+        store.storedBaseUrl = "http://localhost.example.com/v1"
+        assertFalse(store.isReadyForCloudRouting())
+
+        store.storedBaseUrl = "http://example.com/v1"
+        assertFalse(store.isReadyForCloudRouting())
+    }
 }
 
 private class FakeCloudSettings : CloudLlmSettingsStore {

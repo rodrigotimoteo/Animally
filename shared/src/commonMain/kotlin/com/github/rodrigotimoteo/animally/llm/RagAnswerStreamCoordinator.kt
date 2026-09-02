@@ -21,6 +21,7 @@ internal data class RagStreamRequest(
     val grounded: Boolean,
     val webSources: List<VeterinaryWebSource>,
     val webReferencesUnavailable: Boolean = false,
+    val toolExecutionScope: RagToolExecutionScope? = null,
 )
 
 /**
@@ -214,6 +215,7 @@ internal class RagAnswerStreamCoordinator(
                         emitChunk = { chunk ->
                             collector.emit(RagStreamEvent.Chunk(stripCitationTokens(chunk)))
                         },
+                        executionScope = request.toolExecutionScope,
                     ).run(messages)
                 }
             } else {

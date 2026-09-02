@@ -18,6 +18,7 @@ import platform.posix.memcpy
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -58,6 +59,21 @@ class StorageIosTest {
         val readBack = requireNotNull(NSData.create(contentsOfFile = path)).toByteArray()
 
         assertContentEquals(bytes, readBack)
+    }
+
+    @Test
+    fun saveBytesUsesDistinctPathsForSameDisplayName() {
+        val firstBytes = "first-attachment".encodeToByteArray()
+        val secondBytes = "second-attachment".encodeToByteArray()
+
+        val firstPath = FileStorage.saveBytes("same-name.jpg", firstBytes)
+        val secondPath = FileStorage.saveBytes("same-name.jpg", secondBytes)
+
+        assertNotEquals(firstPath, secondPath)
+        assertTrue(firstPath.endsWith(".jpg"), "display extension should be retained: $firstPath")
+        assertTrue(secondPath.endsWith(".jpg"), "display extension should be retained: $secondPath")
+        assertContentEquals(firstBytes, requireNotNull(NSData.create(contentsOfFile = firstPath)).toByteArray())
+        assertContentEquals(secondBytes, requireNotNull(NSData.create(contentsOfFile = secondPath)).toByteArray())
     }
 
     /** Writes a dummy SQLite-like payload where the live driver would put it. */

@@ -16,6 +16,14 @@ data class RagToolCall(
     val id: String,
     val name: String,
     val arguments: String,
+    /** App-owned scope bound immediately before executing this call. */
+    val executionScope: RagToolExecutionScope? = null,
+)
+
+/** Deterministic authorization context for one model-generated tool call. */
+data class RagToolExecutionScope(
+    val resolvedPatientId: Long?,
+    val requiresPatientName: Boolean,
 )
 
 /** Structured result returned to the model after a tool executes. */

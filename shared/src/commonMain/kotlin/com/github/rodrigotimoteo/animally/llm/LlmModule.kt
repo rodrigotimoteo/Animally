@@ -81,6 +81,7 @@ val llmModule =
                         model = settingsSnapshot.model,
                         apiKey = settingsSnapshot.apiKey.orEmpty(),
                         maxTokens = provider.takeIf { it.isLocalRuntime }?.let { CloudLlmConfig.DEFAULT_MAX_TOKENS },
+                        allowInsecureLocalEndpoint = provider.isLocalRuntime,
                     )
                 },
             )

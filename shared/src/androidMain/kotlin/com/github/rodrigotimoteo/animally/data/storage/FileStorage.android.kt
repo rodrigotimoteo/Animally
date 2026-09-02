@@ -9,7 +9,7 @@ actual object FileStorage {
         bytes: ByteArray,
     ): String {
         val attachmentsDir = File(appContext.filesDir, ATTACHMENTS_DIR).apply { mkdirs() }
-        val file = File(attachmentsDir, sanitizeFileName(fileName))
+        val file = File(attachmentsDir, appOwnedStorageFileName(fileName))
         file.writeBytes(bytes)
         return file.absolutePath
     }

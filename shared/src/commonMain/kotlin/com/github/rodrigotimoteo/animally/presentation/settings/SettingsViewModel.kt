@@ -291,6 +291,10 @@ class SettingsViewModel(
     }
 
     private suspend fun runCloudModelsFetch() {
+        if (!cloudLlmSettings.isReadyForCloudModelDiscovery()) {
+            cloudModelsStatus = "Complete Cloud AI settings before fetching models"
+            return
+        }
         isFetchingCloudModels = true
         cloudModelsStatus = null
         try {
@@ -298,6 +302,7 @@ class SettingsViewModel(
                 cloudModelCatalog.fetch(
                     baseUrl = cloudBaseUrl,
                     apiKey = cloudApiKey.ifBlank { null },
+                    allowInsecureLocalEndpoint = cloudProviderPreset.isLocalRuntime,
                 )
             when (result) {
                 is CloudModelsResult.Success -> {

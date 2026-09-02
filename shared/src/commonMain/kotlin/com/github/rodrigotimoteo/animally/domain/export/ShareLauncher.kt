@@ -37,3 +37,27 @@ expect fun sharePdf(
     fileName: String,
     bytes: ByteArray,
 )
+
+/**
+ * Keeps user-controlled names as a single safe filename component for every
+ * platform share implementation.
+ */
+internal fun sanitizeShareFileName(fileName: String): String {
+    val leafName = fileName.substringAfterLast('/').substringAfterLast('\\')
+    val sanitized =
+        buildString(leafName.length) {
+            leafName.forEach { character ->
+                when {
+                    character.code < FIRST_PRINTABLE_ASCII_CODE || character.code == DELETE_ASCII_CODE -> append('_')
+                    character in INVALID_FILENAME_CHARACTERS -> append('_')
+                    else -> append(character)
+                }
+            }
+        }.trim()
+    return sanitized.takeUnless { it.isEmpty() || it == "." || it == ".." } ?: DEFAULT_SHARE_FILE_NAME
+}
+
+private val INVALID_FILENAME_CHARACTERS = setOf('<', '>', ':', '"', '|', '?', '*')
+private const val DEFAULT_SHARE_FILE_NAME = "export"
+private const val FIRST_PRINTABLE_ASCII_CODE = 0x20
+private const val DELETE_ASCII_CODE = 0x7F

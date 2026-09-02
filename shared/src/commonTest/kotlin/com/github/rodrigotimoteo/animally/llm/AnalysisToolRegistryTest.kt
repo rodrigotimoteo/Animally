@@ -186,4 +186,66 @@ class AnalysisToolRegistryTest {
             assertTrue(result.isError)
             assertTrue(result.content.contains("No active patient matches Ann"))
         }
+
+    @Test
+    fun `scoped tool calls fail closed when patient name is omitted or mismatched`() =
+        runTest {
+            repos.patients.patients = listOf(testPatient(1, "Bella"), testPatient(2, "Shadow"))
+            val scope = RagToolExecutionScope(resolvedPatientId = 1L, requiresPatientName = true)
+
+            val omitted =
+                registry.execute(
+                    RagToolCall(
+                        "call-omitted",
+                        AnalysisToolNames.WEIGHT_SUMMARY,
+                        "{}",
+                        executionScope = scope,
+                    ),
+                )
+            val mismatched =
+                registry.execute(
+                    RagToolCall(
+                        "call-mismatched",
+                        AnalysisToolNames.CARE_SUMMARY,
+                        """{"patient_name":"Shadow"}""",
+                        executionScope = scope,
+                    ),
+                )
+            val censusOmitted =
+                registry.execute(
+                    RagToolCall(
+                        "call-census-omitted",
+                        AnalysisToolNames.PATIENT_CENSUS,
+                        "{}",
+                        executionScope = scope,
+                    ),
+                )
+
+            assertTrue(omitted.isError)
+            assertTrue(omitted.content.contains("patient_name is required"))
+            assertTrue(mismatched.isError)
+            assertTrue(mismatched.content.contains("does not match"))
+            assertTrue(censusOmitted.isError)
+        }
+
+    @Test
+    fun `population tool calls retain optional patient filtering behavior`() =
+        runTest {
+            repos.patients.patients = listOf(testPatient(1, "Bella"), testPatient(2, "Shadow"))
+            repos.weights.entries =
+                listOf(
+                    testWeight(10, 1, 500.0, LocalDate(2025, 1, 1)),
+                    testWeight(11, 2, 510.0, LocalDate(2025, 1, 1)),
+                )
+
+            val result =
+                registry.execute(
+                    RagToolCall("call-population", AnalysisToolNames.WEIGHT_SUMMARY, "{}"),
+                )
+            val json = Json.parseToJsonElement(result.content).jsonObject
+
+            assertFalse(result.isError, result.content)
+            assertEquals(2, json["patient_count"]!!.jsonPrimitive.int)
+            assertEquals(2, json["measurement_count"]!!.jsonPrimitive.int)
+        }
 }

@@ -1,6 +1,8 @@
 import SwiftUI
 import Shared
 
+private let maximumRestoreInputUTF16Units = 4_194_304
+
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -294,7 +296,16 @@ struct SettingsView: View {
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
 
-            TextEditor(text: $viewModel.restoreJson)
+            TextEditor(
+                text: Binding(
+                    get: { viewModel.restoreJson },
+                    set: { value in
+                        if value.utf16.count <= maximumRestoreInputUTF16Units {
+                            viewModel.restoreJson = value
+                        }
+                    }
+                )
+            )
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 200)
                 .padding(8)

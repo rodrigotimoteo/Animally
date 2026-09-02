@@ -126,7 +126,7 @@ class AnalysisContextBuilder(
             )
         val blocks =
             buildList {
-                if (AnalysisTopicIntents.wantsCensus(query)) add(censusBuilder.censusBlock(patients))
+                if (AnalysisTopicIntents.wantsCensus(query)) add(censusBuilder.censusBlock(careTargets))
                 if (AnalysisTopicIntents.wantsWeight(query)) {
                     weightBuilder.weightTrendBlock(careTargets, dateRange)?.let(::add)
                 }

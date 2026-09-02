@@ -54,11 +54,13 @@ private class FakeToolEngine(
 
 private class FakeToolRegistry : RagToolRegistry {
     var returnsError: Boolean = false
+    var receivedCalls: List<RagToolCall> = emptyList()
     override val definitions: List<RagToolDefinition> = AnalysisToolSchemas.definitions
     var calls: Int = 0
 
     override suspend fun execute(call: RagToolCall): RagToolResult {
         calls += 1
+        receivedCalls += call
         return RagToolResult(
             toolCallId = call.id,
             name = call.name,
@@ -112,6 +114,7 @@ class ToolAwareGenerateRagResponseUseCaseTest {
         plainEngine: RagLlmEngine = PlainFallbackEngine(),
         recordSearch: RagRecordSearch = RagRecordSearch { emptyList() },
         analysisContextBuilder: AnalysisContextBuilder? = null,
+        patientRepository: com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository? = null,
     ): GenerateRagResponseUseCase =
         GenerateRagResponseUseCase(
             searchUseCase = SearchUseCase(searchRepository),
@@ -120,6 +123,7 @@ class ToolAwareGenerateRagResponseUseCaseTest {
             toolCallingEngine = toolEngine,
             toolRegistry = registry,
             analysisContextBuilder = analysisContextBuilder,
+            patientRepository = patientRepository,
             today = LocalDate(2025, 5, 11),
         )
 
@@ -278,6 +282,26 @@ class ToolAwareGenerateRagResponseUseCaseTest {
             assertEquals(
                 "I can still answer from the available context.",
                 events.filterIsInstance<RagStreamEvent.Chunk>().last().text,
+            )
+        }
+
+    @Test
+    fun `named analysis binds the resolved patient id to every executed tool call`() =
+        runTest {
+            val repos = FakeAnalysisRepos()
+            repos.patients.patients = listOf(testPatient(1, "Bella"), testPatient(2, "Shadow"))
+            val registry = FakeToolRegistry()
+
+            sut(
+                toolEngine = FakeToolEngine(),
+                registry = registry,
+                patientRepository = repos.patients,
+            )("Analyze Bella's weight data").toList()
+
+            assertEquals(1, registry.receivedCalls.size)
+            assertEquals(
+                RagToolExecutionScope(resolvedPatientId = 1L, requiresPatientName = true),
+                registry.receivedCalls.single().executionScope,
             )
         }
 }

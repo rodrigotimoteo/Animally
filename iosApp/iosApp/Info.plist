@@ -9,8 +9,8 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Animally uses on-device speech recognition to turn your dictation into records.</string>
 	<key>UIFileSharingEnabled</key>
-	<true/>
+	<false/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
+	<false/>
 </dict>
 </plist>

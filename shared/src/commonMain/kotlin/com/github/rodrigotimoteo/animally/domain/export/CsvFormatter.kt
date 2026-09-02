@@ -39,24 +39,25 @@ object CsvFormatter {
             "ImageUris" to "Image URIs",
         )
 
+    /** Characters that spreadsheet applications may treat as formula starts. */
+    private val FORMULA_PREFIXES = setOf('=', '+', '-', '@')
+
     /**
      * Escapes a single field for CSV output. `null` becomes the empty string.
      */
     fun escape(field: String?): String {
         if (field == null) return ""
-        val requiresQuoting = field.any { it == COMMA || it == QUOTE || it == CARRIAGE_RETURN || it == LINE_FEED }
-        return if (requiresQuoting) {
-            "\"${field.replace("\"", "\"\"")}\""
-        } else {
-            field
-        }
+        return escapeRaw(neutralizeFormula(field))
     }
 
     /**
      * Renders one CSV line from [fields], applying [escape] per field and
      * appending the CRLF line ending.
      */
-    fun line(fields: List<Any?>): String = fields.joinToString(separator = ",") { escape(it?.toString()) } + LINE_ENDING
+    fun line(fields: List<Any?>): String =
+        fields.joinToString(separator = ",") { field ->
+            if (field is Number) escapeRaw(field.toString()) else escape(field?.toString())
+        } + LINE_ENDING
 
     /**
      * Maps internal field names to human-readable display headers, e.g.
@@ -67,4 +68,18 @@ object CsvFormatter {
 
     /** Maps one internal field name to its display form. */
     fun displayHeader(field: String): String = DISPLAY_OVERRIDES[field] ?: field.replace(CAMEL_BOUNDARY, " ")
+
+    private fun neutralizeFormula(field: String): String {
+        val firstContentIndex = field.indexOfFirst { !it.isWhitespace() }
+        return if (firstContentIndex >= 0 && field[firstContentIndex] in FORMULA_PREFIXES) "'$field" else field
+    }
+
+    private fun escapeRaw(field: String): String {
+        val requiresQuoting = field.any { it == COMMA || it == QUOTE || it == CARRIAGE_RETURN || it == LINE_FEED }
+        return if (requiresQuoting) {
+            "\"${field.replace("\"", "\"\"")}\""
+        } else {
+            field
+        }
+    }
 }

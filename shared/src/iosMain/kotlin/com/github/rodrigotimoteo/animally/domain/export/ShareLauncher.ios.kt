@@ -40,7 +40,8 @@ actual fun shareFile(
     content: String,
     contentType: String,
 ) {
-    val targetPath = "${ensureExportsDir()}/$fileName"
+    val safeFileName = sanitizeShareFileName(fileName)
+    val targetPath = "${ensureExportsDir()}/$safeFileName"
     val written =
         NSString
             .create(string = content)
@@ -60,8 +61,9 @@ actual fun shareFileAt(
     contentType: String,
 ) {
     val fileManager = NSFileManager.defaultManager
+    val safeFileName = sanitizeShareFileName(fileName)
     check(fileManager.fileExistsAtPath(path)) { "Cannot share missing file at $path" }
-    val targetPath = "${ensureExportsDir()}/$fileName"
+    val targetPath = "${ensureExportsDir()}/$safeFileName"
     if (fileManager.fileExistsAtPath(targetPath)) {
         fileManager.removeItemAtPath(targetPath, error = null)
     }
@@ -78,7 +80,8 @@ actual fun sharePdf(
     fileName: String,
     bytes: ByteArray,
 ) {
-    val targetPath = "${ensureExportsDir()}/$fileName"
+    val safeFileName = sanitizeShareFileName(fileName)
+    val targetPath = "${ensureExportsDir()}/$safeFileName"
     val data =
         bytes.usePinned { pinned ->
             NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())

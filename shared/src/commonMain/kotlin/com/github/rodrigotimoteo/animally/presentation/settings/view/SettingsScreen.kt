@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.rodrigotimoteo.animally.domain.backup.MAX_BACKUP_INPUT_CHARS
 import com.github.rodrigotimoteo.animally.presentation.common.glass.GlassTopAppBar
 import com.github.rodrigotimoteo.animally.presentation.common.glass.hazeSourceFrom
 import com.github.rodrigotimoteo.animally.presentation.common.glass.rememberHazeState
@@ -135,7 +136,11 @@ private fun BackupSection(viewModel: SettingsViewModel) {
         }
         OutlinedTextField(
             value = viewModel.restoreJson,
-            onValueChange = { viewModel.restoreJson = it },
+            onValueChange = { value ->
+                if (value.length <= MAX_BACKUP_INPUT_CHARS) {
+                    viewModel.restoreJson = value
+                }
+            },
             label = { Text("Backup JSON") },
             modifier = Modifier.fillMaxWidth(),
         )

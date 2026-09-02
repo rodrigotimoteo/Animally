@@ -26,6 +26,8 @@ data class CloudLlmConfig(
     val connectTimeoutMillis: Long = DEFAULT_CONNECT_TIMEOUT_MILLIS,
     val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
     val maxTokens: Int? = null,
+    /** True only for an explicitly selected local runtime such as Ollama. */
+    val allowInsecureLocalEndpoint: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1/chat/completions"
@@ -84,7 +86,7 @@ internal fun applyCloudLlmRequest(
     prompt: String,
     instructions: String,
 ) {
-    if (config.apiKey.isNotBlank()) {
+    if (shouldSendCloudAuthorization(config)) {
         builder.headers.append(HttpHeaders.Authorization, "Bearer ${config.apiKey}")
     }
     builder.contentType(ContentType.Application.Json)
@@ -102,7 +104,7 @@ internal fun applyCloudLlmRequest(
     config: CloudLlmConfig,
     request: ChatCompletionRequest,
 ) {
-    if (config.apiKey.isNotBlank()) {
+    if (shouldSendCloudAuthorization(config)) {
         builder.headers.append(HttpHeaders.Authorization, "Bearer ${config.apiKey}")
     }
     builder.contentType(ContentType.Application.Json)
@@ -114,6 +116,8 @@ internal fun applyCloudLlmRequest(
     }
     builder.setBody(request)
 }
+
+private fun shouldSendCloudAuthorization(config: CloudLlmConfig): Boolean = config.apiKey.isNotBlank() && !isInsecureCloudBaseUrl(config.baseUrl)
 
 @Serializable
 internal data class ChatCompletionRequest(

@@ -1,5 +1,8 @@
 package com.github.rodrigotimoteo.animally.data.storage
 
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
 /**
  * Platform-backed storage for files attached to patient records.
  *
@@ -9,8 +12,8 @@ package com.github.rodrigotimoteo.animally.data.storage
  */
 expect object FileStorage {
     /**
-     * Saves [bytes] to the app's private storage under [fileName] and returns
-     * the absolute path of the written file.
+     * Saves [bytes] to the app's private storage using [fileName] as display
+     * metadata and returns the absolute path of the written file.
      */
     fun saveBytes(
         fileName: String,
@@ -42,4 +45,18 @@ internal fun splitImageUris(imageUris: String?): List<String> =
 internal fun sanitizeFileName(fileName: String): String {
     val sanitized = fileName.substringAfterLast('/').substringAfterLast('\\').trim()
     return sanitized.ifBlank { "attachment" }
+}
+
+/**
+ * Creates an app-owned file name that retains the supplied display name and
+ * extension while preventing same-name attachments from overwriting one
+ * another.
+ */
+@OptIn(ExperimentalUuidApi::class)
+internal fun appOwnedStorageFileName(fileName: String): String {
+    val displayName = sanitizeFileName(fileName)
+    val extensionStart = displayName.lastIndexOf('.').takeIf { it > 0 } ?: displayName.length
+    val baseName = displayName.substring(0, extensionStart)
+    val extension = displayName.substring(extensionStart)
+    return "$baseName-${Uuid.random()}$extension"
 }

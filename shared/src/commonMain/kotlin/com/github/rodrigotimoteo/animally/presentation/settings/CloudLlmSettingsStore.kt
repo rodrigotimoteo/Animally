@@ -1,7 +1,7 @@
 package com.github.rodrigotimoteo.animally.presentation.settings
 
 import com.github.rodrigotimoteo.animally.llm.cloud.CloudLlmProviderPreset
-import io.ktor.http.URLBuilder
+import com.github.rodrigotimoteo.animally.llm.cloud.isValidCloudBaseUrl as isValidCloudEndpoint
 
 /**
  * User-facing cloud LLM settings. Non-secret fields (enabled flag, model, base URL)
@@ -46,7 +46,16 @@ fun CloudLlmSettingsStore.isReadyForCloudRouting(): Boolean {
     return settings.enabled &&
         (!provider.requiresApiKey || !settings.apiKey.isNullOrBlank()) &&
         settings.model.isNotBlank() &&
-        isValidCloudBaseUrl(settings.baseUrl)
+        isValidCloudBaseUrl(settings.baseUrl, provider.isLocalRuntime)
+}
+
+/** True when model discovery may contact the selected endpoint; a model is not required yet. */
+fun CloudLlmSettingsStore.isReadyForCloudModelDiscovery(): Boolean {
+    val settings = snapshot()
+    val provider = CloudLlmProviderPreset.fromId(settings.presetId)
+    return settings.enabled &&
+        (!provider.requiresApiKey || !settings.apiKey.isNullOrBlank()) &&
+        isValidCloudBaseUrl(settings.baseUrl, provider.isLocalRuntime)
 }
 
 /**
@@ -55,17 +64,10 @@ fun CloudLlmSettingsStore.isReadyForCloudRouting(): Boolean {
  * checks only the scheme and host and leaves path normalization to the cloud
  * transport.
  */
-internal fun isValidCloudBaseUrl(value: String): Boolean {
-    val normalized = value.trim()
-    if (!ABSOLUTE_HTTP_URL_REGEX.matches(normalized)) return false
-    return runCatching { URLBuilder(normalized).build() }
-        .getOrNull()
-        ?.let { url -> url.host.isNotBlank() && url.protocol.name.lowercase() in HTTP_PROTOCOLS }
-        ?: false
-}
-
-private val ABSOLUTE_HTTP_URL_REGEX = Regex("^https?://[^\\s/?#]+(?:[/?#][^\\s]*)?$", RegexOption.IGNORE_CASE)
-private val HTTP_PROTOCOLS = setOf("http", "https")
+internal fun isValidCloudBaseUrl(
+    value: String,
+    allowInsecureLocalEndpoint: Boolean = false,
+): Boolean = isValidCloudEndpoint(value, allowInsecureLocalEndpoint)
 
 /** Preference key for the cloud toggle. */
 const val PREF_CLOUD_LLM_ENABLED = "llm_cloud_enabled"

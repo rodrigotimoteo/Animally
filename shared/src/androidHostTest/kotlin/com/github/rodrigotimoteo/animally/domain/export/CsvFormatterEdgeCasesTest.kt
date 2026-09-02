@@ -38,6 +38,18 @@ class CsvFormatterEdgeCasesTest {
     }
 
     @Test
+    fun givenFormulaLeadingTextWhenLineRenderedThenTextIsNeutralized() {
+        assertEquals("'=SUM(A1:A2)\r\n", formatter.line(listOf("=SUM(A1:A2)")))
+        assertEquals("'+1\r\n", formatter.line(listOf("+1")))
+        assertEquals("' -1\r\n", formatter.line(listOf(" -1")))
+    }
+
+    @Test
+    fun givenNumericValueWhenLineRenderedThenNegativeNumberRemainsNumeric() {
+        assertEquals("-1,2.5\r\n", formatter.line(listOf(-1, 2.5)))
+    }
+
+    @Test
     fun givenAnyFieldsWhenLineRenderedThenCrlfTerminatorAppended() {
         assertEquals("1,2\r\n", formatter.line(listOf(1, 2)))
     }

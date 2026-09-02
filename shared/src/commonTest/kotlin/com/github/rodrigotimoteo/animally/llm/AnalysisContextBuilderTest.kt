@@ -33,6 +33,16 @@ class AnalysisContextBuilderTest {
     }
 
     @Test
+    fun `given a named census question then census context stays patient scoped`() {
+        repos.patients.patients = listOf(testPatient(1, "Thunder"), testPatient(2, "Bella"))
+
+        val summary = builder.build("How many patients does Bella have?", today).orEmpty()
+
+        assertTrue(summary.contains("PATIENT CENSUS: 1 active patient: Bella."), summary)
+        assertFalse(summary.contains("Thunder"), summary)
+    }
+
+    @Test
     fun `given PT census question when built then census block emitted`() {
         repos.patients.patients = listOf(testPatient(1, "Thunder"))
 

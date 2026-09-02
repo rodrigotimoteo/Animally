@@ -74,8 +74,11 @@ class CloudRagLlmEngine(
     private fun streamRequest(
         request: ChatCompletionRequest,
         config: CloudLlmConfig,
-    ): Flow<RagToolStreamEvent> =
-        channelFlow {
+    ): Flow<RagToolStreamEvent> {
+        require(isValidCloudBaseUrl(config.baseUrl, config.allowInsecureLocalEndpoint)) {
+            "Endpoint must use HTTPS unless it targets an explicitly configured local runtime"
+        }
+        return channelFlow {
             httpClient
                 .preparePost(cloudChatCompletionsUrl(config.baseUrl)) {
                     applyCloudLlmRequest(this, config, request)
@@ -84,6 +87,7 @@ class CloudRagLlmEngine(
                     streamResponse(response, ::send)
                 }
         }
+    }
 
     private suspend fun streamResponse(
         response: HttpResponse,

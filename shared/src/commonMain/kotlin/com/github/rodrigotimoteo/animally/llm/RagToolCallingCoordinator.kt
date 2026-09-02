@@ -16,6 +16,7 @@ internal class RagToolCallingCoordinator(
     private val sanitize: (String) -> String,
     private val onText: (String) -> Unit,
     private val emitChunk: suspend (String) -> Unit,
+    private val executionScope: RagToolExecutionScope? = null,
 ) {
     suspend fun run(messages: MutableList<RagChatMessage>): RagToolAnswer {
         val collectedSources = mutableListOf<SearchResult>()
@@ -165,7 +166,9 @@ internal class RagToolCallingCoordinator(
     ): Int {
         var successfulCalls = 0
         calls.forEach { call ->
-            val result = registry.execute(call)
+            // Keep provider-supplied arguments intact for replay, but bind the
+            // app-resolved authorization context for the actual repository call.
+            val result = registry.execute(call.copy(executionScope = executionScope))
             collectedSources += result.sources
             if (!result.isError) successfulCalls++
             messages +=

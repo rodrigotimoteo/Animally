@@ -110,4 +110,32 @@ class BackupSerializerTest {
             BackupSerializer.decode(json)
         }
     }
+
+    @Test
+    fun `decode rejects oversized input before json parsing`() {
+        assertFailsWith<IllegalArgumentException> {
+            BackupSerializer.decode("{".repeat(MAX_BACKUP_BYTES + 1))
+        }
+    }
+
+    @Test
+    fun `decode rejects multibyte input before utf8 materialization`() {
+        assertFailsWith<IllegalArgumentException> {
+            BackupSerializer.decode("é".repeat(MAX_BACKUP_INPUT_CHARS + 1))
+        }
+    }
+
+    @Test
+    fun `decode rejects a collection over its row quota`() {
+        val oversizedPatients = "null,".repeat(MAX_BACKUP_COLLECTION_ITEMS) + "null"
+        val json =
+            BackupSerializer.encode(samplePayload.copy(patients = emptyList())).replace(
+                "\"patients\": []",
+                "\"patients\": [$oversizedPatients]",
+            )
+
+        assertFailsWith<IllegalArgumentException> {
+            BackupSerializer.decode(json)
+        }
+    }
 }

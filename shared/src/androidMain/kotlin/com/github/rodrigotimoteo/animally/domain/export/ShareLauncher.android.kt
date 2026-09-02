@@ -14,9 +14,10 @@ actual fun shareFile(
     content: String,
     contentType: String,
 ) {
-    val file = File(appContext.cacheDir, fileName)
+    val safeFileName = sanitizeShareFileName(fileName)
+    val file = File(appContext.cacheDir, safeFileName)
     file.writeText(content)
-    shareFileAt(fileName, file.absolutePath, contentType)
+    shareFileAt(safeFileName, file.absolutePath, contentType)
 }
 
 /**
@@ -29,7 +30,8 @@ actual fun shareFileAt(
     contentType: String,
 ) {
     val context = appContext
-    val file = File(path)
+    val safeFileName = sanitizeShareFileName(fileName)
+    val file = requireShareableFile(context, path)
     val contentUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val shareIntent =
         Intent(Intent.ACTION_SEND).apply {
@@ -37,7 +39,26 @@ actual fun shareFileAt(
             putExtra(Intent.EXTRA_STREAM, contentUri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-    context.startActivity(Intent.createChooser(shareIntent, "Share $fileName"))
+    context.startActivity(Intent.createChooser(shareIntent, "Share $safeFileName"))
+}
+
+private fun requireShareableFile(
+    context: android.content.Context,
+    path: String,
+): File {
+    val file =
+        runCatching { File(path).canonicalFile }
+            .getOrElse { error("Cannot resolve file for sharing") }
+    check(file.isFile) { "Only an existing regular file may be shared" }
+    val allowedRoots =
+        listOf(
+            context.cacheDir,
+            File(context.filesDir, "backups"),
+        ).map { it.canonicalFile }
+    check(allowedRoots.any { root -> file.path.startsWith(root.path + File.separator) }) {
+        "File is outside Animally's shareable storage"
+    }
+    return file
 }
 
 /**
@@ -48,7 +69,8 @@ actual fun sharePdf(
     fileName: String,
     bytes: ByteArray,
 ) {
-    val file = File(appContext.cacheDir, fileName)
+    val safeFileName = sanitizeShareFileName(fileName)
+    val file = File(appContext.cacheDir, safeFileName)
     file.writeBytes(bytes)
-    shareFileAt(fileName, file.absolutePath, "application/pdf")
+    shareFileAt(safeFileName, file.absolutePath, "application/pdf")
 }

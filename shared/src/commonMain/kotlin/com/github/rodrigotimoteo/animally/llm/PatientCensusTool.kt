@@ -16,8 +16,17 @@ internal class PatientCensusTool(
 ) {
     fun execute(call: RagToolCall): RagToolResult {
         val args = input.arguments(call)
-        input.rejectUnknownKeys(args, emptySet())
-        val patients = patientRepository.getPatientList()
+        val scoped = call.executionScope?.requiresPatientName == true
+        input.rejectUnknownKeys(
+            args,
+            if (scoped) setOf(AnalysisToolArguments.PATIENT_NAME) else emptySet(),
+        )
+        val patients =
+            if (scoped) {
+                input.matchingPatients(args, call.executionScope)
+            } else {
+                patientRepository.getPatientList()
+            }
         val returnedPatients = patients.take(AnalysisToolLimits.MAX_PATIENTS)
         val content =
             buildJsonObject {

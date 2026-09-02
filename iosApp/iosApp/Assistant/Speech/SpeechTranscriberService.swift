@@ -162,11 +162,11 @@ struct ResolvedDictationEngine {
 
 /// Factory choosing the best available transcriber engine.
 ///
-/// Preference order, degrading gracefully — dictation is never blocked:
+/// Preference order, degrading gracefully when a supported local engine exists:
 /// 1. iOS 26 SpeechAnalyzer in the selected language, downloading its speech
 ///    assets when the platform offers that.
 /// 2. Classic `SFSpeechRecognizer` in the selected language or a matching
-///    regional variant.
+///    regional variant, restricted to on-device recognition.
 ///
 /// The resolver never silently changes an English request into another
 /// language. When SpeechAnalyzer is available, its legacy engine is retained
@@ -316,7 +316,8 @@ enum SpeechTranscriberService {
         for identifier in candidates {
             guard
                 let recognizer = SFSpeechRecognizer(locale: Locale(identifier: identifier)),
-                recognizer.isAvailable
+                recognizer.isAvailable,
+                recognizer.supportsOnDeviceRecognition
             else {
                 continue
             }
@@ -804,7 +805,11 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
         }
 
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
-        guard let recognizer, recognizer.isAvailable else {
+        guard
+            let recognizer,
+            recognizer.isAvailable,
+            recognizer.supportsOnDeviceRecognition
+        else {
             teardownAudioPipeline()
             throw DictationTranscriberError.recognizerUnavailable
         }
@@ -812,6 +817,7 @@ final class DictationTranscriber: NSObject, SpeechTranscribing {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        request.requiresOnDeviceRecognition = true
         self.request = request
 
         let input = engine.inputNode

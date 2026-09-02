@@ -481,27 +481,24 @@ private struct LocalImageContent: View {
 
 /// Resolves both current absolute paths and legacy `file://` paths. If an
 /// app reinstall changed the sandbox container, the attachment's file name is
-/// used as a safe fallback in the current Documents/attachments directory.
+/// used as a safe fallback in the current app-owned attachments directory.
+/// Paths outside that directory are never read.
 private enum LocalAttachmentURL {
     static func resolvedURL(for storedPath: String) -> URL? {
         let trimmedPath = storedPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPath.isEmpty else { return nil }
 
         guard let storedURL = storedURL(for: trimmedPath) else { return nil }
-        if storedURL.isFileURL, FileManager.default.fileExists(atPath: storedURL.path) {
-            return storedURL
-        }
-
-        guard storedURL.isFileURL, !storedURL.lastPathComponent.isEmpty else {
-            return storedURL
-        }
-        let fileName = storedURL.lastPathComponent
-
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fallbackURL = documentsURL
-            .appendingPathComponent("attachments", isDirectory: true)
-            .appendingPathComponent(fileName, isDirectory: false)
-        return FileManager.default.fileExists(atPath: fallbackURL.path) ? fallbackURL : storedURL
+        let attachmentsURL = documentsURL.appendingPathComponent("attachments", isDirectory: true)
+
+        if let currentURL = containedExistingFile(storedURL, under: attachmentsURL) {
+            return currentURL
+        }
+
+        guard !storedURL.lastPathComponent.isEmpty else { return nil }
+        let fallbackURL = attachmentsURL.appendingPathComponent(storedURL.lastPathComponent, isDirectory: false)
+        return containedExistingFile(fallbackURL, under: attachmentsURL)
     }
 
     private static func storedURL(for path: String) -> URL? {
@@ -509,5 +506,24 @@ private enum LocalAttachmentURL {
             return url.isFileURL ? url : nil
         }
         return URL(fileURLWithPath: path)
+    }
+
+    private static func containedExistingFile(_ candidate: URL, under root: URL) -> URL? {
+        guard candidate.isFileURL else { return nil }
+
+        let canonicalRoot = root.resolvingSymlinksInPath().standardizedFileURL.path
+        let canonicalCandidate = candidate.resolvingSymlinksInPath().standardizedFileURL
+        let candidatePath = canonicalCandidate.path
+        guard candidatePath == canonicalRoot || candidatePath.hasPrefix(canonicalRoot + "/") else {
+            return nil
+        }
+        var isDirectory = ObjCBool(false)
+        guard
+            FileManager.default.fileExists(atPath: candidatePath, isDirectory: &isDirectory),
+            !isDirectory.boolValue
+        else {
+            return nil
+        }
+        return canonicalCandidate
     }
 }

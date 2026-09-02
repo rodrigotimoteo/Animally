@@ -16,6 +16,18 @@ import kotlin.time.Instant
  */
 const val BACKUP_SCHEMA_VERSION: Int = 1
 
+/** Maximum UTF-8 size accepted by the restore boundary. */
+const val MAX_BACKUP_BYTES: Int = 16 * 1024 * 1024
+
+/** Maximum UTF-16 input size accepted by restore editors before decoding. */
+const val MAX_BACKUP_INPUT_CHARS: Int = MAX_BACKUP_BYTES / 4
+
+/** Maximum number of rows accepted in any one backup collection. */
+const val MAX_BACKUP_COLLECTION_ITEMS: Int = 10_000
+
+/** Maximum number of rows accepted across all backup collections. */
+const val MAX_BACKUP_TOTAL_COLLECTION_ITEMS: Int = 100_000
+
 /**
  * Serializable [LocalDate] as an ISO-8601 string (e.g. `2026-08-02`).
  */

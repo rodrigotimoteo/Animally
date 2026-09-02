@@ -546,6 +546,46 @@ class CloudRagLlmEngineTest {
         }
 
     @Test
+    fun `local streaming request omits a stale hosted authorization key`() =
+        runTest {
+            var authorization: String? = null
+            val client =
+                HttpClient(
+                    MockEngine { request ->
+                        authorization = request.headers[HttpHeaders.Authorization]
+                        respond(
+                            content = SSE_CONTENT_RESPONSE,
+                            headers = headersOf(HttpHeaders.ContentType, ContentType.Text.EventStream.toString()),
+                        )
+                    },
+                ) {
+                    install(ContentNegotiation) {
+                        json(
+                            Json {
+                                explicitNulls = false
+                            },
+                        )
+                    }
+                }
+            try {
+                val localConfig =
+                    config.copy(
+                        baseUrl = "http://127.0.0.1:11434/v1",
+                        allowInsecureLocalEndpoint = true,
+                    )
+                val streamingEngine = CloudRagLlmEngine(client) { localConfig }
+
+                assertEquals(
+                    listOf("Hello", "Hello world"),
+                    streamingEngine.generateStreaming("question", "instructions").toList(),
+                )
+                assertNull(authorization)
+            } finally {
+                client.close()
+            }
+        }
+
+    @Test
     fun `tool streaming request assembles fragmented calls`() =
         runTest {
             val client = mockClient(toolCallResponse)

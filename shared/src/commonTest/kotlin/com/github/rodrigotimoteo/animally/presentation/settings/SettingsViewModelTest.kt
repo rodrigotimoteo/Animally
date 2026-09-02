@@ -43,6 +43,7 @@ import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.mock
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -274,6 +275,18 @@ class SettingsViewModelTest {
         assertEquals(AccentColor.OCEAN, vm.accentColor.value)
         assertEquals(AccentColor.OCEAN, themePreferenceStore.getAccentColor())
     }
+
+    @Test
+    fun `model discovery is skipped until cloud ai is ready`() =
+        runTest {
+            every { patientRepositoryMock.getPatientList() } returns emptyList()
+            val vm = createViewModel()
+
+            vm.fetchCloudModelsAwait()
+
+            assertEquals("Complete Cloud AI settings before fetching models", vm.cloudModelsStatus)
+            assertTrue(!vm.isFetchingCloudModels)
+        }
 }
 
 /**
