@@ -31,9 +31,11 @@ class RestoreBackupUseCase(
      */
     operator fun invoke(jsonContent: String) {
         val payload = BackupSerializer.decode(jsonContent)
+        payload.validateForRestore()
         val existingAudioPaths = database.dictationAudioPaths()
         database.transaction {
             database.deleteAllBackupRows()
+            database.deleteAllRestoreState()
             // FTS rows are derived data. Clearing both tables while the source
             // rows are empty prevents stale results even if reindexing later
             // fails; the next startup will retry the versioned healing pass.

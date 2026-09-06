@@ -40,7 +40,12 @@ class WeightSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = weightRepository.getById(entityId) ?: throw NoSuchElementException("Weight $entityId not found")
+        val row =
+            database.weightQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Weight $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -67,7 +72,7 @@ class WeightSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.weightQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

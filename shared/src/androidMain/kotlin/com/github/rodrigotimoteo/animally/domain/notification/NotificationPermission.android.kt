@@ -16,9 +16,9 @@ import com.github.rodrigotimoteo.animally.di.infra.appContext
  * has turned notifications off for the app.
  *
  * [request] is a best-effort report of the current state: KMPNotifier's Android permission
- * util ([com.mmk.kmpnotifier.permission.AndroidMockPermissionUtil]) cannot show the system
- * dialog from shared code — Android runtime permissions must be launched from an Activity
- * (see `ComponentActivity.permissionUtil()`). The reminder channel is ensured up front so the
+ * util cannot show the system dialog from shared code — Android runtime permissions must be
+ * launched from an Activity. [AndroidNotificationPermissionBridge] connects that Activity
+ * Result callback to the shared state machine. The reminder channel is ensured up front so the
  * UI degrades gracefully instead of crashing when permission is missing.
  */
 actual class NotificationPermission {
@@ -32,6 +32,9 @@ actual class NotificationPermission {
 
     actual suspend fun request(): Boolean {
         ensureReminderChannel(appContext)
-        return isGranted()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || isGranted()) {
+            return isGranted()
+        }
+        return AndroidNotificationPermissionBridge.request() && isGranted()
     }
 }

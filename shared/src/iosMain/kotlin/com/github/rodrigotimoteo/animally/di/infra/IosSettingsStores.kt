@@ -50,6 +50,7 @@ object IosSettingsStores {
                 themePreferenceStore = createPlatformThemePreferenceStore(),
                 cloudLlmSettings = IosAppBridge.koin.get(),
                 cloudModelCatalog = IosAppBridge.koin.get(),
+                ioDispatcher = IosAppBridge.koin.get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                 animallyNavigator = IosAppBridge.koin.get(),
             )
         return SettingsStore(viewModel)

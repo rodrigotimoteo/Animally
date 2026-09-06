@@ -76,26 +76,15 @@ interface ISearchRepository {
     fun rebuild()
 
     /**
-     * Re-indexes every active owner. Idempotent: existing entries are replaced.
-     * Called at startup so owners created before owner indexing existed appear
-     * in search results.
+     * Marks the derived index stale after an external mutation (for example a
+     * sync pull). The next healing pass must rebuild both projection tables.
      */
-    fun reindexOwners()
-
-    /** Re-indexes every active patient; heals rows whose index entry was lost or clobbered. */
-    fun reindexPatients()
+    fun markIndexDirty() = Unit
 
     /**
-     * Backfills the index for every clinical/preventive/reproductive record type
-     * from its table; heals rows created before record-type indexing existed.
-     * Idempotent: existing entries are replaced.
-     */
-    fun reindexRecords()
-
-    /**
-     * Runs the full healing pass ([reindexOwners], [reindexPatients],
-     * [reindexRecords], [rebuild]) only when needed: the stored healed version
-     * differs from [indexVersion] or the index is empty. Otherwise a no-op.
+     * Runs the full healing pass, including owner, patient, and record backfills,
+     * only when needed: the stored healed version differs from [indexVersion]
+     * or either projection is unhealthy. Otherwise a no-op.
      *
      * @param indexVersion the version the caller expects the index to be healed for.
      */
@@ -168,7 +157,11 @@ interface ISearchRepository {
          * v22: remove the generic "stallion" field token and the ambiguous
          * "stud" synonym; prefix matching made unrelated "stall rest" and
          * "diagnostic study" text look like breeding evidence.
+         *
+         * v23: preserve medication start dates in index metadata so inclusive
+         * date-scoped search and date-only assistant retrieval include active
+         * medication records.
          */
-        const val SEARCH_INDEX_VERSION = "22"
+        const val SEARCH_INDEX_VERSION = "23"
     }
 }

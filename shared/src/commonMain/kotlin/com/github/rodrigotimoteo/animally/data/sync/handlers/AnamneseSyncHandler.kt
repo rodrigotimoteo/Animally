@@ -44,13 +44,12 @@ class AnamneseSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        // Anamnese rows have no id-based repo read; locate the row via its patient.
-        val patientId =
-            anamneseIdToPatientId(entityId)
-                ?: throw NoSuchElementException("Anamnese $entityId not found")
         val row =
-            anamneseRepository.getByPatient(patientId)
+            database.anamneseQueries
+                .selectById(entityId)
+                .executeAsOneOrNull()
                 ?: throw NoSuchElementException("Anamnese $entityId not found")
+        val patientId = row.patientId
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -140,12 +139,4 @@ class AnamneseSyncHandler(
         )
         return existingId
     }
-
-    /** Anamnese has no `getById` repo read; map an id back through the single-row-per-patient table. */
-    private fun anamneseIdToPatientId(entityId: Long): Long? =
-        database.anamneseQueries
-            .selectAllRows()
-            .executeAsList()
-            .firstOrNull { it.id == entityId }
-            ?.patientId
 }

@@ -44,7 +44,12 @@ class GestationSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = gestationRepository.getById(entityId) ?: throw NoSuchElementException("Gestation $entityId not found")
+        val row =
+            database.gestationQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Gestation $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -75,7 +80,7 @@ class GestationSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.gestationQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

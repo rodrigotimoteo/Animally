@@ -71,6 +71,10 @@ class ExportCsvUseCase(
             gestations = reproductive.gestations,
             reproMedications = reproductive.reproMedications,
             controlledSubstances = reproductive.controlledSubstances,
+            customReminders = reproductive.customReminders,
+            embryoTransfers = reproductive.embryoTransfers,
+            icsi = reproductive.icsi,
+            follicles = reproductive.follicles,
         )
     }
 }

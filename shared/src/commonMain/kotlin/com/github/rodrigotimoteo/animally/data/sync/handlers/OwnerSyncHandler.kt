@@ -44,7 +44,12 @@ class OwnerSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = ownerRepository.getOwnerById(entityId) ?: throw NoSuchElementException("Owner $entityId not found")
+        val row =
+            database.ownerQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Owner $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -82,7 +87,7 @@ class OwnerSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.ownerQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

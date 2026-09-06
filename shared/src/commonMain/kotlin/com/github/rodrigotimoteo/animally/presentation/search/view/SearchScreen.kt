@@ -24,7 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -32,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.presentation.common.glass.GlassTopAppBar
 import com.github.rodrigotimoteo.animally.presentation.common.glass.LocalHazeState
@@ -112,7 +115,7 @@ private fun SearchContent(
     onToggleRecordType: (String) -> Unit,
     onFromDateChange: (LocalDate?) -> Unit,
     onToDateChange: (LocalDate?) -> Unit,
-    onResultClick: (Long) -> Unit,
+    onResultClick: (SearchResult) -> Unit,
 ) {
     Column(modifier = modifier.fillMaxSize().hazeSourceFrom(LocalHazeState.current)) {
         RecordTypeFilters(
@@ -174,9 +177,21 @@ private fun DateField(
     onChange: (LocalDate?) -> Unit,
     modifier: Modifier,
 ) {
+    var text by remember { mutableStateOf(date?.toString().orEmpty()) }
+
+    LaunchedEffect(date) {
+        val parsedText = runCatching { LocalDate.parse(text.trim()) }.getOrNull()
+        if (parsedText != date) {
+            text = date?.toString().orEmpty()
+        }
+    }
+
     OutlinedTextField(
-        value = date?.toString() ?: "",
-        onValueChange = { text -> onChange(runCatching { LocalDate.parse(text.trim()) }.getOrNull()) },
+        value = text,
+        onValueChange = { value ->
+            text = value
+            onChange(runCatching { LocalDate.parse(value.trim()) }.getOrNull())
+        },
         label = { Text(label) },
         placeholder = { Text("yyyy-mm-dd") },
         singleLine = true,
@@ -187,7 +202,7 @@ private fun DateField(
 @Composable
 private fun SearchResults(
     uiState: SearchUiState,
-    onResultClick: (Long) -> Unit,
+    onResultClick: (SearchResult) -> Unit,
     modifier: Modifier,
 ) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
@@ -212,19 +227,28 @@ private fun SearchResults(
 @Composable
 private fun GroupedResults(
     results: List<SearchResult>,
-    onResultClick: (Long) -> Unit,
+    onResultClick: (SearchResult) -> Unit,
 ) {
-    val grouped = remember(results) { results.groupBy { it.patientId } }
+    val grouped =
+        remember(results) {
+            results.groupBy { result ->
+                if (result.recordType == ISearchRepository.TYPE_OWNER) {
+                    "owner:${result.ownerId ?: result.patientId}"
+                } else {
+                    "patient:${result.patientId}"
+                }
+            }
+        }
     LazyColumn(Modifier.fillMaxSize()) {
-        grouped.forEach { (patientId, patientResults) ->
-            item(key = "header-$patientId") {
+        grouped.forEach { (groupKey, patientResults) ->
+            item(key = "header-$groupKey") {
                 PatientHeader(patientResults.first().patientName)
             }
             items(
                 items = patientResults,
-                key = { result -> "$patientId-${result.recordType}-${result.recordId}" },
+                key = { result -> "$groupKey-${result.recordType}-${result.recordId}" },
             ) { result ->
-                SearchResultCard(result = result, onClick = { onResultClick(patientId) })
+                SearchResultCard(result = result, onClick = { onResultClick(result) })
             }
         }
     }

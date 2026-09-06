@@ -160,6 +160,28 @@ class SyncChangeTrackerImpl(
                     )
                 },
             )
+            addAll(
+                database.embryoTransferQueries.selectChangedSince(instant).executeAsList().map { row ->
+                    ChangedRecord(
+                        entityType = "EmbryoTransfer",
+                        id = row.id,
+                        updatedAt = row.updatedAt,
+                        serverId = row.serverId,
+                        isActive = row.isActive,
+                    )
+                },
+            )
+            addAll(
+                database.icsiQueries.selectChangedSince(instant).executeAsList().map { row ->
+                    ChangedRecord(
+                        entityType = "Icsi",
+                        id = row.id,
+                        updatedAt = row.updatedAt,
+                        serverId = row.serverId,
+                        isActive = row.isActive,
+                    )
+                },
+            )
         }
 
     private fun collectReproductionRecords(instant: Instant): List<ChangedRecord> =
@@ -190,6 +212,17 @@ class SyncChangeTrackerImpl(
                 database.ultrasoundQueries.selectChangedSince(instant).executeAsList().map { row ->
                     ChangedRecord(
                         entityType = "Ultrasound",
+                        id = row.id,
+                        updatedAt = row.updatedAt,
+                        serverId = row.serverId,
+                        isActive = row.isActive,
+                    )
+                },
+            )
+            addAll(
+                database.follicleQueries.selectChangedSince(instant).executeAsList().map { row ->
+                    ChangedRecord(
+                        entityType = "Follicle",
                         id = row.id,
                         updatedAt = row.updatedAt,
                         serverId = row.serverId,

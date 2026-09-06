@@ -43,7 +43,12 @@ class ImagingSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = imagingRepository.getById(entityId) ?: throw NoSuchElementException("Imaging $entityId not found")
+        val row =
+            database.imagingQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Imaging $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -73,7 +78,7 @@ class ImagingSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.imagingQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

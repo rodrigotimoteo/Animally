@@ -276,7 +276,29 @@ class RestoreBackupUseCaseTest {
             {
               "schemaVersion": 1,
               "exportedAt": "2026-01-01T00:00:00Z",
-              "patients": [],
+              "patients": [
+                {
+                  "id": 1,
+                  "name": "Charlie",
+                  "species": "Equine",
+                  "breed": null,
+                  "dateOfBirth": null,
+                  "gender": null,
+                  "microchipId": null,
+                  "ueln": null,
+                  "registrationNumber": null,
+                  "stableLocation": null,
+                  "photoUri": null,
+                  "notes": null,
+                  "ownerId": null,
+                  "isActive": true,
+                  "createdAt": 0,
+                  "updatedAt": 0,
+                  "cogginsTestDate": null,
+                  "cogginsResult": null,
+                  "cogginsExpiryDate": null
+                }
+              ],
               "owners": [],
               "anamnese": [],
               "consultations": [],

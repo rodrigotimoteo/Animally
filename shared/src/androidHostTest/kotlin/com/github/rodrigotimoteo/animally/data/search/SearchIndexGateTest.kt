@@ -91,6 +91,36 @@ class SearchIndexGateTest {
     }
 
     @Test
+    fun givenCurrentVersionWithEmptyFtsWhenReindexIfNeededThenHealsAgain() {
+        seedPatient("Thunder")
+        repo.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
+        database.searchFtsQueries.deleteAllFts().value
+
+        repo.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
+
+        assertEquals(1, repo.search("thun", null, null, null).size)
+        assertEquals(
+            database.searchFtsQueries.countIndexRows().executeAsOne(),
+            database.searchFtsQueries.countFtsRows().executeAsOne(),
+        )
+    }
+
+    @Test
+    fun givenSameCountsWithMismatchedFtsTextWhenReindexIfNeededThenHealsAgain() {
+        val patientId = seedPatient("Thunder")
+        repo.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
+        database.searchFtsQueries.deleteAllFts().value
+        database.searchFtsQueries
+            .insertFts("unrelated")
+            .value
+
+        repo.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
+
+        assertEquals(1, repo.search("thun", null, null, null).size)
+        assertEquals(0L, database.searchFtsQueries.countMismatchedFtsRows().executeAsOne())
+    }
+
+    @Test
     fun givenNeverHealedWhenReadVersionThenNullStored() {
         assertNull(stateQueries.selectState("search_index_version").executeAsOneOrNull())
     }

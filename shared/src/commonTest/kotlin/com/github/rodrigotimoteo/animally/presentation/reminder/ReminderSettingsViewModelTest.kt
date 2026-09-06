@@ -3,8 +3,10 @@ package com.github.rodrigotimoteo.animally.presentation.reminder
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionController
+import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetDentistryRemindersUseCase
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetVaccinationRemindersUseCase
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
@@ -45,6 +47,10 @@ class ReminderSettingsViewModelTest {
     private val patientRepositoryMock: IPatientRepository = mock()
 
     private val permissionControllerMock: NotificationPermissionController = mock()
+
+    private val reminderPreferenceStore = FakeReminderPreferenceStore()
+
+    private val reminderScheduler = TrackingReminderScheduler()
 
     private val getVaccinationRemindersUseCase =
         GetVaccinationRemindersUseCase(vaccinationRepositoryMock, patientRepositoryMock)
@@ -94,6 +100,8 @@ class ReminderSettingsViewModelTest {
             getDentistryRemindersUseCase,
             dispatcher,
             permissionControllerMock,
+            reminderPreferenceStore,
+            reminderScheduler,
         )
 
     @Test
@@ -129,10 +137,26 @@ class ReminderSettingsViewModelTest {
             vm.setRemindersEnabled(false)
 
             assertFalse(vm.uiState.value.remindersEnabled)
+            assertEquals(1, reminderScheduler.cancelAllCount)
 
             vm.setRemindersEnabled(true)
 
             assertTrue(vm.uiState.value.remindersEnabled)
+        }
+
+    @Test
+    fun `toggle persists across view model recreation`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { permissionControllerMock.isGranted() } returns true
+            val first = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            first.setRemindersEnabled(false)
+            val second = createViewModel(StandardTestDispatcher(testScheduler))
+            advanceUntilIdle()
+
+            assertFalse(second.uiState.value.remindersEnabled)
         }
 
     @Test
@@ -203,6 +227,7 @@ class ReminderSettingsViewModelTest {
             assertFalse(vm.uiState.value.isPermissionRequesting)
             assertEquals(false, vm.uiState.value.notificationsEnabled)
             assertNotNull(vm.uiState.value.permissionMessage)
+            assertEquals(2, reminderScheduler.cancelAllCount)
         }
 
     @Test
@@ -237,4 +262,26 @@ class ReminderSettingsViewModelTest {
             assertNull(vm.uiState.value.errorMessage)
             assertFalse(vm.uiState.value.isChecking)
         }
+}
+
+private class FakeReminderPreferenceStore : ReminderPreferenceStore {
+    private var enabled = true
+
+    override fun isEnabled(): Boolean = enabled
+
+    override fun setEnabled(enabled: Boolean) {
+        this.enabled = enabled
+    }
+}
+
+private class TrackingReminderScheduler : ReminderScheduler {
+    var cancelAllCount = 0
+
+    override fun schedule(reminder: Reminder) = Unit
+
+    override fun cancel(reminder: Reminder) = Unit
+
+    override fun cancelAll() {
+        cancelAllCount++
+    }
 }

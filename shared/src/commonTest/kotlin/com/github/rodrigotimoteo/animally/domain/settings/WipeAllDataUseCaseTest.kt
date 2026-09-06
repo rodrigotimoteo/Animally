@@ -6,6 +6,7 @@ import com.github.rodrigotimoteo.animally.data.search.SearchRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.settings.DatabaseWipePortImpl
 import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.dictation.DictationFilePort
+import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.settings.DatabaseWipePort
@@ -25,15 +26,15 @@ import kotlin.time.Instant
  * database is empty. This covers the entire wipe surface so regressions that
  * add a `deleteAll()` without seeding/awaiting it are caught.
  *
- * Implementation note: the port's KDoc documents "23 data tables" but the
+ * Implementation note: the port's KDoc documents "25 data tables" and the
  * actual impl clears 25 tables ([AssistantChatHistory], [Anamnese],
  * [Consultation], [Dentistry], [Deworming], [FarrierVisit], [Gestation],
  * [Imaging], [LabResult], [Lameness], [Medication], [Owner], [Patient],
  * [ReproMedication], [Reproduction], [Substance], [Surgery], [Ultrasound],
  * [Vaccination], [Weight], [Follicle], [EmbryoTransfer], [Icsi],
  * [CustomReminder], [DictationCapture]) plus both FTS halves. This test asserts
- * all 25 + FTS rather than the documented 23 so it stays correct if the count
- * comment drifts. Seeding every table has low incremental cost and higher
+ * all 25 + FTS so it stays correct if the table list changes. Seeding every
+ * table has low incremental cost and higher
  * regression value than a minimal 7-table spot-check; a fake
  * [DatabaseWipePort] tracking `clearedTables` would verify delegation but not
  * that the SQL `DELETE`s actually run, so the real-database assertion is
@@ -43,14 +44,16 @@ class WipeAllDataUseCaseTest {
     private lateinit var database: AnimallyDatabase
     private lateinit var searchRepository: SearchRepositoryImpl
     private lateinit var databaseWipePort: DatabaseWipePort
-    private lateinit var dictationFilePort: DictationFilePort
+    private lateinit var dictationFilePort: TrackingDictationFilePort
+    private lateinit var reminderScheduler: ReminderScheduler
 
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
         searchRepository = SearchRepositoryImpl(database, database.ownerQueries)
         databaseWipePort = DatabaseWipePortImpl(database)
-        dictationFilePort = FakeDictationFilePort()
+        dictationFilePort = TrackingDictationFilePort()
+        reminderScheduler = TrackingReminderScheduler()
     }
 
     @Test
@@ -58,7 +61,7 @@ class WipeAllDataUseCaseTest {
         seedRows()
         seedSearchIndex()
 
-        WipeAllDataUseCase(databaseWipePort, dictationFilePort, searchRepository).invoke()
+        val result = WipeAllDataUseCase(databaseWipePort, dictationFilePort, searchRepository, reminderScheduler).invoke()
 
         // Core identity + clinical history (original 7-table subset)
         assertEmpty { database.ownerQueries.selectAllRows() }
@@ -92,6 +95,18 @@ class WipeAllDataUseCaseTest {
         // Both halves of the FTS index: metadata table and the full-text table.
         assertEquals(0L, database.searchFtsQueries.countIndexRows().executeAsOne())
         assertTrue(searchRepository.search("Charlie", null, null, null).isEmpty())
+        assertEquals(
+            setOf(
+                "/tmp/audio.caf",
+                "attachments/radiograph.jpg",
+                "attachments/archived-radiograph.jpg",
+                "attachments/ultrasound.jpg",
+                "attachments/ultrasound-second.jpg",
+                "attachments/archived-ultrasound.jpg",
+            ),
+            dictationFilePort.deletedPaths,
+        )
+        assertTrue(result.isComplete)
     }
 
     @Test
@@ -106,14 +121,40 @@ class WipeAllDataUseCaseTest {
         // Fake port returns one audio path to verify file deletion delegation.
         fakePort.audioPathsToReturn = setOf("/tmp/audio.caf")
 
-        WipeAllDataUseCase(fakePort, trackingDictationPort, trackingSearchPort).invoke()
+        val trackingReminderScheduler = TrackingReminderScheduler()
+        val result = WipeAllDataUseCase(fakePort, trackingDictationPort, trackingSearchPort, trackingReminderScheduler).invoke()
 
         assertTrue(fakePort.clearAllCalled, "DatabaseWipePort.clearAll should be invoked")
         assertEquals(setOf("/tmp/audio.caf"), trackingDictationPort.deletedPaths)
         assertEquals(1, trackingSearchPort.rebuildCalls)
+        assertEquals(1, trackingReminderScheduler.cancelAllCalls)
         // Canonical 25 data tables plus both FTS halves is the wipe surface;
         // fake tracks that delegation would wipe the full set.
         assertEquals(TrackingFakeDatabaseWipePort.EXPECTED_WIPED_TABLES, fakePort.clearedTables)
+        assertTrue(result.isComplete)
+    }
+
+    @Test
+    fun `wipe reports media cleanup failures after database commit`() {
+        val fakePort =
+            TrackingFakeDatabaseWipePort().apply {
+                audioPathsToReturn = setOf("keep.caf", "removed.caf")
+            }
+        val trackingDictationPort =
+            TrackingDictationFilePort().apply {
+                undeletablePaths += "keep.caf"
+            }
+
+        val result =
+            WipeAllDataUseCase(
+                fakePort,
+                trackingDictationPort,
+                TrackingSearchRepository(),
+                TrackingReminderScheduler(),
+            ).invoke()
+
+        assertEquals(setOf("keep.caf"), result.residualMediaPaths)
+        assertTrue(!result.isComplete)
     }
 
     /** Runs [query] and asserts it returned no rows. */
@@ -290,12 +331,25 @@ class WipeAllDataUseCaseTest {
             type = "Radiograph",
             date = LocalDate(2026, 6, 20),
             findings = "Navicular remodeling",
-            imageUris = null,
+            imageUris = "attachments/radiograph.jpg",
             vetName = "Dr. Silva",
             notes = null,
             isActive = true,
             createdAt = Instant.fromEpochMilliseconds(4600L),
             updatedAt = Instant.fromEpochMilliseconds(4600L),
+        )
+        database.imagingQueries.insertWithId(
+            id = 28L,
+            patientId = 1L,
+            type = "Archived radiograph",
+            date = LocalDate(2025, 6, 20),
+            findings = "Archived image",
+            imageUris = "attachments/archived-radiograph.jpg",
+            vetName = null,
+            notes = null,
+            isActive = false,
+            createdAt = Instant.fromEpochMilliseconds(4601L),
+            updatedAt = Instant.fromEpochMilliseconds(4601L),
         )
         database.labResultQueries.insertWithId(
             id = 17L,
@@ -416,12 +470,35 @@ class WipeAllDataUseCaseTest {
             uterineLiquidDescription = null,
             uterusDescription = "Normal tone",
             findings = "Pre-ovulatory",
-            imageUris = null,
+            imageUris = "attachments/ultrasound.jpg, attachments/ultrasound-second.jpg",
             vetName = "Dr. Silva",
             notes = null,
             isActive = true,
             createdAt = Instant.fromEpochMilliseconds(5400L),
             updatedAt = Instant.fromEpochMilliseconds(5400L),
+        )
+        database.ultrasoundQueries.insertWithId(
+            id = 29L,
+            patientId = 1L,
+            date = LocalDate(2025, 7, 1),
+            ovaryStatus = null,
+            uterineStatus = null,
+            follicleSizeMm = null,
+            leftOvaryStatus = null,
+            rightOvaryStatus = null,
+            leftFollicleSizeMm = null,
+            rightFollicleSizeMm = null,
+            uterineEdema = null,
+            uterineLiquid = null,
+            uterineLiquidDescription = null,
+            uterusDescription = null,
+            findings = "Archived ultrasound",
+            imageUris = "attachments/archived-ultrasound.jpg",
+            vetName = null,
+            notes = null,
+            isActive = false,
+            createdAt = Instant.fromEpochMilliseconds(5401L),
+            updatedAt = Instant.fromEpochMilliseconds(5401L),
         )
         database.follicleQueries.insertWithId(
             id = 25L,
@@ -467,10 +544,6 @@ class WipeAllDataUseCaseTest {
             database.searchFtsQueries.insertFts("Charlie Hanoverian").value
         }
     }
-}
-
-private class FakeDictationFilePort : DictationFilePort {
-    override fun delete(path: String): Boolean = true
 }
 
 private class TrackingFakeDatabaseWipePort : DatabaseWipePort {
@@ -525,10 +598,21 @@ private class TrackingFakeDatabaseWipePort : DatabaseWipePort {
 
 private class TrackingDictationFilePort : DictationFilePort {
     val deletedPaths: MutableSet<String> = mutableSetOf()
+    val undeletablePaths: MutableSet<String> = mutableSetOf()
 
     override fun delete(path: String): Boolean {
         deletedPaths.add(path)
-        return true
+        return path !in undeletablePaths
+    }
+}
+
+private class TrackingReminderScheduler : ReminderScheduler {
+    var cancelAllCalls: Int = 0
+
+    override fun schedule(reminder: com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder) = Unit
+
+    override fun cancelAll() {
+        cancelAllCalls++
     }
 }
 
@@ -565,12 +649,6 @@ private class TrackingSearchRepository : ISearchRepository {
     override fun rebuild() {
         rebuildCalls += 1
     }
-
-    override fun reindexOwners() = Unit
-
-    override fun reindexPatients() = Unit
-
-    override fun reindexRecords() = Unit
 
     override fun reindexIfNeeded(indexVersion: String) = Unit
 }

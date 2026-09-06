@@ -2,10 +2,14 @@ package com.github.rodrigotimoteo.animally.domain.export
 
 import com.github.rodrigotimoteo.animally.domain.anamnese.model.Anamnese
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
+import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomReminder
 import com.github.rodrigotimoteo.animally.domain.dentistry.model.Dentistry
 import com.github.rodrigotimoteo.animally.domain.deworming.model.Deworming
+import com.github.rodrigotimoteo.animally.domain.embryotransfer.model.EmbryoTransfer
 import com.github.rodrigotimoteo.animally.domain.farrier.model.FarrierVisit
+import com.github.rodrigotimoteo.animally.domain.follicle.model.Follicle
 import com.github.rodrigotimoteo.animally.domain.gestation.model.Gestation
+import com.github.rodrigotimoteo.animally.domain.icsi.model.Icsi
 import com.github.rodrigotimoteo.animally.domain.imaging.model.Imaging
 import com.github.rodrigotimoteo.animally.domain.labresult.model.LabResult
 import com.github.rodrigotimoteo.animally.domain.lameness.model.Lameness
@@ -61,6 +65,10 @@ data class ExportRecords(
     val gestations: List<Gestation> = emptyList(),
     val reproMedications: List<ReproMedication> = emptyList(),
     val controlledSubstances: List<ControlledSubstance> = emptyList(),
+    val customReminders: List<CustomReminder> = emptyList(),
+    val embryoTransfers: List<EmbryoTransfer> = emptyList(),
+    val icsi: List<Icsi> = emptyList(),
+    val follicles: List<Follicle> = emptyList(),
 )
 
 /**
@@ -92,6 +100,15 @@ internal fun ExportRecords.filterByDate(
         gestations = gestations.filter { inRange(it.breedingDate, from, to) },
         reproMedications = reproMedications.filter { inRange(it.dateAdministered, from, to) },
         controlledSubstances = controlledSubstances.filter { inRange(it.date, from, to) },
+        customReminders = customReminders.filter { inRange(it.dueDate, from, to) },
+        embryoTransfers = embryoTransfers.filter { inRange(it.date, from, to) },
+        icsi = icsi.filter { inRange(it.date, from, to) },
+        follicles =
+            follicles.filter { follicle ->
+                ultrasounds
+                    .filter { inRange(it.date, from, to) }
+                    .any { it.id == follicle.ultrasoundId }
+            },
     )
 
 private fun inRange(

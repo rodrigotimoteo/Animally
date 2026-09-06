@@ -3,13 +3,17 @@ package com.github.rodrigotimoteo.animally.domain.export.pdf
 import com.github.rodrigotimoteo.animally.domain.anamnese.IAnamneseRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
+import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
+import com.github.rodrigotimoteo.animally.domain.embryotransfer.IEmbryoTransferRepository
 import com.github.rodrigotimoteo.animally.domain.export.ExportBasicRecordsUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportClinicalRecordsUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportReproductiveRecordsUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
+import com.github.rodrigotimoteo.animally.domain.follicle.IFollicleRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
+import com.github.rodrigotimoteo.animally.domain.icsi.IIcsiRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
@@ -55,6 +59,10 @@ class ExportPatientReportUseCaseTest {
     private val gestationRepository: IGestationRepository = mock()
     private val reproMedicationRepository: IReproMedicationRepository = mock()
     private val substanceRepository: IControlledSubstanceRepository = mock()
+    private val customReminderRepository: ICustomReminderRepository = mock()
+    private val embryoTransferRepository: IEmbryoTransferRepository = mock()
+    private val icsiRepository: IIcsiRepository = mock()
+    private val follicleRepository: IFollicleRepository = mock()
 
     private val sut =
         ExportPatientReportUseCase(
@@ -84,6 +92,10 @@ class ExportPatientReportUseCaseTest {
                     gestationRepository,
                     reproMedicationRepository,
                     substanceRepository,
+                    customReminderRepository,
+                    embryoTransferRepository,
+                    icsiRepository,
+                    follicleRepository,
                 ),
         )
 
@@ -119,6 +131,10 @@ class ExportPatientReportUseCaseTest {
         every { gestationRepository.getByPatient(any()) } returns emptyList()
         every { reproMedicationRepository.getByPatient(any()) } returns emptyList()
         every { substanceRepository.getByPatient(any()) } returns emptyList()
+        every { customReminderRepository.getByPatient(any()) } returns emptyList()
+        every { embryoTransferRepository.getByPatient(any()) } returns emptyList()
+        every { icsiRepository.getByPatient(any()) } returns emptyList()
+        every { follicleRepository.getByUltrasound(any()) } returns emptyList()
     }
 
     private fun consultation(

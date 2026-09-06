@@ -50,7 +50,10 @@ class CustomReminderSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            customReminderRepository.getById(entityId)
+            database.customReminderQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("CustomReminder $entityId not found")
         val payloadBody =
             SyncJson
@@ -80,7 +83,7 @@ class CustomReminderSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.customReminderQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

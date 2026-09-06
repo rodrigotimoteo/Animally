@@ -10,8 +10,8 @@ package com.github.rodrigotimoteo.animally.domain.settings
 interface DatabaseWipePort {
     /**
      * Clears every persisted table and both halves of the FTS index inside one
-     * transaction and returns the dictation audio paths that existed before the
-     * wipe. Callers should best-effort delete the returned files afterwards.
+     * transaction and returns app-owned media paths that existed before the
+     * wipe. Callers should delete the returned files and report any residuals.
      */
     fun clearAll(): Set<String>
 }

@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -73,6 +75,7 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
                 .padding(16.dp)
+                .verticalScroll(rememberScrollState())
                 .hazeSourceFrom(hazeState)
         Column(
             modifier = columnModifier,
@@ -118,9 +121,10 @@ private fun AppearanceSection(viewModel: SettingsViewModel) {
 private fun CsvExportSection(viewModel: SettingsViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Export", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = viewModel::onExportClick) {
-            Text("Export CSV")
+        Button(onClick = viewModel::onExportClick, enabled = !viewModel.isExportingCsv) {
+            Text(if (viewModel.isExportingCsv) "Exporting…" else "Export CSV")
         }
+        viewModel.csvStatus?.let { status -> Text(status, style = MaterialTheme.typography.bodySmall) }
     }
 }
 
@@ -128,14 +132,15 @@ private fun CsvExportSection(viewModel: SettingsViewModel) {
 private fun BackupSection(viewModel: SettingsViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Backup & Restore", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = viewModel::onExportBackupClick) {
-            Text("Export backup")
+        Button(onClick = viewModel::onExportBackupClick, enabled = !viewModel.isExportingBackup) {
+            Text(if (viewModel.isExportingBackup) "Exporting…" else "Export backup")
         }
         viewModel.backupStatus?.let { status ->
             Text(status, style = MaterialTheme.typography.bodySmall)
         }
         OutlinedTextField(
             value = viewModel.restoreJson,
+            enabled = !viewModel.isRestoringBackup,
             onValueChange = { value ->
                 if (value.length <= MAX_BACKUP_INPUT_CHARS) {
                     viewModel.restoreJson = value
@@ -144,8 +149,8 @@ private fun BackupSection(viewModel: SettingsViewModel) {
             label = { Text("Backup JSON") },
             modifier = Modifier.fillMaxWidth(),
         )
-        Button(onClick = viewModel::onRestoreBackupClick) {
-            Text("Restore backup")
+        Button(onClick = viewModel::onRestoreBackupClick, enabled = !viewModel.isRestoringBackup) {
+            Text(if (viewModel.isRestoringBackup) "Restoring…" else "Restore backup")
         }
         viewModel.restoreStatus?.let { status ->
             Text(status, style = MaterialTheme.typography.bodySmall)
@@ -166,8 +171,8 @@ private fun PdfExportSection(viewModel: SettingsViewModel) {
                 Text(patient.name)
             }
         }
-        Button(onClick = viewModel::onExportPdfClick) {
-            Text("Export PDF")
+        Button(onClick = viewModel::onExportPdfClick, enabled = !viewModel.isExportingPdf) {
+            Text(if (viewModel.isExportingPdf) "Exporting…" else "Export PDF")
         }
         viewModel.pdfStatus?.let { status ->
             Text(status, style = MaterialTheme.typography.bodySmall)

@@ -44,6 +44,30 @@ INSERT INTO SearchFts(rowid, searchableText) SELECT id, searchableText FROM Sear
 countIndexRows:
 SELECT COUNT(*) FROM SearchFtsIndex;
 
+-- Projection health checks. The metadata and FTS tables must have the same
+-- row ids; a matching count alone is not enough when one side contains a
+-- different row set.
+countFtsRows:
+SELECT COUNT(*) FROM SearchFts;
+
+countIndexRowsMissingFromFts:
+SELECT COUNT(*)
+FROM SearchFtsIndex i
+LEFT JOIN SearchFts f ON f.rowid = i.id
+WHERE f.rowid IS NULL;
+
+countFtsRowsMissingFromIndex:
+SELECT COUNT(*)
+FROM SearchFts f
+LEFT JOIN SearchFtsIndex i ON i.id = f.rowid
+WHERE i.id IS NULL;
+
+countMismatchedFtsRows:
+SELECT COUNT(*)
+FROM SearchFtsIndex i
+JOIN SearchFts f ON f.rowid = i.id
+WHERE f.searchableText <> i.searchableText;
+
 -- Global search across patients, consultations and medications.
 -- Date filtering is applied in SQL (nullable bounds), record-type filtering
 -- is applied in Kotlin because SQLDelight cannot bind list parameters.

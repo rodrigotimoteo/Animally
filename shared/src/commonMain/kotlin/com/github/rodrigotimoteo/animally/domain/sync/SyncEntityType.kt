@@ -30,6 +30,7 @@ enum class SyncEntityType(
     SUBSTANCE("Substance"),
     SURGERY("Surgery"),
     ULTRASOUND("Ultrasound"),
+    FOLLICLE("Follicle"),
     VACCINATION("Vaccination"),
     WEIGHT("Weight"),
     CUSTOM_REMINDER("CustomReminder"),

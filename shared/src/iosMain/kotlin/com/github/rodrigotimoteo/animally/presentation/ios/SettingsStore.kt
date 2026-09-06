@@ -43,13 +43,33 @@ class SettingsStore(
     val backupStatus: String?
         get() = viewModel.backupStatus
 
+    /** Message from the last CSV export, or `null`. */
+    val csvStatus: String?
+        get() = viewModel.csvStatus
+
+    /** True while the CSV export is running. */
+    val isExportingCsv: Boolean
+        get() = viewModel.isExportingCsv
+
+    /** True while the backup export is running. */
+    val isExportingBackup: Boolean
+        get() = viewModel.isExportingBackup
+
     /** Message from the last restore, or `null`. */
     val restoreStatus: String?
         get() = viewModel.restoreStatus
 
+    /** True while a backup restore is running. */
+    val isRestoringBackup: Boolean
+        get() = viewModel.isRestoringBackup
+
     /** Message from the last PDF export, or `null`. */
     val pdfStatus: String?
         get() = viewModel.pdfStatus
+
+    /** True while the PDF export is running. */
+    val isExportingPdf: Boolean
+        get() = viewModel.isExportingPdf
 
     /** True while the database wipe is in flight. */
     val isWipingData: Boolean
@@ -64,18 +84,18 @@ class SettingsStore(
         get() = viewModel.wipeStatus
 
     /** Exports every patient's records to a CSV file. */
-    fun exportCsv() {
-        viewModel.onExportClick()
+    suspend fun exportCsv() {
+        viewModel.exportCsvAwait()
     }
 
     /** Writes a full database backup and shares the JSON artifact. */
-    fun exportBackup() {
-        viewModel.onExportBackupClick()
+    suspend fun exportBackup() {
+        viewModel.exportBackupAwait()
     }
 
     /** Restores the database from the JSON in [restoreJson]. */
-    fun restoreBackup() {
-        viewModel.onRestoreBackupClick()
+    suspend fun restoreBackup() {
+        viewModel.restoreBackupAwait()
     }
 
     /** Selects the patient whose history the PDF export will include. */
@@ -84,16 +104,16 @@ class SettingsStore(
     }
 
     /** Renders the selected patient's history as a PDF and shares it. */
-    fun exportPdf() {
-        viewModel.onExportPdfClick()
+    suspend fun exportPdf() {
+        viewModel.exportPdfAwait()
     }
 
     /**
      * Erases every table and resets the search index. Call only after the
      * user confirmed in the UI — irreversible.
      */
-    fun wipeAllData() {
-        viewModel.onWipeAllDataClick()
+    suspend fun wipeAllData() {
+        viewModel.wipeAllDataAwait()
     }
 
     /** Updates the theme mode, persisting the choice. */

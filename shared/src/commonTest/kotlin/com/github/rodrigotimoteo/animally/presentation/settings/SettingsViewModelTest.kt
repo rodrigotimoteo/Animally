@@ -10,9 +10,11 @@ import com.github.rodrigotimoteo.animally.domain.backup.BackupSerializer
 import com.github.rodrigotimoteo.animally.domain.backup.ExportBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.backup.RestoreBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
+import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderRepository
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
 import com.github.rodrigotimoteo.animally.domain.dictation.DictationFilePort
+import com.github.rodrigotimoteo.animally.domain.embryotransfer.IEmbryoTransferRepository
 import com.github.rodrigotimoteo.animally.domain.export.CsvExporter
 import com.github.rodrigotimoteo.animally.domain.export.ExportBasicRecordsUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportClinicalRecordsUseCase
@@ -20,11 +22,14 @@ import com.github.rodrigotimoteo.animally.domain.export.ExportCsvUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportReproductiveRecordsUseCase
 import com.github.rodrigotimoteo.animally.domain.export.pdf.ExportPatientReportUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
+import com.github.rodrigotimoteo.animally.domain.follicle.IFollicleRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
+import com.github.rodrigotimoteo.animally.domain.icsi.IIcsiRepository
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
 import com.github.rodrigotimoteo.animally.domain.medication.IMedicationRepository
+import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.reproduction.IReproductionRepository
 import com.github.rodrigotimoteo.animally.domain.repromedication.IReproMedicationRepository
@@ -43,7 +48,14 @@ import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.mock
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -57,6 +69,7 @@ import kotlin.test.assertTrue
  * exercised on the host; this file covers every pure branch of the settings
  * actions. Theme behavior is covered by [SettingsViewModelThemeTest].
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
     private val patientRepositoryMock: IPatientRepository = mock()
 
@@ -93,6 +106,10 @@ class SettingsViewModelTest {
     private val reproMedicationRepositoryMock: IReproMedicationRepository = mock()
 
     private val substanceRepositoryMock: IControlledSubstanceRepository = mock()
+    private val customReminderRepositoryMock: ICustomReminderRepository = mock()
+    private val embryoTransferRepositoryMock: IEmbryoTransferRepository = mock()
+    private val icsiRepositoryMock: IIcsiRepository = mock()
+    private val follicleRepositoryMock: IFollicleRepository = mock()
 
     private val basicRecords =
         ExportBasicRecordsUseCase(
@@ -121,6 +138,10 @@ class SettingsViewModelTest {
             gestationRepositoryMock,
             reproMedicationRepositoryMock,
             substanceRepositoryMock,
+            customReminderRepositoryMock,
+            embryoTransferRepositoryMock,
+            icsiRepositoryMock,
+            follicleRepositoryMock,
         )
 
     private val exportCsvUseCase =
@@ -143,6 +164,10 @@ class SettingsViewModelTest {
     private lateinit var searchRepository: SearchRepositoryImpl
     private val databaseWipePort: DatabaseWipePort = FakeDatabaseWipePort()
     private val dictationFilePort: DictationFilePort = FakeDictationFilePort()
+    private val reminderScheduler =
+        object : ReminderScheduler {
+            override fun schedule(reminder: com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder) = Unit
+        }
 
     @BeforeTest
     fun setup() {
@@ -150,7 +175,12 @@ class SettingsViewModelTest {
         searchRepository = SearchRepositoryImpl(database, database.ownerQueries)
     }
 
-    private fun createViewModel() =
+    @AfterTest
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun createViewModel(ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Unconfined) =
         SettingsViewModel(
             exportCsvUseCase = exportCsvUseCase,
             exportBackupUseCase = ExportBackupUseCase(database),
@@ -162,7 +192,7 @@ class SettingsViewModelTest {
                     clinicalRecords,
                     reproductiveRecords,
                 ),
-            wipeAllDataUseCase = WipeAllDataUseCase(databaseWipePort, dictationFilePort, searchRepository),
+            wipeAllDataUseCase = WipeAllDataUseCase(databaseWipePort, dictationFilePort, searchRepository, reminderScheduler),
             patientRepository = patientRepositoryMock,
             themePreferenceStore = themePreferenceStore,
             cloudLlmSettings = cloudLlmSettings,
@@ -171,6 +201,7 @@ class SettingsViewModelTest {
                     // Engine never used: these tests never trigger a models fetch.
                     HttpClient(),
                 ),
+            ioDispatcher = ioDispatcher,
             animallyNavigator = navigator,
         )
 
@@ -213,26 +244,32 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `restore with valid json reports restore complete`() {
-        every { patientRepositoryMock.getPatientList() } returns emptyList()
-        val vm = createViewModel()
+    fun `restore with valid json reports restore complete`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientList() } returns emptyList()
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
-        vm.restoreJson = emptyBackupJson
-        vm.onRestoreBackupClick()
+            vm.restoreJson = emptyBackupJson
+            vm.onRestoreBackupClick()
+            advanceUntilIdle()
 
-        assertEquals("Restore complete", vm.restoreStatus)
-    }
+            assertEquals("Restore complete", vm.restoreStatus)
+        }
 
     @Test
-    fun `restore with malformed json reports failure`() {
-        every { patientRepositoryMock.getPatientList() } returns emptyList()
-        val vm = createViewModel()
+    fun `restore with malformed json reports failure`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            every { patientRepositoryMock.getPatientList() } returns emptyList()
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
 
-        vm.restoreJson = "not-valid-json"
-        vm.onRestoreBackupClick()
+            vm.restoreJson = "not-valid-json"
+            vm.onRestoreBackupClick()
+            advanceUntilIdle()
 
-        assertTrue(vm.restoreStatus!!.startsWith("Restore failed:"))
-    }
+            assertTrue(vm.restoreStatus!!.startsWith("Restore failed:"))
+        }
 
     @Test
     fun `selecting patient updates selected patient id`() {

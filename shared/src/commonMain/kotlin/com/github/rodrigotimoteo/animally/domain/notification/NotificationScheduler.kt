@@ -36,6 +36,12 @@ expect class NotificationScheduler() {
         reminder: Reminder,
         channelId: String = REMINDER_CHANNEL_ID,
     )
+
+    /** Cancels a previously scheduled reminder notification. */
+    fun cancelReminder(reminder: Reminder)
+
+    /** Cancels every reminder notification owned by the app. */
+    fun cancelAllReminders()
 }
 
 /**

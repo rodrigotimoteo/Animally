@@ -8,6 +8,7 @@ import com.github.rodrigotimoteo.animally.data.dentistry.DentistryRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.follicle.FollicleRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.gestation.GestationRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.icsi.IcsiRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingRepositoryImpl
@@ -18,6 +19,7 @@ import com.github.rodrigotimoteo.animally.data.owner.OwnerRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.patient.PatientRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.reproduction.ReproductionRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.repromedication.ReproMedicationRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.search.SearchRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.substance.ControlledSubstanceRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.surgery.SurgeryRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.sync.SyncChangeTrackerImpl
@@ -31,6 +33,7 @@ import com.github.rodrigotimoteo.animally.data.sync.handlers.DentistrySyncHandle
 import com.github.rodrigotimoteo.animally.data.sync.handlers.DewormingSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.EmbryoTransferSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.FarrierVisitSyncHandler
+import com.github.rodrigotimoteo.animally.data.sync.handlers.FollicleSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.GestationSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.IcsiSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.ImagingSyncHandler
@@ -57,6 +60,7 @@ import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.sync.handlers.SyncJson
 import com.github.rodrigotimoteo.animally.sync.InMemorySyncApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.jsonObject
@@ -64,6 +68,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -78,12 +83,14 @@ class SyncEngineTest {
     private lateinit var ownerRepo: OwnerRepositoryImpl
     private lateinit var patientRepo: PatientRepositoryImpl
     private lateinit var consultationRepo: ConsultationRepositoryImpl
+    private lateinit var searchRepository: SearchRepositoryImpl
 
     private val epoch = Instant.fromEpochMilliseconds(0)
 
     @BeforeTest
     fun setup() {
         database = createTestDatabase()
+        searchRepository = SearchRepositoryImpl(database, database.ownerQueries)
         api = InMemorySyncApi()
         metadataRepository = SyncMetadataRepositoryImpl(database)
         changeTracker = SyncChangeTrackerImpl(database)
@@ -127,13 +134,14 @@ class SyncEngineTest {
                 substanceHandler = SubstanceSyncHandler(substanceRepo, patientRepo, database),
                 surgeryHandler = SurgerySyncHandler(surgeryRepo, patientRepo, database),
                 ultrasoundHandler = UltrasoundSyncHandler(ultrasoundRepo, patientRepo, database),
+                follicleHandler = FollicleSyncHandler(FollicleRepositoryImpl(database), database),
                 vaccinationHandler = VaccinationSyncHandler(vaccinationRepo, patientRepo, database),
                 weightHandler = WeightSyncHandler(weightRepo, patientRepo, database),
                 customReminderHandler = CustomReminderSyncHandler(customReminderRepo, patientRepo, database),
                 embryoTransferHandler = EmbryoTransferSyncHandler(EmbryoTransferRepositoryImpl(database), patientRepo, database),
                 icsiHandler = IcsiSyncHandler(IcsiRepositoryImpl(database), patientRepo, database),
             )
-        sut = SyncEngineImpl(api, metadataRepository, changeTracker, registry, database)
+        sut = SyncEngineImpl(api, metadataRepository, changeTracker, registry, database, searchRepository)
     }
 
     private fun seedOwner(
@@ -156,7 +164,7 @@ class SyncEngineTest {
     private fun seedPatient(
         name: String,
         updatedAt: Instant,
-        ownerId: Long,
+        ownerId: Long? = null,
     ): Long =
         patientRepo.insertPatient(
             Patient(
@@ -210,13 +218,19 @@ class SyncEngineTest {
         serverId: String,
         updatedAt: Instant,
         name: String,
-        ownerServerId: String,
+        ownerServerId: String? = null,
+        includeOwnerRelationship: Boolean = ownerServerId != null,
     ): SyncRecord =
         SyncRecord(
             type = SyncEntityType.PATIENT.wireName,
             serverId = serverId,
             updatedAt = updatedAt,
-            parentServerIds = mapOf("ownerId" to ownerServerId),
+            parentServerIds =
+                if (!includeOwnerRelationship) {
+                    emptyMap()
+                } else {
+                    mapOf("ownerId" to ownerServerId)
+                },
             payload =
                 SyncJson
                     .encodeToJsonElement(
@@ -269,6 +283,22 @@ class SyncEngineTest {
         }
 
     @Test
+    fun `when patient has no owner then sync still pushes the patient`() =
+        runTest {
+            val patientId = seedPatient("Ownerless", Instant.fromEpochMilliseconds(100))
+
+            val result = sut.sync()
+
+            assertTrue(result.success)
+            assertEquals(1, result.pushedCount)
+            assertEquals(0, result.deferredCount)
+            assertEquals("srv-Patient-$patientId", patientServerIdOf(patientId))
+            val pushedPatient = api.storedRecords().single()
+            assertTrue(pushedPatient.parentServerIds.containsKey("ownerId"))
+            assertEquals(null, pushedPatient.parentServerIds["ownerId"])
+        }
+
+    @Test
     fun `when first sync then pushes owner before patient before consultation`() =
         runTest {
             val ownerId = seedOwner("Alice", Instant.fromEpochMilliseconds(100))
@@ -318,6 +348,37 @@ class SyncEngineTest {
             assertEquals("Remote SOAP", consultation.subjective)
             assertEquals("c-1", consultation.serverId)
             assertEquals(patient.id, consultation.patientId)
+        }
+
+    @Test
+    fun `when remote patient clears owner then local owner is cleared`() =
+        runTest {
+            val ownerId = seedOwner("Alice", Instant.fromEpochMilliseconds(50))
+            val patientId = seedPatient("Bella", Instant.fromEpochMilliseconds(50), ownerId)
+            database.ownerQueries.setServerId("o-1", Instant.fromEpochMilliseconds(50), ownerId)
+            database.patientQueries.setServerId("p-1", Instant.fromEpochMilliseconds(50), patientId)
+            metadataRepository.updateLastSyncAt(Instant.fromEpochMilliseconds(100))
+            api.seed(
+                remotePatientRecord(
+                    "p-1",
+                    Instant.fromEpochMilliseconds(200),
+                    "Bella",
+                    ownerServerId = null,
+                    includeOwnerRelationship = true,
+                ),
+            )
+
+            val result = sut.sync()
+
+            assertTrue(result.success)
+            assertEquals(1, result.pulledCount)
+            assertEquals(
+                null,
+                database.patientQueries
+                    .selectAllRows()
+                    .executeAsOne()
+                    .ownerId,
+            )
         }
 
     @Test
@@ -444,6 +505,7 @@ class SyncEngineTest {
                     changeTracker,
                     registry,
                     database,
+                    searchRepository,
                 )
 
             val result = engine.sync()
@@ -451,6 +513,22 @@ class SyncEngineTest {
             assertFalse(result.success)
             assertEquals("network down", result.errorMessage)
             assertEquals(epoch, metadataRepository.getOrCreateLastSyncAt(""))
+        }
+
+    @Test
+    fun `when sync is cancelled then cancellation is rethrown`() =
+        runTest {
+            val engine =
+                SyncEngineImpl(
+                    CancellingSyncApi(),
+                    metadataRepository,
+                    changeTracker,
+                    registry,
+                    database,
+                    searchRepository,
+                )
+
+            assertFailsWith<CancellationException> { engine.sync() }
         }
 
     @Test
@@ -491,5 +569,11 @@ class SyncEngineTest {
         override suspend fun pull(since: Instant): SyncPullResponse = throw IllegalStateException("network down")
 
         override suspend fun push(request: SyncPushRequest): SyncPushResponse = throw IllegalStateException("network down")
+    }
+
+    private class CancellingSyncApi : SyncApi {
+        override suspend fun pull(since: Instant): SyncPullResponse = throw CancellationException("cancelled")
+
+        override suspend fun push(request: SyncPushRequest): SyncPushResponse = throw CancellationException("cancelled")
     }
 }

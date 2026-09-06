@@ -2,6 +2,7 @@ package com.github.rodrigotimoteo.animally.domain.notification
 
 import com.github.rodrigotimoteo.animally.domain.patient.usecase.CogginsAlert
 import com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder
+import com.mmk.kmpnotifier.KMPNotifier
 import com.mmk.kmpnotifier.local.LocalNotifications
 import kotlinx.datetime.TimeZone
 
@@ -35,6 +36,16 @@ actual class NotificationScheduler {
             body = "A scheduled reminder is due."
             scheduledAt = reminder.fireAt(TimeZone.currentSystemDefault())
         }
+    }
+
+    actual fun cancelReminder(reminder: Reminder) {
+        if (!KMPNotifier.isInitialized) return
+        LocalNotifications.notifier.remove(reminder.notificationId())
+    }
+
+    actual fun cancelAllReminders() {
+        if (!KMPNotifier.isInitialized) return
+        LocalNotifications.notifier.removeAll()
     }
 
     private fun ensureInitialized() {

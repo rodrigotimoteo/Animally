@@ -8,9 +8,14 @@ final class SettingsViewModel: ObservableObject {
     @Published var patients: [Patient_]
     @Published var selectedPatientId: Int64?
     @Published var restoreJson: String
+    @Published var csvStatus: String?
     @Published var backupStatus: String?
     @Published var restoreStatus: String?
     @Published var pdfStatus: String?
+    @Published var isExportingCsv = false
+    @Published var isExportingBackup = false
+    @Published var isRestoringBackup = false
+    @Published var isExportingPdf = false
     // Danger zone: irreversible database wipe.
     @Published var isWipingData = false
     @Published var dataWiped = false
@@ -36,6 +41,7 @@ final class SettingsViewModel: ObservableObject {
         patients = store.patients
         selectedPatientId = store.selectedPatientId?.int64Value
         restoreJson = store.restoreJson
+        csvStatus = store.csvStatus
         backupStatus = store.backupStatus
         restoreStatus = store.restoreStatus
         pdfStatus = store.pdfStatus
@@ -53,18 +59,47 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func exportCsv() {
-        store.exportCsv()
+        guard !isExportingCsv else { return }
+        isExportingCsv = true
+        Task { @MainActor in
+            defer { isExportingCsv = false }
+            do {
+                try await store.exportCsv()
+                csvStatus = store.csvStatus
+            } catch {
+                csvStatus = "Could not export CSV: \(error.localizedDescription)"
+            }
+        }
     }
 
     func exportBackup() {
-        store.exportBackup()
-        backupStatus = store.backupStatus
+        guard !isExportingBackup else { return }
+        isExportingBackup = true
+        Task { @MainActor in
+            defer { isExportingBackup = false }
+            do {
+                try await store.exportBackup()
+                backupStatus = store.backupStatus
+            } catch {
+                backupStatus = "Could not export backup: \(error.localizedDescription)"
+            }
+        }
     }
 
     func restoreBackup() {
+        guard !isRestoringBackup else { return }
         store.restoreJson = restoreJson
-        store.restoreBackup()
-        restoreStatus = store.restoreStatus
+        isRestoringBackup = true
+        Task { @MainActor in
+            defer { isRestoringBackup = false }
+            do {
+                try await store.restoreBackup()
+                restoreStatus = store.restoreStatus
+            } catch {
+                restoreStatus = "Could not restore backup: \(error.localizedDescription)"
+            }
+            patients = store.patients
+        }
     }
 
     func selectPatient(patientId: Int64) {
@@ -73,17 +108,35 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func exportPdf() {
-        store.exportPdf()
-        pdfStatus = store.pdfStatus
+        guard !isExportingPdf else { return }
+        isExportingPdf = true
+        Task { @MainActor in
+            defer { isExportingPdf = false }
+            do {
+                try await store.exportPdf()
+                pdfStatus = store.pdfStatus
+            } catch {
+                pdfStatus = "Could not export PDF: \(error.localizedDescription)"
+            }
+        }
     }
 
     /// Erases every table and resets the search index. Call only after the
     /// user confirmed in the confirmation dialog — irreversible.
     func wipeAllData() {
-        store.wipeAllData()
-        isWipingData = store.isWipingData
-        dataWiped = store.dataWiped
-        wipeStatus = store.wipeStatus
+        guard !isWipingData else { return }
+        isWipingData = true
+        Task { @MainActor in
+            defer { isWipingData = false }
+            do {
+                try await store.wipeAllData()
+                wipeStatus = store.wipeStatus
+            } catch {
+                wipeStatus = "Could not wipe data: \(error.localizedDescription)"
+            }
+            dataWiped = store.dataWiped
+            patients = store.patients
+        }
     }
 
     func setThemeMode(mode: ThemeMode) {

@@ -35,7 +35,7 @@ public class CloudKitSyncSettings(
 
     /**
      * Clears all persisted engine state (cursor + marker). Local data is kept;
-     * the next [start][CloudKitSyncEngineImpl.start] re-fetches everything.
+     * the next enabled sync cycle re-fetches everything.
      */
     public fun clearEngineState() {
         queries.deleteByKey(CloudKitSyncKeys.EXPORT_CURSOR)

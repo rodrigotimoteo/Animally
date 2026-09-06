@@ -46,7 +46,12 @@ class SurgerySyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = surgeryRepository.getById(entityId) ?: throw NoSuchElementException("Surgery $entityId not found")
+        val row =
+            database.surgeryQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Surgery $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -79,7 +84,7 @@ class SurgerySyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.surgeryQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

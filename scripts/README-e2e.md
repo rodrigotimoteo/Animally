@@ -16,7 +16,7 @@ scripts/sim-e2e.sh <command> [args]
 | `terminate` | Kill app bundle |
 | `setup-window` | Pin Simulator window to fixed origin — **run before any taps** |
 | `tap <x> <y>` | Click at DEVICE point coordinates |
-| `screenshot [name]` | Save screenshot to `/tmp/e2e/<name>.png` |
+| `screenshot [name]` | Save screenshot to `$E2E_OUTPUT_DIR/<name>.png` |
 | `build` | Build iosApp scheme (Debug, iOS Simulator) |
 
 Typical flow:
@@ -28,7 +28,7 @@ scripts/sim-e2e.sh install
 scripts/sim-e2e.sh setup-window
 scripts/sim-e2e.sh launch
 scripts/sim-e2e.sh tap 200 400
-scripts/sim-e2e.sh shot-after-tap   # screenshot name is free-form
+scripts/sim-e2e.sh screenshot after-tap
 ```
 
 ## Coordinate math (why setup-window matters)
@@ -56,9 +56,11 @@ so it stays correct even if the window was nudged after `setup-window`.
 
 | Var | Default |
 |---|---|
-| `SIM_UDID` | `20666568-4427-4300-86D9-F62127F4153A` |
-| `APP_PATH` | `~/Library/Developer/Xcode/DerivedData/iosApp-acnynppqqosstfbcnbwfasfrneyu/Build/Products/Debug-iphonesimulator/Animally.app` |
-| `WINDOW_POS` | `40,40` |
+| `SIM_UDID` | First available iPhone/iPad (set explicitly for CI/repeatability) |
+| `DERIVED_DATA_PATH` | `./.build/ios-simulator` |
+| `APP_PATH` | `$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/Animally.app` |
+| `E2E_OUTPUT_DIR` | `/tmp/e2e` |
+| `WIN_X` / `WIN_Y` | `40` / `40` |
 | `CONTENT_OFFSET_X` / `CONTENT_OFFSET_Y` | `27` / `80` |
 
 If Simulator chrome changes (new Xcode version resizes the title bar),

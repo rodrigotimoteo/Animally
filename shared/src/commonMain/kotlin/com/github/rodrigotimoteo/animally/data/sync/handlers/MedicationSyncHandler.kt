@@ -46,7 +46,10 @@ class MedicationSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            medicationRepository.getById(entityId)
+            database.medicationQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("Medication $entityId not found")
         val payloadBody =
             SyncJson
@@ -79,7 +82,7 @@ class MedicationSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.medicationQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

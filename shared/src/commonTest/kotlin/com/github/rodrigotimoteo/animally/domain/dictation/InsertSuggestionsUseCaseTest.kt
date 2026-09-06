@@ -256,11 +256,5 @@ private class FakeSearchRepository : ISearchRepository {
 
     override fun rebuild() = Unit
 
-    override fun reindexOwners() = Unit
-
-    override fun reindexPatients() = Unit
-
-    override fun reindexRecords() = Unit
-
     override fun reindexIfNeeded(indexVersion: String) = Unit
 }

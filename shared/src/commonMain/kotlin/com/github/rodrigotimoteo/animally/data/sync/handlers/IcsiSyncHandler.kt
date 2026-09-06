@@ -41,7 +41,12 @@ class IcsiSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = repository.getById(entityId) ?: throw NoSuchElementException("Icsi $entityId not found")
+        val row =
+            database.icsiQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Icsi $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -69,7 +74,7 @@ class IcsiSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.icsiQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

@@ -27,6 +27,7 @@ val cloudKitModule =
                 registry = get(),
                 database = get(),
                 settings = get(),
+                searchRepository = get(),
             )
         }
     }

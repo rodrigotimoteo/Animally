@@ -45,7 +45,10 @@ class VaccinationSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            vaccinationRepository.getById(entityId)
+            database.vaccinationQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("Vaccination $entityId not found")
         val payloadBody =
             SyncJson
@@ -77,7 +80,7 @@ class VaccinationSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.vaccinationQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

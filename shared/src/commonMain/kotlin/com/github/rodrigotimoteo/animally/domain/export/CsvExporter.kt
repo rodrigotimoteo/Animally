@@ -82,6 +82,20 @@ class CsvExporter {
             CONTROLLED_SUBSTANCE_HEADERS,
             records.controlledSubstances.map(::controlledSubstanceRow),
         )
+        appendSection(
+            lines,
+            "CustomReminder",
+            CUSTOM_REMINDER_HEADERS,
+            records.customReminders.map(::customReminderRow),
+        )
+        appendSection(
+            lines,
+            "EmbryoTransfer",
+            EMBRYO_TRANSFER_HEADERS,
+            records.embryoTransfers.map(::embryoTransferRow),
+        )
+        appendSection(lines, "Icsi", ICSI_HEADERS, records.icsi.map(::icsiRow))
+        appendSection(lines, "Follicle", FOLLICLE_HEADERS, records.follicles.map(::follicleRow))
     }
 
     /**

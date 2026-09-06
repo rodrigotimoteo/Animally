@@ -253,12 +253,6 @@ class SearchViewModelTest {
 
                     override fun rebuild() = Unit
 
-                    override fun reindexOwners() = Unit
-
-                    override fun reindexPatients() = Unit
-
-                    override fun reindexRecords() = Unit
-
                     override fun reindexIfNeeded(indexVersion: String) = Unit
                 }
             val vm =
@@ -286,6 +280,23 @@ class SearchViewModelTest {
             vm.onResultClick(42L)
 
             assertEquals(Route.PatientDetail(42L), navigator.backStack.last())
+        }
+
+    @Test
+    fun `owner result click navigates to owner detail route`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val vm = createViewModel(StandardTestDispatcher(testScheduler))
+            val ownerResult =
+                result.copy(
+                    patientId = 99L,
+                    ownerId = 42L,
+                    recordType = ISearchRepository.TYPE_OWNER,
+                )
+
+            vm.onResultClick(ownerResult)
+
+            assertEquals(Route.OwnerDetail(42L), navigator.backStack.last())
         }
 
     @Test

@@ -44,7 +44,10 @@ class ReproMedicationSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            reproMedicationRepository.getById(entityId)
+            database.reproMedicationQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("ReproMedication $entityId not found")
         val payloadBody =
             SyncJson
@@ -75,7 +78,7 @@ class ReproMedicationSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.reproMedicationQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

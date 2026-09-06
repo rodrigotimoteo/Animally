@@ -41,6 +41,16 @@ actual class NotificationScheduler {
         }
     }
 
+    actual fun cancelReminder(reminder: Reminder) {
+        if (!KMPNotifier.isInitialized) return
+        LocalNotifications.notifier.remove(reminder.notificationId())
+    }
+
+    actual fun cancelAllReminders() {
+        if (!KMPNotifier.isInitialized) return
+        LocalNotifications.notifier.removeAll()
+    }
+
     private fun ensureInitialized(channelId: String) {
         if (KMPNotifier.isInitialized) return
         val channel = channelId.takeIf { it.isNotBlank() } ?: REMINDER_CHANNEL_ID

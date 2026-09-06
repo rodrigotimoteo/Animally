@@ -59,7 +59,7 @@ data class CloudKitEnvelope(
             recordName: String,
             updatedAtMs: Long,
             isActive: Boolean,
-            parents: Map<String, String>,
+            parents: Map<String, String?>,
             payload: JsonObject,
         ): CloudKitEnvelope =
             CloudKitEnvelope(

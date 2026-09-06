@@ -15,6 +15,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -92,6 +93,7 @@ class SyncPatientHandlerTest {
             val record = sut.buildRecord(patientId)
 
             assertNull(record.parentServerIds["ownerId"])
+            assertFalse(record.explicitlyClearedParentKeys.contains("ownerId"))
         }
 
     @Test

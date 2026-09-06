@@ -25,6 +25,14 @@ data class UltrasoundPayload(
     val ovaryStatus: String? = null,
     val uterineStatus: String? = null,
     val follicleSizeMm: Double? = null,
+    val leftOvaryStatus: String? = null,
+    val rightOvaryStatus: String? = null,
+    val leftFollicleSizeMm: Double? = null,
+    val rightFollicleSizeMm: Double? = null,
+    val uterineEdema: String? = null,
+    val uterineLiquid: Boolean? = null,
+    val uterineLiquidDescription: String? = null,
+    val uterusDescription: String? = null,
     val findings: String? = null,
     val imageUris: String? = null,
     val vetName: String? = null,
@@ -46,7 +54,10 @@ class UltrasoundSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            ultrasoundRepository.getById(entityId)
+            database.ultrasoundQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("Ultrasound $entityId not found")
         val payloadBody =
             SyncJson
@@ -57,6 +68,14 @@ class UltrasoundSyncHandler(
                         ovaryStatus = row.ovaryStatus,
                         uterineStatus = row.uterineStatus,
                         follicleSizeMm = row.follicleSizeMm,
+                        leftOvaryStatus = row.leftOvaryStatus,
+                        rightOvaryStatus = row.rightOvaryStatus,
+                        leftFollicleSizeMm = row.leftFollicleSizeMm,
+                        rightFollicleSizeMm = row.rightFollicleSizeMm,
+                        uterineEdema = row.uterineEdema,
+                        uterineLiquid = row.uterineLiquid,
+                        uterineLiquidDescription = row.uterineLiquidDescription,
+                        uterusDescription = row.uterusDescription,
                         findings = row.findings,
                         imageUris = row.imageUris,
                         vetName = row.vetName,
@@ -79,7 +98,7 @@ class UltrasoundSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.ultrasoundQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 
@@ -104,6 +123,14 @@ class UltrasoundSyncHandler(
                     ovaryStatus = payload.ovaryStatus,
                     uterineStatus = payload.uterineStatus,
                     follicleSizeMm = payload.follicleSizeMm,
+                    leftOvaryStatus = payload.leftOvaryStatus,
+                    rightOvaryStatus = payload.rightOvaryStatus,
+                    leftFollicleSizeMm = payload.leftFollicleSizeMm,
+                    rightFollicleSizeMm = payload.rightFollicleSizeMm,
+                    uterineEdema = payload.uterineEdema,
+                    uterineLiquid = payload.uterineLiquid,
+                    uterineLiquidDescription = payload.uterineLiquidDescription,
+                    uterusDescription = payload.uterusDescription,
                     findings = payload.findings,
                     imageUris = payload.imageUris,
                     vetName = payload.vetName,
@@ -137,6 +164,14 @@ class UltrasoundSyncHandler(
                 ovaryStatus = payload.ovaryStatus,
                 uterineStatus = payload.uterineStatus,
                 follicleSizeMm = payload.follicleSizeMm,
+                leftOvaryStatus = payload.leftOvaryStatus,
+                rightOvaryStatus = payload.rightOvaryStatus,
+                leftFollicleSizeMm = payload.leftFollicleSizeMm,
+                rightFollicleSizeMm = payload.rightFollicleSizeMm,
+                uterineEdema = payload.uterineEdema,
+                uterineLiquid = payload.uterineLiquid,
+                uterineLiquidDescription = payload.uterineLiquidDescription,
+                uterusDescription = payload.uterusDescription,
                 findings = payload.findings,
                 imageUris = payload.imageUris,
                 vetName = payload.vetName,

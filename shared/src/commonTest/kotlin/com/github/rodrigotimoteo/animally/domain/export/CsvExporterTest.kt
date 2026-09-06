@@ -65,7 +65,7 @@ class CsvExporterTest {
 
         assertEquals(1, dataRows.size)
         assertTrue(dataRows.single().startsWith("Patient,1,Thunder"))
-        assertEquals(18, csv.lines().count { it.startsWith("Record Type,") })
+        assertEquals(22, csv.lines().count { it.startsWith("Record Type,") })
     }
 
     @Test
@@ -92,6 +92,10 @@ class CsvExporterTest {
                 "Gestation",
                 "ReproMedication",
                 "ControlledSubstance",
+                "CustomReminder",
+                "EmbryoTransfer",
+                "Icsi",
+                "Follicle",
             )
 
         sectionTitles.forEach { sectionTitle ->

@@ -4,6 +4,7 @@ import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderR
 import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomReminder
 import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.DeleteCustomReminderUseCase
 import com.github.rodrigotimoteo.animally.domain.customreminder.usecase.GetCustomRemindersByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
 import com.github.rodrigotimoteo.animally.domain.search.FakeSearchRepository
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigator
 import com.github.rodrigotimoteo.animally.presentation.navigation.Route
@@ -33,11 +34,15 @@ import kotlin.time.Instant
 @OptIn(ExperimentalCoroutinesApi::class)
 class CustomReminderListViewModelTest {
     private val customReminderRepositoryMock: ICustomReminderRepository = mock()
+    private val reminderScheduler =
+        object : ReminderScheduler {
+            override fun schedule(reminder: com.github.rodrigotimoteo.animally.domain.reminder.model.Reminder) = Unit
+        }
 
     private val getCustomRemindersByPatientUseCase = GetCustomRemindersByPatientUseCase(customReminderRepositoryMock)
 
     private val deleteCustomReminderUseCase =
-        DeleteCustomReminderUseCase(customReminderRepositoryMock, FakeSearchRepository())
+        DeleteCustomReminderUseCase(customReminderRepositoryMock, reminderScheduler, FakeSearchRepository())
 
     private val navigator = AnimallyNavigator()
 
@@ -135,6 +140,7 @@ class CustomReminderListViewModelTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             every { customReminderRepositoryMock.getByPatient(1L) } returns listOf(overdue, upcoming)
             every { customReminderRepositoryMock.setInactive(1L, any()) } returns 1L
+            every { customReminderRepositoryMock.getById(1L) } returns upcoming
             val vm = createViewModel(StandardTestDispatcher(testScheduler))
             advanceUntilIdle()
 

@@ -45,7 +45,12 @@ class LamenessSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = lamenessRepository.getById(entityId) ?: throw NoSuchElementException("Lameness $entityId not found")
+        val row =
+            database.lamenessQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Lameness $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -77,7 +82,7 @@ class LamenessSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.lamenessQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

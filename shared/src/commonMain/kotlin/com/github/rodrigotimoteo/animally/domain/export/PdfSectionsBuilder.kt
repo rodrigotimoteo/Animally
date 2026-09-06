@@ -96,6 +96,28 @@ private fun buildReproSections(records: ExportRecords): List<PdfSection> =
                 ),
             )
         }
+        if (records.customReminders.isNotEmpty()) {
+            add(
+                PdfSection(
+                    "Custom Reminder",
+                    renderRows(CUSTOM_REMINDER_HEADERS, records.customReminders.map(::customReminderRow)),
+                ),
+            )
+        }
+        if (records.embryoTransfers.isNotEmpty()) {
+            add(
+                PdfSection(
+                    "Embryo Transfer",
+                    renderRows(EMBRYO_TRANSFER_HEADERS, records.embryoTransfers.map(::embryoTransferRow)),
+                ),
+            )
+        }
+        if (records.icsi.isNotEmpty()) {
+            add(PdfSection("ICSI", renderRows(ICSI_HEADERS, records.icsi.map(::icsiRow))))
+        }
+        if (records.follicles.isNotEmpty()) {
+            add(PdfSection("Follicle", renderRows(FOLLICLE_HEADERS, records.follicles.map(::follicleRow))))
+        }
     }
 
 /**

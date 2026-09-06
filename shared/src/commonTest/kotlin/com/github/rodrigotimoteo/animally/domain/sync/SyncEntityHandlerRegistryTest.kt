@@ -10,6 +10,7 @@ import com.github.rodrigotimoteo.animally.data.dentistry.DentistryRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.deworming.DewormingRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.follicle.FollicleRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.gestation.GestationRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.icsi.IcsiRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingRepositoryImpl
@@ -29,6 +30,7 @@ import com.github.rodrigotimoteo.animally.data.sync.handlers.DentistrySyncHandle
 import com.github.rodrigotimoteo.animally.data.sync.handlers.DewormingSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.EmbryoTransferSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.FarrierVisitSyncHandler
+import com.github.rodrigotimoteo.animally.data.sync.handlers.FollicleSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.GestationSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.IcsiSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.ImagingSyncHandler
@@ -100,6 +102,7 @@ class SyncEntityHandlerRegistryTest {
                 substanceHandler = SubstanceSyncHandler(substanceRepo, patientRepo, database),
                 surgeryHandler = SurgerySyncHandler(surgeryRepo, patientRepo, database),
                 ultrasoundHandler = UltrasoundSyncHandler(ultrasoundRepo, patientRepo, database),
+                follicleHandler = FollicleSyncHandler(FollicleRepositoryImpl(database), database),
                 vaccinationHandler = VaccinationSyncHandler(vaccinationRepo, patientRepo, database),
                 weightHandler = WeightSyncHandler(weightRepo, patientRepo, database),
                 customReminderHandler = CustomReminderSyncHandler(customReminderRepo, patientRepo, database),
@@ -124,7 +127,7 @@ class SyncEntityHandlerRegistryTest {
     fun `when listing all handlers then ordered parents before patient-linked children`() {
         val types = sut.all().map { it.entityType }
 
-        assertEquals(22, types.size)
+        assertEquals(23, types.size)
         assertEquals(SyncEntityType.OWNER, types[0])
         assertEquals(SyncEntityType.PATIENT, types[1])
         assertEquals(SyncEntityType.ANAMNESE, types[2])

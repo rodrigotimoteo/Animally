@@ -52,6 +52,16 @@ internal fun AnimallyDatabase.deleteAllBackupRows() {
     dictationCaptureQueries.deleteAll()
 }
 
+/**
+ * A JSON restore is treated as a new local dataset. Old sync cursors and
+ * derived-index markers must not describe the rows that were just replaced.
+ */
+internal fun AnimallyDatabase.deleteAllRestoreState() {
+    syncMetadataQueries.deleteAll()
+    syncStateQueries.deleteAll()
+    searchIndexStateQueries.deleteAll()
+}
+
 internal fun AnimallyDatabase.insertAssistantChatHistory(payload: BackupPayload) {
     payload.assistantChatHistory.forEach { row ->
         assistantChatHistoryQueries.insertWithId(

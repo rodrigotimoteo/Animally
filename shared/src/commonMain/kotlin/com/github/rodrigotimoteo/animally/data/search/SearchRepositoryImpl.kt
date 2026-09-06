@@ -87,15 +87,19 @@ class SearchRepositoryImpl(
         }
     }
 
-    override fun reindexOwners() {
+    override fun markIndexDirty() {
+        database.searchIndexStateQueries.deleteAll()
+    }
+
+    fun reindexOwners() {
         indexerRegistry.reindexOwners(::indexRecord)
     }
 
-    override fun reindexPatients() {
+    fun reindexPatients() {
         indexerRegistry.reindexPatients(::indexRecord)
     }
 
-    override fun reindexRecords() {
+    fun reindexRecords() {
         indexerRegistry.reindexRecords(::indexRecord)
     }
 
@@ -104,8 +108,17 @@ class SearchRepositoryImpl(
             database.searchIndexStateQueries
                 .selectState(VERSION_KEY)
                 .executeAsOneOrNull()
-        val hasIndexRows = searchQueries.countIndexRows().executeAsOne() > 0L
-        if (storedVersion == indexVersion && hasIndexRows) {
+        val metadataCount = searchQueries.countIndexRows().executeAsOne()
+        val ftsCount = searchQueries.countFtsRows().executeAsOne()
+        val missingFtsRows = searchQueries.countIndexRowsMissingFromFts().executeAsOne()
+        val orphanFtsRows = searchQueries.countFtsRowsMissingFromIndex().executeAsOne()
+        val mismatchedFtsRows = searchQueries.countMismatchedFtsRows().executeAsOne()
+        val projectionIsHealthy =
+            metadataCount == ftsCount &&
+                missingFtsRows == 0L &&
+                orphanFtsRows == 0L &&
+                mismatchedFtsRows == 0L
+        if (storedVersion == indexVersion && projectionIsHealthy) {
             return
         }
         suppressFtsWrites = true

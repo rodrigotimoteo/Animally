@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.data.sync
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.sync.ChangedRecord
 import com.github.rodrigotimoteo.animally.domain.sync.ENTITY_NOT_APPLIED
 import com.github.rodrigotimoteo.animally.domain.sync.SyncAccepted
@@ -14,6 +15,8 @@ import com.github.rodrigotimoteo.animally.domain.sync.SyncMetadataRepository
 import com.github.rodrigotimoteo.animally.domain.sync.SyncPushRequest
 import com.github.rodrigotimoteo.animally.domain.sync.SyncRecord
 import com.github.rodrigotimoteo.animally.domain.sync.SyncResult
+import com.github.rodrigotimoteo.animally.domain.sync.hasUnresolvedParent
+import kotlinx.coroutines.CancellationException
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
 import kotlin.time.Clock
@@ -28,9 +31,10 @@ import kotlin.time.Instant
  * remote records in the same dependency order. Only when both directions
  * complete is the last-synced marker advanced to the sync start instant.
  *
- * Soft-deleted local rows are not pushed: the handlers read rows through
- * `isActive = 1` filters, so a tombstone cannot be serialized. Remote
- * soft-deletes (a pulled record with `isActive = false`) do propagate.
+ * Changed local rows, including soft-deleted rows, are offered to their
+ * handlers so the wire contract can carry tombstones. A handler that cannot
+ * serialize a row defers it for a later cycle; remote soft-deletes are applied
+ * through the same LWW path as active records.
  */
 @Single(binds = [SyncEngine::class])
 class SyncEngineImpl(
@@ -39,6 +43,7 @@ class SyncEngineImpl(
     @Provided private val changeTracker: SyncChangeTracker,
     @Provided private val handlerRegistry: SyncEntityHandlerRegistry,
     @Provided private val database: AnimallyDatabase,
+    @Provided private val searchRepository: ISearchRepository,
 ) : SyncEngine {
     /**
      * Push wave order: every parent precedes its children.
@@ -64,6 +69,7 @@ class SyncEngineImpl(
             SyncEntityType.SUBSTANCE,
             SyncEntityType.SURGERY,
             SyncEntityType.ULTRASOUND,
+            SyncEntityType.FOLLICLE,
             SyncEntityType.VACCINATION,
             SyncEntityType.WEIGHT,
             SyncEntityType.CUSTOM_REMINDER,
@@ -74,6 +80,79 @@ class SyncEngineImpl(
     private val typeOrder: Map<SyncEntityType, Int> =
         pushOrder.mapIndexed { index, type -> type to index }.toMap()
 
+    private val serverIdWriters: Map<SyncEntityType, (String, Instant, Long) -> Unit> =
+        mapOf(
+            SyncEntityType.OWNER to { serverId, updatedAt, clientId ->
+                database.ownerQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.PATIENT to { serverId, updatedAt, clientId ->
+                database.patientQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.ANAMNESE to { serverId, updatedAt, clientId ->
+                database.anamneseQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.CONSULTATION to { serverId, updatedAt, clientId ->
+                database.consultationQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.DENTISTRY to { serverId, updatedAt, clientId ->
+                database.dentistryQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.DEWORMING to { serverId, updatedAt, clientId ->
+                database.dewormingQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.FARRIER_VISIT to { serverId, updatedAt, clientId ->
+                database.farrierVisitQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.GESTATION to { serverId, updatedAt, clientId ->
+                database.gestationQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.IMAGING to { serverId, updatedAt, clientId ->
+                database.imagingQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.LAB_RESULT to { serverId, updatedAt, clientId ->
+                database.labResultQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.LAMENESS to { serverId, updatedAt, clientId ->
+                database.lamenessQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.MEDICATION to { serverId, updatedAt, clientId ->
+                database.medicationQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.REPRODUCTION to { serverId, updatedAt, clientId ->
+                database.reproductionQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.REPRO_MEDICATION to { serverId, updatedAt, clientId ->
+                database.reproMedicationQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.SUBSTANCE to { serverId, updatedAt, clientId ->
+                database.substanceQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.SURGERY to { serverId, updatedAt, clientId ->
+                database.surgeryQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.ULTRASOUND to { serverId, updatedAt, clientId ->
+                database.ultrasoundQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.FOLLICLE to { serverId, updatedAt, clientId ->
+                database.follicleQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.VACCINATION to { serverId, updatedAt, clientId ->
+                database.vaccinationQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.WEIGHT to { serverId, updatedAt, clientId ->
+                database.weightQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.CUSTOM_REMINDER to { serverId, updatedAt, clientId ->
+                database.customReminderQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.EMBRYO_TRANSFER to { serverId, updatedAt, clientId ->
+                database.embryoTransferQueries.setServerId(serverId, updatedAt, clientId)
+            },
+            SyncEntityType.ICSI to { serverId, updatedAt, clientId ->
+                database.icsiQueries.setServerId(serverId, updatedAt, clientId)
+            },
+        )
+
     override suspend fun sync(): SyncResult {
         val now = Clock.System.now()
         return try {
@@ -81,6 +160,10 @@ class SyncEngineImpl(
             val lastSyncAt = metadataRepository.getOrCreateLastSyncAt(deviceId)
             val pushed = pushChanges(deviceId, lastSyncAt, now)
             val pulled = pullChanges(lastSyncAt)
+            if (pulled.applied > 0) {
+                searchRepository.markIndexDirty()
+                searchRepository.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
+            }
             metadataRepository.updateLastSyncAt(now)
             SyncResult.success(
                 pushedCount = pushed.accepted,
@@ -89,6 +172,8 @@ class SyncEngineImpl(
                 deferredCount = pushed.deferred,
                 serverTimestamp = pulled.serverTimestamp,
             )
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
             SyncResult.failure(error.message ?: error::class.simpleName.orEmpty())
         }
@@ -104,7 +189,7 @@ class SyncEngineImpl(
         var rejected = 0
         var deferred = 0
         for (type in pushOrder) {
-            val wave = changedByType[type.wireName].orEmpty().filter { it.isActive }
+            val wave = changedByType[type.wireName].orEmpty()
             val outcome = pushWave(type, wave, deviceId, now)
             accepted += outcome.accepted
             rejected += outcome.rejected
@@ -138,12 +223,10 @@ class SyncEngineImpl(
         buildList {
             for (changed in wave) {
                 val record = handler.buildRecord(changed.id)
-                if (hasUnresolvedParent(record)) continue
+                if (record.hasUnresolvedParent()) continue
                 add(record)
             }
         }
-
-    private fun hasUnresolvedParent(record: SyncRecord): Boolean = record.parentServerIds.values.any { it == null }
 
     private suspend fun pullChanges(lastSyncAt: Instant): PullOutcome {
         val response = api.pull(lastSyncAt)
@@ -178,79 +261,7 @@ class SyncEngineImpl(
         clientId: Long,
         updatedAt: Instant,
     ) {
-        when (type) {
-            SyncEntityType.LAMENESS,
-            SyncEntityType.MEDICATION,
-            SyncEntityType.REPRODUCTION,
-            SyncEntityType.REPRO_MEDICATION,
-            SyncEntityType.SUBSTANCE,
-            SyncEntityType.SURGERY,
-            SyncEntityType.ULTRASOUND,
-            SyncEntityType.VACCINATION,
-            SyncEntityType.WEIGHT,
-            SyncEntityType.CUSTOM_REMINDER,
-            SyncEntityType.EMBRYO_TRANSFER,
-            SyncEntityType.ICSI,
-            -> writeRemainingServerId(type, serverId, clientId, updatedAt)
-            SyncEntityType.OWNER,
-            SyncEntityType.PATIENT,
-            SyncEntityType.ANAMNESE,
-            SyncEntityType.CONSULTATION,
-            SyncEntityType.DENTISTRY,
-            SyncEntityType.DEWORMING,
-            SyncEntityType.FARRIER_VISIT,
-            SyncEntityType.GESTATION,
-            SyncEntityType.IMAGING,
-            SyncEntityType.LAB_RESULT,
-            -> writeCoreServerId(type, serverId, clientId, updatedAt)
-        }
-    }
-
-    private fun writeCoreServerId(
-        type: SyncEntityType,
-        serverId: String,
-        clientId: Long,
-        updatedAt: Instant,
-    ) {
-        when (type) {
-            SyncEntityType.OWNER -> database.ownerQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.PATIENT -> database.patientQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.ANAMNESE -> database.anamneseQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.CONSULTATION -> database.consultationQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.DENTISTRY -> database.dentistryQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.DEWORMING -> database.dewormingQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.FARRIER_VISIT -> database.farrierVisitQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.GESTATION -> database.gestationQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.IMAGING -> database.imagingQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.LAB_RESULT -> database.labResultQueries.setServerId(serverId, updatedAt, clientId)
-            else -> Unit
-        }
-    }
-
-    private fun writeRemainingServerId(
-        type: SyncEntityType,
-        serverId: String,
-        clientId: Long,
-        updatedAt: Instant,
-    ) {
-        when (type) {
-            SyncEntityType.LAMENESS -> database.lamenessQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.MEDICATION -> database.medicationQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.REPRODUCTION -> database.reproductionQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.REPRO_MEDICATION ->
-                database.reproMedicationQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.SUBSTANCE -> database.substanceQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.SURGERY -> database.surgeryQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.ULTRASOUND -> database.ultrasoundQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.VACCINATION -> database.vaccinationQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.WEIGHT -> database.weightQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.CUSTOM_REMINDER ->
-                database.customReminderQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.EMBRYO_TRANSFER ->
-                database.embryoTransferQueries.setServerId(serverId, updatedAt, clientId)
-            SyncEntityType.ICSI -> database.icsiQueries.setServerId(serverId, updatedAt, clientId)
-            else -> Unit
-        }
+        serverIdWriters[type]?.invoke(serverId, updatedAt, clientId)
     }
 
     private data class PushOutcome(

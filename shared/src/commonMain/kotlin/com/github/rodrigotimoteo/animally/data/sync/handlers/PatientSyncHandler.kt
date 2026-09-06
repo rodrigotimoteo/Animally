@@ -52,7 +52,10 @@ class PatientSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            patientRepository.getPatientById(entityId)
+            database.patientQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("Patient $entityId not found")
         val ownerServerId =
             row.ownerId?.let {
@@ -61,6 +64,7 @@ class PatientSyncHandler(
                     .executeAsOneOrNull()
                     ?.serverId
             }
+        val parents = parentServerIds.ifEmpty { mapOf("ownerId" to ownerServerId) }
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -89,7 +93,11 @@ class PatientSyncHandler(
             clientId = entityId,
             updatedAt = row.updatedAt,
             isActive = row.isActive,
-            parentServerIds = parentServerIds.ifEmpty { mapOf("ownerId" to ownerServerId) },
+            // An ownerless patient is valid and must explicitly clear a remote
+            // owner. An owned patient with an unsynced owner remains deferred.
+            parentServerIds = parents,
+            explicitlyClearedParentKeys =
+                if (parents["ownerId"] == null && row.ownerId == null) setOf("ownerId") else emptySet(),
             payload = payloadBody,
         )
     }
@@ -180,7 +188,12 @@ class PatientSyncHandler(
                 cogginsTestDate = payload.cogginsTestDate,
                 cogginsResult = payload.cogginsResult,
                 cogginsExpiryDate = payload.cogginsExpiryDate,
-                ownerId = record.parentServerIds["ownerId"]?.let { localOwnerIdFor(it) } ?: local.ownerId,
+                ownerId =
+                    if (record.parentServerIds.containsKey("ownerId")) {
+                        record.parentServerIds["ownerId"]?.let { localOwnerIdFor(it) }
+                    } else {
+                        local.ownerId
+                    },
                 isActive = record.isActive,
                 createdAt = local.createdAt,
                 updatedAt = record.updatedAt,

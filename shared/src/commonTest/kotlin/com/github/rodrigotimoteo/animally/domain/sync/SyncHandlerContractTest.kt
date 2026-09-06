@@ -1652,6 +1652,9 @@ private object ReproductionContract : PatientLinkedContract() {
             eventType = "Heat-L",
             date = LocalDate(2024, 5, 1),
             details = "L-details",
+            initialExamFindings = "L-exam",
+            stallionName = "L-stallion",
+            breedingType = "L-natural",
             createdAt = EPOCH,
             updatedAt = updatedAt,
         ),
@@ -1678,7 +1681,14 @@ private object ReproductionContract : PatientLinkedContract() {
         SyncJson
             .encodeToJsonElement(
                 ReproductionPayload.serializer(),
-                ReproductionPayload(eventType = "Heat-R", date = LocalDate(2024, 7, 1), details = "R-details"),
+                ReproductionPayload(
+                    eventType = "Heat-R",
+                    date = LocalDate(2024, 7, 1),
+                    details = "R-details",
+                    initialExamFindings = "R-exam",
+                    stallionName = "R-stallion",
+                    breedingType = "R-natural",
+                ),
             ).jsonObject
 
     override fun expectedRemoteValues(parents: SeededParents) =
@@ -1686,6 +1696,9 @@ private object ReproductionContract : PatientLinkedContract() {
             "patientId" to patientIdValue(parents),
             "eventType" to "Heat-R",
             "details" to "R-details",
+            "initialExamFindings" to "R-exam",
+            "stallionName" to "R-stallion",
+            "breedingType" to "R-natural",
         )
 
     override fun expectedLocalValues(parents: SeededParents) =
@@ -1693,6 +1706,9 @@ private object ReproductionContract : PatientLinkedContract() {
             "patientId" to patientIdValue(parents),
             "eventType" to "Heat-L",
             "details" to "L-details",
+            "initialExamFindings" to "L-exam",
+            "stallionName" to "L-stallion",
+            "breedingType" to "L-natural",
         )
 
     override fun actualRowValues(
@@ -1704,6 +1720,9 @@ private object ReproductionContract : PatientLinkedContract() {
             "patientId" to it.patientId.toString(),
             "eventType" to it.eventType,
             "details" to it.details,
+            "initialExamFindings" to it.initialExamFindings,
+            "stallionName" to it.stallionName,
+            "breedingType" to it.breedingType,
         )
     }
 
@@ -2024,6 +2043,17 @@ private object UltrasoundContract : PatientLinkedContract() {
             id = 0L,
             patientId = seededPatientId(database),
             date = LocalDate(2024, 5, 1),
+            ovaryStatus = "L-ovary",
+            uterineStatus = "L-uterus",
+            follicleSizeMm = 30.5,
+            leftOvaryStatus = "L-left-ovary",
+            rightOvaryStatus = "L-right-ovary",
+            leftFollicleSizeMm = 31.5,
+            rightFollicleSizeMm = 28.5,
+            uterineEdema = "L-edema",
+            uterineLiquid = true,
+            uterineLiquidDescription = "L-liquid",
+            uterusDescription = "L-uterus-description",
             createdAt = EPOCH,
             updatedAt = updatedAt,
         ),
@@ -2050,21 +2080,52 @@ private object UltrasoundContract : PatientLinkedContract() {
         SyncJson
             .encodeToJsonElement(
                 UltrasoundPayload.serializer(),
-                UltrasoundPayload(date = LocalDate(2024, 7, 1), ovaryStatus = "Active-R", follicleSizeMm = 35.5),
+                UltrasoundPayload(
+                    date = LocalDate(2024, 7, 1),
+                    ovaryStatus = "Active-R",
+                    uterineStatus = "Normal-R",
+                    follicleSizeMm = 35.5,
+                    leftOvaryStatus = "R-left-ovary",
+                    rightOvaryStatus = "R-right-ovary",
+                    leftFollicleSizeMm = 36.5,
+                    rightFollicleSizeMm = 22.5,
+                    uterineEdema = "R-edema",
+                    uterineLiquid = false,
+                    uterineLiquidDescription = "R-liquid",
+                    uterusDescription = "R-uterus-description",
+                ),
             ).jsonObject
 
     override fun expectedRemoteValues(parents: SeededParents) =
         mapOf(
             "patientId" to patientIdValue(parents),
             "ovaryStatus" to "Active-R",
+            "uterineStatus" to "Normal-R",
             "follicleSizeMm" to "35.5",
+            "leftOvaryStatus" to "R-left-ovary",
+            "rightOvaryStatus" to "R-right-ovary",
+            "leftFollicleSizeMm" to "36.5",
+            "rightFollicleSizeMm" to "22.5",
+            "uterineEdema" to "R-edema",
+            "uterineLiquid" to "false",
+            "uterineLiquidDescription" to "R-liquid",
+            "uterusDescription" to "R-uterus-description",
         )
 
     override fun expectedLocalValues(parents: SeededParents) =
         mapOf(
             "patientId" to patientIdValue(parents),
-            "ovaryStatus" to null,
-            "follicleSizeMm" to null,
+            "ovaryStatus" to "L-ovary",
+            "uterineStatus" to "L-uterus",
+            "follicleSizeMm" to "30.5",
+            "leftOvaryStatus" to "L-left-ovary",
+            "rightOvaryStatus" to "L-right-ovary",
+            "leftFollicleSizeMm" to "31.5",
+            "rightFollicleSizeMm" to "28.5",
+            "uterineEdema" to "L-edema",
+            "uterineLiquid" to "true",
+            "uterineLiquidDescription" to "L-liquid",
+            "uterusDescription" to "L-uterus-description",
         )
 
     override fun actualRowValues(
@@ -2075,7 +2136,16 @@ private object UltrasoundContract : PatientLinkedContract() {
         mapOf(
             "patientId" to it.patientId.toString(),
             "ovaryStatus" to it.ovaryStatus,
+            "uterineStatus" to it.uterineStatus,
             "follicleSizeMm" to it.follicleSizeMm?.toString(),
+            "leftOvaryStatus" to it.leftOvaryStatus,
+            "rightOvaryStatus" to it.rightOvaryStatus,
+            "leftFollicleSizeMm" to it.leftFollicleSizeMm?.toString(),
+            "rightFollicleSizeMm" to it.rightFollicleSizeMm?.toString(),
+            "uterineEdema" to it.uterineEdema,
+            "uterineLiquid" to it.uterineLiquid?.toString(),
+            "uterineLiquidDescription" to it.uterineLiquidDescription,
+            "uterusDescription" to it.uterusDescription,
         )
     }
 

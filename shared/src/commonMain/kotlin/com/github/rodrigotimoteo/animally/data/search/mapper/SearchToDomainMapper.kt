@@ -59,9 +59,9 @@ fun SearchByDateRange.toDomain(): SearchResult =
 /**
  * Converts an owner hit from [SearchOwners] to a domain [SearchResult].
  *
- * Owner rows carry no patient linkage: [SearchResult.patientId] mirrors the
- * owner id so consumers can navigate by a single identifier field, and
- * [SearchResult.patientName] carries the owner display name.
+ * Owner rows carry no patient linkage. [SearchResult.patientId] continues to
+ * mirror the owner id for source compatibility, while [SearchResult.ownerId]
+ * gives consumers a typed identity for grouping and navigation.
  *
  * @return mapped [SearchResult]
  */
@@ -75,4 +75,5 @@ fun SearchOwners.toDomain(): SearchResult =
         recordId = recordId,
         date = null,
         snippet = searchableText,
+        ownerId = ownerId,
     )

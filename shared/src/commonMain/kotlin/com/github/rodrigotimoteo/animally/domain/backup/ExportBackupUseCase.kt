@@ -42,14 +42,15 @@ class ExportBackupUseCase(
     /**
      * Exports the current database state and returns the artifact paths.
      */
-    operator fun invoke(): BackupResult {
-        val payload = buildPayload()
-        val json = BackupSerializer.encode(payload)
-        val fileName = "backup_${dateStamp()}.json"
-        val backupPath = writeFile(fileName, json)
-        val dbCopyPath = copyDatabase()
-        return BackupResult(backupPath = backupPath, dbCopyPath = dbCopyPath, fileName = fileName)
-    }
+    operator fun invoke(): BackupResult =
+        database.transactionWithResult {
+            val payload = buildPayload()
+            val json = BackupSerializer.encode(payload)
+            val fileName = "backup_${dateStamp()}.json"
+            val backupPath = writeFile(fileName, json)
+            val dbCopyPath = copyDatabase()
+            BackupResult(backupPath = backupPath, dbCopyPath = dbCopyPath, fileName = fileName)
+        }
 
     private fun buildPayload(): BackupPayload =
         BackupPayload(

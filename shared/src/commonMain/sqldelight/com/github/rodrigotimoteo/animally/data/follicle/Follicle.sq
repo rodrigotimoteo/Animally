@@ -39,3 +39,17 @@ SELECT * FROM Follicle;
 insertWithId:
 INSERT INTO Follicle (id, ultrasoundId, side, sizeMm, description, isActive, createdAt, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Sync support
+selectByServerId:
+SELECT * FROM Follicle WHERE serverId = ?;
+
+selectChangedSince:
+SELECT * FROM Follicle WHERE updatedAt > ?;
+
+setServerId:
+UPDATE Follicle SET serverId = ?, updatedAt = ? WHERE id = ?;
+
+-- Sync support: unfiltered row read (pull must see soft-deleted rows)
+selectRowById:
+SELECT * FROM Follicle WHERE id = ?;

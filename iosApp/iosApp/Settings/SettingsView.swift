@@ -262,12 +262,20 @@ struct SettingsView: View {
             } label: {
                 Label("Export CSV", systemImage: "tablecells")
             }
+            .disabled(viewModel.isExportingCsv)
+
+            if let status = viewModel.csvStatus {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
 
             Button {
                 viewModel.exportBackup()
             } label: {
                 Label("Export Backup", systemImage: "square.and.arrow.up")
             }
+            .disabled(viewModel.isExportingBackup)
 
             if let status = viewModel.backupStatus {
                 Text(status)
@@ -323,7 +331,7 @@ struct SettingsView: View {
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .disabled(viewModel.restoreJson.isEmpty)
+            .disabled(viewModel.restoreJson.isEmpty || viewModel.isRestoringBackup)
 
             if let status = viewModel.restoreStatus {
                 Text(status)
@@ -360,7 +368,11 @@ struct SettingsView: View {
                     Label("Export PDF", systemImage: "doc.richtext")
                         .foregroundStyle(selectedAccentColor)
                 }
-                .disabled(viewModel.selectedPatientId == nil || viewModel.selectedPatientId == 0)
+                .disabled(
+                    viewModel.selectedPatientId == nil ||
+                    viewModel.selectedPatientId == 0 ||
+                    viewModel.isExportingPdf
+                )
 
                 if let status = viewModel.pdfStatus {
                     Text(status)

@@ -39,7 +39,7 @@ class SaveMedicationUseCase(
             recordType = ISearchRepository.TYPE_MEDICATION,
             patientId = medication.patientId,
             recordId = savedId,
-            date = null,
+            date = medication.startDate,
             searchableText = SearchableText.medication(medication),
         )
         return savedId

@@ -3,10 +3,18 @@ package com.github.rodrigotimoteo.animally.domain.export
 import com.github.rodrigotimoteo.animally.domain.anamnese.IAnamneseRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
+import com.github.rodrigotimoteo.animally.domain.customreminder.ICustomReminderRepository
+import com.github.rodrigotimoteo.animally.domain.customreminder.model.CustomReminder
 import com.github.rodrigotimoteo.animally.domain.dentistry.IDentistryRepository
 import com.github.rodrigotimoteo.animally.domain.deworming.IDewormingRepository
+import com.github.rodrigotimoteo.animally.domain.embryotransfer.IEmbryoTransferRepository
+import com.github.rodrigotimoteo.animally.domain.embryotransfer.model.EmbryoTransfer
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
+import com.github.rodrigotimoteo.animally.domain.follicle.IFollicleRepository
+import com.github.rodrigotimoteo.animally.domain.follicle.model.Follicle
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
+import com.github.rodrigotimoteo.animally.domain.icsi.IIcsiRepository
+import com.github.rodrigotimoteo.animally.domain.icsi.model.Icsi
 import com.github.rodrigotimoteo.animally.domain.imaging.IImagingRepository
 import com.github.rodrigotimoteo.animally.domain.labresult.ILabResultRepository
 import com.github.rodrigotimoteo.animally.domain.lameness.ILamenessRepository
@@ -52,6 +60,10 @@ class ExportCsvUseCaseTest {
     private val gestationRepository: IGestationRepository = mock()
     private val reproMedicationRepository: IReproMedicationRepository = mock()
     private val substanceRepository: IControlledSubstanceRepository = mock()
+    private val customReminderRepository: ICustomReminderRepository = mock()
+    private val embryoTransferRepository: IEmbryoTransferRepository = mock()
+    private val icsiRepository: IIcsiRepository = mock()
+    private val follicleRepository: IFollicleRepository = mock()
 
     private val basicRecords =
         ExportBasicRecordsUseCase(
@@ -80,6 +92,10 @@ class ExportCsvUseCaseTest {
             gestationRepository,
             reproMedicationRepository,
             substanceRepository,
+            customReminderRepository,
+            embryoTransferRepository,
+            icsiRepository,
+            follicleRepository,
         )
 
     private val sut =
@@ -110,6 +126,10 @@ class ExportCsvUseCaseTest {
         every { gestationRepository.getByPatient(any()) } returns emptyList()
         every { reproMedicationRepository.getByPatient(any()) } returns emptyList()
         every { substanceRepository.getByPatient(any()) } returns emptyList()
+        every { customReminderRepository.getByPatient(any()) } returns emptyList()
+        every { embryoTransferRepository.getByPatient(any()) } returns emptyList()
+        every { icsiRepository.getByPatient(any()) } returns emptyList()
+        every { follicleRepository.getByUltrasound(any()) } returns emptyList()
     }
 
     private val patient =
@@ -230,5 +250,71 @@ class ExportCsvUseCaseTest {
         every { patientRepository.getPatientById(99L) } returns null
 
         assertEquals("", sut(patientId = 99L, from = null, to = null))
+    }
+
+    @Test
+    fun `exports every extended reproductive record`() {
+        every { patientRepository.getPatientById(1L) } returns patient
+        every { customReminderRepository.getByPatient(1L) } returns
+            listOf(
+                CustomReminder(
+                    id = 10L,
+                    patientId = 1L,
+                    title = "Recheck",
+                    dueDate = LocalDate(2024, 7, 1),
+                    createdAt = Instant.fromEpochMilliseconds(0L),
+                    updatedAt = Instant.fromEpochMilliseconds(0L),
+                ),
+            )
+        every { embryoTransferRepository.getByPatient(1L) } returns
+            listOf(
+                EmbryoTransfer(
+                    id = 11L,
+                    patientId = 1L,
+                    date = LocalDate(2024, 7, 2),
+                    embryoCount = 2,
+                    createdAt = Instant.fromEpochMilliseconds(0L),
+                    updatedAt = Instant.fromEpochMilliseconds(0L),
+                ),
+            )
+        every { icsiRepository.getByPatient(1L) } returns
+            listOf(
+                Icsi(
+                    id = 12L,
+                    patientId = 1L,
+                    date = LocalDate(2024, 7, 3),
+                    folliclesRecovered = 4,
+                    createdAt = Instant.fromEpochMilliseconds(0L),
+                    updatedAt = Instant.fromEpochMilliseconds(0L),
+                ),
+            )
+        every { ultrasoundRepository.getByPatient(1L) } returns
+            listOf(
+                com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound(
+                    id = 13L,
+                    patientId = 1L,
+                    date = LocalDate(2024, 7, 4),
+                    createdAt = Instant.fromEpochMilliseconds(0L),
+                    updatedAt = Instant.fromEpochMilliseconds(0L),
+                ),
+            )
+        every { follicleRepository.getByUltrasound(13L) } returns
+            listOf(
+                Follicle(
+                    id = 14L,
+                    ultrasoundId = 13L,
+                    side = Follicle.SIDE_LEFT,
+                    sizeMm = 32.5,
+                    createdAt = Instant.fromEpochMilliseconds(0L),
+                    updatedAt = Instant.fromEpochMilliseconds(0L),
+                ),
+            )
+
+        val csv = sut(patientId = 1L, from = null, to = null)
+
+        assertTrue(csv.contains("CustomReminder,10,1,Recheck,2024-07-01"))
+        assertTrue(csv.contains("EmbryoTransfer,11,1,2024-07-02,2"))
+        assertTrue(csv.contains("Icsi,12,1,2024-07-03,4"))
+        assertTrue(csv.contains("Follicle,14,13,LEFT,32.5"))
     }
 }

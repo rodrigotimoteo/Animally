@@ -5,7 +5,10 @@ import kotlinx.datetime.LocalDate
 /**
  * A single hit from the global search index.
  *
- * @property patientId Identifier of the patient the hit belongs to.
+ * @property patientId Identifier of the patient the hit belongs to. Owner hits
+ * have no patient relationship and retain their legacy owner id here for
+ * source compatibility; use [ownerId] to identify those hits.
+ * @property ownerId Identifier of the owner for an owner hit, otherwise `null`.
  * @property patientName Name of the patient.
  * @property breed Optional breed of the patient.
  * @property microchipId Optional microchip identifier of the patient.
@@ -23,4 +26,5 @@ data class SearchResult(
     val recordId: Long,
     val date: LocalDate?,
     val snippet: String,
+    val ownerId: Long? = null,
 )

@@ -1,5 +1,6 @@
 package com.github.rodrigotimoteo.animally.domain.insights.usecase
 
+import com.github.rodrigotimoteo.animally.domain.backup.BACKUP_SCHEMA_VERSION
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.insights.model.ActivityPoint
 import com.github.rodrigotimoteo.animally.domain.insights.model.CurrentCareSnapshot
@@ -206,7 +207,7 @@ class ExportInsightsBundleUseCaseTest {
         assertEquals("all", map["patient_scope"])
         assertTrue(map.containsKey("app_version"))
         assertTrue(map.containsKey("schema_version"))
-        assertEquals("1", map["schema_version"])
+        assertEquals(BACKUP_SCHEMA_VERSION.toString(), map["schema_version"])
     }
 
     @Test

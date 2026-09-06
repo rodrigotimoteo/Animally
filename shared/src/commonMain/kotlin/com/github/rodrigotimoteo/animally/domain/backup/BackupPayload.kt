@@ -11,10 +11,13 @@ import kotlinx.serialization.encoding.Encoder
 import kotlin.time.Instant
 
 /**
- * Current backup schema version. [RestoreBackupUseCase] refuses payloads with
- * a different version so a newer schema can never overwrite an older one.
+ * Current backup schema version. Version 1 remains readable, while a newer
+ * unsupported version is rejected before restore can mutate local state.
  */
-const val BACKUP_SCHEMA_VERSION: Int = 1
+const val BACKUP_SCHEMA_VERSION: Int = 2
+
+/** Oldest JSON schema with a supported reader/migrator. */
+const val MIN_SUPPORTED_BACKUP_SCHEMA_VERSION: Int = 1
 
 /** Maximum UTF-8 size accepted by the restore boundary. */
 const val MAX_BACKUP_BYTES: Int = 16 * 1024 * 1024

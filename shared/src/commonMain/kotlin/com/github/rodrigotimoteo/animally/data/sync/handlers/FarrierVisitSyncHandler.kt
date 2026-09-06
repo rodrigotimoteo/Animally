@@ -45,7 +45,10 @@ class FarrierVisitSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            farrierVisitRepository.getById(entityId)
+            database.farrierVisitQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("FarrierVisit $entityId not found")
         val payloadBody =
             SyncJson
@@ -77,7 +80,7 @@ class FarrierVisitSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.farrierVisitQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

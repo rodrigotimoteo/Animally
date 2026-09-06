@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.data.sync.handlers.DentistrySyncHandle
 import com.github.rodrigotimoteo.animally.data.sync.handlers.DewormingSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.EmbryoTransferSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.FarrierVisitSyncHandler
+import com.github.rodrigotimoteo.animally.data.sync.handlers.FollicleSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.GestationSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.IcsiSyncHandler
 import com.github.rodrigotimoteo.animally.data.sync.handlers.ImagingSyncHandler
@@ -52,6 +53,7 @@ class SyncEntityHandlerRegistry(
     substanceHandler: SubstanceSyncHandler,
     surgeryHandler: SurgerySyncHandler,
     ultrasoundHandler: UltrasoundSyncHandler,
+    follicleHandler: FollicleSyncHandler,
     vaccinationHandler: VaccinationSyncHandler,
     weightHandler: WeightSyncHandler,
     customReminderHandler: CustomReminderSyncHandler,
@@ -77,6 +79,7 @@ class SyncEntityHandlerRegistry(
             substanceHandler,
             surgeryHandler,
             ultrasoundHandler,
+            follicleHandler,
             vaccinationHandler,
             weightHandler,
             customReminderHandler,
@@ -89,6 +92,6 @@ class SyncEntityHandlerRegistry(
     /** Resolves the handler for [type], or throws when none is registered. */
     fun handlerFor(type: SyncEntityType): SyncEntityHandler = byType.getValue(type)
 
-    /** All handlers in sync dependency order: OWNER, PATIENT, ANAMNESE, then patient-linked. */
+    /** All handlers in sync dependency order: owners, patients, ultrasounds, then their children. */
     fun all(): List<SyncEntityHandler> = allHandlers
 }

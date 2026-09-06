@@ -25,8 +25,8 @@ object BackupSerializer {
     fun encode(payload: BackupPayload): String = json.encodeToString(BackupPayload.serializer(), payload)
 
     /**
-     * Decodes [content] and rejects payloads whose [BackupPayload.schemaVersion]
-     * does not match [BACKUP_SCHEMA_VERSION].
+     * Decodes [content], migrates the supported v1 shape, and rejects payloads
+     * whose [BackupPayload.schemaVersion] is newer than this reader.
      */
     fun decode(content: String): BackupPayload {
         require(content.length <= MAX_BACKUP_INPUT_CHARS) {
@@ -36,10 +36,15 @@ object BackupSerializer {
             "Backup exceeds the maximum size of $MAX_BACKUP_BYTES bytes"
         }
         val payload = json.decodeFromString(QuotaBackupPayloadDeserializer, content)
-        check(payload.schemaVersion == BACKUP_SCHEMA_VERSION) {
-            "Unsupported backup schema version ${payload.schemaVersion}, expected $BACKUP_SCHEMA_VERSION"
+        return when (payload.schemaVersion) {
+            MIN_SUPPORTED_BACKUP_SCHEMA_VERSION -> payload.copy(schemaVersion = BACKUP_SCHEMA_VERSION)
+            BACKUP_SCHEMA_VERSION -> payload
+            else ->
+                error(
+                    "Unsupported backup schema version ${payload.schemaVersion}, " +
+                        "supported $MIN_SUPPORTED_BACKUP_SCHEMA_VERSION..$BACKUP_SCHEMA_VERSION",
+                )
         }
-        return payload
     }
 }
 

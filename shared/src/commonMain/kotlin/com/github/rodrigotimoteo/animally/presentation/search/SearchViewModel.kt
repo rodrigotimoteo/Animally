@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.presentation.search
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.search.model.SearchResult
 import com.github.rodrigotimoteo.animally.domain.search.usecase.SearchUseCase
 import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNavigationViewModel
@@ -84,6 +85,15 @@ class SearchViewModel(
      * Navigates to the detail screen for the patient with the given [patientId].
      */
     fun onResultClick(patientId: Long) = navigateTo(Route.PatientDetail(patientId))
+
+    /** Navigates an indexed hit to the detail screen for its owning entity. */
+    fun onResultClick(result: SearchResult) {
+        if (result.recordType == ISearchRepository.TYPE_OWNER) {
+            navigateTo(Route.OwnerDetail(result.ownerId ?: result.patientId))
+        } else {
+            navigateTo(Route.PatientDetail(result.patientId))
+        }
+    }
 
     /**
      * Clears the current error message.

@@ -16,4 +16,8 @@ actual class NotificationScheduler {
         reminder: Reminder,
         channelId: String,
     ) = Unit
+
+    actual fun cancelReminder(reminder: Reminder) = Unit
+
+    actual fun cancelAllReminders() = Unit
 }

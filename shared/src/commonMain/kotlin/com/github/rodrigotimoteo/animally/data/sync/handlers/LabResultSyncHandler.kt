@@ -43,7 +43,12 @@ class LabResultSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = labResultRepository.getById(entityId) ?: throw NoSuchElementException("LabResult $entityId not found")
+        val row =
+            database.labResultQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("LabResult $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -73,7 +78,7 @@ class LabResultSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.labResultQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

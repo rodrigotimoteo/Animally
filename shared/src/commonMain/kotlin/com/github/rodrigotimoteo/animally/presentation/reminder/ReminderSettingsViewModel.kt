@@ -4,9 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionController
-import com.github.rodrigotimoteo.animally.domain.notification.NotificationScheduler
+import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetDentistryRemindersUseCase
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetVaccinationRemindersUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,8 @@ import kotlin.time.Clock
  * @param getDentistryRemindersUseCase Use case collecting dentistry reminders.
  * @param ioDispatcher Dispatcher for blocking database work.
  * @param notificationPermissionController Platform notification permission access.
+ * @param reminderPreferenceStore Persisted user preference for reminder scheduling.
+ * @param reminderScheduler Platform reminder lifecycle boundary.
  */
 @KoinViewModel
 class ReminderSettingsViewModel(
@@ -38,15 +41,17 @@ class ReminderSettingsViewModel(
     private val getDentistryRemindersUseCase: GetDentistryRemindersUseCase,
     @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
     private val notificationPermissionController: NotificationPermissionController,
+    private val reminderPreferenceStore: ReminderPreferenceStore,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(ReminderSettingsUiState())
+    private val _uiState =
+        MutableStateFlow(ReminderSettingsUiState(remindersEnabled = reminderPreferenceStore.isEnabled()))
     val uiState: StateFlow<ReminderSettingsUiState> = _uiState.asStateFlow()
-
-    private val notificationScheduler = NotificationScheduler()
 
     init {
         viewModelScope.launch {
             val granted = withContext(ioDispatcher) { notificationPermissionController.isGranted() }
+            if (!granted) reminderScheduler.cancelAll()
             _uiState.update {
                 it.copy(
                     notificationsEnabled = granted,
@@ -67,6 +72,8 @@ class ReminderSettingsViewModel(
             requestNotificationPermission()
             return
         }
+        reminderPreferenceStore.setEnabled(enabled)
+        if (!enabled) reminderScheduler.cancelAll()
         _uiState.update { it.copy(remindersEnabled = enabled, permissionMessage = null) }
     }
 
@@ -82,6 +89,8 @@ class ReminderSettingsViewModel(
                     permissionMessage = if (granted) null else NOTIFICATIONS_DISABLED_MESSAGE,
                 )
             }
+            if (!granted) reminderScheduler.cancelAll()
+            reminderPreferenceStore.setEnabled(granted)
         }
     }
 
@@ -93,19 +102,21 @@ class ReminderSettingsViewModel(
     fun checkRemindersNow() {
         _uiState.update { it.copy(isChecking = true, errorMessage = null) }
         viewModelScope.launch {
-            runCatching {
-                withContext(ioDispatcher) {
-                    val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
-                    getVaccinationRemindersUseCase(today) + getDentistryRemindersUseCase(today)
-                }
-            }.onSuccess { reminders ->
+            try {
+                val reminders =
+                    withContext(ioDispatcher) {
+                        val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+                        getVaccinationRemindersUseCase(today) + getDentistryRemindersUseCase(today)
+                    }
                 if (_uiState.value.remindersEnabled) {
-                    reminders.forEach { notificationScheduler.scheduleReminder(it) }
+                    reminders.forEach(reminderScheduler::schedule)
                 }
                 _uiState.update {
                     it.copy(isChecking = false, lastCheckedCount = reminders.size)
                 }
-            }.onFailure { error ->
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
                 _uiState.update { it.copy(isChecking = false, errorMessage = error.message) }
             }
         }

@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.di.database.createTestDatabase
 import com.github.rodrigotimoteo.animally.domain.common.RecordType
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
 import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -89,6 +90,44 @@ class RecordTypeIndexingTest {
 
         assertEquals(1, results.size)
         assertEquals(RecordType.Surgery.wireName, results.single().recordType)
+    }
+
+    @Test
+    fun givenMedicationWithStartDateWhenReindexedThenDateScopedSearchIncludesOnlyItsRange() {
+        val patientId = seedPatient()
+        val startDate = LocalDate(2026, 8, 10)
+        val now = Clock.System.now()
+        database.medicationQueries.insert(
+            patientId = patientId,
+            name = "Phenylbutazone",
+            dosage = "2g",
+            route = null,
+            frequency = null,
+            startDate = startDate,
+            endDate = null,
+            prescribedBy = null,
+            notes = null,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+
+        repo.reindexIfNeeded("test-medication-date")
+
+        val inRange = repo.searchByDateRange(LocalDate(2026, 8, 1), LocalDate(2026, 8, 31))
+        assertTrue(
+            inRange.any {
+                it.recordType == RecordType.Medication.wireName &&
+                    it.date == startDate
+            },
+            "medication start date must be retained in search metadata",
+        )
+
+        val outsideRange = repo.searchByDateRange(LocalDate(2026, 9, 1), LocalDate(2026, 9, 30))
+        assertTrue(
+            outsideRange.none { it.recordType == RecordType.Medication.wireName },
+            "date-scoped search must exclude medications outside their start-date range",
+        )
     }
 
     @Test

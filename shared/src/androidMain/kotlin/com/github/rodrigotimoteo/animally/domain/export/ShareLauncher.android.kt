@@ -37,7 +37,7 @@ actual fun shareFileAt(
         Intent(Intent.ACTION_SEND).apply {
             type = contentType
             putExtra(Intent.EXTRA_STREAM, contentUri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     context.startActivity(Intent.createChooser(shareIntent, "Share $safeFileName"))
 }

@@ -24,6 +24,9 @@ data class ReproductionPayload(
     val eventType: String,
     val date: LocalDate,
     val details: String? = null,
+    val initialExamFindings: String? = null,
+    val stallionName: String? = null,
+    val breedingType: String? = null,
     val vetName: String? = null,
     val notes: String? = null,
     val createdAt: Instant? = null,
@@ -43,7 +46,10 @@ class ReproductionSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            reproductionRepository.getById(entityId)
+            database.reproductionQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("ReproductionEvent $entityId not found")
         val payloadBody =
             SyncJson
@@ -53,6 +59,9 @@ class ReproductionSyncHandler(
                         eventType = row.eventType,
                         date = row.date,
                         details = row.details,
+                        initialExamFindings = row.initialExamFindings,
+                        stallionName = row.stallionName,
+                        breedingType = row.breedingType,
                         vetName = row.vetName,
                         notes = row.notes,
                         createdAt = row.createdAt,
@@ -73,7 +82,7 @@ class ReproductionSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.reproductionQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 
@@ -97,6 +106,9 @@ class ReproductionSyncHandler(
                     eventType = payload.eventType,
                     date = payload.date,
                     details = payload.details,
+                    initialExamFindings = payload.initialExamFindings,
+                    stallionName = payload.stallionName,
+                    breedingType = payload.breedingType,
                     vetName = payload.vetName,
                     notes = payload.notes,
                     isActive = record.isActive,
@@ -127,6 +139,9 @@ class ReproductionSyncHandler(
                 eventType = payload.eventType,
                 date = payload.date,
                 details = payload.details,
+                initialExamFindings = payload.initialExamFindings,
+                stallionName = payload.stallionName,
+                breedingType = payload.breedingType,
                 vetName = payload.vetName,
                 notes = payload.notes,
                 isActive = record.isActive,

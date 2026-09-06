@@ -45,7 +45,10 @@ class ConsultationSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            consultationRepository.getById(entityId)
+            database.consultationQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
                 ?: throw NoSuchElementException("Consultation $entityId not found")
         val payloadBody =
             SyncJson
@@ -77,7 +80,7 @@ class ConsultationSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.consultationQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

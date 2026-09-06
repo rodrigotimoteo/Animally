@@ -49,7 +49,7 @@ selectByServerId:
 SELECT * FROM EmbryoTransfer WHERE serverId = ?;
 
 selectChangedSince:
-SELECT * FROM EmbryoTransfer WHERE updatedAt > ? AND isActive = 1;
+SELECT * FROM EmbryoTransfer WHERE updatedAt > ?;
 
 setServerId:
 UPDATE EmbryoTransfer SET serverId = ?, updatedAt = ? WHERE id = ?;

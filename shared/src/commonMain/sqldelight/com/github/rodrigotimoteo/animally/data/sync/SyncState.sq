@@ -7,3 +7,6 @@ SELECT value FROM SyncState WHERE key = ?;
 
 deleteByKey:
 DELETE FROM SyncState WHERE key = ?;
+
+deleteAll:
+DELETE FROM SyncState;

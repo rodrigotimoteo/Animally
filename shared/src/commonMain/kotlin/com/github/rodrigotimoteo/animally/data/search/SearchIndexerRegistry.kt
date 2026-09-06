@@ -173,7 +173,7 @@ internal class SearchIndexerRegistry(
                     RecordType.Medication.wireName,
                     medication.patientId,
                     medication.id,
-                    null,
+                    medication.startDate,
                     SearchableText.medication(medication),
                 )
             }

@@ -43,7 +43,12 @@ class DentistrySyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = dentistryRepository.getById(entityId) ?: throw NoSuchElementException("Dentistry $entityId not found")
+        val row =
+            database.dentistryQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Dentistry $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -73,7 +78,7 @@ class DentistrySyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.dentistryQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

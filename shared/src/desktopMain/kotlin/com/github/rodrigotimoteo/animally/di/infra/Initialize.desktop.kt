@@ -8,6 +8,7 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.DispatchersModule
 import com.github.rodrigotimoteo.animally.di.navigation.navigationEntryModule
 import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
 import com.github.rodrigotimoteo.animally.di.presentation.cloudLlmModule
+import com.github.rodrigotimoteo.animally.di.presentation.reminderPreferenceModule
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
 import com.github.rodrigotimoteo.animally.di.dispatchers.module as dispatchersModule
@@ -28,6 +29,7 @@ actual fun initKoin(context: Any?): KoinApplication =
                 add(DesktopDatabaseModule().provide())
                 add(QueriesModule().provide())
                 add(PresentationModule().provide())
+                add(reminderPreferenceModule)
                 add(cloudLlmModule)
                 add(com.github.rodrigotimoteo.animally.llm.llmModule)
                 add(com.github.rodrigotimoteo.animally.di.dictationModule)

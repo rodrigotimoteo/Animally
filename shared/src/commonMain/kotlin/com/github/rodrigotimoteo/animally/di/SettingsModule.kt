@@ -10,5 +10,5 @@ import org.koin.dsl.module
  */
 val settingsModule =
     module {
-        single { WipeAllDataUseCase(get(), get(), get()) }
+        single { WipeAllDataUseCase(get(), get(), get(), get()) }
     }

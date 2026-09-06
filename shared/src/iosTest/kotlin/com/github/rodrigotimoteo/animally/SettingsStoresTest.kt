@@ -5,6 +5,7 @@ import com.github.rodrigotimoteo.animally.di.infra.IosAppBridge
 import com.github.rodrigotimoteo.animally.di.infra.IosSettingsStores
 import com.github.rodrigotimoteo.animally.domain.consultation.IConsultationRepository
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
+import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
 import com.github.rodrigotimoteo.animally.domain.patient.IPatientRepository
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetDentistryRemindersUseCase
 import com.github.rodrigotimoteo.animally.domain.reminder.usecase.GetVaccinationRemindersUseCase
@@ -12,6 +13,7 @@ import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.IVaccinationRepository
 import com.github.rodrigotimoteo.animally.domain.vaccination.model.Vaccination
 import com.github.rodrigotimoteo.animally.presentation.ios.ReminderSettingsStore
+import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderPreferenceStore
 import com.github.rodrigotimoteo.animally.presentation.reminder.ReminderSettingsViewModel
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import kotlinx.coroutines.CoroutineDispatcher
@@ -219,6 +221,8 @@ class SettingsStoresTest {
                         ),
                     ioDispatcher = IosAppBridge.koin.get<CoroutineDispatcher>(named(IO_DISPATCHER)),
                     notificationPermissionController = FakeNotificationPermissionController(granted = false),
+                    reminderPreferenceStore = IosAppBridge.koin.get<ReminderPreferenceStore>(),
+                    reminderScheduler = IosAppBridge.koin.get<ReminderScheduler>(),
                 )
             val store = ReminderSettingsStore(viewModel)
 

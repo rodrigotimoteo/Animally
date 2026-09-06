@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewModelScope
+import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.domain.backup.ExportBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.backup.RestoreBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.export.ExportCsvUseCase
@@ -24,13 +25,16 @@ import com.github.rodrigotimoteo.animally.presentation.navigation.AnimallyNaviga
 import com.github.rodrigotimoteo.animally.presentation.theme.AccentColor
 import com.github.rodrigotimoteo.animally.presentation.theme.ThemeMode
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import org.koin.core.annotation.KoinViewModel
+import org.koin.core.annotation.Named
 import kotlin.time.Clock
 
 @KoinViewModel
@@ -45,6 +49,7 @@ class SettingsViewModel(
     private val themePreferenceStore: ThemePreferenceStore,
     private val cloudLlmSettings: CloudLlmSettingsStore,
     private val cloudModelCatalog: CloudModelCatalog,
+    @Named(IO_DISPATCHER) private val ioDispatcher: CoroutineDispatcher,
     animallyNavigator: AnimallyNavigator,
 ) : AnimallyNavigationViewModel(animallyNavigator) {
     private val patientsState = mutableStateOf(patientRepository.getPatientList())
@@ -63,6 +68,24 @@ class SettingsViewModel(
     var backupStatus: String? by mutableStateOf(null)
     var restoreStatus: String? by mutableStateOf(null)
     var pdfStatus: String? by mutableStateOf(null)
+
+    /** True while the all-patient CSV export is being built or shared. */
+    var isExportingCsv: Boolean by mutableStateOf(false)
+        private set
+
+    /** True while the dual-format backup is being built or shared. */
+    var isExportingBackup: Boolean by mutableStateOf(false)
+        private set
+
+    /** True while a pasted backup is being validated and restored. */
+    var isRestoringBackup: Boolean by mutableStateOf(false)
+        private set
+
+    /** True while a patient PDF is being rendered or shared. */
+    var isExportingPdf: Boolean by mutableStateOf(false)
+        private set
+
+    var csvStatus: String? by mutableStateOf(null)
 
     /** True while the database wipe is in flight. */
     var isWipingData: Boolean by mutableStateOf(false)
@@ -141,18 +164,55 @@ class SettingsViewModel(
      * Exports every patient's records to a dated CSV file and shares it.
      */
     fun onExportClick() {
-        val csv = exportCsvUseCase(patientId = null, from = null, to = null)
-        val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
-        shareFile(fileName = "animally-patients-$today.csv", content = csv, contentType = "text/csv")
+        viewModelScope.launch { exportCsvAwait() }
+    }
+
+    /** Completes the CSV export, allowing native bridges to await its outcome. */
+    suspend fun exportCsvAwait() {
+        if (isExportingCsv) return
+        isExportingCsv = true
+        csvStatus = null
+        try {
+            val artifact =
+                withContext(ioDispatcher) {
+                    val csv = exportCsvUseCase(patientId = null, from = null, to = null)
+                    val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+                    "animally-patients-$today.csv" to csv
+                }
+            shareFile(fileName = artifact.first, content = artifact.second, contentType = "text/csv")
+            csvStatus = "CSV exported: ${artifact.first}"
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            csvStatus = "CSV export failed: ${e.message}"
+        } finally {
+            isExportingCsv = false
+        }
     }
 
     /**
      * Writes a full database backup and shares the JSON artifact.
      */
     fun onExportBackupClick() {
-        val result = exportBackupUseCase()
-        shareFileAt(fileName = result.fileName, path = result.backupPath, contentType = "application/json")
-        backupStatus = "Backup exported: ${result.fileName}"
+        viewModelScope.launch { exportBackupAwait() }
+    }
+
+    /** Completes the backup export, allowing native bridges to await its outcome. */
+    suspend fun exportBackupAwait() {
+        if (isExportingBackup) return
+        isExportingBackup = true
+        backupStatus = null
+        try {
+            val result = withContext(ioDispatcher) { exportBackupUseCase() }
+            shareFileAt(fileName = result.fileName, path = result.backupPath, contentType = "application/json")
+            backupStatus = "Backup exported: ${result.fileName}"
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            backupStatus = "Backup export failed: ${e.message}"
+        } finally {
+            isExportingBackup = false
+        }
     }
 
     /**
@@ -163,13 +223,28 @@ class SettingsViewModel(
             restoreStatus = "Paste backup JSON first"
             return
         }
-        restoreStatus =
-            try {
-                restoreBackupUseCase(restoreJson)
-                "Restore complete"
-            } catch (e: Exception) {
-                "Restore failed: ${e.message}"
-            }
+        viewModelScope.launch { restoreBackupAwait(restoreJson) }
+    }
+
+    /** Completes a restore, allowing native bridges to await its outcome. */
+    suspend fun restoreBackupAwait(jsonContent: String = restoreJson) {
+        if (jsonContent.isBlank()) {
+            restoreStatus = "Paste backup JSON first"
+            return
+        }
+        if (isRestoringBackup) return
+        isRestoringBackup = true
+        restoreStatus = null
+        try {
+            withContext(ioDispatcher) { restoreBackupUseCase(jsonContent) }
+            restoreStatus = "Restore complete"
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            restoreStatus = "Restore failed: ${e.message}"
+        } finally {
+            isRestoringBackup = false
+        }
     }
 
     /**
@@ -185,12 +260,36 @@ class SettingsViewModel(
      * reloads (now empty) so open screens reflect the wiped state.
      */
     fun onWipeAllDataClick() {
+        viewModelScope.launch { wipeAllDataAwait() }
+    }
+
+    /** Completes a wipe, allowing native bridges to await its outcome. */
+    suspend fun wipeAllDataAwait() {
         if (isWipingData) return
         isWipingData = true
+        wipeStatus = null
         try {
-            wipeAllDataUseCase()
-            dataWiped = true
-            patientsState.value = patientRepository.getPatientList()
+            val patientsAfterWipe =
+                withContext(ioDispatcher) {
+                    val result = wipeAllDataUseCase()
+                    result to patientRepository.getPatientList()
+                }
+            val (wipeResult, patients) = patientsAfterWipe
+            dataWiped = wipeResult.isComplete
+            wipeStatus =
+                if (wipeResult.isComplete) {
+                    null
+                } else {
+                    buildString {
+                        append("Erase completed with cleanup still needed")
+                        if (wipeResult.residualMediaPaths.isNotEmpty()) {
+                            append(" (${wipeResult.residualMediaPaths.size} media file(s))")
+                        }
+                        if (!wipeResult.notificationsCancelled) append("; notifications could not be cancelled")
+                        if (!wipeResult.searchIndexRebuilt) append("; search index will retry on next launch")
+                    }
+                }
+            patientsState.value = patients
             selectedPatientIdState.value = null
         } catch (e: CancellationException) {
             throw e
@@ -210,12 +309,37 @@ class SettingsViewModel(
             pdfStatus = "Select a patient first"
             return
         }
-        val report =
-            exportReportUseCase(patientId = patientId, from = null, to = null).copy(
-                palette = PdfPalette.forAccentId(themePreferenceStore.getAccentColor().id),
-            )
-        sharePdf(fileName = "patient-history-${report.patient.name}.pdf", bytes = generatePdf(report))
-        pdfStatus = "PDF exported for ${report.patient.name}"
+        viewModelScope.launch { exportPdfAwait(patientId) }
+    }
+
+    /** Completes a patient PDF export, allowing native bridges to await its outcome. */
+    suspend fun exportPdfAwait(patientId: Long? = selectedPatientIdState.value) {
+        if (patientId == null) {
+            pdfStatus = "Select a patient first"
+            return
+        }
+        if (isExportingPdf) return
+        isExportingPdf = true
+        pdfStatus = null
+        try {
+            val artifact =
+                withContext(ioDispatcher) {
+                    val report =
+                        exportReportUseCase(patientId = patientId, from = null, to = null).copy(
+                            palette = PdfPalette.forAccentId(themePreferenceStore.getAccentColor().id),
+                        )
+                    report.patient.name to generatePdf(report)
+                }
+            val fileName = "patient-history-${artifact.first}.pdf"
+            sharePdf(fileName = fileName, bytes = artifact.second)
+            pdfStatus = "PDF exported for ${artifact.first}"
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            pdfStatus = "PDF export failed: ${e.message}"
+        } finally {
+            isExportingPdf = false
+        }
     }
 
     /**

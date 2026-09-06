@@ -6,6 +6,12 @@
 
 echo "🔍 Running static analysis and iOS compilation..."
 
+./scripts/check-queries-module.sh
+if [ $? -ne 0 ]; then
+    echo "❌ SQLDelight query ownership check failed. Commit rejected."
+    exit 1
+fi
+
 # Keep the iOS-first target compiling as well as formatted. This task is
 # incremental, so unchanged platform code remains cheap on repeat commits.
 ./gradlew detekt ktlintCheck :shared:compileKotlinIosSimulatorArm64 --daemon --quiet

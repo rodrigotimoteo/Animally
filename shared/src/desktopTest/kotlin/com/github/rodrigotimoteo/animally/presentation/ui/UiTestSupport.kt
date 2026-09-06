@@ -17,6 +17,7 @@ import com.github.rodrigotimoteo.animally.data.deworming.DewormingRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.dictation.DictationFilePortImpl
 import com.github.rodrigotimoteo.animally.data.embryotransfer.EmbryoTransferRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.farrier.FarrierVisitRepositoryImpl
+import com.github.rodrigotimoteo.animally.data.follicle.FollicleRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.gestation.GestationRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.icsi.IcsiRepositoryImpl
 import com.github.rodrigotimoteo.animally.data.imaging.ImagingRepositoryImpl
@@ -37,6 +38,7 @@ import com.github.rodrigotimoteo.animally.data.weight.WeightRepositoryImpl
 import com.github.rodrigotimoteo.animally.di.database.databaseTestModules
 import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
+import com.github.rodrigotimoteo.animally.di.presentation.reminderPreferenceModule
 import com.github.rodrigotimoteo.animally.domain.anamnese.IAnamneseRepository
 import com.github.rodrigotimoteo.animally.domain.backup.ExportBackupUseCase
 import com.github.rodrigotimoteo.animally.domain.backup.RestoreBackupUseCase
@@ -65,6 +67,7 @@ import com.github.rodrigotimoteo.animally.domain.export.pdf.ExportPatientReportU
 import com.github.rodrigotimoteo.animally.domain.farrier.IFarrierVisitRepository
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.DeleteFarrierVisitUseCase
 import com.github.rodrigotimoteo.animally.domain.farrier.usecase.GetFarrierVisitsByPatientUseCase
+import com.github.rodrigotimoteo.animally.domain.follicle.IFollicleRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.IGestationRepository
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.DeleteGestationUseCase
 import com.github.rodrigotimoteo.animally.domain.gestation.usecase.GetGestationsByPatientUseCase
@@ -85,6 +88,8 @@ import com.github.rodrigotimoteo.animally.domain.medication.usecase.DeleteMedica
 import com.github.rodrigotimoteo.animally.domain.medication.usecase.GetMedicationsByPatientUseCase
 import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionController
 import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionControllerImpl
+import com.github.rodrigotimoteo.animally.domain.notification.NotificationReminderScheduler
+import com.github.rodrigotimoteo.animally.domain.notification.ReminderScheduler
 import com.github.rodrigotimoteo.animally.domain.owner.IOwnerRepository
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
 import com.github.rodrigotimoteo.animally.domain.owner.usecase.DeleteOwnerUseCase
@@ -193,6 +198,7 @@ internal fun uiTestIoDispatcher(): CoroutineDispatcher = UnconfinedTestDispatche
 internal fun uiTestKoinModules(): List<Module> =
     buildList {
         addAll(databaseTestModules())
+        add(reminderPreferenceModule)
         add(uiServicesModule())
         addAll(uiViewModelModule())
     }
@@ -224,6 +230,7 @@ private fun uiServicesModule(): Module =
         single<IFarrierVisitRepository> { FarrierVisitRepositoryImpl(get()) }
         single<IReproductionRepository> { ReproductionRepositoryImpl(get()) }
         single<IUltrasoundRepository> { UltrasoundRepositoryImpl(get()) }
+        single<IFollicleRepository> { FollicleRepositoryImpl(get()) }
         single<IGestationRepository> { GestationRepositoryImpl(get()) }
         single<IReproMedicationRepository> { ReproMedicationRepositoryImpl(get()) }
         single<ILabResultRepository> { LabResultRepositoryImpl(get()) }
@@ -233,6 +240,7 @@ private fun uiServicesModule(): Module =
         single<ISearchRepository> { SearchRepositoryImpl(get(), get<AnimallyDatabase>().ownerQueries) }
         single<DatabaseWipePort> { DatabaseWipePortImpl(get()) }
         single<DictationFilePort> { DictationFilePortImpl() }
+        single<ReminderScheduler> { NotificationReminderScheduler() }
 
         single { GetPatientListUseCase(get()) }
         single { GetPatientDetailUseCase(get()) }
@@ -260,7 +268,7 @@ private fun uiServicesModule(): Module =
         single { GetEmbryoTransfersByPatientUseCase(get()) }
         single { GetIcsiByPatientUseCase(get()) }
         single { DeleteConsultationUseCase(get(), get()) }
-        single { DeleteCustomReminderUseCase(get(), get()) }
+        single { DeleteCustomReminderUseCase(get(), get(), get()) }
         single { DeleteDentistryUseCase(get(), get()) }
         single { DeleteDewormingUseCase(get(), get()) }
         single { DeleteEmbryoTransferUseCase(get(), get()) }
@@ -282,12 +290,12 @@ private fun uiServicesModule(): Module =
         single { CsvExporter() }
         single { ExportBasicRecordsUseCase(get(), get(), get(), get(), get(), get()) }
         single { ExportClinicalRecordsUseCase(get(), get(), get(), get(), get(), get()) }
-        single { ExportReproductiveRecordsUseCase(get(), get(), get(), get(), get()) }
+        single { ExportReproductiveRecordsUseCase(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
         single { ExportCsvUseCase(get(), get(), get(), get(), get()) }
         single { ExportPatientReportUseCase(get(), get(), get(), get()) }
         single { ExportBackupUseCase(get()) }
         single { RestoreBackupUseCase(get(), get()) }
-        single { WipeAllDataUseCase(get(), get(), get()) }
+        single { WipeAllDataUseCase(get(), get(), get(), get()) }
         single { GetVaccinationRemindersUseCase(get(), get()) }
         single { GetDentistryRemindersUseCase(get(), get()) }
         single<NotificationPermissionController> { NotificationPermissionControllerImpl() }
@@ -315,9 +323,9 @@ private class FakeSyncMetadataRepository : SyncMetadataRepository {
 
 private fun uiViewModelModule(): List<Module> =
     module {
-        viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+        viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(named(IO_DISPATCHER)), get()) }
         viewModel {
-            ReminderSettingsViewModel(get(), get(), get(named(IO_DISPATCHER)), get())
+            ReminderSettingsViewModel(get(), get(), get(named(IO_DISPATCHER)), get(), get(), get())
         }
         viewModel { SyncViewModel(get(), get(), get(named(IO_DISPATCHER))) }
     } + PresentationModule().provide()

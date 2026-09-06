@@ -53,7 +53,7 @@ class SaveMedicationUseCaseTest {
                 ISearchRepository.TYPE_MEDICATION,
                 1L,
                 1L,
-                null,
+                LocalDate(2024, 5, 1),
                 "Phenylbutazone 2g start date 2024-05-01 medication medicine drug prescription treatment",
             )
         }
@@ -73,7 +73,7 @@ class SaveMedicationUseCaseTest {
                 ISearchRepository.TYPE_MEDICATION,
                 1L,
                 7L,
-                null,
+                LocalDate(2024, 5, 1),
                 "Phenylbutazone 2g start date 2024-05-01 medication medicine drug prescription treatment",
             )
         }

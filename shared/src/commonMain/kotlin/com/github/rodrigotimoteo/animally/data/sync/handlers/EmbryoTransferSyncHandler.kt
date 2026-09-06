@@ -43,7 +43,11 @@ class EmbryoTransferSyncHandler(
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
         val row =
-            repository.getById(entityId) ?: throw NoSuchElementException("EmbryoTransfer $entityId not found")
+            database.embryoTransferQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("EmbryoTransfer $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -72,7 +76,7 @@ class EmbryoTransferSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.embryoTransferQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

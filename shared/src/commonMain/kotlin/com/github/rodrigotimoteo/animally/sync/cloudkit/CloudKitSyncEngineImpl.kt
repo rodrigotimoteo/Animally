@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.sync.cloudkit
 
 import com.github.rodrigotimoteo.animally.data.AnimallyDatabase
+import com.github.rodrigotimoteo.animally.domain.search.ISearchRepository
 import com.github.rodrigotimoteo.animally.domain.sync.ChangedRecord
 import com.github.rodrigotimoteo.animally.domain.sync.ENTITY_NOT_APPLIED
 import com.github.rodrigotimoteo.animally.domain.sync.SyncChangeTracker
@@ -8,14 +9,17 @@ import com.github.rodrigotimoteo.animally.domain.sync.SyncEngine
 import com.github.rodrigotimoteo.animally.domain.sync.SyncEntityHandlerRegistry
 import com.github.rodrigotimoteo.animally.domain.sync.SyncEntityType
 import com.github.rodrigotimoteo.animally.domain.sync.SyncResult
+import com.github.rodrigotimoteo.animally.domain.sync.hasUnresolvedParent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.builtins.ListSerializer
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -24,9 +28,13 @@ import kotlin.uuid.Uuid
 
 /** Max envelopes per [SyncCloudBridge.stageRecords] call. */
 private const val EXPORT_CHUNK_SIZE = 200
+private const val BRIDGE_EVENT_TIMEOUT_MS = 30_000L
 
 /** Raised internally when the iCloud account disappears mid-cycle. */
 private class AccountLostException : Exception("iCloud account unavailable")
+
+/** Raised when a native callback never arrives for the current sync step. */
+private class BridgeEventTimeoutException : Exception("CloudKit callback timed out")
 
 /** Running tallies for one sync cycle. */
 private class Counters {
@@ -129,6 +137,9 @@ private class RecordNameAssigner(
             SyncEntityType.ULTRASOUND to { name, updatedAt, id ->
                 database.ultrasoundQueries.setServerId(name, updatedAt, id)
             },
+            SyncEntityType.FOLLICLE to { name, updatedAt, id ->
+                database.follicleQueries.setServerId(name, updatedAt, id)
+            },
             SyncEntityType.VACCINATION to { name, updatedAt, id ->
                 database.vaccinationQueries.setServerId(name, updatedAt, id)
             },
@@ -164,7 +175,8 @@ private class RecordNameAssigner(
  * handlers (LWW lives there), and persists progress in the SyncState table.
  *
  * No polling timers live here — callers drive cycles via [sync]/[syncNow].
- * While [CloudKitSyncKeys.ENABLED] is off, every entry point is a no-op.
+ * The first enabled cycle installs the callback and starts the native bridge;
+ * while [CloudKitSyncKeys.ENABLED] is off, every cycle is a no-op.
  */
 public class CloudKitSyncEngineImpl(
     private val bridge: SyncCloudBridge,
@@ -172,6 +184,7 @@ public class CloudKitSyncEngineImpl(
     private val registry: SyncEntityHandlerRegistry,
     private val database: AnimallyDatabase,
     private val settings: CloudKitSyncSettings,
+    private val searchRepository: ISearchRepository,
 ) : SyncEngine {
     private val mutex = Mutex()
     private val pump = EventPump()
@@ -189,12 +202,15 @@ public class CloudKitSyncEngineImpl(
             if (!settings.isEnabled()) {
                 SyncResult(success = true)
             } else {
-                mutex.withLock { runSyncCycle() }
+                mutex.withLock {
+                    ensureStarted()
+                    runSyncCycle()
+                }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: AccountLostException) {
-            handleAccountLost()
+            mutex.withLock { handleAccountLostLocked() }
             SyncResult.failure(e.message ?: "iCloud account unavailable")
         } catch (t: Throwable) {
             SyncResult.failure(t.message ?: "CloudKit sync failed")
@@ -203,11 +219,7 @@ public class CloudKitSyncEngineImpl(
     /** Manual trigger: flushes staged exports, retries orphans, fetches changes. */
     public suspend fun syncNow(): SyncResult = sync()
 
-    /**
-     * Idempotent engine boot: installs the event handler and starts the native
-     * bridge. No-op while the feature flag is off or already started.
-     */
-    public suspend fun start() {
+    private suspend fun ensureStarted() {
         if (!settings.isEnabled() || started) return
         bridge.setEventHandler { json -> handleEvent(json) }
         bridge.start()
@@ -237,7 +249,9 @@ public class CloudKitSyncEngineImpl(
         when (val event = parseSyncBridgeEvent(json)) {
             is SyncBridgeEvent.AccountChange ->
                 scope.launch {
-                    if (!event.available) handleAccountLost()
+                    if (!event.available) {
+                        mutex.withLock { handleAccountLostLocked() }
+                    }
                 }
 
             null -> Unit
@@ -245,7 +259,7 @@ public class CloudKitSyncEngineImpl(
         }
     }
 
-    private fun handleAccountLost() {
+    private fun handleAccountLostLocked() {
         bridge.stop()
         started = false
         pendingOrphans.clear()
@@ -277,14 +291,17 @@ public class CloudKitSyncEngineImpl(
     ): Staged? {
         val type = SyncEntityType.fromWireName(entry.entityType)
         val record =
-            type?.let { t -> runCatching { registry.handlerFor(t).buildRecord(entry.id) }.getOrNull() }
+            type?.let { t ->
+                try {
+                    registry.handlerFor(t).buildRecord(entry.id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+            }
         // Parent ids with a null serverId mean the parent hasn't been exported yet.
-        val parents =
-            record
-                ?.parentServerIds
-                ?.filterValues { it != null }
-                ?.mapValues { it.value!! }
-                ?.takeIf { it.size == record.parentServerIds.size }
+        val parents = record?.takeIf { !it.hasUnresolvedParent() }?.parentServerIds
 
         if (type == null || record == null || parents == null) {
             // Unknown entity or parent not yet exported — retry on a later cycle;
@@ -316,52 +333,66 @@ public class CloudKitSyncEngineImpl(
         counters: Counters,
     ) {
         val pending = staged.associateBy { it.envelope.recordName }.toMutableMap()
-        var confirmedMaxMs = cursorMs
+        val confirmedNames = mutableSetOf<String>()
+        val failedNames = mutableSetOf<String>()
         while (pending.isNotEmpty()) {
-            when (val event = pump.receive()) {
+            when (val event = receiveEvent()) {
                 is SyncBridgeEvent.Exported ->
-                    confirmedMaxMs = confirmExported(event.names, pending, counters, confirmedMaxMs)
+                    confirmExported(event.names, pending, counters, confirmedNames)
 
                 // Cursor not advanced past failures: re-staged next cycle.
-                is SyncBridgeEvent.ExportFailed -> deferFailed(event.names, pending, counters)
+                is SyncBridgeEvent.ExportFailed -> deferFailed(event.names, pending, counters, failedNames)
 
                 is SyncBridgeEvent.Imported -> applyEnvelopes(event.records, counters)
 
                 is SyncBridgeEvent.AccountChange -> throw AccountLostException()
             }
         }
-        settings.setExportCursorMs(confirmedMaxMs)
+        settings.setExportCursorMs(
+            safeExportCursor(
+                staged = staged.map { it.envelope.recordName to it.updatedAtMs },
+                cursorMs = cursorMs,
+                confirmedNames = confirmedNames,
+                failedNames = failedNames,
+            ),
+        )
     }
 
-    /** Confirms exports by name; returns the new confirmed cursor high-water mark. */
+    /** Confirms exports by name and remembers exactly which rows were acknowledged. */
     private fun confirmExported(
         names: List<String>,
         pending: MutableMap<String, Staged>,
         counters: Counters,
-        confirmedMaxMs: Long,
-    ): Long =
-        names.fold(confirmedMaxMs) { maxMs, name ->
+        confirmedNames: MutableSet<String>,
+    ) {
+        names.forEach { name ->
             pending.remove(name)?.let { staged ->
                 counters.pushed++
-                maxOf(maxMs, staged.updatedAtMs)
-            } ?: maxMs
+                confirmedNames += staged.envelope.recordName
+            }
         }
+    }
 
     /** Drops failed exports from [pending] so the loop can drain without advancing the cursor. */
     private fun deferFailed(
         names: List<String>,
         pending: MutableMap<String, Staged>,
         counters: Counters,
+        failedNames: MutableSet<String>,
     ) {
-        names.forEach { name -> pending.remove(name) }
-        counters.deferred += names.size
+        names.forEach { name ->
+            pending.remove(name)?.let {
+                failedNames += it.envelope.recordName
+                counters.deferred++
+            }
+        }
     }
 
     private suspend fun fetchAndApplyRemote(counters: Counters) {
         bridge.fetchChanges()
         // One imported event per fetchChanges call; stray export events stay buffered.
         while (true) {
-            when (val event = pump.receive()) {
+            when (val event = receiveEvent()) {
                 is SyncBridgeEvent.Imported -> {
                     applyEnvelopes(event.records, counters)
                     return
@@ -374,12 +405,20 @@ public class CloudKitSyncEngineImpl(
         }
     }
 
+    private suspend fun receiveEvent(): SyncBridgeEvent =
+        try {
+            withTimeout(BRIDGE_EVENT_TIMEOUT_MS) { pump.receive() }
+        } catch (_: TimeoutCancellationException) {
+            throw BridgeEventTimeoutException()
+        }
+
     private suspend fun applyEnvelopes(
         envelopes: List<CloudKitEnvelope>,
         counters: Counters,
     ) {
         // Each handler's apply path performs its own repository writes; SQLDelight's
         // non-suspend transaction block cannot host the suspend applyRecord calls.
+        var appliedAny = false
         for (envelope in envelopes) {
             val type = SyncEntityType.fromWireName(envelope.recordType) ?: continue
             val applied = registry.handlerFor(type).applyRecord(envelope.toSyncRecord())
@@ -387,7 +426,33 @@ public class CloudKitSyncEngineImpl(
                 pendingOrphans.addLast(envelope)
             } else {
                 counters.pulled++
+                appliedAny = true
             }
         }
+        if (appliedAny) {
+            searchRepository.markIndexDirty()
+            searchRepository.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
+        }
     }
+}
+
+/**
+ * Returns the furthest safe export cursor. A failed row pins the cursor before
+ * its timestamp; this deliberately retries successful rows at that timestamp
+ * because the wire cursor has no tie-breaker beyond milliseconds.
+ */
+internal fun safeExportCursor(
+    staged: List<Pair<String, Long>>,
+    cursorMs: Long,
+    confirmedNames: Set<String>,
+    failedNames: Set<String>,
+): Long {
+    val firstFailedTimestamp = staged.filter { it.first in failedNames }.minOfOrNull { it.second }
+    return staged
+        .asSequence()
+        .filter { it.first in confirmedNames }
+        .filter { firstFailedTimestamp == null || it.second < firstFailedTimestamp }
+        .map { it.second }
+        .maxOrNull()
+        ?: cursorMs
 }

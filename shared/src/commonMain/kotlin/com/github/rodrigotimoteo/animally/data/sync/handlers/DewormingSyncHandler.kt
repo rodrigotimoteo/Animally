@@ -43,7 +43,12 @@ class DewormingSyncHandler(
         entityId: Long,
         parentServerIds: Map<String, String?>,
     ): SyncRecord {
-        val row = dewormingRepository.getById(entityId) ?: throw NoSuchElementException("Deworming $entityId not found")
+        val row =
+            database.dewormingQueries
+                .selectRowById(entityId)
+                .executeAsOneOrNull()
+                ?.toDomain()
+                ?: throw NoSuchElementException("Deworming $entityId not found")
         val payloadBody =
             SyncJson
                 .encodeToJsonElement(
@@ -73,7 +78,7 @@ class DewormingSyncHandler(
 
     override suspend fun serverIdOf(entityId: Long): String? =
         database.dewormingQueries
-            .selectById(entityId)
+            .selectRowById(entityId)
             .executeAsOneOrNull()
             ?.serverId
 

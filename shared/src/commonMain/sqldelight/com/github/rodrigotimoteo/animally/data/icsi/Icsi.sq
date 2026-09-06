@@ -48,7 +48,7 @@ selectByServerId:
 SELECT * FROM Icsi WHERE serverId = ?;
 
 selectChangedSince:
-SELECT * FROM Icsi WHERE updatedAt > ? AND isActive = 1;
+SELECT * FROM Icsi WHERE updatedAt > ?;
 
 setServerId:
 UPDATE Icsi SET serverId = ?, updatedAt = ? WHERE id = ?;
