@@ -10,7 +10,7 @@ public object CloudKitSyncKeys {
     /** Export cursor: epoch millis of the newest confirmed-exported row. */
     public const val EXPORT_CURSOR: String = "cloud_export_cursor"
 
-    /** Marker cleared on account loss so the next start() does a full re-fetch. */
+    /** Marker cleared on account change so the next start() does a full re-fetch. */
     public const val ENGINE_STATE: String = "cloud_engine_state"
 }
 
@@ -35,7 +35,7 @@ public class CloudKitSyncSettings(
 
     /**
      * Clears all persisted engine state (cursor + marker). Local data is kept;
-     * the next enabled sync cycle re-fetches everything.
+     * the next explicit sync after an account change re-fetches everything.
      */
     public fun clearEngineState() {
         queries.deleteByKey(CloudKitSyncKeys.EXPORT_CURSOR)

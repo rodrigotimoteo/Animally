@@ -26,6 +26,7 @@ actual object FileStorage {
                 File(storageRoot(), DICTATIONS_DIR).canonicalFile,
             )
         if (allowedDirectories.none { target.parentFile == it }) return false
+        if (!target.isFile) return false
         return target.delete()
     }
 

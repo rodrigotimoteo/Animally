@@ -7,6 +7,8 @@ import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileType
+import platform.Foundation.NSFileTypeRegular
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.create
 import platform.Foundation.writeToURL
@@ -62,10 +64,11 @@ actual object FileStorage {
             )
         val insideAllowed =
             allowedRoots.any { root ->
-                standardized == root || standardized.startsWith("$root/")
+                standardized.startsWith("$root/")
             }
         if (standardized.contains("..") || !insideAllowed) return false
-        return fileManager.removeItemAtPath(standardized, error = null)
+        return fileManager.attributesOfItemAtPath(standardized, error = null)?.get(NSFileType) == NSFileTypeRegular &&
+            fileManager.removeItemAtPath(standardized, error = null)
     }
 
     private fun standardizePath(path: String): String {

@@ -75,6 +75,36 @@ class RestoreBackupUseCaseTest {
     }
 
     @Test
+    fun `restore rejects directory-like audio paths before replacing rows`() {
+        database.dictationCaptureQueries.insertWithId(
+            id = 42L,
+            transcript = "Recordar a gravação.",
+            audioPath = "/private/app/dictations/original.caf",
+            durationMillis = 1_000L,
+            capturedAt = Instant.fromEpochMilliseconds(4_200L),
+        )
+        val exported = BackupSerializer.decode(exportJson())
+        val invalid =
+            exported.copy(
+                dictationCaptures =
+                    exported.dictationCaptures.map {
+                        it.copy(audioPath = "/private/app/dictations/")
+                    },
+            )
+
+        assertFailsWith<IllegalArgumentException> {
+            restoreBackupUseCase(database).invoke(BackupSerializer.encode(invalid))
+        }
+        assertEquals(
+            1,
+            database.dictationCaptureQueries
+                .selectAllRows()
+                .executeAsList()
+                .size,
+        )
+    }
+
+    @Test
     fun `restore round-trips local assistant and dictation archives`() {
         database.assistantChatHistoryQueries.insertWithId(
             id = 41L,

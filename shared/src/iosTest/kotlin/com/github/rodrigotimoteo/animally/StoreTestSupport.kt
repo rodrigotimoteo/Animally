@@ -7,6 +7,7 @@ import com.github.rodrigotimoteo.animally.di.dispatchers.IO_DISPATCHER
 import com.github.rodrigotimoteo.animally.di.infra.AppModule
 import com.github.rodrigotimoteo.animally.di.presentation.PresentationModule
 import com.github.rodrigotimoteo.animally.di.presentation.cloudLlmModule
+import com.github.rodrigotimoteo.animally.di.presentation.reminderPreferenceModule
 import com.github.rodrigotimoteo.animally.di.settingsModule
 import com.github.rodrigotimoteo.animally.domain.notification.NotificationPermissionController
 import com.github.rodrigotimoteo.animally.domain.owner.model.Owner
@@ -41,6 +42,7 @@ object StoreTestSupport {
                     add(AppModule().appModule())
                     add(QueriesModule().provide())
                     add(PresentationModule().provide())
+                    add(reminderPreferenceModule)
                     add(cloudLlmModule)
                     add(llmModule)
                     add(dictationModule)

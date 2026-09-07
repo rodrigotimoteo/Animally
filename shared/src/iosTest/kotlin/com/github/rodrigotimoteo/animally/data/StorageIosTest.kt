@@ -8,6 +8,7 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSData
+import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSString
@@ -74,6 +75,39 @@ class StorageIosTest {
         assertTrue(secondPath.endsWith(".jpg"), "display extension should be retained: $secondPath")
         assertContentEquals(firstBytes, requireNotNull(NSData.create(contentsOfFile = firstPath)).toByteArray())
         assertContentEquals(secondBytes, requireNotNull(NSData.create(contentsOfFile = secondPath)).toByteArray())
+    }
+
+    @Test
+    fun deleteRejectsDirectoriesAndRemovesOnlyRegularFiles() {
+        @Suppress("UNCHECKED_CAST")
+        val documentsPath =
+            NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)
+                as List<String>
+        val dictationsPath = "${documentsPath.first()}/dictations"
+        val nestedPath = "$dictationsPath/storage-test-directory"
+        val regularFilePath = "$dictationsPath/storage-test-audio.caf"
+        val fileManager = NSFileManager.defaultManager
+        fileManager.createDirectoryAtPath(
+            nestedPath,
+            withIntermediateDirectories = true,
+            attributes = null,
+            error = null,
+        )
+        try {
+            assertEquals(false, FileStorage.delete(dictationsPath))
+            assertEquals(false, FileStorage.delete(nestedPath))
+            assertTrue(fileManager.fileExistsAtPath(dictationsPath))
+
+            val bytes = "audio".encodeToByteArray()
+            bytes.usePinned { pinned ->
+                val data = NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
+                assertTrue(data.writeToFile(regularFilePath, atomically = true))
+            }
+            assertEquals(true, FileStorage.delete(regularFilePath))
+            assertEquals(false, FileStorage.delete(regularFilePath))
+        } finally {
+            fileManager.removeItemAtPath(nestedPath, error = null)
+        }
     }
 
     /** Writes a dummy SQLite-like payload where the live driver would put it. */

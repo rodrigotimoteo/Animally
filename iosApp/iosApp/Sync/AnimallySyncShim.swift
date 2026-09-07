@@ -102,6 +102,8 @@ final class AnimallySyncShim: NSObject {
     // MARK: - Account changes
 
     @objc private func accountDidChange() {
+        syncState.resetForAccountChange()
+        Self.clearPersistedState()
         emitAccountStatus()
     }
 
@@ -213,6 +215,10 @@ final class AnimallySyncShim: NSObject {
               let data = try? JSONEncoder().encode(serialization) else { return }
         UserDefaults.standard.set(data, forKey: stateKey)
     }
+
+    private static func clearPersistedState() {
+        UserDefaults.standard.removeObject(forKey: stateKey)
+    }
 }
 
 /// Synchronizes all mutable CloudKit bridge state shared by Objective-C entry
@@ -281,6 +287,16 @@ private final class SyncState: @unchecked Sendable {
         }
     }
 
+    /// Drops staged records and the native engine without unregistering the
+    /// Kotlin callback. The next explicit sync starts a clean engine.
+    func resetForAccountChange() {
+        withLock {
+            engineValue = nil
+            stagedRecords.removeAll()
+            started = false
+        }
+    }
+
     func removeStagedRecords(named names: [String]) {
         withLock {
             for name in names {
@@ -314,6 +330,8 @@ extension AnimallySyncShim: CKSyncEngineDelegate {
             Self.persistState(stateUpdate.stateSerialization)
 
         case .accountChange:
+            syncState.resetForAccountChange()
+            Self.clearPersistedState()
             emitAccountStatus()
 
         case .fetchedRecordZoneChanges(let changes):

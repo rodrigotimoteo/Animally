@@ -12,6 +12,7 @@ internal fun BackupPayload.validateForRestore() {
     validateCollectionIds()
     validateRelationships()
     validateDomainValues()
+    validateAudioPaths()
 }
 
 private fun BackupPayload.validateCollectionIds() {
@@ -101,6 +102,15 @@ private fun BackupPayload.validateDomainValues() {
     customReminders.forEach { reminder ->
         require((reminder.linkedRecordType == null) == (reminder.linkedRecordId == null)) {
             "customReminders must provide linkedRecordType and linkedRecordId together for row ${reminder.id}"
+        }
+    }
+}
+
+private fun BackupPayload.validateAudioPaths() {
+    dictationCaptures.forEach { capture ->
+        val path = capture.audioPath ?: return@forEach
+        require(path.isNotBlank() && !path.endsWith('/')) {
+            "dictationCaptures contains an invalid audio path for row ${capture.id}"
         }
     }
 }

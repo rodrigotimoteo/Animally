@@ -11,12 +11,8 @@ import com.github.rodrigotimoteo.animally.domain.sync.SyncEntityType
 import com.github.rodrigotimoteo.animally.domain.sync.SyncResult
 import com.github.rodrigotimoteo.animally.domain.sync.hasUnresolvedParent
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
@@ -30,8 +26,8 @@ import kotlin.uuid.Uuid
 private const val EXPORT_CHUNK_SIZE = 200
 private const val BRIDGE_EVENT_TIMEOUT_MS = 30_000L
 
-/** Raised internally when the iCloud account disappears mid-cycle. */
-private class AccountLostException : Exception("iCloud account unavailable")
+/** Raised internally when the iCloud account changes mid-cycle. */
+private class AccountChangeException : Exception("iCloud account changed; sync was reset")
 
 /** Raised when a native callback never arrives for the current sync step. */
 private class BridgeEventTimeoutException : Exception("CloudKit callback timed out")
@@ -188,7 +184,7 @@ public class CloudKitSyncEngineImpl(
 ) : SyncEngine {
     private val mutex = Mutex()
     private val pump = EventPump()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val accountChangeSignals = Channel<Unit>(Channel.UNLIMITED)
     private val envelopesSerializer = ListSerializer(CloudKitEnvelope.serializer())
     private val nameAssigner = RecordNameAssigner(database)
 
@@ -203,15 +199,21 @@ public class CloudKitSyncEngineImpl(
                 SyncResult(success = true)
             } else {
                 mutex.withLock {
-                    ensureStarted()
-                    runSyncCycle()
+                    if (accountChangeSignals.tryReceive().isSuccess) {
+                        drainAccountChangeSignals(accountChangeSignals)
+                        handleAccountChangeLocked()
+                        SyncResult.failure(ACCOUNT_CHANGE_MESSAGE)
+                    } else {
+                        ensureStarted()
+                        runSyncCycle()
+                    }
                 }
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: AccountLostException) {
-            mutex.withLock { handleAccountLostLocked() }
-            SyncResult.failure(e.message ?: "iCloud account unavailable")
+        } catch (e: AccountChangeException) {
+            mutex.withLock { handleAccountChangeLocked() }
+            SyncResult.failure(e.message ?: ACCOUNT_CHANGE_MESSAGE)
         } catch (t: Throwable) {
             SyncResult.failure(t.message ?: "CloudKit sync failed")
         }
@@ -247,23 +249,25 @@ public class CloudKitSyncEngineImpl(
 
     private fun handleEvent(json: String) {
         when (val event = parseSyncBridgeEvent(json)) {
-            is SyncBridgeEvent.AccountChange ->
-                scope.launch {
-                    if (!event.available) {
-                        mutex.withLock { handleAccountLostLocked() }
-                    }
-                }
+            is SyncBridgeEvent.AccountChange -> {
+                accountChangeSignals.trySend(Unit)
+                // An account switch invalidates every queued native event. Keep
+                // only the reset signal so an in-flight cycle wakes promptly.
+                pump.drain()
+                pump.offer(event)
+            }
 
             null -> Unit
             else -> pump.offer(event)
         }
     }
 
-    private fun handleAccountLostLocked() {
+    private fun handleAccountChangeLocked() {
         bridge.stop()
         started = false
         pendingOrphans.clear()
         pump.drain()
+        drainAccountChangeSignals(accountChangeSignals)
         // Local data is kept; clearing state makes the next start() full re-fetch.
         settings.clearEngineState()
     }
@@ -345,7 +349,7 @@ public class CloudKitSyncEngineImpl(
 
                 is SyncBridgeEvent.Imported -> applyEnvelopes(event.records, counters)
 
-                is SyncBridgeEvent.AccountChange -> throw AccountLostException()
+                is SyncBridgeEvent.AccountChange -> throw AccountChangeException()
             }
         }
         settings.setExportCursorMs(
@@ -398,7 +402,7 @@ public class CloudKitSyncEngineImpl(
                     return
                 }
 
-                is SyncBridgeEvent.AccountChange -> throw AccountLostException()
+                is SyncBridgeEvent.AccountChange -> throw AccountChangeException()
 
                 else -> Unit
             }
@@ -435,6 +439,15 @@ public class CloudKitSyncEngineImpl(
         }
     }
 }
+
+private fun drainAccountChangeSignals(signals: Channel<Unit>) {
+    var result = signals.tryReceive()
+    while (result.isSuccess) {
+        result = signals.tryReceive()
+    }
+}
+
+private const val ACCOUNT_CHANGE_MESSAGE = "iCloud account changed; sync was reset"
 
 /**
  * Returns the furthest safe export cursor. A failed row pins the cursor before

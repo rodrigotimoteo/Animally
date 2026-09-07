@@ -3,6 +3,7 @@ package com.github.rodrigotimoteo.animally.sync.cloudkit
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class CloudKitExportCursorTest {
@@ -66,5 +67,13 @@ class CloudKitExportCursorTest {
         val parents = envelope.toSyncRecord().parentServerIds
         assertTrue(parents.containsKey("ownerId"))
         assertEquals(null, parents["ownerId"])
+    }
+
+    @Test
+    fun `account change bridge event is recognized as a reset signal`() {
+        val event = parseSyncBridgeEvent("""{"type":"accountChange","available":true}""")
+
+        val accountChange = assertIs<SyncBridgeEvent.AccountChange>(event)
+        assertTrue(accountChange.available)
     }
 }
