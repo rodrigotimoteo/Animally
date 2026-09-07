@@ -2,6 +2,8 @@ package com.github.rodrigotimoteo.animally.domain.export
 
 import com.github.rodrigotimoteo.animally.domain.consultation.model.Consultation
 import com.github.rodrigotimoteo.animally.domain.patient.model.Patient
+import com.github.rodrigotimoteo.animally.domain.reproduction.model.ReproductionEvent
+import com.github.rodrigotimoteo.animally.domain.ultrasound.model.Ultrasound
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,6 +103,56 @@ class CsvExporterTest {
         sectionTitles.forEach { sectionTitle ->
             assertTrue(csv.contains("# $sectionTitle"), "Missing section: $sectionTitle")
         }
+    }
+
+    @Test
+    fun `keeps structured reproductive fields in csv rows`() {
+        val reproduction =
+            ReproductionEvent(
+                id = 20L,
+                patientId = 1L,
+                eventType = "Breeding",
+                date = LocalDate(2024, 7, 5),
+                details = "Natural cover",
+                initialExamFindings = "Good follicle",
+                stallionName = "Orion",
+                breedingType = "AI",
+                vetName = "Dr. House",
+                notes = "Recheck in 14 days",
+                createdAt = Instant.fromEpochMilliseconds(0L),
+                updatedAt = Instant.fromEpochMilliseconds(0L),
+            )
+        val ultrasound =
+            Ultrasound(
+                id = 21L,
+                patientId = 1L,
+                date = LocalDate(2024, 7, 6),
+                ovaryStatus = "Active",
+                uterineStatus = "Clear",
+                follicleSizeMm = 32.0,
+                leftOvaryStatus = "Dominant",
+                rightOvaryStatus = "Quiet",
+                leftFollicleSizeMm = 32.5,
+                rightFollicleSizeMm = 12.0,
+                uterineEdema = "Grade 2",
+                uterineLiquid = true,
+                uterineLiquidDescription = "Small amount",
+                uterusDescription = "Tone good",
+                findings = "Ready",
+                createdAt = Instant.fromEpochMilliseconds(0L),
+                updatedAt = Instant.fromEpochMilliseconds(0L),
+            )
+
+        val csv =
+            exporter.exportPatientRecords(
+                patient,
+                ExportRecords(reproductionEvents = listOf(reproduction), ultrasounds = listOf(ultrasound)),
+            )
+
+        assertTrue(csv.contains("Initial Exam Findings"))
+        assertTrue(csv.contains("ReproductionEvent,20,1,Breeding,2024-07-05,Natural cover,Good follicle,Orion,AI"))
+        assertTrue(csv.contains("Left Ovary Status"))
+        assertTrue(csv.contains("Ultrasound,21,1,2024-07-06,Active,Clear,32.0,Dominant,Quiet,32.5,12.0,Grade 2,true,Small amount,Tone good,Ready"))
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.github.rodrigotimoteo.animally.sync.cloudkit
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -75,5 +76,25 @@ class CloudKitExportCursorTest {
 
         val accountChange = assertIs<SyncBridgeEvent.AccountChange>(event)
         assertTrue(accountChange.available)
+    }
+
+    @Test
+    fun `imported envelope keeps json body and explicit null parent`() {
+        val event =
+            parseSyncBridgeEvent(
+                """{"type":"imported","records":[{"recordType":"Patient","recordName":"p-1","updatedAt":100,"isActive":1,"parents":{"ownerId":null},"body":"{\"name\":\"Bella\"}"}]}""",
+            )
+
+        val imported = assertIs<SyncBridgeEvent.Imported>(event)
+        val envelope = imported.records.single()
+        assertEquals(null, envelope.parents["ownerId"])
+        assertEquals(
+            "Bella",
+            envelope
+                .toSyncRecord()
+                .payload["name"]
+                ?.jsonPrimitive
+                ?.content,
+        )
     }
 }

@@ -1,3 +1,31 @@
+# Maintenance Quality Sweep Checklist — 2026-09-07
+
+## Current sweep
+
+- [x] Baseline current Gradle, iOS host, script, and simulator/UI verification.
+- [ ] Build the feature/route/test coverage matrix from current source.
+- [x] Audit assistant cancellation, streaming, retries, view lifecycle, and source traceability.
+- [x] Audit dictation capture/transcription/extraction/review/save/playback and edge cases.
+- [ ] Add or repair deterministic iOS UI test seeding/reset and remove paused tests.
+- [ ] Add migration upgrade fixtures and recovery-contract tests.
+- [ ] Verify restore/media/wipe/privacy behavior without guessing unresolved product policy.
+- [x] Verify reminder scheduling and cancellation across lifecycle/permission changes.
+- [ ] Verify Android route reachability, permission prompts, sharing, and compact settings.
+- [x] Verify record-family parity across sync, search, timeline, export, backup, and native routing for the repaired slices.
+- [x] Add golden edge-case fixtures and source-traceability assertions for the repaired slices.
+- [ ] Add one offline release-confidence aggregate gate and update documentation.
+- [x] Perform deletion/simplification pass, review actual diff, run final matrix, and commit.
+
+## Evidence required before completion
+
+- [x] Focused regression test for every behavior change.
+- [x] `:shared:testAndroidHostTest`, `:shared:desktopTest`, and `:shared:iosSimulatorArm64Test` pass.
+- [x] `:shared:ktlintCheck`, `:shared:detekt`, `:shared:koverVerify`, Android lint/package, and iOS host build pass.
+- [x] Script contracts and the simulator helper pass; live UI evidence is recorded, with UI-test isolation explicitly left open.
+- [x] No credentials, unresolved destructive-policy changes, or unexplained broad catches/detached tasks are introduced.
+
+---
+
 # Internship Insights Dashboard Checklist
 
 ## Foundation

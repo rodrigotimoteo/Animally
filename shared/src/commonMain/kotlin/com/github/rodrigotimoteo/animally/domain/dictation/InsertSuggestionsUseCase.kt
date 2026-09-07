@@ -77,7 +77,17 @@ class InsertSuggestionsUseCase(
      */
     operator fun invoke(insertions: List<SuggestedInsertion>): List<InsertionResult> =
         insertions.map { insertion ->
-            val guardFailure = guard(insertion)
+            // Patient existence is a repository boundary too. Keep lookup
+            // failures in the per-record result contract so one stale or
+            // unavailable lookup cannot abort the remaining batch.
+            val guardFailure =
+                runCatching { guard(insertion) }
+                    .getOrElse { error ->
+                        return@map InsertionResult.Failed(
+                            insertion.record.recordType,
+                            error.message ?: "patient lookup failed",
+                        )
+                    }
             if (guardFailure != null) {
                 guardFailure
             } else {

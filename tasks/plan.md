@@ -1,3 +1,70 @@
+# Maintenance Quality Sweep — 2026-09-07
+
+## Change contract
+
+Improve the current Animally product through evidence-backed vertical slices: eliminate confirmed correctness/lifecycle defects, strengthen edge-case and integration coverage, make UI tests deterministic, and remove duplication only after parity behavior is protected. Keep business rules in `commonMain`, keep SwiftUI/platform code at the edges, preserve soft-delete/migration/cancellation semantics, and do not commit credentials or silently choose unresolved backup/cloud/privacy policy.
+
+Allowed work surfaces are `shared`, `androidApp`, `iosApp`, `scripts`, maintained verification/docs, and focused test fixtures. Existing unrelated working-tree edits in `.codex/config.toml` and `AGENTS.md` remain untouched. Non-goals are speculative rewrites, new production dependencies, unsupported clinical metrics, and enabling dormant cloud capabilities without a product contract.
+
+Acceptance is evidence-based: every changed behavior has a focused regression test where practical; shared Android-host, desktop, and iOS simulator tests remain green; static analysis and Android packaging remain green; the iOS host builds; simulator/UI flows are either exercised with recorded evidence or documented with an exact environmental blocker; and the final diff removes dead code/duplicate paths rather than adding scaffolding.
+
+## Sweep work order
+
+### Phase 0 — Baseline and inventory
+
+- [ ] Re-run the current shared/platform quality matrix and record the exact baseline.
+- [ ] Reconcile `docs/maintenance/TECH_DEBT_PLAN.md`, `tasks/todo.md`, README verification commands, and actual source/test coverage.
+- [ ] Produce a feature matrix covering records, search/FTS, backup/restore/wipe, sync, reminders, exports, assistant, dictation, settings, navigation, and native bridges.
+
+### Phase 1 — Assistant and dictation vertical slice
+
+- [ ] Trace assistant request, streaming, tool/RAG, error, cancellation, view disappearance, and retry paths across shared Kotlin and iOS/Android bridges.
+- [ ] Make cancellation ownership explicit and test no late result/error can overwrite a newer request or a disposed screen.
+- [ ] Exercise dictation capture, cancel, transcribe, extraction, review, save, audio playback, permission denial, unsupported-device, empty transcript, malformed extraction, and repeated-submit paths.
+- [ ] Add focused shared/iOS regression tests and simulator/UI evidence for the user-visible states.
+
+### Phase 2 — Local data safety and lifecycle
+
+- [ ] Add migration upgrade fixtures for the supported SQLDelight migration chain and test failure/recovery semantics without inventing a recovery policy.
+- [ ] Verify restore preflight, media portability/deletion boundaries, raw snapshot semantics, wipe residual reporting, and backup privacy as explicit contracts; implement only deterministic defects that do not require a product decision.
+- [ ] Verify reminder scheduling, permission loss, disable/delete/wipe cancellation, and idempotent recreation across Android/iOS/desktop.
+
+### Phase 3 — Platform reachability and UI integration
+
+- [ ] Make iOS UI tests deterministic and isolated; remove paused/fixture-dependent tests and add stable seeding/reset.
+- [ ] Run the simulator helper against a real available device for launch, settings, backup/restore, search, assistant, dictation, navigation, theme, Dynamic Type, and accessibility checks; preserve exact blockers when CoreSimulator/Xcode prevents execution.
+- [ ] Verify Android route reachability, notification permission prompts, sharing context, compact settings scrolling, and capability claims with host/runtime evidence.
+
+### Phase 4 — Cross-projection parity
+
+- [ ] Compare record-family coverage across repositories, soft-delete/change tracking, sync payloads/handlers, search/FTS, timeline, exports, backup, and native routing.
+- [ ] Add golden fixtures for empty/zero-denominator/inactive/unknown-category/partial-date/duplicate-submit cases and assert source traceability for assistant answers.
+- [ ] Consolidate only duplicated metadata or mapping that is covered by parity tests; delete superseded helpers and stale suppressions.
+
+### Phase 5 — Release confidence and cleanup
+
+- [ ] Add one offline aggregate verification gate covering tests, lint/Detekt, coverage, Android packaging, iOS shared compilation, Xcode host build, script contracts, and available UI tests.
+- [ ] Refresh stale architecture/structure/maintenance documentation from measured state and record unresolved product-policy decisions explicitly.
+- [ ] Run a final reviewer pass on the actual diff, then perform a deletion/simplification pass before committing the batch.
+
+## Checkpoints
+
+- **Checkpoint A:** baseline matrix and feature inventory are current; no source edits begin before this is recorded.
+- **Checkpoint B:** assistant/dictation behavior has focused regression coverage and no unresolved cancellation ownership.
+- **Checkpoint C:** local data and platform UI gates pass; simulator evidence or an exact blocker is recorded.
+- **Checkpoint D:** full matrix, final reviewer, deletion pass, and clean scoped commit pass.
+
+## Risks and explicit decisions
+
+| Risk | Impact | Handling |
+|---|---|---|
+| Backup media portability and sensitive assistant/dictation backup policy remain product decisions | High | Measure and document current behavior; do not silently change retention or encryption semantics. |
+| CloudKit account/rejoin/wipe behavior depends on entitlement and live accounts | High | Keep deterministic reset/cursor tests; require live capability evidence before enabling or advertising more. |
+| Simulator/CoreSimulator availability may block UI evidence | Medium | Verify Xcode/runtime/device health first; separate compile evidence from UI evidence. |
+| Broad record parity can create a parallel source of truth | High | Reuse existing registries and add parity tests before consolidation. |
+
+---
+
 # Implementation Plan: Internship Insights Dashboard
 
 ## Overview

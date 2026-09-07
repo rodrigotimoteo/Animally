@@ -310,17 +310,28 @@ struct AssistantView: View {
                 .disabled(viewModel.state.isGenerating || viewModel.state.isHistoryLoading)
                 .accessibilityIdentifier("assistant_input")
 
-            Button {
-                sendDraft()
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(canSend ? theme.accentColor : Theme.textTertiary)
-                    .scaleEffect(viewModel.state.isGenerating ? 0.92 : 1.0)
+            if viewModel.state.isGenerating {
+                Button {
+                    viewModel.cancelGeneration()
+                } label: {
+                    Image(systemName: "stop.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(Theme.amber)
+                }
+                .accessibilityLabel("Stop response")
+                .accessibilityIdentifier("assistant_stop")
+            } else {
+                Button {
+                    sendDraft()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(canSend ? theme.accentColor : Theme.textTertiary)
+                }
+                .disabled(!canSend)
+                .accessibilityLabel("Send message")
+                .accessibilityIdentifier("assistant_send")
             }
-            .disabled(!canSend)
-            .accessibilityLabel("Send message")
-            .accessibilityIdentifier("assistant_send")
         }
         .padding(.horizontal)
         .padding(.vertical, 10)

@@ -27,6 +27,9 @@ interface AssistantStrings {
     /** Shown when the model produced no text at all (interrupted/empty stream). */
     val blankReplyFallback: String
 
+    /** Shown when the user stops an in-flight assistant response. */
+    val generationCancelled: String
+
     /** Shown when a broader analysis exceeds the safe number of tool rounds. */
     val analysisLimitReply: String
 
@@ -93,6 +96,8 @@ object EnAssistantStrings : AssistantStrings {
         "I wasn’t able to finish that answer. Try asking again, or narrow it " +
             "down to a horse, treatment, or date."
 
+    override val generationCancelled: String = "Response stopped."
+
     override val analysisLimitReply: String =
         "I couldn’t finish that analysis in one pass. Try narrowing it to a " +
             "horse, date range, or record type."
@@ -148,6 +153,8 @@ object PtAssistantStrings : AssistantStrings {
     override val blankReplyFallback: String =
         "Não consegui terminar essa resposta. Tente novamente ou indique um " +
             "cavalo, tratamento ou data."
+
+    override val generationCancelled: String = "Resposta interrompida."
 
     override val analysisLimitReply: String =
         "Não consegui terminar essa análise de uma só vez. Tente indicar um " +

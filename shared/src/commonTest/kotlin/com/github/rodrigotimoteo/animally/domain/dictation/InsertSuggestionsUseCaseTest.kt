@@ -30,14 +30,17 @@ class InsertSuggestionsUseCaseTest {
     private val ultrasoundRepository = FakeUltrasoundRepository()
     private val medicationRepository = FakeMedicationRepository()
 
-    private val sut =
+    private fun createSut(patientExists: (Long) -> Boolean = { it in setOf(1L, 7L) }) =
         InsertSuggestionsUseCase(
             saveUltrasoundUseCase = SaveUltrasoundUseCase(ultrasoundRepository, FakeSearchRepository()),
             saveWeightUseCase = SaveWeightUseCase(weightRepository, FakeSearchRepository()),
             saveDewormingUseCase = SaveDewormingUseCase(dewormingRepository, FakeSearchRepository()),
             saveMedicationUseCase = SaveMedicationUseCase(medicationRepository, FakeSearchRepository()),
-            patientExists = { it in setOf(1L, 7L) },
+            patientExists = patientExists,
         )
+
+    private val sut: InsertSuggestionsUseCase
+        get() = createSut()
 
     private fun record(
         validation: SuggestedValidationState,
@@ -131,6 +134,24 @@ class InsertSuggestionsUseCaseTest {
 
         val failed = assertIs<InsertionResult.Failed>(result.single())
         assertEquals("patient is no longer available", failed.message)
+        assertTrue(weightRepository.inserted.isEmpty())
+    }
+
+    @Test
+    fun `when patient lookup throws then result stays per-record and batch can continue`() {
+        val throwingLookup = createSut { error("lookup unavailable") }
+
+        val result =
+            throwingLookup(
+                listOf(
+                    SuggestedInsertion(record(SuggestedValidationState.Ok), patientId = 1L),
+                    SuggestedInsertion(record(SuggestedValidationState.Ok), patientId = 7L),
+                ),
+            )
+
+        assertEquals(2, result.size)
+        assertTrue(result.all { it is InsertionResult.Failed })
+        assertTrue(result.all { (it as InsertionResult.Failed).message == "lookup unavailable" })
         assertTrue(weightRepository.inserted.isEmpty())
     }
 

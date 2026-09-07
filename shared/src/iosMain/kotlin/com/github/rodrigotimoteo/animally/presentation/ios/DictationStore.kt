@@ -10,6 +10,7 @@ import com.github.rodrigotimoteo.animally.domain.dictation.SuggestedInsertion
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationSuggestionUi
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationUiState
 import com.github.rodrigotimoteo.animally.presentation.dictation.DictationViewModel
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -191,5 +192,10 @@ class DictationStore(
                 }
             }
         }
+    }
+
+    /** Cancels the ViewModel scope when the Swift review screen is released. */
+    fun clear() {
+        viewModel.viewModelScope.cancel()
     }
 }

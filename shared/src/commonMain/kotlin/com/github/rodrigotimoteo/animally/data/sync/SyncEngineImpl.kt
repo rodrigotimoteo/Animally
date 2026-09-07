@@ -19,7 +19,7 @@ import com.github.rodrigotimoteo.animally.domain.sync.hasUnresolvedParent
 import kotlinx.coroutines.CancellationException
 import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
-import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /**
@@ -34,7 +34,9 @@ import kotlin.time.Instant
  * Changed local rows, including soft-deleted rows, are offered to their
  * handlers so the wire contract can carry tombstones. A handler that cannot
  * serialize a row defers it for a later cycle; remote soft-deletes are applied
- * through the same LWW path as active records.
+ * through the same LWW path as active records. Successful pulls advance to the
+ * server watermark, while deferred/rejected rows pin the cursor before their
+ * earliest retry timestamp.
  */
 @Single(binds = [SyncEngine::class])
 class SyncEngineImpl(
@@ -153,18 +155,24 @@ class SyncEngineImpl(
             },
         )
 
-    override suspend fun sync(): SyncResult {
-        val now = Clock.System.now()
-        return try {
+    override suspend fun sync(): SyncResult =
+        try {
             val deviceId = metadataRepository.getDeviceId()
             val lastSyncAt = metadataRepository.getOrCreateLastSyncAt(deviceId)
-            val pushed = pushChanges(deviceId, lastSyncAt, now)
+            val pushed = pushChanges(deviceId, lastSyncAt)
             val pulled = pullChanges(lastSyncAt)
             if (pulled.applied > 0) {
                 searchRepository.markIndexDirty()
                 searchRepository.reindexIfNeeded(ISearchRepository.SEARCH_INDEX_VERSION)
             }
-            metadataRepository.updateLastSyncAt(now)
+            // The server watermark, not the device clock, defines the next
+            // pull boundary. Keep the cursor just before the oldest retryable
+            // local row so deferred/rejected work remains eligible.
+            val nextSyncAt =
+                pushed.retryAt?.let { retryAt ->
+                    minOf(pulled.serverTimestamp, retryAt - 1.milliseconds)
+                } ?: pulled.serverTimestamp
+            metadataRepository.updateLastSyncAt(nextSyncAt)
             SyncResult.success(
                 pushedCount = pushed.accepted,
                 pulledCount = pulled.applied,
@@ -177,42 +185,52 @@ class SyncEngineImpl(
         } catch (error: Exception) {
             SyncResult.failure(error.message ?: error::class.simpleName.orEmpty())
         }
-    }
 
     private suspend fun pushChanges(
         deviceId: String,
         lastSyncAt: Instant,
-        now: Instant,
     ): PushOutcome {
         val changedByType = changeTracker.recordsChangedSince(lastSyncAt).groupBy { it.entityType }
         var accepted = 0
         var rejected = 0
         var deferred = 0
+        var retryAt: Instant? = null
         for (type in pushOrder) {
             val wave = changedByType[type.wireName].orEmpty()
-            val outcome = pushWave(type, wave, deviceId, now)
+            val outcome = pushWave(type, wave, deviceId)
             accepted += outcome.accepted
             rejected += outcome.rejected
             deferred += outcome.deferred
+            retryAt = minOfNullable(retryAt, outcome.retryAt)
         }
-        return PushOutcome(accepted, rejected, deferred)
+        return PushOutcome(accepted, rejected, deferred, retryAt)
     }
 
     private suspend fun pushWave(
         type: SyncEntityType,
         wave: List<ChangedRecord>,
         deviceId: String,
-        now: Instant,
     ): WaveOutcome {
         if (wave.isEmpty()) return WaveOutcome()
         val ready = buildReadyRecords(handlerRegistry.handlerFor(type), wave)
-        if (ready.isEmpty()) return WaveOutcome(deferred = wave.size)
+        if (ready.isEmpty()) {
+            return WaveOutcome(deferred = wave.size, retryAt = wave.minOfOrNull(ChangedRecord::updatedAt))
+        }
         val response = api.push(SyncPushRequest(deviceId, ready))
-        writeAcceptedServerIds(response.accepted, now)
+        writeAcceptedServerIds(response.accepted)
+        val rejectedKeys = response.rejected.map { it.type to it.clientId }.toSet()
+        val readyKeys = ready.mapNotNull { record -> record.clientId?.let { record.type to it } }.toSet()
+        val retryAt =
+            wave
+                .filter { changed ->
+                    (changed.entityType to changed.id) in rejectedKeys ||
+                        (changed.entityType to changed.id) !in readyKeys
+                }.minOfOrNull(ChangedRecord::updatedAt)
         return WaveOutcome(
             accepted = response.accepted.size,
             rejected = response.rejected.size,
             deferred = wave.size - ready.size,
+            retryAt = retryAt,
         )
     }
 
@@ -245,13 +263,10 @@ class SyncEngineImpl(
 
     private fun entityTypeOf(type: String): SyncEntityType? = SyncEntityType.fromWireName(type)
 
-    private fun writeAcceptedServerIds(
-        accepted: List<SyncAccepted>,
-        now: Instant,
-    ) {
+    private fun writeAcceptedServerIds(accepted: List<SyncAccepted>) {
         for (verdict in accepted) {
             val type = entityTypeOf(verdict.type) ?: continue
-            writeServerId(type, verdict.serverId, verdict.clientId, now)
+            writeServerId(type, verdict.serverId, verdict.clientId, verdict.updatedAt)
         }
     }
 
@@ -268,16 +283,29 @@ class SyncEngineImpl(
         val accepted: Int,
         val rejected: Int,
         val deferred: Int,
+        val retryAt: Instant?,
     )
 
     private data class WaveOutcome(
         val accepted: Int = 0,
         val rejected: Int = 0,
         val deferred: Int = 0,
+        val retryAt: Instant? = null,
     )
 
     private data class PullOutcome(
         val applied: Int,
         val serverTimestamp: Instant,
     )
+
+    private fun minOfNullable(
+        first: Instant?,
+        second: Instant?,
+    ): Instant? =
+        when {
+            first == null -> second
+            second == null -> first
+            first <= second -> first
+            else -> second
+        }
 }

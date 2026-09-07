@@ -44,6 +44,10 @@ final class AssistantViewModel: ObservableObject {
         store.ask(question: question)
     }
 
+    func cancelGeneration() {
+        store.cancelGeneration()
+    }
+
     func refreshAvailability() {
         store.refreshAvailability()
     }
@@ -63,5 +67,6 @@ final class AssistantViewModel: ObservableObject {
     deinit {
         cancellable?.cancel()
         stateDeliveryTask?.cancel()
+        store.clear()
     }
 }

@@ -75,6 +75,25 @@ class AssistantViewModelTest {
     }
 
     @Test
+    fun `cancelling an empty generation marks it retryable without leaving loading state`() {
+        val state =
+            AssistantUiState(
+                messages =
+                    listOf(
+                        user("Which patients do I have?"),
+                        assistant(EnAssistantStrings.searchingPlaceholder),
+                    ),
+                isGenerating = true,
+            )
+
+        val cancelled = applyAssistantCancellation(state, EnAssistantStrings)
+
+        assertFalse(cancelled.isGenerating)
+        assertTrue(cancelled.messages.last().interrupted)
+        assertEquals(EnAssistantStrings.generationCancelled, cancelled.messages.last().text)
+    }
+
+    @Test
     fun `restored assistant answers hide internal record ids and keep natural prose`() {
         val answer =
             sanitizeAssistantDisplayText(

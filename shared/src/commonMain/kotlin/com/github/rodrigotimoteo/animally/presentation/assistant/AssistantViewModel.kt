@@ -20,6 +20,7 @@ import com.github.rodrigotimoteo.animally.llm.cloud.EngineSource
 import com.github.rodrigotimoteo.animally.llm.sanitizeAssistantDisplayText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -246,6 +247,25 @@ private fun applyAssistantBlank(
     return state.copy(messages = patched)
 }
 
+/** Marks a user-cancelled generation as recoverable without persisting it. */
+internal fun applyAssistantCancellation(
+    state: AssistantUiState,
+    strings: AssistantStrings,
+): AssistantUiState {
+    val last = state.messages.lastOrNull()
+    if (!state.isGenerating || last?.role != AssistantChatMessageRole.ASSISTANT) {
+        return state.copy(isGenerating = false)
+    }
+    val visibleText =
+        if (last.text.isBlank() || last.text == strings.searchingPlaceholder) {
+            strings.generationCancelled
+        } else {
+            last.text
+        }
+    val patched = state.messages.dropLast(1) + last.copy(text = visibleText, interrupted = true)
+    return state.copy(messages = patched, isGenerating = false, error = null)
+}
+
 /** Gives deterministic exploration prompts to short/fallback answers too. */
 private fun ensureAssistantFollowUps(
     state: AssistantUiState,
@@ -324,6 +344,7 @@ class AssistantViewModel(
      */
     private var currentTurnSource: EngineSource = EngineSource.ON_DEVICE
     private var currentConversationId: String = Uuid.random().toString()
+    private var generationJob: Job? = null
 
     init {
         refreshAvailability()
@@ -474,31 +495,44 @@ class AssistantViewModel(
         // the injected background dispatcher. The StateFlow remains safe to
         // observe from SwiftUI, while the iOS main actor only receives the
         // throttled state snapshots below.
-        viewModelScope.launch(ioDispatcher) {
-            try {
-                streamAssistantReply(
-                    AssistantReplyContext(
-                        generateRagResponse = generateRagResponse,
-                        state = _uiState,
-                        strings = strings,
-                        currentSource = { currentTurnSource },
-                    ),
-                    question = trimmed,
-                    history = history,
-                )
-                persistLatestTurn(trimmed, conversationId)
-            } finally {
-                // The provider and persistence layers are both external to the
-                // SwiftUI view. If either is cancelled or throws unexpectedly,
-                // never leave the input permanently disabled for this VM.
-                _uiState.update { state ->
-                    state.copy(
-                        messages = state.messages.trimToHistoryLimit(),
-                        isGenerating = false,
+        val job =
+            viewModelScope.launch(ioDispatcher) {
+                try {
+                    streamAssistantReply(
+                        AssistantReplyContext(
+                            generateRagResponse = generateRagResponse,
+                            state = _uiState,
+                            strings = strings,
+                            currentSource = { currentTurnSource },
+                        ),
+                        question = trimmed,
+                        history = history,
                     )
+                    persistLatestTurn(trimmed, conversationId)
+                } finally {
+                    // The provider and persistence layers are both external to the
+                    // SwiftUI view. If either is cancelled or throws unexpectedly,
+                    // never leave the input permanently disabled for this VM.
+                    _uiState.update { state ->
+                        state.copy(
+                            messages = state.messages.trimToHistoryLimit(),
+                            isGenerating = false,
+                        )
+                    }
                 }
             }
+        generationJob = job
+        job.invokeOnCompletion {
+            if (generationJob === job) generationJob = null
         }
+    }
+
+    /** Stops the active provider stream and leaves its partial reply retryable. */
+    fun cancelGeneration() {
+        val job = generationJob ?: return
+        if (!job.isActive) return
+        job.cancel()
+        _uiState.update { state -> applyAssistantCancellation(state, strings) }
     }
 
     /** Clears the current error message. */

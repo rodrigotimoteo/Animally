@@ -14,6 +14,7 @@ import com.github.rodrigotimoteo.animally.llm.LlmAvailability
 import com.github.rodrigotimoteo.animally.presentation.assistant.AssistantChatMessage
 import com.github.rodrigotimoteo.animally.presentation.assistant.AssistantUiState
 import com.github.rodrigotimoteo.animally.presentation.assistant.AssistantViewModel
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -143,6 +144,11 @@ class AssistantStore(
         viewModel.ask(question)
     }
 
+    /** Stops an in-flight response and leaves its partial text retryable. */
+    fun cancelGeneration() {
+        viewModel.cancelGeneration()
+    }
+
     /** Re-checks platform LLM availability. */
     fun refreshAvailability() {
         viewModel.refreshAvailability()
@@ -161,6 +167,11 @@ class AssistantStore(
     /** Clears the current error message. */
     fun dismissError() {
         viewModel.dismissError()
+    }
+
+    /** Cancels the ViewModel scope when the Swift screen is released. */
+    fun clear() {
+        viewModel.viewModelScope.cancel()
     }
 
     /** Convenience mirror of the availability value for one-shot checks. */

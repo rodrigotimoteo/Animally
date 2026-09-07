@@ -149,13 +149,23 @@ final class AnimallySyncShim: NSObject {
                 body[key] = value
             }
         }
+        // CloudKit represents a cleared optional field by omitting it. The
+        // Kotlin envelope must still carry the key so a remote owner unlink
+        // is not mistaken for an absent relationship that should be kept.
+        if record.recordType == "Patient", parents["ownerId"] == nil {
+            parents["ownerId"] = NSNull()
+        }
+        let bodyJson =
+            (try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys]))
+                .flatMap { String(data: $0, encoding: .utf8) }
+                ?? "{}"
         return [
             "recordType": record.recordType,
             "recordName": record.recordID.recordName,
             "updatedAt": record["updatedAt"] ?? 0,
             "isActive": record["isActive"] ?? 1,
             "parents": parents,
-            "body": body
+            "body": bodyJson
         ]
     }
 
@@ -170,8 +180,18 @@ final class AnimallySyncShim: NSObject {
 
         if let updatedAt = envelope["updatedAt"] as? NSNumber { record["updatedAt"] = updatedAt }
         if let isActive = envelope["isActive"] as? NSNumber { record["isActive"] = isActive }
-        if let parents = envelope["parents"] as? [String: String] {
-            for (key, value) in parents { record["\(key)ParentId"] = value }
+        if let parents = envelope["parents"] as? [String: Any] {
+            for (key, value) in parents {
+                if value is NSNull {
+                    // A present null is an intentional unlink. Omitting the
+                    // key would make the Kotlin handler preserve the old FK.
+                    record["\(key)ParentId"] = nil
+                } else if let value = value as? String {
+                    record["\(key)ParentId"] = value as NSString
+                }
+            }
+        } else if let parents = envelope["parents"] as? [String: String] {
+            for (key, value) in parents { record["\(key)ParentId"] = value as NSString }
         }
         if let bodyJson = envelope["body"] as? String,
            let body = try? JSONSerialization.jsonObject(with: Data(bodyJson.utf8)) as? [String: Any] {
@@ -187,7 +207,7 @@ final class AnimallySyncShim: NSObject {
         switch value {
         case let number as NSNumber: return number
         case let string as String: return string as NSString
-        case is NSNull: return "" as NSString // nullable columns round-trip as empty strings
+        case is NSNull: return nil // preserve nullable payload fields
         default: return String(describing: value) as NSString
         }
     }

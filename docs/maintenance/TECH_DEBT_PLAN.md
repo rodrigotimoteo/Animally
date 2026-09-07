@@ -1,24 +1,49 @@
 # Animally Technical Debt Plan
 
-Status: implementation baseline — deterministic P0/P1 slices landed; policy/live-environment items remain
+Status: quality-sweep baseline — deterministic assistant/dictation/sync/export/bridge fixes landed; policy/live-environment items remain
 
-Last updated: 2026-09-05
+Last updated: 2026-09-07
 
 Scope: `:shared`, `:androidApp`, `iosApp`, build/verification tooling, and maintained documentation
 
-> This file began as a static planning baseline. It now also records the authorized implementation slices and their verification evidence. The historical findings remain below for traceability; the execution record is authoritative for current status.
+> This file began as a static planning baseline. It now records the authorized implementation slices and their verification evidence. The latest execution record is authoritative for current status; older records and findings remain below for traceability.
 
 ## Executive diagnosis
 
 Animally's primary maintenance risk is not ordinary CRUD complexity. It is inconsistent state across the SQLDelight database, soft deletes, CloudKit/generic sync, FTS search and RAG, backup JSON/raw database copies, attachment files, scheduled notifications, and native UI bridges. These subsystems maintain overlapping record knowledge through separate manual maps and side effects. A local write may therefore be correct while a backup, remote device, search result, assistant answer, notification, or wipe operation remains stale or incomplete.
 
-The implementation pass closed the deterministic portions of that path: restore now rejects malformed JSON rows before mutation, resets stale local sync/index state, local sync carries ownerless records and tombstones, CloudKit cursor retries are bounded, remote changes heal search, exports cover the repaired record families, reminder cleanup is persisted/cancellable, and the Android/iOS settings operations no longer block their UI callers. The remaining safety decisions are portable media and raw snapshot semantics, post-commit restore outcomes, cloud dataset/wipe policy, and backup privacy.
+The implementation pass closed the deterministic portions of that path: restore now rejects malformed JSON rows before mutation, resets stale local sync/index state, local sync carries ownerless records and tombstones, server cursors and retryable rows remain monotonic, CloudKit bridge envelopes preserve JSON/null relationships, remote changes heal search, exports cover structured reproductive fields, reminder cleanup is persisted/cancellable, assistant generation can be stopped and its native stores release their scopes, dictation insertion failures stay per-record, and the Android/iOS settings operations no longer block their UI callers. The remaining safety decisions are portable media and raw snapshot semantics, post-commit restore outcomes, cloud dataset/wipe policy, backup privacy, migration fixtures, and deterministic UI-test isolation.
 
 The release-confidence gap is now explicit rather than hidden in local convention: lint, Detekt, Kover, Android packaging, shared Android/desktop tests, native iOS compilation, the iOS host build, and script contracts pass. Live simulator/UI, Android runtime permission, CloudKit account/callback, migration-fixture, CI, and capability-matrix evidence remain open. Broad architectural cleanup should wait until those contracts are measured.
 
 The repository has already completed much of the historical cleanup described in `.slim/deepwork/integrity-simplify.md` through the shared-kernel, LLM, dependency-inversion, presentation, and quality commits. This plan does not reopen that completed work. It records residual defects and the smallest dependency-ordered path to a trustworthy maintenance baseline.
 
-## Execution record — 2026-09-05
+## Execution record — 2026-09-07
+
+This sweep reduced real correctness and lifecycle debt without adding dependencies or introducing a parallel abstraction. Each behavior change has focused shared coverage; the simulator smoke was run against the rebuilt app, and the remaining stateful-test observation is recorded instead of being treated as a solved isolation problem.
+
+| Debt / area | Current status | Evidence / scope boundary |
+|---|---|---|
+| Assistant generation and native lifecycle | Completed for the exercised path | Shared cancellation owns the provider job, marks partial/empty replies retryable, exposes a visible iOS Stop control, and clears assistant/dictation store scopes on deinit. Focused `AssistantViewModelTest` and iOS simulator smoke passed. `StoreAwait` race/timeout audit remains open. |
+| Dictation insertion resilience | Completed for the exercised path | Patient lookup exceptions are converted to per-record failures, so one malformed/unavailable patient no longer aborts the batch. Focused `InsertSuggestionsUseCaseTest` passed. Full capture/permission/device matrix remains open. |
+| Generic sync cursor and retry semantics | Completed deterministically | Metadata advances from the server watermark, accepted rows retain server verdict timestamps, and rejected/deferred rows pin the next cursor before their retry timestamp. `SyncEngineTest` passed. Live API/account behavior remains unverified. |
+| CloudKit native bridge contract | Completed deterministically | Imported envelopes now serialize record bodies as JSON strings, preserve explicit nullable parents for unlinking, and normalize `NSNull` without inventing empty strings. `CloudKitExportCursorTest` and the iOS host build passed. Live entitlements/callback behavior remains open. |
+| TD-14 export completeness | Completed for structured reproductive/ultrasound fields | CSV/PDF row builders now include the previously omitted reproductive exam/breeding fields and ultrasound ovary/uterine fields; a focused CSV fixture covers the wire rows. Portable media policy remains separate. |
+| TD-27 iOS UI-test isolation | Partially reduced; isolation remains open | The rebuilt app installed/launched on `Animally-26`; patient-list and assistant screenshots were captured, and the named-device `AnimallyUITests/testLaunchShowsPatientList` passed. The simulator still contained persisted `UITest…` patients, proving the suite lacks reset/seed isolation. |
+| TD-21 / TD-29 / TD-35 | Deferred or partial by policy | Restore committed-with-recovery outcomes, migration upgrade fixtures, portable media/raw snapshots, and assistant/dictation backup privacy still require explicit contracts rather than speculative code. |
+| TD-28 / TD-30 / TD-31 / TD-32 / TD-34 | Deferred or partial | No new CI aggregate gate or broad architecture extraction was added. Record parity is improved for sync/export/bridge slices, but capability-matrix, descriptor-consolidation, and documentation-provenance work remain. |
+
+### Verification completed — 2026-09-07
+
+- Full Gradle matrix passed: `:shared:testAndroidHostTest`, `:shared:desktopTest`, `:shared:koverVerify`, `:shared:ktlintCheck`, `:shared:detekt`, `:androidApp:lintDebug`, and `:androidApp:assembleDebug`.
+- Native shared gate passed: `:shared:iosSimulatorArm64Test`, `:shared:compileKotlinIosSimulatorArm64`, and `:shared:compileTestKotlinIosSimulatorArm64`.
+- Focused regression gates passed for assistant/dictation, sync/CloudKit, and CSV export slices.
+- `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO -derivedDataPath /private/tmp/animally-xcodebuild-final-2 build` passed with `** BUILD SUCCEEDED **`. Xcode emitted only the existing simulator-deployment warning and skipped AppIntents metadata because no AppIntents dependency exists.
+- Script contracts passed: shell syntax checks, query-ownership check plus positive/negative fixtures, `scripts/sim-e2e.sh help`, and `git diff --check`.
+- Simulator smoke passed on `Animally-26` (`20666568-4427-4300-86D9-F62127F4153A`): install, launch, patient-list render, assistant navigation, suggestion submission, visible Stop control during generation, and return to idle after the answer.
+- The focused named-device XCTest passed one test with zero failures. The direct accessibility-tree helper returned an empty tree on this Xcode/runtime combination, so screenshot evidence is the UI evidence for the manual flow.
+
+## Historical execution record — 2026-09-05
 
 The implementation pass reduced the highest-risk local and deterministic platform debt without adding production dependencies or changing the product's unresolved cloud/privacy policy. The following status table supersedes the original “planned disposition” column in the baseline map.
 

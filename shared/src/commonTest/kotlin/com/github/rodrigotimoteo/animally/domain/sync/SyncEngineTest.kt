@@ -280,6 +280,13 @@ class SyncEngineTest {
             assertEquals("srv-Owner-$ownerId", ownerServerIdOf(ownerId))
             assertEquals("srv-Patient-$patientId", patientServerIdOf(patientId))
             assertEquals("srv-Consultation-$consultationId", consultationServerIdOf(consultationId))
+            assertEquals(
+                Instant.fromEpochMilliseconds(100),
+                database.ownerQueries
+                    .selectById(ownerId)
+                    .executeAsOne()
+                    .updatedAt,
+            )
         }
 
     @Test
@@ -547,6 +554,40 @@ class SyncEngineTest {
             assertEquals(1, api.storedRecords().size)
         }
 
+    @Test
+    fun `when server watermark is newer then metadata uses server cursor`() =
+        runTest {
+            api = InMemorySyncApi { Instant.fromEpochMilliseconds(500) }
+            sut = SyncEngineImpl(api, metadataRepository, changeTracker, registry, database, searchRepository)
+            seedOwner("Alice", Instant.fromEpochMilliseconds(100))
+
+            val result = sut.sync()
+
+            assertTrue(result.success)
+            assertEquals(Instant.fromEpochMilliseconds(500), metadataRepository.getOrCreateLastSyncAt(""))
+        }
+
+    @Test
+    fun `when a row is rejected then metadata stays before its retry timestamp`() =
+        runTest {
+            val engine =
+                SyncEngineImpl(
+                    RejectingSyncApi(),
+                    metadataRepository,
+                    changeTracker,
+                    registry,
+                    database,
+                    searchRepository,
+                )
+            seedOwner("Alice", Instant.fromEpochMilliseconds(100))
+
+            val result = engine.sync()
+
+            assertTrue(result.success)
+            assertEquals(1, result.rejectedCount)
+            assertEquals(Instant.fromEpochMilliseconds(99), metadataRepository.getOrCreateLastSyncAt(""))
+        }
+
     private fun ownerServerIdOf(id: Long): String? =
         database.ownerQueries
             .selectById(id)
@@ -575,5 +616,19 @@ class SyncEngineTest {
         override suspend fun pull(since: Instant): SyncPullResponse = throw CancellationException("cancelled")
 
         override suspend fun push(request: SyncPushRequest): SyncPushResponse = throw CancellationException("cancelled")
+    }
+
+    private class RejectingSyncApi : SyncApi {
+        override suspend fun pull(since: Instant): SyncPullResponse = SyncPullResponse(emptyList(), Instant.fromEpochMilliseconds(500))
+
+        override suspend fun push(request: SyncPushRequest): SyncPushResponse =
+            SyncPushResponse(
+                accepted = emptyList(),
+                rejected =
+                    request.records.map { record ->
+                        SyncRejected(record.type, requireNotNull(record.clientId), "retry")
+                    },
+                serverTimestamp = Instant.fromEpochMilliseconds(500),
+            )
     }
 }

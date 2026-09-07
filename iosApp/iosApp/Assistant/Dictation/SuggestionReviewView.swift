@@ -80,6 +80,7 @@ final class DictationReviewViewModel: ObservableObject {
 
     deinit {
         cancellable?.cancel()
+        store.clear()
     }
 }
 
